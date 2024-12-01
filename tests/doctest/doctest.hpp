@@ -382,15 +382,15 @@ DOCTEST_MSVC_SUPPRESS_WARNING(4623) // default constructor was implicitly define
 #endif // DOCTEST_MSVC
 #endif // DOCTEST_NOEXCEPT
 
-#ifndef DOCTEST_CONSTEXPR
+#ifndef DOCTEST_const
 #if DOCTEST_MSVC && (DOCTEST_MSVC < DOCTEST_COMPILER(19, 0, 0))
-#define DOCTEST_CONSTEXPR const
-#define DOCTEST_CONSTEXPR_FUNC inline
+#define DOCTEST_const const
+#define DOCTEST_const_FUNC inline
 #else // DOCTEST_MSVC
-#define DOCTEST_CONSTEXPR constexpr
-#define DOCTEST_CONSTEXPR_FUNC constexpr
+#define DOCTEST_const const
+#define DOCTEST_const_FUNC const
 #endif // DOCTEST_MSVC
-#endif // DOCTEST_CONSTEXPR
+#endif // DOCTEST_const
 
 #ifndef DOCTEST_NO_SANITIZE_INTEGER
 #if DOCTEST_CLANG >= DOCTEST_COMPILER(3, 7, 0)
@@ -444,7 +444,7 @@ DOCTEST_MSVC_SUPPRESS_WARNING(4623) // default constructor was implicitly define
 #endif // DOCTEST_PLATFORM
 
 namespace doctest { namespace detail {
-    static DOCTEST_CONSTEXPR int consume(const int*, int) noexcept { return 0; }
+    static DOCTEST_const int consume(const int*, int) noexcept { return 0; }
 }}
 
 #define DOCTEST_GLOBAL_NO_WARNINGS(var, ...)                                                         \
@@ -590,8 +590,8 @@ public:
     using size_type = DOCTEST_CONFIG_STRING_SIZE_TYPE;
 
 private:
-    static DOCTEST_CONSTEXPR size_type len  = 24;      //!OCLINT avoid private static members
-    static DOCTEST_CONSTEXPR size_type last = len - 1; //!OCLINT avoid private static members
+    static DOCTEST_const size_type len  = 24;      //!OCLINT avoid private static members
+    static DOCTEST_const size_type last = len - 1; //!OCLINT avoid private static members
 
     struct view // len should be more than sizeof(view) - because of the final byte for flags
     {
@@ -616,7 +616,7 @@ private:
     void copy(const String& other);
 
 public:
-    static DOCTEST_CONSTEXPR size_type npos = static_cast<size_type>(-1);
+    static DOCTEST_const size_type npos = static_cast<size_type>(-1);
 
     String() noexcept;
     ~String();
@@ -949,8 +949,8 @@ namespace detail {
         template <typename T>
         struct enable_if<true, T> { using type = T; };
 
-        struct true_type { static DOCTEST_CONSTEXPR bool value = true; };
-        struct false_type { static DOCTEST_CONSTEXPR bool value = false; };
+        struct true_type { static DOCTEST_const bool value = true; };
+        struct false_type { static DOCTEST_const bool value = false; };
 
         template <typename T> struct remove_reference { using type = T; };
         template <typename T> struct remove_reference<T&> { using type = T; };
@@ -963,7 +963,7 @@ namespace detail {
         template <typename T> struct remove_const<const T> { using type = T; };
 
         // Compiler intrinsics
-        template <typename T> struct is_enum { static DOCTEST_CONSTEXPR bool value = __is_enum(T); };
+        template <typename T> struct is_enum { static DOCTEST_const bool value = __is_enum(T); };
         template <typename T> struct underlying_type { using type = __underlying_type(T); };
 
         template <typename T> struct is_pointer : false_type { };
@@ -980,12 +980,12 @@ namespace detail {
     T&& declval();
 
     template <class T>
-    DOCTEST_CONSTEXPR_FUNC T&& forward(typename types::remove_reference<T>::type& t) DOCTEST_NOEXCEPT {
+    DOCTEST_const_FUNC T&& forward(typename types::remove_reference<T>::type& t) DOCTEST_NOEXCEPT {
         return static_cast<T&&>(t);
     }
 
     template <class T>
-    DOCTEST_CONSTEXPR_FUNC T&& forward(typename types::remove_reference<T>::type&& t) DOCTEST_NOEXCEPT {
+    DOCTEST_const_FUNC T&& forward(typename types::remove_reference<T>::type&& t) DOCTEST_NOEXCEPT {
         return static_cast<T&&>(t);
     }
 
@@ -1001,7 +1001,7 @@ namespace detail {
     struct has_global_insertion_operator<T, decltype(::operator<<(declval<std::ostream&>(), declval<const T&>()), void())> : types::true_type { };
 
     template <typename T, typename = void>
-    struct has_insertion_operator { static DOCTEST_CONSTEXPR bool value = has_global_insertion_operator<T>::value; };
+    struct has_insertion_operator { static DOCTEST_const bool value = has_global_insertion_operator<T>::value; };
 
     template <typename T, bool global>
     struct insert_hack;
@@ -1028,7 +1028,7 @@ namespace detail {
 
     template <typename T>
     struct should_stringify_as_underlying_type {
-        static DOCTEST_CONSTEXPR bool value = detail::types::is_enum<T>::value && !doctest::detail::has_insertion_operator<T>::value;
+        static DOCTEST_const bool value = detail::types::is_enum<T>::value && !doctest::detail::has_insertion_operator<T>::value;
     };
 
     DOCTEST_INTERFACE std::ostream* tlssPush();
@@ -1313,9 +1313,9 @@ namespace detail {
     template<class T, unsigned N>   struct decay_array<T[N]> { using type = T*; };
     template<class T>               struct decay_array<T[]>  { using type = T*; };
 
-    template<class T>   struct not_char_pointer              { static DOCTEST_CONSTEXPR int value = 1; };
-    template<>          struct not_char_pointer<char*>       { static DOCTEST_CONSTEXPR int value = 0; };
-    template<>          struct not_char_pointer<const char*> { static DOCTEST_CONSTEXPR int value = 0; };
+    template<class T>   struct not_char_pointer              { static DOCTEST_const int value = 1; };
+    template<>          struct not_char_pointer<char*>       { static DOCTEST_const int value = 0; };
+    template<>          struct not_char_pointer<const char*> { static DOCTEST_const int value = 0; };
 
     template<class T> struct can_use_op : public not_char_pointer<typename decay_array<T>::type> {};
 #endif // DOCTEST_CONFIG_TREAT_CHAR_STAR_AS_STRING

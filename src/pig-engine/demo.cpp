@@ -1,5 +1,5 @@
-#include "include/chess.hpp"
-#include "evaluation_utils.hpp"
+#include "../../include/chess.hpp"
+#include "../../include/evaluation_utils.hpp"
 #include <fstream>
 #include <iostream>
 #include <map>
@@ -8,11 +8,12 @@
 #include <vector>
 #include <algorithm>
 
-
 using namespace chess;
 
 long long positionCount = 0;
-const long long MAX_POSITIONS = 10000000;
+const int INF = 100000;
+const int quiescenceDepth = 8;
+const int normalDepth = 6;
 
 // Transposition table type: maps Zobrist hash to a tuple (evaluation, depth)
 std::map<std::uint64_t, std::tuple<int, int>> transpositionTable;
@@ -23,7 +24,7 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
     std::vector<std::pair<Move, int>> moveCandidates;
 
     // MVV-LVA values for each piece type
-    constexpr int pieceValues[] = {
+    const int pieceValues[] = {
         0,    // No piece
         100,  // Pawn
         320,  // Knight
@@ -50,7 +51,6 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
             }
             board.unmakeMove(move);
         }
-
         moveCandidates.push_back({move, priority});
     }
 
@@ -62,7 +62,7 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
     return moveCandidates;
 }
 
-int quiescence(chess::Board& board, int depth, int alpha, int beta, bool maximizingPlayer) {
+int quiescence(chess::Board& board, int depth, int alpha, int beta, bool whiteTurn) {
     positionCount++;
 
     // Safeguard: terminate if the depth limit is reached
@@ -73,7 +73,7 @@ int quiescence(chess::Board& board, int depth, int alpha, int beta, bool maximiz
     // Stand-pat evaluation: Evaluate the static position
     int standPat = evaluate(board);
 
-    if (maximizingPlayer) {
+    if (whiteTurn) {
         // Fail-hard beta cutoff
         if (standPat >= beta) {
             return beta;
@@ -99,23 +99,26 @@ int quiescence(chess::Board& board, int depth, int alpha, int beta, bool maximiz
 
     // Evaluate each capture move
     for (const auto& move : moves) {
-        if (!board.isCapture(move)) {
+        bool isCapture = board.isCapture(move), inCheck = board.inCheck();
+        board.makeMove(move);
+        board.unmakeMove(move);
+
+        if (!isCapture && !inCheck) {
             continue;
         }
 
-        board.makeMove(move);
         int score;
-        if (maximizingPlayer) {
+        board.makeMove(move);
+        if (whiteTurn) {
             // Maximizing player searches for the highest score
             score = quiescence(board, depth - 1, alpha, beta, false);
         } else {
             // Minimizing player searches for the lowest score
             score = quiescence(board, depth - 1, alpha, beta, true);
         }
-
         board.unmakeMove(move);
 
-        if (maximizingPlayer) {
+        if (whiteTurn) {
             // Beta cutoff for maximizing player
             if (score >= beta) {
                 return beta;
@@ -137,9 +140,8 @@ int quiescence(chess::Board& board, int depth, int alpha, int beta, bool maximiz
     }
 
     // Return alpha for maximizing player or beta for minimizing player
-    return maximizingPlayer ? alpha : beta;
+    return whiteTurn ? alpha : beta;
 }
-
 
 int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTurn) {
     positionCount++;
@@ -149,21 +151,20 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
     if (gameOverResult.first != GameResultReason::NONE) {
         // If the game is over, return an appropriate evaluation
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
-            return whiteTurn ? -100000 : 100000; // High positive/negative value based on player
+            return whiteTurn ? -INF : INF; // High positive/negative value based on player
         }
         return 0; // For stalemates or draws, return 0
     }
 
     // Base case: if depth is zero, evaluate the position
     if (depth == 0) {
-        //return evaluate(board);
-        return quiescence(board, 6, alpha, beta, whiteTurn);
+        return quiescence(board, quiescenceDepth, alpha, beta, whiteTurn);
     }
 
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
 
     if (whiteTurn) {
-        int maxEval = -100000; // Large negative value
+        int maxEval = -INF; // Large negative value
         for (int i = 0; i < moveCandidates.size(); i++) {
             const auto move = moveCandidates[i].first;
 
@@ -177,11 +178,11 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
             if (beta <= alpha) break; // Beta cutoff
         }
         return maxEval;
+
     } else {
-        int minEval = 100000; // Large positive value
+        int minEval = INF; // Large positive value
         for (int i = 0; i < moveCandidates.size(); i++) {
             const auto move = moveCandidates[i].first;
-            //zobristHash = board.zobrist();
 
             board.makeMove(move); // Apply the move
             int eval = alphaBeta(board, depth - 1, alpha, beta, true);
@@ -191,7 +192,6 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
             beta = std::min(beta, eval);
 
             if (beta <= alpha) break; // Alpha cutoff
-
         }
         return minEval;
     }
@@ -227,6 +227,7 @@ int main() {
     std::vector<std::string> pgnMoves; // Store moves in PGN format
     int depth = 6;
     int moveCount = 40;
+    
 
     for (int i = 0; i < moveCount; i++) {
         Movelist moves;
@@ -243,18 +244,17 @@ int main() {
         }
 
         bool whiteTurn = (board.sideToMove() == Color::WHITE);
-        int bestEval = whiteTurn ? -100000 : 100000;
+        int bestEval = whiteTurn ? -INF : INF;
         
         Move bestMove = Move::NO_MOVE;
         
         std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
         std::vector<std::pair<Move, int>> moveCandidates2 = generatePrioritizedMoves(board);
 
-
         for (int j = 0; j < moveCandidates.size(); j++) {
             const auto move = moveCandidates[j].first;
             board.makeMove(move);
-            int eval = alphaBeta(board, depth - 1, -100000, 100000, !whiteTurn);
+            int eval = alphaBeta(board, normalDepth - 1, -INF, INF, !whiteTurn);
             board.unmakeMove(move);
 
             if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
@@ -267,10 +267,6 @@ int main() {
         std::cout << "Position calculated: " << positionCount << std::endl;
 
         positionCount = 0;
-        // Clear the transposition table if it exceeds a certain size
-        // if (transpositionTable.size() > MAX_POSITIONS) {
-        //     transpositionTable.clear();
-        // }
 
         board.makeMove(bestMove);
         std::string moveStr = uci::moveToUci(bestMove);

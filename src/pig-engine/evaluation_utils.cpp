@@ -1,7 +1,17 @@
-#include "include/chess.hpp"
-#include "evaluation_utils.hpp"
+#include "../../include/chess.hpp"
+#include "../../include/evaluation_utils.hpp"
 
 using namespace chess;
+
+// Constants for the evaluation function
+const int PAWN_VALUE = 100;
+const int KNIGHT_VALUE = 320;
+const int BISHOP_VALUE = 330;
+const int ROOK_VALUE = 500;
+const int QUEEN_VALUE = 900;
+const int KING_VALUE = 100;
+const int CASTLE_VALUE = 100;
+const int END_PIECE_COUNT = 14;
 
 // Function to check if the given color has lost castling rights
 bool hasLostCastlingRights(const chess::Board& board, chess::Color color, chess::Board::CastlingRights::Side side) {
@@ -9,7 +19,7 @@ bool hasLostCastlingRights(const chess::Board& board, chess::Color color, chess:
 }
 
 // Knight piece-square table
-constexpr int KNIGHT_PENALTY_TABLE[64] = {
+const int KNIGHT_PENALTY_TABLE[64] = {
     -50,-40,-30,-30,-30,-30,-40,-50,
     -40,-20,  0,  0,  0,  0,-20,-40,
     -30,  0, 10, 15, 15, 10,  0,-30,
@@ -39,7 +49,7 @@ int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
 }
 
 // Bishop piece-square table
-constexpr int BISHOP_PENALTY_TABLE_WHITE[64] = {
+const int BISHOP_PENALTY_TABLE_WHITE[64] = {
     -20, -10, -10, -10, -10, -10, -10, -20,
     -10,   5,   0,   0,   0,   0,   5, -10,
     -10,  10,  10,  10,  10,  10,  10, -10,
@@ -50,7 +60,7 @@ constexpr int BISHOP_PENALTY_TABLE_WHITE[64] = {
     -20, -10, -10, -10, -10, -10, -10, -20,
 };
 
-constexpr int BISHOP_PENALTY_TABLE_BLACK[64] = {
+const int BISHOP_PENALTY_TABLE_BLACK[64] = {
     -20,-10,-10,-10,-10,-10,-10,-20,
     -10,  0,  0,  0,  0,  0,  0,-10,
     -10,  0,  5, 10, 10,  5,  0,-10,
@@ -65,7 +75,6 @@ constexpr int BISHOP_PENALTY_TABLE_BLACK[64] = {
 // Compute the value of the bishops on the board
 int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
-    Bitboard START;
     int value = 0;
 
     while (!bishops.empty()) {
@@ -85,7 +94,7 @@ int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
 }
 
 /// Piece-square tables for pawns 
-constexpr int PAWN_PENALTY_TABLE_WHITE[64] = {
+const int PAWN_PENALTY_TABLE_WHITE[64] = {
      0,  0,  0,  0,  0,  0,  0,  0,
      5, 10, 10,-20,-20, 10, 10,  5,
      5, -5,-10,  0,  0,-10, -5,  5,
@@ -96,7 +105,7 @@ constexpr int PAWN_PENALTY_TABLE_WHITE[64] = {
      0,  0,  0,  0,  0,  0,  0,  0
 };
 
-constexpr int PAWN_PENALTY_TABLE_BLACK[64] = {
+const int PAWN_PENALTY_TABLE_BLACK[64] = {
      0,  0,  0,  0,  0,  0,  0,  0,
     50, 50, 50, 50, 50, 50, 50, 50,
     10, 10, 20, 30, 30, 20, 10, 10,
@@ -127,7 +136,7 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
 }
 
 // Rook piece-square table
-constexpr int ROOK_PENALTY_TABLE_WHITE[64] = {
+const int ROOK_PENALTY_TABLE_WHITE[64] = {
        0,    0,    0,    5,    5,    0,    0,    0,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
@@ -138,7 +147,7 @@ constexpr int ROOK_PENALTY_TABLE_WHITE[64] = {
        0,    0,    0,    0,    0,    0,    0,    0,
 };
 
-constexpr int ROOK_PENALTY_TABLE_BLACK[64] = {
+const int ROOK_PENALTY_TABLE_BLACK[64] = {
        0,    0,    0,    0,    0,    0,    0,    0,
        5,   10,   10,   10,   10,   10,   10,    5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
@@ -148,27 +157,92 @@ constexpr int ROOK_PENALTY_TABLE_BLACK[64] = {
       -5,    0,    0,    0,    0,    0,    0,   -5,
        0,    0,    0,    5,    5,    0,    0,    0,
 };
+
+
+Bitboard generateFileMask(const File& file) {
+    constexpr Bitboard fileMasks[] = {
+        0x0101010101010101ULL, // File A
+        0x0202020202020202ULL, // File B
+        0x0404040404040404ULL, // File C
+        0x0808080808080808ULL, // File D
+        0x1010101010101010ULL, // File E
+        0x2020202020202020ULL, // File F
+        0x4040404040404040ULL, // File G
+        0x8080808080808080ULL  // File H
+    };
+
+    // Convert File to index (0 = A, ..., 7 = H)
+    auto index = static_cast<int>(file.internal());
+
+    // Return the corresponding file mask
+    if (index >= 0 && index < 8) {
+        return Bitboard(fileMasks[index]);
+    }
+
+    // Return an empty bitboard for invalid files
+    return Bitboard(0ULL);
+}
+
+const int ROOK_OPEN_FILE_BONUS = 50;
+const int ROOK_SEMI_OPEN_FILE_BONUS = 25;
+
+bool isOpenFile(const chess::Board& board, const File& file) {
+    // Get bitboards for white and black pawns
+    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
+    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
+
+    // Generate the mask for the given file
+    Bitboard mask = generateFileMask(file);
+
+    // A file is open if it has no pawns of either color
+    return !(whitePawns & mask) && !(blackPawns & mask);
+}
+
+bool isSemiOpenFile(const chess::Board& board, const File& file, Color color) {
+    // Get the bitboard for the pawns of the given color
+    Bitboard ownPawns = board.pieces(PieceType::PAWN, color);
+
+    // Generate the mask for the given file
+    Bitboard mask = generateFileMask(file);
+
+    // A file is semi-open if it has no pawns of the given color
+    return !(ownPawns & mask);
+}
 
 // Compute the total value of the rooks on the board
 int rookValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard rooks = board.pieces(PieceType::ROOK, color);
     int value = 0;
+
     // Traverse each rook
     while (!rooks.empty()) {
         int sqIndex = rooks.lsb(); // Get the index of the least significant bit and remove it
-        value += baseValue; // Add the base value
+        Square sq = Square(sqIndex); // Create a Square object
+        File file = sq.file();       // Get the file of the rook
+
+        value += baseValue; // Add the base value of the rook
+
+        // Add piece-square table bonus
         if (color == Color::WHITE) {
             value += ROOK_PENALTY_TABLE_WHITE[sqIndex];
         } else {
             value += ROOK_PENALTY_TABLE_BLACK[sqIndex];
         }
-        rooks.clear(sqIndex); // Clear the processed rook
+
+        // Check for open and semi-open files
+        if (isOpenFile(board, file)) {
+            value += ROOK_OPEN_FILE_BONUS; // Add open file bonus
+        } else if (isSemiOpenFile(board, file, color)) {
+            value += ROOK_SEMI_OPEN_FILE_BONUS; // Add semi-open file bonus
+        }
+
+        rooks.clear(sqIndex); // Remove the processed rook
     }
     return value;
 }
 
 // Queen piece-square table
-constexpr int QUEEN_PENALTY_WHITE[64] = {
+const int QUEEN_PENALTY_WHITE[64] = {
      -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
      -10,    0,    0,    0,    0,    5,    0,  -10,
      -10,    0,    5,    5,    5,    5,    5,  -10,
@@ -179,7 +253,7 @@ constexpr int QUEEN_PENALTY_WHITE[64] = {
      -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
 };
 
-constexpr int QUEEN_PENALTY_BLACK[64] = {
+const int QUEEN_PENALTY_BLACK[64] = {
      -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
      -10,    0,    0,    0,    0,    0,    0,  -10,
      -10,    0,    5,    5,    5,    5,    0,  -10,
@@ -208,7 +282,7 @@ int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
 }
 
 // King piece-square table
-constexpr int KING_PENALTY_TABLE_WHITE_MID[64] = {
+const int KING_PENALTY_TABLE_WHITE_MID[64] = {
       20,   30,  100,    0,    0,   10,  100,   20,
       20,   20,    0,    0,    0,    0,   20,   20,
      -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
@@ -219,7 +293,7 @@ constexpr int KING_PENALTY_TABLE_WHITE_MID[64] = {
      -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
 };
 
-constexpr int KING_PENALTY_TABLE_BLACK_MID[64] = {
+const int KING_PENALTY_TABLE_BLACK_MID[64] = {
      -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
      -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
      -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
@@ -230,7 +304,7 @@ constexpr int KING_PENALTY_TABLE_BLACK_MID[64] = {
       20,   30,  100,    0,    0,   10,  100,   20,
 };
 
-constexpr int KING_PENALTY_TABLE_WHITE_END[64] = {
+const int KING_PENALTY_TABLE_WHITE_END[64] = {
      -50,  -30,  -30,  -30,  -30,  -30,  -30,  -50,
      -30,  -30,    0,    0,    0,    0,  -30,  -30,
      -30,  -10,   20,   30,   30,   20,  -10,  -30,
@@ -241,7 +315,7 @@ constexpr int KING_PENALTY_TABLE_WHITE_END[64] = {
      -50,  -40,  -30,  -20,  -20,  -30,  -40,  -50,
 };
 
-constexpr int KING_PENALTY_TABLE_BLACK_END[64] = {
+const int KING_PENALTY_TABLE_BLACK_END[64] = {
      -50,  -40,  -30,  -20,  -20,  -30,  -40,  -50,
      -30,  -20,  -10,    0,    0,  -10,  -20,  -30,
      -30,  -10,   20,   30,   30,   20,  -10,  -30,
@@ -251,17 +325,14 @@ constexpr int KING_PENALTY_TABLE_BLACK_END[64] = {
      -30,  -30,    0,    0,    0,    0,  -30,  -30,
      -50,  -30,  -30,  -30,  -30,  -30,  -30,  -50,
 };
-
-const int endGamePieceCount = 14;
 
 // Compute the value of the kings on the board
 int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard pieces = board.pieces(PieceType::KING, color);
     Bitboard CASTLE_SQUARES;
-
     
     int pieceCount = countPieces(board);
-    bool isEndGame = (pieceCount <= endGamePieceCount);
+    bool isEndGame = (pieceCount <= END_PIECE_COUNT);
 
     int value = baseValue;
     int sqIndex = pieces.lsb();
@@ -289,7 +360,7 @@ int countPieces(const chess::Board& board) {
     int pieceCount = 0;
 
     // Traverse all piece types and colors
-    constexpr PieceType allPieceTypes[] = {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, 
+    const PieceType allPieceTypes[] = {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, 
                                            PieceType::ROOK, PieceType::QUEEN, PieceType::KING};
 
     for (const auto& type : allPieceTypes) {
@@ -312,13 +383,6 @@ int countLegalMoves(const Board& board) {
     return moves.size();
 }
 
-// Constants for the evaluation function
-constexpr int PAWN_VALUE = 100;
-constexpr int KNIGHT_VALUE = 320;
-constexpr int BISHOP_VALUE = 330;
-constexpr int ROOK_VALUE = 500;
-constexpr int QUEEN_VALUE = 900;
-constexpr int KING_VALUE = 100;
 
 // Function to evaluate the board position
 int evaluate(const chess::Board& board) {
@@ -327,7 +391,7 @@ int evaluate(const chess::Board& board) {
     int blackScore = 0;
 
     // Traverse each piece type
-    constexpr PieceType allPieceTypes[] = {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, 
+    const PieceType allPieceTypes[] = {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, 
                                            PieceType::ROOK, PieceType::QUEEN, PieceType::KING};
 
     for (const auto& type : allPieceTypes) {
@@ -374,25 +438,6 @@ int evaluate(const chess::Board& board) {
             hasLostCastlingRights(board, Color::BLACK, Board::CastlingRights::Side::QUEEN_SIDE)) {
         blackScore -= 100;
     }
-
-    // int numWhiteLegalMoves, numBlackLegalMoves;
-    // // check which turn it is
-    // if (board.sideToMove() == Color::WHITE) {
-    //     numWhiteLegalMoves = countLegalMoves(board);
-    //     // make a null move to get the number of legal moves for the opponent
-    //     chess::Board tempBoard = board;
-    //     tempBoard.makeNullMove();
-    //     numBlackLegalMoves = countLegalMoves(tempBoard);
-    // } else {
-    //     numBlackLegalMoves = countLegalMoves(board);
-    //     // make a null move to get the number of legal moves for the opponent
-    //     chess::Board tempBoard = board;
-    //     tempBoard.makeNullMove();
-    //     numWhiteLegalMoves = countLegalMoves(tempBoard);
-    // }
-
-    // whiteScore += numWhiteLegalMoves / 20;
-    // blackScore += numBlackLegalMoves / 20;
 
     return whiteScore - blackScore;
 }
