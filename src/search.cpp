@@ -15,7 +15,7 @@ using namespace chess;
 long long positionCount = 0;
 const int INF = 100000;
 const int quiescenceDepth = 8;
-const int normalDepth = 6;
+const int normalDepth = 7;
 
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
