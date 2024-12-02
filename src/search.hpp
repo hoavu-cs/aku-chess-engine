@@ -2,11 +2,6 @@
 
 #include "chess.hpp"
 
-// Constants
-extern const int INF;
-extern const int quiescenceDepth;
-extern const int normalDepth;
-
 // Function Declarations
 
 /**
