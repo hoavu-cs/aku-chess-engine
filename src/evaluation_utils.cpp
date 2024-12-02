@@ -94,7 +94,7 @@ int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
 }
 
 /// Piece-square tables for pawns 
-const int PAWN_PENALTY_TABLE_WHITE[64] = {
+const int PAWN_PENALTY_TABLE_WHITE_MID[64] = {
      0,  0,  0,  0,  0,  0,  0,  0,
      5, 10, 10,-20,-20, 10, 10,  5,
      5, -5,-10,  0,  0,-10, -5,  5,
@@ -105,7 +105,7 @@ const int PAWN_PENALTY_TABLE_WHITE[64] = {
      0,  0,  0,  0,  0,  0,  0,  0
 };
 
-const int PAWN_PENALTY_TABLE_BLACK[64] = {
+const int PAWN_PENALTY_TABLE_BLACK_MID[64] = {
      0,  0,  0,  0,  0,  0,  0,  0,
     50, 50, 50, 50, 50, 50, 50, 50,
     10, 10, 20, 30, 30, 20, 10, 10,
@@ -115,6 +115,30 @@ const int PAWN_PENALTY_TABLE_BLACK[64] = {
      5, 10, 10,-20,-20, 10, 10,  5,
      0,  0,  0,  0,  0,  0,  0,  0
 };
+
+const int PAWN_PENALTY_TABLE_WHITE_END[64] = {
+     0,    0,    0,    0,    0,    0,    0,    0,  // 1st rank
+    -20,  -30,  -10,  -40,  -40,  -10,  -30,  -20, // 2nd rank (stronger penalty for unpushed pawns)
+      0,    0,   20,   50,   50,   20,    0,    0, // 3rd rank
+      0,    5,   50,  100,  100,   50,    5,    0, // 4th rank (strong bonuses for central pawns)
+     10,   10,   70,  150,  150,   70,   10,   10, // 5th rank
+     20,   50,  100,  200,  200,  100,   50,   20, // 6th rank
+     80,   80,  150,  300,  300,  150,   80,   80, // 7th rank
+      0,    0,    0,    0,    0,    0,    0,    0  // 8th rank
+};
+
+const int PAWN_PENALTY_TABLE_BLACK_END[64] = {
+     0,    0,    0,    0,    0,    0,    0,    0,  // 8th rank
+     80,   80,  150,  300,  300,  150,   80,   80, // 7th rank
+     20,   50,  100,  200,  200,  100,   50,   20, // 6th rank
+     10,   10,   70,  150,  150,   70,   10,   10, // 5th rank
+      0,    5,   50,  100,  100,   50,    5,    0, // 4th rank (strong bonuses for central pawns)
+      0,    0,   20,   50,   50,   20,    0,    0, // 3rd rank
+    -20,  -30,  -10,  -40,  -40,  -10,  -30,  -20, // 2nd rank (stronger penalty for unpushed pawns)
+      0,    0,    0,    0,    0,    0,    0,    0  // 1st rank
+};
+
+
 
 // Compute the value of the pawns on the board
 int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
@@ -122,16 +146,33 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard pawns = board.pieces(PieceType::PAWN, color);
     int value = 0;
     // Traverse each pawn
+    const int* penaltyTable;
+
+    if (countPieces(board) >= END_PIECE_COUNT) {
+        if (color == Color::WHITE) {
+            penaltyTable = PAWN_PENALTY_TABLE_WHITE_MID;
+        } else {
+            penaltyTable = PAWN_PENALTY_TABLE_BLACK_MID;
+        }
+    } else {
+        if (color == Color::WHITE) {
+            penaltyTable = PAWN_PENALTY_TABLE_WHITE_END;
+        } else {
+            penaltyTable = PAWN_PENALTY_TABLE_BLACK_END;
+        }
+    }
+
     while (!pawns.empty()) {
         int sqIndex = pawns.lsb(); // Get the index of the least significant bit and remove it
         value += baseValue; // Add the base value
         if (color == Color::WHITE) {
-            value += PAWN_PENALTY_TABLE_WHITE[sqIndex];
+            value += penaltyTable[sqIndex];
         } else {
-            value += PAWN_PENALTY_TABLE_BLACK[sqIndex];
+            value += penaltyTable[sqIndex];
         }
         pawns.clear(sqIndex); // Clear the processed pawn
     }
+
     return value;
 }
 
