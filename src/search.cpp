@@ -247,7 +247,7 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
                 break; // Alpha cutoff
             }
         }
-        storeUpperBound(hash, minEval, depth); // Store upper bound
+        storeUpperBound(hash, minEval, depth); // Store upper bound  
         return minEval;
     }
 }
