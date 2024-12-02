@@ -41,6 +41,7 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
 /**
  * Finds the best move for the current position using alpha-beta pruning.
  * @param board The current chess board state.
+ * @param timeLimit The time limit for the search.
  * @return The best move for the current position.
  */
-chess::Move findBestMove(chess::Board& board);
+chess::Move findBestMove(chess::Board& board, int timeLimit);

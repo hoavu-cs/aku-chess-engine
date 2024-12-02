@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <chrono>
 
 using namespace chess;
 
@@ -15,6 +16,39 @@ long long positionCount = 0;
 const int INF = 100000;
 const int quiescenceDepth = 8;
 const int normalDepth = 6;
+
+std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
+std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
+
+// Transposition table for white. At a node, look up the lower bound value for the current position.
+bool probeLowerBoundTable(std::uint64_t hash, int depth, int& eval) {
+    auto it = lowerBoundTable.find(hash);
+    if (it != lowerBoundTable.end() && it->second.second >= depth) {
+        eval = it->second.first;
+        return true;
+    }
+    return false;
+}
+
+// Transposition table for black. At a node, look up the upper bound value for the current position.
+bool probeUpperBoundTable(std::uint64_t hash, int depth, int& eval) {
+    auto it = upperBoundTable.find(hash);
+    if (it != upperBoundTable.end() && it->second.second >= depth) {
+        eval = it->second.first;
+        return true;
+    }
+    return false;
+}
+
+// Store the lower bound value for the current position in the transposition table.
+void storeLowerBound(std::uint64_t hash, int eval, int depth) {
+    lowerBoundTable[hash] = {eval, depth};
+}
+
+// Store the upper bound value for the current position in the transposition table.
+void storeUpperBound(std::uint64_t hash, int eval, int depth) {
+    upperBoundTable[hash] = {eval, depth};
+}
 
 // Transposition table type: maps Zobrist hash to a tuple (evaluation, depth)
 std::map<std::uint64_t, std::tuple<int, int>> transpositionTable;
@@ -157,6 +191,20 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
         return 0; // For stalemates or draws, return 0
     }
 
+    // Probe the transposition table
+    std::uint64_t hash = board.hash();
+    int storedEval;
+
+    if (whiteTurn) {
+        if (probeLowerBoundTable(hash, depth, storedEval) && storedEval >= beta) {
+            return storedEval; // Beta cutoff from lower bound
+        }
+    } else {
+        if (probeUpperBoundTable(hash, depth, storedEval) && storedEval <= alpha) {
+            return storedEval; // Alpha cutoff from upper bound
+        }
+    }
+
     // Base case: if depth is zero, evaluate the position
     if (depth == 0) {
         return quiescence(board, quiescenceDepth, alpha, beta, whiteTurn);
@@ -176,8 +224,11 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
             maxEval = std::max(maxEval, eval);
             alpha = std::max(alpha, eval);
 
-            if (beta <= alpha) break; // Beta cutoff
+            if (beta <= alpha) {
+                break; // Beta cutoff
+            }
         }
+        storeLowerBound(hash, maxEval, depth); // Store lower bound
         return maxEval;
 
     } else {
@@ -192,14 +243,20 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
             minEval = std::min(minEval, eval);
             beta = std::min(beta, eval);
 
-            if (beta <= alpha) break; // Alpha cutoff
+            if (beta <= alpha) {
+                break; // Alpha cutoff
+            }
         }
+        storeUpperBound(hash, minEval, depth); // Store upper bound
         return minEval;
     }
 }
 
 
-Move findBestMove(Board& board) {
+Move findBestMove(Board& board, int timeLimit = 60000) {
+    using Clock = std::chrono::high_resolution_clock;
+    auto startTime = Clock::now();
+
     Movelist moves;
     movegen::legalmoves(moves, board);
 
@@ -229,6 +286,11 @@ Move findBestMove(Board& board) {
         if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
             bestEval = eval;
             bestMove = move;
+        }
+
+        auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - startTime).count();
+        if (elapsedTime > timeLimit) {
+            break;
         }
     }
 

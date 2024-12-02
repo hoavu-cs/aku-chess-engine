@@ -1,4 +1,4 @@
-#include "include/chess.hpp"
+#include "../src/chess.hpp"
 #include "evaluation_utils.hpp"
 #include <fstream>
 #include <iostream>
