@@ -81,8 +81,7 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
         } else {
             board.makeMove(move);
             if (board.inCheck()) { 
-                // Assign a lower priority for moves that give check
-                priority = 100;
+                priority = 1000;
             }
             board.unmakeMove(move);
         }
@@ -186,7 +185,11 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
     if (gameOverResult.first != GameResultReason::NONE) {
         // If the game is over, return an appropriate evaluation
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
-            return whiteTurn ? -INF : INF; // High positive/negative value based on player
+            if (whiteTurn) {
+                return -INF - board.halfMoveClock(); // Get the fastest checkmate possible
+            } else {
+                return INF + board.halfMoveClock(); 
+            }
         }
         return 0; // For stalemates or draws, return 0
     }
