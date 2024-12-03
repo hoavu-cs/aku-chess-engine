@@ -19,13 +19,22 @@ const int CASTLE_VALUE = 100;
 const int END_PIECE_COUNT = 14;
 const int DOUBLE_PAWN_PENALTY = -20;
 
+// Constants for attacking the enemy king
+const int ATTACK_KING_BONUS_QUEEN = 30;
+const int ATTACK_KING_BONUS_KNIGHT = 15;
+
+const int ATTACK_KING_BONUS_QUEEN_DIST = 4;
+const int ATTACK_KING_BONUS_KNIGHT_DIST = 4;
+
+
+
 // Function to check if the given color has lost castling rights
 bool hasLostCastlingRights(const chess::Board& board, chess::Color color, chess::Board::CastlingRights::Side side) {
     return !board.castlingRights().has(color, side);
 }
 
 // Knight piece-square table
-const int KNIGHT_PENALTY_TABLE[64] = {
+const int KNIGHT_PENALTY_TABLE_WHITE[64] = {
     -50,-40,-30,-30,-30,-30,-40,-50,
     -40,-20,  0,  0,  0,  0,-20,-40,
     -30,  0, 10, 15, 15, 10,  0,-30,
@@ -36,11 +45,31 @@ const int KNIGHT_PENALTY_TABLE[64] = {
     -50,-40,-30,-30,-30,-30,-40,-50,
 };
 
+const int KNIGHT_PENALTY_TABLE_BLACK[64] = {
+    -50,-40,-30,-30,-30,-30,-40,-50,
+    -40,-20,  0,  5,  5,  0,-20,-40,
+    -30,  5, 10, 15, 15, 10,  5,-30,
+    -30,  0, 15, 20, 20, 15,  0,-30,
+    -30,  5, 15, 20, 20, 15,  5,-30,
+    -30,  0, 10, 15, 15, 10,  0,-30,
+    -40,-20,  0,  0,  0,  0,-20,-40,
+    -50,-40,-30,-30,-30,-30,-40,-50,
+};
+
 // Compute the value of the knights on the board
 int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard knights = board.pieces(PieceType::KNIGHT, color);
-    Bitboard START;
+    Bitboard enemyKing = board.pieces(PieceType::KING, !color);
+
+    chess::Square enemyKingSQ = chess::Square(enemyKing.lsb()); // Get the square of the enemy king
     int value = 0;
+
+    const int* KNIGHT_PENALTY_TABLE;
+    if (color == Color::WHITE) {
+        KNIGHT_PENALTY_TABLE = KNIGHT_PENALTY_TABLE_WHITE;
+    } else {
+        KNIGHT_PENALTY_TABLE = KNIGHT_PENALTY_TABLE_BLACK;
+    } 
 
     while (!knights.empty()) {
         value += baseValue;
@@ -48,6 +77,15 @@ int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
         // Get the least significant bit (square index) and create a square object
         int sqIndex = knights.lsb();
         value += KNIGHT_PENALTY_TABLE[sqIndex];
+
+        // Add bonus for being close to the enemy king
+        if (!enemyKing.empty()) {
+            chess::Square knightSQ = chess::Square(sqIndex); // Create a square object for the knight
+            if (chess::Square::distance(knightSQ, enemyKingSQ) <= ATTACK_KING_BONUS_KNIGHT_DIST) {
+                value += ATTACK_KING_BONUS_KNIGHT;
+            }
+        }
+
         knights.clear(sqIndex);
     }
 
@@ -321,11 +359,15 @@ const int QUEEN_PENALTY_BLACK[64] = {
      -10,    0,    0,    0,    0,    5,    0,  -10,
      -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
 };
+
 // Compute the total value of the queens on the board
 int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard queens = board.pieces(PieceType::QUEEN, color);
+    Bitboard enemyKing = board.pieces(PieceType::KING, !color);
+
+    chess::Square enemyKingSQ = chess::Square(enemyKing.lsb()); // Get the square of the enemy king
     int value = 0;
-    // Traverse each queen
+
     while (!queens.empty()) {
         int sqIndex = queens.lsb(); // Get the index of the least significant bit and remove it
         value += baseValue; // Add the base value
@@ -334,6 +376,15 @@ int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
         } else {
             value += QUEEN_PENALTY_BLACK[sqIndex];
         }
+
+        // Add bonus for being close to the enemy king
+        if (!enemyKing.empty()) {
+            chess::Square queenSQ = chess::Square(sqIndex); // Create a square object for the queen
+            if (chess::Square::distance(queenSQ, enemyKingSQ) <= ATTACK_KING_BONUS_QUEEN_DIST) {
+                value += ATTACK_KING_BONUS_QUEEN;
+            }
+        }
+
         queens.clear(sqIndex); // Clear the processed queen
     }
     return value;
