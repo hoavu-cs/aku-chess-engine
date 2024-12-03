@@ -26,10 +26,6 @@ const int ATTACK_KING_BONUS_KNIGHT = 10;
 const int ATTACK_KING_BONUS_QUEEN_DIST = 4;
 const int ATTACK_KING_BONUS_KNIGHT_DIST = 4;
 
-const int ATTACK_KING_BONUS_PAWN = 10;
-const int ATTACK_KING_BONUS_PAWN_DIST = 4;
-
-// 
 const int KING_PAWN_SHIELD_BONUS = 10;
 
 // Function to check if the given color has lost castling rights
@@ -284,8 +280,8 @@ Bitboard generateFileMask(const File& file) {
     return Bitboard(0ULL);
 }
 
-const int ROOK_OPEN_FILE_BONUS = 50;
-const int ROOK_SEMI_OPEN_FILE_BONUS = 25;
+const int ROOK_OPEN_FILE_BONUS = 30;
+const int ROOK_SEMI_OPEN_FILE_BONUS = 15;
 
 bool isOpenFile(const chess::Board& board, const File& file) {
     // Get bitboards for white and black pawns
