@@ -33,8 +33,8 @@
 using namespace chess;
 
 // Engine Metadata
-const std::string ENGINE_NAME = "MyChessEngine";
-const std::string ENGINE_AUTHOR = "Your Name";
+const std::string ENGINE_NAME = "PIG ENGINE";
+const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 // Global Board State
 Board board;
@@ -90,8 +90,8 @@ void processGo() {
  * Handles the "uci" command and sends engine information.
  */
 void processUci() {
-    std::cout << "PIG ENGINE " << ENGINE_NAME << std::endl;
-    std::cout << "HOA T. Vu" << ENGINE_AUTHOR << std::endl;
+    std::cout << "Engine's name: " << ENGINE_NAME << std::endl;
+    std::cout << "Author:" << ENGINE_AUTHOR << std::endl;
     std::cout << "uciok" << std::endl;
 }
 

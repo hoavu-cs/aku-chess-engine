@@ -20,8 +20,8 @@ const int END_PIECE_COUNT = 14;
 const int DOUBLE_PAWN_PENALTY = -20;
 
 // Constants for attacking the enemy king
-const int ATTACK_KING_BONUS_QUEEN = 30;
-const int ATTACK_KING_BONUS_KNIGHT = 15;
+const int ATTACK_KING_BONUS_QUEEN = 20;
+const int ATTACK_KING_BONUS_KNIGHT = 10;
 
 const int ATTACK_KING_BONUS_QUEEN_DIST = 4;
 const int ATTACK_KING_BONUS_KNIGHT_DIST = 4;
