@@ -20,11 +20,17 @@ const int END_PIECE_COUNT = 14;
 const int DOUBLE_PAWN_PENALTY = -20;
 
 // Constants for attacking the enemy king
-const int ATTACK_KING_BONUS_QUEEN = 20;
+const int ATTACK_KING_BONUS_QUEEN = 30;
 const int ATTACK_KING_BONUS_KNIGHT = 10;
 
 const int ATTACK_KING_BONUS_QUEEN_DIST = 4;
 const int ATTACK_KING_BONUS_KNIGHT_DIST = 4;
+
+const int ATTACK_KING_BONUS_PAWN = 10;
+const int ATTACK_KING_BONUS_PAWN_DIST = 4;
+
+// 
+const int KING_PAWN_SHIELD_BONUS = 10;
 
 // Function to check if the given color has lost castling rights
 bool hasLostCastlingRights(const chess::Board& board, chess::Color color, chess::Board::CastlingRights::Side side) {
@@ -205,6 +211,7 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
     }
 
     int files[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
     while (!pawns.empty()) {
         int sqIndex = pawns.lsb(); // Get the index of the least significant bit and remove it
         int file = sqIndex % 8; // Get the file of the pawn
@@ -390,7 +397,7 @@ int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
 
 // King piece-square table
 const int KING_PENALTY_TABLE_WHITE_MID[64] = {
-      20,   30,  100,    0,    0,   10,  100,   20,
+      20,   75,  75,    0,    0,   10,  75,   20,
       20,   20,    0,    0,    0,    0,   20,   20,
      -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
      -20,  -30,  -30,  -40,  -40,  -30,  -30,  -20,
@@ -408,7 +415,7 @@ const int KING_PENALTY_TABLE_BLACK_MID[64] = {
      -20,  -30,  -30,  -40,  -40,  -30,  -30,  -20,
      -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
       20,   20,    0,    0,    0,    0,   20,   20,
-      20,   30,  100,    0,    0,   10,  100,   20,
+      20,   75,  75,    0,    0,   10,  75,   20,
 };
 
 const int KING_PENALTY_TABLE_WHITE_END[64] = {
@@ -435,26 +442,46 @@ const int KING_PENALTY_TABLE_BLACK_END[64] = {
 
 // Compute the value of the kings on the board
 int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
-    Bitboard pieces = board.pieces(PieceType::KING, color);
+    Bitboard king = board.pieces(PieceType::KING, color);
     Bitboard CASTLE_SQUARES;
     
     int pieceCount = countPieces(board);
     bool isEndGame = (pieceCount <= END_PIECE_COUNT);
 
     int value = baseValue;
-    int sqIndex = pieces.lsb();
+    int sqIndex = king.lsb();
 
     if (color == chess::Color::WHITE) {
         if (isEndGame) {
             value += KING_PENALTY_TABLE_WHITE_END[sqIndex];
         } else {
             value += KING_PENALTY_TABLE_WHITE_MID[sqIndex];
+            // Add bonus if there are pawns close to the king
+            Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
+            while (!whitePawns.empty()) {
+                int pawnIndex = whitePawns.lsb();
+                int manhattanDist = manhattanDistance(Square(pawnIndex), Square(sqIndex));
+                if (manhattanDist <= 2) {
+                    value += KING_PAWN_SHIELD_BONUS;
+                } 
+                whitePawns.clear(pawnIndex);
+            }
         }
     } else {
         if (isEndGame) {
             value += KING_PENALTY_TABLE_BLACK_END[sqIndex];
         } else {
             value += KING_PENALTY_TABLE_BLACK_MID[sqIndex];
+            // Add bonus if there are pawns close to the king
+            Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
+            while (!blackPawns.empty()) {
+                int pawnIndex = blackPawns.lsb();
+                int manhattanDist = manhattanDistance(Square(pawnIndex), Square(sqIndex));
+                if (manhattanDist <= 2) {
+                    value += KING_PAWN_SHIELD_BONUS;
+                } 
+                blackPawns.clear(pawnIndex);
+            }
         }
     } 
     return value;
@@ -490,6 +517,7 @@ int countLegalMoves(const Board& board) {
     return moves.size();
 }
 
+// Function to compute the Manhattan distance between two squares
 int manhattanDistance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
 }

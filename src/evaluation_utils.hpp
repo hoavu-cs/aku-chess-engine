@@ -99,6 +99,14 @@ int evaluate(const chess::Board& board);
 bool isOpenFile(const chess::Board& board, const File& file);
 
 /**
+ * Compute the Manhattan distance between two squares.
+ * @param sq1 The first square.
+ * @param sq2 The second square.
+ * @return The Manhattan distance between the two squares.
+ */
+int manhattanDistance(const Square& sq1, const Square& sq2);
+
+/**
  * Check if the specified file is semi-open (no pawns of the given color).
  * @param board The chess board.
  * @param file The file to check.

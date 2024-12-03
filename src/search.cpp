@@ -293,5 +293,8 @@ Move findBestMove(Board& board, int timeLimit = 60000) {
         }
     }
 
+    lowerBoundTable.clear();
+    upperBoundTable.clear();
+
     return bestMove;
 }
