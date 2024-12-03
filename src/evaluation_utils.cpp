@@ -487,15 +487,15 @@ int evaluate(const chess::Board& board) {
         } 
     }
 
-    if (hasLostCastlingRights(board, Color::WHITE, Board::CastlingRights::Side::KING_SIDE) &&
-            hasLostCastlingRights(board, Color::WHITE, Board::CastlingRights::Side::QUEEN_SIDE)) {
-        whiteScore -= 100;
-    } 
+    // if (hasLostCastlingRights(board, Color::WHITE, Board::CastlingRights::Side::KING_SIDE) &&
+    //         hasLostCastlingRights(board, Color::WHITE, Board::CastlingRights::Side::QUEEN_SIDE)) {
+    //     whiteScore -= 100;
+    // } 
 
-    if (hasLostCastlingRights(board, Color::BLACK, Board::CastlingRights::Side::KING_SIDE) &&
-            hasLostCastlingRights(board, Color::BLACK, Board::CastlingRights::Side::QUEEN_SIDE)) {
-        blackScore -= 100;
-    }
+    // if (hasLostCastlingRights(board, Color::BLACK, Board::CastlingRights::Side::KING_SIDE) &&
+    //         hasLostCastlingRights(board, Color::BLACK, Board::CastlingRights::Side::QUEEN_SIDE)) {
+    //     blackScore -= 100;
+    // }
 
     return whiteScore - blackScore;
 }
