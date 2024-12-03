@@ -275,9 +275,8 @@ Move findBestMove(Board& board, int timeLimit = 60000) {
     bool whiteTurn = (board.sideToMove() == Color::WHITE);
     int bestEval = whiteTurn ? -INF : INF;
     
-    Move bestMove = Move::NO_MOVE;
-    
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
+    Move bestMove = moveCandidates[0].first;
 
     for (int j = 0; j < moveCandidates.size(); j++) {
         const auto move = moveCandidates[j].first;
