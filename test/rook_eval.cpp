@@ -1,5 +1,5 @@
 #include "../src/chess.hpp"
-#include "evaluation_utils.hpp"
+#include "../src/evaluation_utils.hpp"
 #include <fstream>
 #include <iostream>
 #include <map>

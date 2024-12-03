@@ -3,6 +3,11 @@
 
 using namespace chess;
 
+/*
+Conventions:
+We use value += penalty and not value -= penalty.
+*/
+
 // Constants for the evaluation function
 const int PAWN_VALUE = 100;
 const int KNIGHT_VALUE = 320;
@@ -12,6 +17,7 @@ const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 const int CASTLE_VALUE = 100;
 const int END_PIECE_COUNT = 14;
+const int DOUBLE_PAWN_PENALTY = -20;
 
 // Function to check if the given color has lost castling rights
 bool hasLostCastlingRights(const chess::Board& board, chess::Color color, chess::Board::CastlingRights::Side side) {
@@ -162,15 +168,26 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
         }
     }
 
+    int files[8] = {0, 0, 0, 0, 0, 0, 0, 0};
     while (!pawns.empty()) {
         int sqIndex = pawns.lsb(); // Get the index of the least significant bit and remove it
+        int file = sqIndex % 8; // Get the file of the pawn
+        files[file]++; // Increment the count of pawns on the file
+
         value += baseValue; // Add the base value
         if (color == Color::WHITE) {
             value += penaltyTable[sqIndex];
         } else {
             value += penaltyTable[sqIndex];
         }
+
         pawns.clear(sqIndex); // Clear the processed pawn
+    }
+
+    for (int i = 0; i < 8; i++) {
+        if (files[i] > 1) {
+            value += DOUBLE_PAWN_PENALTY * (files[i] - 1);
+        }
     }
 
     return value;
