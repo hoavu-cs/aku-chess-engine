@@ -77,12 +77,12 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
             // Calculate MVV-LVA priority for captures
             auto victim = board.at<Piece>(move.to());
             auto attacker = board.at<Piece>(move.from());
-            priority = 1000 + (pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())]);
+            priority = 500 + (pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())]);
         } else {
             board.makeMove(move);
             if (board.inCheck()) { 
                 // Assign a lower priority for moves that give check
-                priority = 500;
+                priority = 100;
             }
             board.unmakeMove(move);
         }

@@ -26,8 +26,6 @@ const int ATTACK_KING_BONUS_KNIGHT = 10;
 const int ATTACK_KING_BONUS_QUEEN_DIST = 4;
 const int ATTACK_KING_BONUS_KNIGHT_DIST = 4;
 
-
-
 // Function to check if the given color has lost castling rights
 bool hasLostCastlingRights(const chess::Board& board, chess::Color color, chess::Board::CastlingRights::Side side) {
     return !board.castlingRights().has(color, side);
@@ -492,6 +490,9 @@ int countLegalMoves(const Board& board) {
     return moves.size();
 }
 
+int manhattanDistance(const Square& sq1, const Square& sq2) {
+    return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
+}
 
 // Function to evaluate the board position
 int evaluate(const chess::Board& board) {
@@ -546,6 +547,58 @@ int evaluate(const chess::Board& board) {
     // if (hasLostCastlingRights(board, Color::BLACK, Board::CastlingRights::Side::KING_SIDE) &&
     //         hasLostCastlingRights(board, Color::BLACK, Board::CastlingRights::Side::QUEEN_SIDE)) {
     //     blackScore -= 100;
+    // }
+
+    // Special case: Mop-up Evaluation
+    // chess::Color ourColor = board.sideToMove();
+    // chess::Color enemyColor = !board.sideToMove();
+    // int mateScore = 0;
+
+    // if (board.pieces(PieceType::PAWN, enemyColor).count() == 0 && board.pieces(PieceType::KNIGHT, enemyColor).count() == 0 &&
+    //     board.pieces(PieceType::BISHOP, enemyColor).count() == 0 && board.pieces(PieceType::ROOK, enemyColor).count() == 0 &&
+    //     board.pieces(PieceType::QUEEN, enemyColor).count() == 0) { 
+    //     // If the enemy has no piece left, we can checkmate
+    //     whiteScore = 0;
+    //     blackScore = 0;
+    //     Bitboard enemyKing = board.pieces(PieceType::KING, enemyColor);
+    //     Bitboard ourKing = board.pieces(PieceType::KING, ourColor);
+
+    //     chess::Square enemyKingSQ = chess::Square(enemyKing.lsb());
+    //     chess::Square ourKingSQ = chess::Square(ourKing.lsb());
+
+    //     chess::File fileA = chess::File::FILE_A;
+    //     chess::Rank rank1 = chess::Rank::RANK_1;
+    //     chess::File fileE = chess::File::FILE_E;
+    //     chess::Rank rank4 = chess::Rank::RANK_4;
+
+    //     chess::Square centerSQ = chess::Square(fileE, rank4);
+
+    //     int kingCMD = manhattanDistance(ourKingSQ, enemyKingSQ);
+    //     int queenCMD = 15;
+    //     int rookCMD = 15;
+    //     int enemyKingCornerDist = manhattanDistance(enemyKingSQ, chess::Square(fileA, rank1));
+
+    //     if (board.pieces(PieceType::QUEEN, ourColor).count() > 0) {
+    //         Bitboard ourQueen = board.pieces(PieceType::QUEEN, ourColor);
+    //         chess::Square ourQueenSQ = chess::Square(ourQueen.lsb());
+    //         queenCMD = manhattanDistance(ourQueenSQ, enemyKingSQ);
+    //     }
+
+    //     if (board.pieces(PieceType::ROOK, ourColor).count() > 0) {
+    //         Bitboard ourRook = board.pieces(PieceType::ROOK, ourColor);
+    //         chess::Square ourRookSQ = chess::Square(ourRook.lsb());
+    //         rookCMD = manhattanDistance(ourRookSQ, enemyKingSQ);
+    //     }
+
+    //     if (ourColor == Color::WHITE) {
+    //         whiteScore = mateScore;
+    //         blackScore = manhattanDistance(centerSQ, enemyKingSQ);
+    //     } else {
+    //         blackScore = mateScore;
+    //         whiteScore = manhattanDistance(centerSQ, enemyKingSQ);
+    //     }
+
+    //     return whiteScore - blackScore;
     // }
 
     return whiteScore - blackScore;
