@@ -16,6 +16,8 @@ long long positionCount = 0;
 const int INF = 100000;
 const int quiescenceDepth = 12;
 const int normalDepth = 6;
+const int normalDepthEndgame = 10;
+const int maxTranspositionTableSize = 100000000;
 
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
@@ -53,6 +55,11 @@ void storeUpperBound(std::uint64_t hash, int eval, int depth) {
 // Transposition table type: maps Zobrist hash to a tuple (evaluation, depth)
 std::map<std::uint64_t, std::tuple<int, int>> transpositionTable;
 
+bool isPromotion(const Move& move) {
+    return (move.typeOf() & Move::PROMOTION) != 0;
+}
+
+// Horizon effect test fen 8/5k1p/2N5/3p2p1/P2Pn1P1/P2KP2P/8/8 w - - 7 51
 std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -77,14 +84,18 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
             // Calculate MVV-LVA priority for captures
             auto victim = board.at<Piece>(move.to());
             auto attacker = board.at<Piece>(move.from());
-            priority = 500 + (pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())]);
+            priority = 300 + (pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())]);
+        } else if (isPromotion(move)) {
+            priority = 400;
+        } else if (board.at<Piece>(move.from()).type() == PieceType::PAWN && board.at<Piece>(move.to()).type() == PieceType::PAWN) {
+                priority = 200; // Pawn push
         } else {
             board.makeMove(move);
             if (board.inCheck()) { 
-                priority = 1000;
+                priority = 100; // Check
             }
             board.unmakeMove(move);
-        }
+        } 
         moveCandidates.push_back({move, priority});
     }
 
@@ -278,13 +289,20 @@ Move findBestMove(Board& board, int timeLimit = 60000) {
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
     Move bestMove = moveCandidates[0].first;
 
+    int depth = 0;
+    if (countPieces(board) <= 10) {
+        depth = normalDepthEndgame; 
+    } else {
+        depth = normalDepth;
+    }
+
     for (int j = 0; j < moveCandidates.size(); j++) {
         const auto move = moveCandidates[j].first;
         board.makeMove(move);
-        int eval = alphaBeta(board, normalDepth - 1, -INF, INF, !whiteTurn);
+        int eval = alphaBeta(board, depth - 1, -INF, INF, !whiteTurn);
         board.unmakeMove(move);
 
-        if ((whiteTurn && eval >= bestEval) || (!whiteTurn && eval <= bestEval)) {
+        if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
             bestEval = eval;
             bestMove = move;
         }
@@ -295,8 +313,12 @@ Move findBestMove(Board& board, int timeLimit = 60000) {
         }
     }
 
-    lowerBoundTable.clear();
-    upperBoundTable.clear();
+    if (lowerBoundTable.size() > maxTranspositionTableSize) {
+        lowerBoundTable.clear();
+    }
+    if (upperBoundTable.size() > maxTranspositionTableSize) {
+        upperBoundTable.clear();
+    }
 
     return bestMove;
 }

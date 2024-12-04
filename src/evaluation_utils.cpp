@@ -137,8 +137,6 @@ int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
     return value;
 }
 
-/// Fix fen 8/5k1p/2N5/3p2p1/P2Pn1P1/P2KP2P/8/8 w - - 7 51
-
 /// Piece-square tables for pawns 
 const int PAWN_PENALTY_TABLE_WHITE_MID[64] = {
      0,  0,  0,  0,  0,  0,  0,  0,
@@ -164,23 +162,23 @@ const int PAWN_PENALTY_TABLE_BLACK_MID[64] = {
 
 const int PAWN_PENALTY_TABLE_WHITE_END[64] = {
      0,    0,    0,    0,    0,    0,    0,    0,  // 1st rank
-    -20,  -30,  -10,  -40,  -40,  -10,  -30,  -20, // 2nd rank (stronger penalty for unpushed pawns)
+    -20,  -30,  -10,  -40,  -40,  -10,  -30,  -20, // 2nd rank 
       0,    0,   20,   50,   50,   20,    0,    0, // 3rd rank
-      0,    5,   50,  100,  100,   50,    5,    0, // 4th rank (strong bonuses for central pawns)
-     10,   10,   70,  150,  150,   70,   10,   10, // 5th rank
-     20,   50,  100,  200,  200,  100,   50,   20, // 6th rank
-     150,   150,  150,  300,  300,  150,   150,   150, // 7th rank
+      0,    5,   50,  100,  100,   50,    5,    0, // 4th rank 
+     30,   40,   70,  150,  150,   70,   40,   30, // 5th rank
+     50,   50,  100,  200,  200,  100,   50,   50, // 6th rank
+     200,   300,  300,  300,  300,  300,   300,   200, // 7th rank
       0,    0,    0,    0,    0,    0,    0,    0  // 8th rank
 };
 
 const int PAWN_PENALTY_TABLE_BLACK_END[64] = {
      0,    0,    0,    0,    0,    0,    0,    0,  // 8th rank
-     150,   150,  150,  300,  300,  150,   150,   150, // 7th rank
-     20,   50,  100,  200,  200,  100,   50,   20, // 6th rank
-     10,   10,   70,  150,  150,   70,   10,   10, // 5th rank
-      0,    5,   50,  100,  100,   50,    5,    0, // 4th rank (strong bonuses for central pawns)
+     200,   300,  300,  300,  300,  300,   300,   200, // 7th rank
+     50,   50,  100,  200,  200,  100,   50,   50, // 6th rank
+     30,   40,   70,  150,  150,   70,   40,   30, // 5th rank
+      0,    5,   50,  100,  100,   50,    5,    0, // 4th rank 
       0,    0,   20,   50,   50,   20,    0,    0, // 3rd rank
-    -20,  -30,  -10,  -40,  -40,  -10,  -30,  -20, // 2nd rank (stronger penalty for unpushed pawns)
+    -20,  -30,  -10,  -40,  -40,  -10,  -30,  -20, // 2nd rank 
       0,    0,    0,    0,    0,    0,    0,    0  // 1st rank
 };
 
@@ -564,64 +562,6 @@ int evaluate(const chess::Board& board) {
             blackScore += queenValue(board, baseValue, Color::BLACK);
         } 
     }
-
-    // if (hasLostCastlingRights(board, Color::WHITE, Board::CastlingRights::Side::KING_SIDE) &&
-    //         hasLostCastlingRights(board, Color::WHITE, Board::CastlingRights::Side::QUEEN_SIDE)) {
-    //     whiteScore -= 100;
-    // } 
-
-    // if (hasLostCastlingRights(board, Color::BLACK, Board::CastlingRights::Side::KING_SIDE) &&
-    //         hasLostCastlingRights(board, Color::BLACK, Board::CastlingRights::Side::QUEEN_SIDE)) {
-    //     blackScore -= 100;
-    // }
-
-    //Special case: Mop-up Evaluation
-    // chess::Color ourColor = board.sideToMove();
-    // chess::Color enemyColor = !board.sideToMove();
-
-    // if (board.pieces(PieceType::PAWN, enemyColor).count() == 0 && board.pieces(PieceType::KNIGHT, enemyColor).count() == 0 &&
-    //     board.pieces(PieceType::BISHOP, enemyColor).count() == 0 && board.pieces(PieceType::ROOK, enemyColor).count() == 0 &&
-    //     board.pieces(PieceType::QUEEN, enemyColor).count() == 0) { 
-    //     // If the enemy has no piece left, we can checkmate
-    //     whiteScore = 0;
-    //     blackScore = 0;
-
-    //     Bitboard enemyKing = board.pieces(PieceType::KING, enemyColor);
-    //     Bitboard ourKing = board.pieces(PieceType::KING, ourColor);
-    //     chess::Square enemyKingSQ = chess::Square(enemyKing.lsb());
-    //     chess::Square ourKingSQ = chess::Square(ourKing.lsb());
-
-    //     chess::File fileE = chess::File::FILE_E;
-    //     chess::Rank rank4 = chess::Rank::RANK_4;
-
-    //     chess::Square centerSQ = chess::Square(fileE, rank4);
-
-    //     int kingCMD = manhattanDistance(ourKingSQ, enemyKingSQ);
-    //     int queenCMD = 15;
-    //     int rookCMD = 15;
-
-    //     if (board.pieces(PieceType::QUEEN, ourColor).count() > 0) {
-    //         Bitboard ourQueen = board.pieces(PieceType::QUEEN, ourColor);
-    //         chess::Square ourQueenSQ = chess::Square(ourQueen.lsb());
-    //         queenCMD = manhattanDistance(ourQueenSQ, enemyKingSQ);
-    //     }
-
-    //     if (board.pieces(PieceType::ROOK, ourColor).count() > 0) {
-    //         Bitboard ourRook = board.pieces(PieceType::ROOK, ourColor);
-    //         chess::Square ourRookSQ = chess::Square(ourRook.lsb());
-    //         rookCMD = manhattanDistance(ourRookSQ, enemyKingSQ);
-    //     }
-
-    //     if (ourColor == Color::WHITE) {
-    //         whiteScore = manhattanDistance(centerSQ, enemyKingSQ) + kingCMD + queenCMD + rookCMD;
-    //         blackScore = 15 - manhattanDistance(centerSQ, enemyKingSQ);
-    //     } else {
-    //         blackScore = manhattanDistance(centerSQ, enemyKingSQ) + kingCMD + queenCMD + rookCMD;
-    //         whiteScore = 15 - manhattanDistance(centerSQ, enemyKingSQ);
-    //     }
-
-    //     return whiteScore - blackScore;
-    // }
 
     return whiteScore - blackScore;
 }
