@@ -8,54 +8,6 @@ Conventions:
 We use value += penalty and not value -= penalty.
 */
 
-// Constants for the evaluation function
-const int PAWN_VALUE = 100;
-const int KNIGHT_VALUE = 320;
-const int BISHOP_VALUE = 330;
-const int ROOK_VALUE = 500;
-const int QUEEN_VALUE = 900;
-const int KING_VALUE = 5000;
-const int CASTLE_VALUE = 100;
-const int END_PIECE_COUNT = 14;
-const int DOUBLE_PAWN_PENALTY = -20;
-
-// Constants for attacking the enemy king
-const int ATTACK_KING_BONUS_QUEEN = 30;
-const int ATTACK_KING_BONUS_KNIGHT = 10;
-
-const int ATTACK_KING_BONUS_QUEEN_DIST = 4;
-const int ATTACK_KING_BONUS_KNIGHT_DIST = 4;
-
-const int KING_PAWN_SHIELD_BONUS = 10;
-
-// Function to check if the given color has lost castling rights
-bool hasLostCastlingRights(const chess::Board& board, chess::Color color, chess::Board::CastlingRights::Side side) {
-    return !board.castlingRights().has(color, side);
-}
-
-// Knight piece-square table
-const int KNIGHT_PENALTY_TABLE_WHITE[64] = {
-    -50,-40,-30,-30,-30,-30,-40,-50,
-    -40,-20,  0,  0,  0,  0,-20,-40,
-    -30,  0, 10, 15, 15, 10,  0,-30,
-    -30,  5, 15, 20, 20, 15,  5,-30,
-    -30,  0, 15, 20, 20, 15,  0,-30,
-    -30,  5, 10, 15, 15, 10,  5,-30,
-    -40,-20,  0,  5,  5,  0,-20,-40,
-    -50,-40,-30,-30,-30,-30,-40,-50,
-};
-
-const int KNIGHT_PENALTY_TABLE_BLACK[64] = {
-    -50,-40,-30,-30,-30,-30,-40,-50,
-    -40,-20,  0,  5,  5,  0,-20,-40,
-    -30,  5, 10, 15, 15, 10,  5,-30,
-    -30,  0, 15, 20, 20, 15,  0,-30,
-    -30,  5, 15, 20, 20, 15,  5,-30,
-    -30,  0, 10, 15, 15, 10,  0,-30,
-    -40,-20,  0,  0,  0,  0,-20,-40,
-    -50,-40,-30,-30,-30,-30,-40,-50,
-};
-
 // Compute the value of the knights on the board
 int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard knights = board.pieces(PieceType::KNIGHT, color);
@@ -85,36 +37,11 @@ int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
                 value += ATTACK_KING_BONUS_KNIGHT;
             }
         }
-
         knights.clear(sqIndex);
     }
 
     return value;
 }
-
-// Bishop piece-square table
-const int BISHOP_PENALTY_TABLE_WHITE[64] = {
-    -20, -10, -10, -10, -10, -10, -10, -20,
-    -10,   5,   0,   0,   0,   0,   5, -10,
-    -10,  10,  10,  10,  10,  10,  10, -10,
-    -10,   0,  10,  10,  10,  10,   0, -10,
-    -10,   5,   5,  10,  10,   5,   5, -10,
-    -10,   0,   5,  10,  10,   5,   0, -10,
-    -10,   0,   0,   0,   0,   0,   0, -10,
-    -20, -10, -10, -10, -10, -10, -10, -20,
-};
-
-const int BISHOP_PENALTY_TABLE_BLACK[64] = {
-    -20,-10,-10,-10,-10,-10,-10,-20,
-    -10,  0,  0,  0,  0,  0,  0,-10,
-    -10,  0,  5, 10, 10,  5,  0,-10,
-    -10,  5,  5, 10, 10,  5,  5,-10,
-    -10,  0, 10, 10, 10, 10,  0,-10,
-    -10, 10, 10, 10, 10, 10, 10,-10,
-    -10,  5,  0,  0,  0,  0,  5,-10,
-    -20,-10,-10,-10,-10,-10,-10,-20,
-};
-
 
 // Compute the value of the bishops on the board
 int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
@@ -130,59 +57,11 @@ int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
         } else {
             value += BISHOP_PENALTY_TABLE_BLACK[sqIndex];
         }
-
         bishops.clear(sqIndex);
     }
 
     return value;
 }
-
-/// Piece-square tables for pawns 
-const int PAWN_PENALTY_TABLE_WHITE_MID[64] = {
-     0,  0,  0,  0,  0,  0,  0,  0,
-     5, 10, 10,-20,-20, 10, 10,  5,
-     5, -5,-10,  0,  0,-10, -5,  5,
-     0,  0,  0, 20, 20,  0,  0,  0,
-     5,  5, 10, 25, 25, 10,  5,  5,
-    10, 10, 20, 30, 30, 20, 10, 10,
-    50, 50, 50, 50, 50, 50, 50, 50,
-     0,  0,  0,  0,  0,  0,  0,  0
-};
-
-const int PAWN_PENALTY_TABLE_BLACK_MID[64] = {
-     0,  0,  0,  0,  0,  0,  0,  0,
-    50, 50, 50, 50, 50, 50, 50, 50,
-    10, 10, 20, 30, 30, 20, 10, 10,
-     5,  5, 10, 25, 25, 10,  5,  5,
-     0,  0,  0, 20, 20,  0,  0,  0,
-     5, -5,-10,  0,  0,-10, -5,  5,
-     5, 10, 10,-20,-20, 10, 10,  5,
-     0,  0,  0,  0,  0,  0,  0,  0
-};
-
-const int PAWN_PENALTY_TABLE_WHITE_END[64] = {
-     0,    0,    0,    0,    0,    0,    0,    0,  // 1st rank
-    -20,  -30,  -10,  -40,  -40,  -10,  -30,  -20, // 2nd rank 
-      0,    0,   20,   50,   50,   20,    0,    0, // 3rd rank
-      0,    5,   50,  100,  100,   50,    5,    0, // 4th rank 
-     30,   40,   70,  150,  150,   70,   40,   30, // 5th rank
-     50,   50,  100,  200,  200,  100,   50,   50, // 6th rank
-     200,   300,  300,  300,  300,  300,   300,   200, // 7th rank
-      0,    0,    0,    0,    0,    0,    0,    0  // 8th rank
-};
-
-const int PAWN_PENALTY_TABLE_BLACK_END[64] = {
-     0,    0,    0,    0,    0,    0,    0,    0,  // 8th rank
-     200,   300,  300,  300,  300,  300,   300,   200, // 7th rank
-     50,   50,  100,  200,  200,  100,   50,   50, // 6th rank
-     30,   40,   70,  150,  150,   70,   40,   30, // 5th rank
-      0,    5,   50,  100,  100,   50,    5,    0, // 4th rank 
-      0,    0,   20,   50,   50,   20,    0,    0, // 3rd rank
-    -20,  -30,  -10,  -40,  -40,  -10,  -30,  -20, // 2nd rank 
-      0,    0,    0,    0,    0,    0,    0,    0  // 1st rank
-};
-
-
 
 // Compute the value of the pawns on the board
 int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
@@ -232,30 +111,6 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
     return value;
 }
 
-// Rook piece-square table
-const int ROOK_PENALTY_TABLE_WHITE[64] = {
-       0,    0,    0,    5,    5,    0,    0,    0,
-      -5,    0,    0,    0,    0,    0,    0,   -5,
-      -5,    0,    0,    0,    0,    0,    0,   -5,
-      -5,    0,    0,    0,    0,    0,    0,   -5,
-      -5,    0,    0,    0,    0,    0,    0,   -5,
-      -5,    0,    0,    0,    0,    0,    0,   -5,
-       5,   10,   10,   10,   10,   10,   10,    5,
-       0,    0,    0,    0,    0,    0,    0,    0,
-};
-
-const int ROOK_PENALTY_TABLE_BLACK[64] = {
-       0,    0,    0,    0,    0,    0,    0,    0,
-       5,   10,   10,   10,   10,   10,   10,    5,
-      -5,    0,    0,    0,    0,    0,    0,   -5,
-      -5,    0,    0,    0,    0,    0,    0,   -5,
-      -5,    0,    0,    0,    0,    0,    0,   -5,
-      -5,    0,    0,    0,    0,    0,    0,   -5,
-      -5,    0,    0,    0,    0,    0,    0,   -5,
-       0,    0,    0,    5,    5,    0,    0,    0,
-};
-
-
 Bitboard generateFileMask(const File& file) {
     constexpr Bitboard fileMasks[] = {
         0x0101010101010101ULL, // File A
@@ -280,8 +135,6 @@ Bitboard generateFileMask(const File& file) {
     return Bitboard(0ULL);
 }
 
-const int ROOK_OPEN_FILE_BONUS = 30;
-const int ROOK_SEMI_OPEN_FILE_BONUS = 15;
 
 bool isOpenFile(const chess::Board& board, const File& file) {
     // Get bitboards for white and black pawns
@@ -338,28 +191,6 @@ int rookValue(const chess::Board& board, int baseValue, chess::Color color) {
     return value;
 }
 
-// Queen piece-square table
-const int QUEEN_PENALTY_WHITE[64] = {
-     -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
-     -10,    0,    0,    0,    0,    5,    0,  -10,
-     -10,    0,    5,    5,    5,    5,    5,  -10,
-      -5,    0,    5,    5,    5,    5,    0,    0,
-      -5,    0,    5,    5,    5,    5,    0,   -5,
-     -10,    0,    5,    5,    5,    5,    0,  -10,
-     -10,    0,    0,    0,    0,    0,    0,  -10,
-     -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
-};
-
-const int QUEEN_PENALTY_BLACK[64] = {
-     -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
-     -10,    0,    0,    0,    0,    0,    0,  -10,
-     -10,    0,    5,    5,    5,    5,    0,  -10,
-      -5,    0,    5,    5,    5,    5,    0,   -5,
-      -5,    0,    5,    5,    5,    5,    0,    0,
-     -10,    0,    5,    5,    5,    5,    5,  -10,
-     -10,    0,    0,    0,    0,    5,    0,  -10,
-     -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
-};
 
 // Compute the total value of the queens on the board
 int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
@@ -391,50 +222,7 @@ int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
     return value;
 }
 
-// King piece-square table
-const int KING_PENALTY_TABLE_WHITE_MID[64] = {
-      20,   75,  75,    0,    0,   10,  75,   20,
-      20,   20,    0,    0,    0,    0,   20,   20,
-     -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
-     -20,  -30,  -30,  -40,  -40,  -30,  -30,  -20,
-     -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
-     -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
-     -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
-     -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
-};
 
-const int KING_PENALTY_TABLE_BLACK_MID[64] = {
-     -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
-     -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
-     -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
-     -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
-     -20,  -30,  -30,  -40,  -40,  -30,  -30,  -20,
-     -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
-      20,   20,    0,    0,    0,    0,   20,   20,
-      20,   75,  75,    0,    0,   10,  75,   20,
-};
-
-const int KING_PENALTY_TABLE_WHITE_END[64] = {
-     -50,  -30,  -30,  -30,  -30,  -30,  -30,  -50,
-     -30,  -30,    0,    0,    0,    0,  -30,  -30,
-     -30,  -10,   20,   30,   30,   20,  -10,  -30,
-     -30,  -10,   30,   40,   40,   30,  -10,  -30,
-     -30,  -10,   30,   40,   40,   30,  -10,  -30,
-     -30,  -10,   20,   30,   30,   20,  -10,  -30,
-     -30,  -20,  -10,    0,    0,  -10,  -20,  -30,
-     -50,  -40,  -30,  -20,  -20,  -30,  -40,  -50,
-};
-
-const int KING_PENALTY_TABLE_BLACK_END[64] = {
-     -50,  -40,  -30,  -20,  -20,  -30,  -40,  -50,
-     -30,  -20,  -10,    0,    0,  -10,  -20,  -30,
-     -30,  -10,   20,   30,   30,   20,  -10,  -30,
-     -30,  -10,   30,   40,   40,   30,  -10,  -30,
-     -30,  -10,   30,   40,   40,   30,  -10,  -30,
-     -30,  -10,   20,   30,   30,   20,  -10,  -30,
-     -30,  -30,    0,    0,    0,    0,  -30,  -30,
-     -50,  -30,  -30,  -30,  -30,  -30,  -30,  -50,
-};
 
 // Compute the value of the kings on the board
 int kingValue(const chess::Board& board, int baseValue, chess::Color color) {

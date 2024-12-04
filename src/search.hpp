@@ -4,6 +4,12 @@
 
 // Function Declarations
 
+const int INF = 100000;
+const int quiescenceDepth = 12;
+const int normalDepth = 6;
+const int normalDepthEndgame = 8;
+const int maxTranspositionTableSize = 100000000;
+
 /**
  * Generates a prioritized list of moves based on their tactical value.
  * @param board The chess board for which to generate moves.

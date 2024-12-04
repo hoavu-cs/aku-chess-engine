@@ -9,18 +9,13 @@
 #include <vector>
 #include <algorithm>
 #include <chrono>
+#include <random>
 
 using namespace chess;
 
-long long positionCount = 0;
-const int INF = 100000;
-const int quiescenceDepth = 12;
-const int normalDepth = 6;
-const int normalDepthEndgame = 10;
-const int maxTranspositionTableSize = 100000000;
-
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
+long long positionCount = 0;
 
 // Transposition table for white. At a node, look up the lower bound value for the current position.
 bool probeLowerBoundTable(std::uint64_t hash, int depth, int& eval) {
@@ -40,16 +35,6 @@ bool probeUpperBoundTable(std::uint64_t hash, int depth, int& eval) {
         return true;
     }
     return false;
-}
-
-// Store the lower bound value for the current position in the transposition table.
-void storeLowerBound(std::uint64_t hash, int eval, int depth) {
-    lowerBoundTable[hash] = {eval, depth};
-}
-
-// Store the upper bound value for the current position in the transposition table.
-void storeUpperBound(std::uint64_t hash, int eval, int depth) {
-    upperBoundTable[hash] = {eval, depth};
 }
 
 // Transposition table type: maps Zobrist hash to a tuple (evaluation, depth)
@@ -242,7 +227,7 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
                 break; // Beta cutoff
             }
         }
-        storeLowerBound(hash, maxEval, depth); // Store lower bound
+        lowerBoundTable[hash] = {maxEval, depth}; // Store lower bound
         return maxEval;
 
     } else {
@@ -261,7 +246,7 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
                 break; // Alpha cutoff
             }
         }
-        storeUpperBound(hash, minEval, depth); // Store upper bound  
+        upperBoundTable[hash] = {minEval, depth}; // Store upper bound
         return minEval;
     }
 }
@@ -284,6 +269,18 @@ Move findBestMove(Board& board, int timeLimit = 60000) {
     }
 
     bool whiteTurn = (board.sideToMove() == Color::WHITE);
+    std::string fen = board.getFen();
+    //int r = 0;
+    // Basic openings
+    if (fen == "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1") {
+        return Move::make(Square::underlying::SQ_E7, Square::underlying::SQ_E5);
+    } else if (fen == "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
+        return Move::make(Square::underlying::SQ_E2, Square::underlying::SQ_E4);
+    } else if (fen == "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1") {
+        return Move::make(Square::underlying::SQ_D7, Square::underlying::SQ_D5);
+    }
+
+
     int bestEval = whiteTurn ? -INF : INF;
     
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
