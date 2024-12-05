@@ -312,7 +312,14 @@ int manhattanDistance(const Square& sq1, const Square& sq2) {
 
 // Function to check space control
 int spaceControl(const chess::Board& board, const chess::Color color) {
-    return 0;
+    int control = 0;
+    for (int i = 0; i < 64; i++) {
+        chess:Square sq = chess::Square(i);
+        if (board.isAttacked(sq, color)) {
+            control++;
+        }
+    }
+    return control;
 }
 
 // Function to evaluate the board position
@@ -359,6 +366,9 @@ int evaluate(const chess::Board& board) {
             blackScore += queenValue(board, baseValue, Color::BLACK);
         } 
     }
+
+    whiteScore += spaceControl(board, Color::WHITE) * CONTROL_BONUS;
+    blackScore += spaceControl(board, Color::BLACK) * CONTROL_BONUS;
 
     return whiteScore - blackScore;
 }
