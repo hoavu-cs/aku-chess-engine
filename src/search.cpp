@@ -272,13 +272,13 @@ Move findBestMove(Board& board, int timeLimit = 60000) {
     std::string fen = board.getFen();
     //int r = 0;
     // Basic openings
-    if (fen == "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1") {
-        return Move::make(Square::underlying::SQ_E7, Square::underlying::SQ_E5);
-    } else if (fen == "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
-        return Move::make(Square::underlying::SQ_E2, Square::underlying::SQ_E4);
-    } else if (fen == "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1") {
-        return Move::make(Square::underlying::SQ_D7, Square::underlying::SQ_D5);
-    }
+    // if (fen == "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1") {
+    //     return Move::make(Square::underlying::SQ_E7, Square::underlying::SQ_E5);
+    // } else if (fen == "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
+    //     return Move::make(Square::underlying::SQ_E2, Square::underlying::SQ_E4);
+    // } else if (fen == "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1") {
+    //     return Move::make(Square::underlying::SQ_D7, Square::underlying::SQ_D5);
+    // }
 
 
     int bestEval = whiteTurn ? -INF : INF;

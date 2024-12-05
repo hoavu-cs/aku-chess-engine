@@ -92,6 +92,10 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
         int file = sqIndex % 8; // Get the file of the pawn
         files[file]++; // Increment the count of pawns on the file
 
+        if (file == 3 || file == 4) {
+            value += CENTRAL_PAWN_BONUS; // Add central pawn bonus
+        }
+
         value += baseValue; // Add the base value
         if (color == Color::WHITE) {
             value += penaltyTable[sqIndex];
@@ -304,6 +308,11 @@ int countLegalMoves(const Board& board) {
 // Function to compute the Manhattan distance between two squares
 int manhattanDistance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
+}
+
+// Function to check space control
+int spaceControl(const chess::Board& board, const chess::Color color) {
+    return 0;
 }
 
 // Function to evaluate the board position
