@@ -5,9 +5,9 @@
 // Function Declarations
 
 const int INF = 100000;
-const int quiescenceDepth = 12;
-const int normalDepth = 6;
-const int normalDepthEndgame = 8;
+const int quiescenceDepth = 16;
+const int normalDepth = 5;
+const int normalDepthEndgame = 6;
 const int maxTranspositionTableSize = 100000000;
 
 /**

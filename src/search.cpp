@@ -129,11 +129,11 @@ int quiescence(chess::Board& board, int depth, int alpha, int beta, bool whiteTu
 
     // Evaluate each capture move
     for (const auto& move : moves) {
-        bool isCapture = board.isCapture(move), inCheck = board.inCheck();
+        bool isCapture = board.isCapture(move), inCheck = board.inCheck(), isPromo = isPromotion(move);
         board.makeMove(move);
         board.unmakeMove(move);
 
-        if (!isCapture && !inCheck) {
+        if (!isCapture && !inCheck && !isPromo) {
             continue;
         }
 

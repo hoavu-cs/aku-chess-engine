@@ -68,6 +68,7 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
     
     Bitboard pawns = board.pieces(PieceType::PAWN, color);
     int value = 0;
+    int totalRank = 0; // Total rank of all pawns for space control
     // Traverse each pawn
     const int* penaltyTable;
 
@@ -103,8 +104,14 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
             value += penaltyTable[sqIndex];
         }
 
+        totalRank += sqIndex / 8; // Add the rank of the pawn for space control
         pawns.clear(sqIndex); // Clear the processed pawn
     }
+
+    if (color == Color::BLACK) {
+        totalRank = 7 - totalRank; // Invert the total rank for black pawns
+    }
+    value += totalRank; // Add space control bonus
 
     for (int i = 0; i < 8; i++) {
         if (files[i] > 1) {
@@ -190,6 +197,14 @@ int rookValue(const chess::Board& board, int baseValue, chess::Color color) {
             value += ROOK_SEMI_OPEN_FILE_BONUS; // Add semi-open file bonus
         }
 
+        Bitboard enemyKing = board.pieces(PieceType::KING, !color);
+        if (!enemyKing.empty()) {
+            int enemyKingSqIndex = enemyKing.lsb(); 
+            if (std::abs(sqIndex % 8 - enemyKingSqIndex) <= 1) { // If the rook is in the same or adjacent file as the enemy king 
+                value += ATTACK_KING_BONUS_ROOK; // Add bonus for attacking the enemy king
+            }    
+        }
+
         rooks.clear(sqIndex); // Remove the processed rook
     }
     return value;
@@ -225,8 +240,6 @@ int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
     }
     return value;
 }
-
-
 
 // Compute the value of the kings on the board
 int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
@@ -310,16 +323,9 @@ int manhattanDistance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
 }
 
-// Function to check space control
+// Function to check space control. Todo.
 int spaceControl(const chess::Board& board, const chess::Color color) {
-    int control = 0;
-    for (int i = 0; i < 64; i++) {
-        chess:Square sq = chess::Square(i);
-        if (board.isAttacked(sq, color)) {
-            control++;
-        }
-    }
-    return control;
+    return 0;
 }
 
 // Function to evaluate the board position
@@ -366,9 +372,6 @@ int evaluate(const chess::Board& board) {
             blackScore += queenValue(board, baseValue, Color::BLACK);
         } 
     }
-
-    whiteScore += spaceControl(board, Color::WHITE) * CONTROL_BONUS;
-    blackScore += spaceControl(board, Color::BLACK) * CONTROL_BONUS;
 
     return whiteScore - blackScore;
 }
