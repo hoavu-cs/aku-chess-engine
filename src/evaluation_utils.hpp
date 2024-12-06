@@ -19,9 +19,9 @@ const int DOUBLE_PAWN_PENALTY = -20;
 const int CENTRAL_PAWN_BONUS = 20;
 
 const int ATTACK_KING_BONUS_QUEEN = 30; // Bonus for the queen attacking the enemy king, normal: 30
-const int ATTACK_KING_BONUS_KNIGHT = 15; // Bonus for the knight attacking the enemy king, normal: 10
+const int ATTACK_KING_BONUS_KNIGHT = 20; // Bonus for the knight attacking the enemy king, normal: 10
 const int ATTACK_KING_BONUS_BISHOP = 20; // Bonus for the bishop attacking the enemy king, normal: 20
-const int ATTACK_KING_BONUS_ROOK = 15; // Bonus for the rook attacking the enemy king, normal: 25
+const int ATTACK_KING_BONUS_ROOK = 25; // Bonus for the rook attacking the enemy king, normal: 25
 
 const int ATTACK_KING_BONUS_QUEEN_DIST = 5; // Distance for the queen to be considered attacking the enemy king, normal: 4
 const int ATTACK_KING_BONUS_KNIGHT_DIST = 5; // Distance for the knight to be considered attacking the enemy king, normal: 4
@@ -132,13 +132,13 @@ const int ROOK_PENALTY_TABLE_WHITE[64] = {
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
-       5,   10,   10,   10,   10,   10,   10,    5,
+       20,   30,   30,   30,   30,   30,   30,    20,
        0,    0,    0,    0,    0,    0,    0,    0,
 };
 
 const int ROOK_PENALTY_TABLE_BLACK[64] = {
        0,    0,    0,    0,    0,    0,    0,    0,
-       5,   10,   10,   10,   10,   10,   10,    5,
+       20,   30,   30,   30,   30,   30,   30,    20,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
