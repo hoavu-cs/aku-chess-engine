@@ -285,6 +285,21 @@ int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
             }
         }
     } 
+
+    // Add bonus for protection from other pieces
+    const PieceType allPieceTypes[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
+    for (const auto& type : allPieceTypes) {
+        Bitboard pieces = board.pieces(type, color);
+        while (!pieces.empty()) {
+            int pieceIndex = pieces.lsb();
+            int manhattanDist = manhattanDistance(Square(pieceIndex), Square(sqIndex));
+            if (manhattanDist <= 4) {
+                value += KING_PROTECTION_BONUS;
+            }
+            pieces.clear(pieceIndex);
+        }
+    }
+
     return value;
 }
 
