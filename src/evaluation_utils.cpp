@@ -18,13 +18,13 @@ int activity(const chess::Board& board, const chess::Color color) {
     Bitboard queens = board.pieces(PieceType::QUEEN, color);
     Bitboard boardOCC = board.occ();
 
-    Bitboard pawnAttacks;
-    if (color == Color::WHITE) {
-        pawnAttacks = attacks::pawnLeftAttacks<Color::WHITE>(pawns) | attacks::pawnRightAttacks<Color::WHITE>(pawns);
-    } else {
-        pawnAttacks = attacks::pawnLeftAttacks<Color::BLACK>(pawns) | attacks::pawnRightAttacks<Color::BLACK>(pawns);
-    }
-    value += pawnAttacks.count() * PAWN_ACTIVITY_BONUS;
+    // Bitboard pawnAttacks;
+    // if (color == Color::WHITE) {
+    //     pawnAttacks = attacks::pawnLeftAttacks<Color::WHITE>(pawns) | attacks::pawnRightAttacks<Color::WHITE>(pawns);
+    // } else {
+    //     pawnAttacks = attacks::pawnLeftAttacks<Color::BLACK>(pawns) | attacks::pawnRightAttacks<Color::BLACK>(pawns);
+    // }
+    // value += pawnAttacks.count() * PAWN_ACTIVITY_BONUS;
 
     while (!knights.empty()) {
         int sqIndex = knights.lsb();

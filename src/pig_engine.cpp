@@ -80,20 +80,12 @@ void processPosition(const std::string& command) {
  * Processes the "go" command and finds the best move.
  */
 void processGo() {
-    int normalDepth = 5;
-    int quiescenceDepth = 12;
-    int normalDepthEndgame = 8;
+    int normalDepth = 6;
+    int quiescenceDepth = 10;
+    int normalDepthEndgame = 10;
+    int R = 2;
 
-    // Adjust search depth based on the clock
-    //auto now = std::chrono::high_resolution_clock::now();
-    //auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
-
-    //if (elapsedTime > 240000) {
-
-    //}
-    normalDepth = 6;
-    quiescenceDepth = 12;
-    Move bestMove = findBestMove(board, 60000, 8, normalDepth, quiescenceDepth, normalDepthEndgame); // Use your findBestMove implementation
+    Move bestMove = findBestMove(board, 60000, 8, normalDepth, quiescenceDepth, normalDepthEndgame, R); // Use your findBestMove implementation
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove) << std::endl;
     } else {

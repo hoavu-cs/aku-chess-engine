@@ -30,23 +30,23 @@ const int ATTACK_KING_BONUS_KNIGHT_DIST = 5; // Distance for the knight to be co
 const int ROOK_OPEN_FILE_BONUS = 30; // Bonus for the rook on an open file, normal: 30
 const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open file, normal: 15
 
-const int KING_PAWN_SHIELD_BONUS = 30;
+const int KING_PAWN_SHIELD_BONUS = 20;
 const int KING_PROTECTION_BONUS = 15;
 
-const int PAWN_ACTIVITY_BONUS = 5;
-const int KNIGHT_ACTIVITY_BONUS = 15;
-const int BISHOP_ACTIVITY_BONUS = 15;
-const int ROOK_ACTIVITY_BONUS = 15;
-const int QUEEN_ACTIVITY_BONUS = 15;
+const int PAWN_ACTIVITY_BONUS = 0;
+const int KNIGHT_ACTIVITY_BONUS = 10;
+const int BISHOP_ACTIVITY_BONUS = 10;
+const int ROOK_ACTIVITY_BONUS = 10;
+const int QUEEN_ACTIVITY_BONUS = 10;
 
 // Knight piece-square table
 const int KNIGHT_PENALTY_TABLE_WHITE[64] = {
     -50,-40,-30,-30,-30,-30,-40,-50,
     -40,-20,  0,  5,  5,  0,-20,-40,
-    -30,  0, 15, 15, 15, 15,  0,-30,
-    -30,  5, 15, 30, 30, 15,  5,-30,
+    -30, 10, 15, 15, 15, 15, 10,-30,
     -30,  0, 15, 30, 30, 15,  0,-30,
-    -30,  5, 15, 15, 15, 15,  5,-30,
+    -30,  0, 15, 30, 30, 15,  0,-30,
+    -30,  0, 15, 15, 15, 15,  0,-30,
     -40,-20,  0,  5,  5,  0,-20,-40,
     -50,-40,-30,-30,-30,-30,-40,-50,
 };
@@ -56,19 +56,19 @@ const int KNIGHT_PENALTY_TABLE_BLACK[64] = {
     -40,-20,  0,  5,  5,  0,-20,-40,
     -30,  5, 15, 15, 15, 15,  5,-30,
     -30,  0, 15, 30, 30, 15,  0,-30,
-    -30,  5, 15, 30, 30, 15,  5,-30,
-    -30,  0, 15, 15, 15, 15,  0,-30,
+    -30,  0, 15, 30, 30, 15,  0,-30,
+    -30, 10, 15, 15, 15, 15, 10,-30,
     -40,-20,  0,  5,  5,  0,-20,-40,
     -50,-40,-30,-30,-30,-30,-40,-50,
 };
 
-// Bishop piece-square table
+// Bishop piece-square table for White
 const int BISHOP_PENALTY_TABLE_WHITE[64] = {
     -20, -20, -35, -20, -20, -35, -20, -20,
-    10,   30,   0,   0,   0,   0,   30, 10,
+     10,  30,   0,   0,   0,   0,  30,  10,
     -10,  20,  10,  20,  20,  10,  20, -10,
     -10,   0,  30,  10,  10,  30,   0, -10,
-    -10,   10,   5,  10,  10,   5,   10, -10,
+    -10,  10,   5,  10,  10,   5,  10, -10,
     -10,   0,   5,  10,  10,   5,   0, -10,
     -10,   0,   0,   0,   0,   0,   0, -10,
     -20, -10, -10, -10, -10, -10, -10, -20
@@ -79,13 +79,12 @@ const int BISHOP_PENALTY_TABLE_BLACK[64] = {
     -20, -10, -10, -10, -10, -10, -10, -20,
     -10,   0,   0,   0,   0,   0,   0, -10,
     -10,   0,   5,  10,  10,   5,   0, -10,
-    -10,   10,   5,  10,  10,   5,  10, -10,
+    -10,  10,   5,  10,  10,   5,  10, -10,
     -10,   0,  30,  10,  10,  30,   0, -10,
     -10,  20,  10,  20,  20,  10,  20, -10,
-    10,   30,   0,   0,   0,   0,   30,  10,
+     10,  30,   0,   0,   0,   0,  30,  10,
     -20, -20, -35, -20, -20, -35, -20, -20
 };
-
 
 /// Piece-square tables for pawns 
 const int PAWN_PENALTY_TABLE_WHITE_MID[64] = {
