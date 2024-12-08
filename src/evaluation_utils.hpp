@@ -30,7 +30,7 @@ const int ATTACK_KING_BONUS_KNIGHT_DIST = 5; // Distance for the knight to be co
 const int ROOK_OPEN_FILE_BONUS = 30; // Bonus for the rook on an open file, normal: 30
 const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open file, normal: 15
 
-const int KING_PAWN_SHIELD_BONUS = 25;
+const int KING_PAWN_SHIELD_BONUS = 30;
 const int KING_PROTECTION_BONUS = 15;
 
 const int PAWN_ACTIVITY_BONUS = 5;

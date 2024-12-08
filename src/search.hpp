@@ -5,10 +5,13 @@
 // Function Declarations
 
 const int INF = 100000;
-const int quiescenceDepth = 9;
-const int normalDepth = 5;
-const int normalDepthEndgame = 6;
+const int quiescenceDepth = 10;
+const int normalDepth = 6;
+const int normalDepthEndgame = 8;
 const int maxTranspositionTableSize = 100000000;
+
+const int RAZOR_MARGIN = 400;
+const int RAZOR_DEPTH = 3;
 
 /**
  * Generates a prioritized list of moves based on their tactical value.
@@ -43,6 +46,7 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
  * Finds the best move for the current position using alpha-beta pruning.
  * @param board The current chess board state.
  * @param timeLimit The time limit for the search.
+ * @param numThreads The number of threads to use for the search.
  * @return The best move for the current position.
  */
-chess::Move findBestMove(chess::Board& board, int timeLimit);
+chess::Move findBestMove(chess::Board& board, int timeLimit, int numThreads);
