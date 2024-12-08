@@ -17,6 +17,7 @@ const int CASTLE_VALUE = 100;
 const int END_PIECE_COUNT = 14;
 const int DOUBLE_PAWN_PENALTY = -20;
 const int CENTRAL_PAWN_BONUS = 20;
+const int BISHOP_PAIR_BONUS = 30;
 
 const int ATTACK_KING_BONUS_QUEEN = 30; // Bonus for the queen attacking the enemy king, normal: 30
 const int ATTACK_KING_BONUS_KNIGHT = 20; // Bonus for the knight attacking the enemy king, normal: 10
@@ -31,6 +32,12 @@ const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open f
 
 const int KING_PAWN_SHIELD_BONUS = 25;
 const int KING_PROTECTION_BONUS = 15;
+
+const int PAWN_ACTIVITY_BONUS = 5;
+const int KNIGHT_ACTIVITY_BONUS = 15;
+const int BISHOP_ACTIVITY_BONUS = 15;
+const int ROOK_ACTIVITY_BONUS = 15;
+const int QUEEN_ACTIVITY_BONUS = 15;
 
 // Knight piece-square table
 const int KNIGHT_PENALTY_TABLE_WHITE[64] = {
@@ -127,7 +134,7 @@ const int PAWN_PENALTY_TABLE_BLACK_END[64] = {
 
 // Rook piece-square table
 const int ROOK_PENALTY_TABLE_WHITE[64] = {
-       0,    0,    0,    5,    5,    0,    0,    0,
+       0,    0,   10,   10,   10,   10,    0,    0,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
@@ -145,7 +152,7 @@ const int ROOK_PENALTY_TABLE_BLACK[64] = {
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
-       0,    0,    0,    5,    5,    0,    0,    0,
+       0,    0,   10,    10,   10,   10,    0,    0,
 };
 
 // Queen piece-square table
@@ -174,7 +181,7 @@ const int QUEEN_PENALTY_BLACK[64] = {
 // King piece-square table
 const int KING_PENALTY_TABLE_WHITE_MID[64] = {
       20,   75,  75,    0,    0,   10,  75,   20,
-      20,   20,    0,    0,    0,    0,   20,   20,
+      20,   20,  -25,  -25,  -25,  -25,   20,   20,
      -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
      -20,  -30,  -30,  -40,  -40,  -30,  -30,  -20,
      -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
@@ -190,7 +197,7 @@ const int KING_PENALTY_TABLE_BLACK_MID[64] = {
      -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
      -20,  -30,  -30,  -40,  -40,  -30,  -30,  -20,
      -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
-      20,   20,    0,    0,    0,    0,   20,   20,
+      20,   20,  -25,  -25,  -25,   -25,   20,   20,
       20,   75,  75,    0,    0,   10,  75,   20,
 };
 
@@ -334,10 +341,6 @@ Bitboard generateFileMask(const File& file);
 
 
 /**
- * Compute the total value of the pawns on the board.
- * @param board The chess board.
- * @param baseValue The base value of a pawn.
- * @param color The color of pawns to evaluate.
- * @return The total value of pawns for the specified color.
+ * Returns the activity score for the given color.
  */
-int spaceControl(const chess::Board& board, const chess::Color color);
+int activity(const chess::Board& board, const chess::Color color);

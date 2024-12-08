@@ -1,1 +1,2 @@
 g++ -std=c++17 -O3 -march=native -o pigengine pig_engine.cpp search.cpp evaluation_utils.cpp 
+g++ -std=c++17 -O3 -march=native -o pigengine_multithread pig_engine_multithread.cpp search_multithread.cpp evaluation_utils.cpp

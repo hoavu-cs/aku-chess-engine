@@ -8,6 +8,51 @@ Conventions:
 We use value += penalty and not value -= penalty.
 */
 
+// Compute activity of the pieces on the board
+int activity(const chess::Board& board, const chess::Color color) {
+    int value = 0;
+    Bitboard pawns = board.pieces(PieceType::PAWN, color);
+    Bitboard knights = board.pieces(PieceType::KNIGHT, color);
+    Bitboard bishops = board.pieces(PieceType::BISHOP, color);
+    Bitboard rooks = board.pieces(PieceType::ROOK, color);
+    Bitboard queens = board.pieces(PieceType::QUEEN, color);
+    Bitboard boardOCC = board.occ();
+
+    Bitboard pawnAttacks;
+    if (color == Color::WHITE) {
+        pawnAttacks = attacks::pawnLeftAttacks<Color::WHITE>(pawns) | attacks::pawnRightAttacks<Color::WHITE>(pawns);
+    } else {
+        pawnAttacks = attacks::pawnLeftAttacks<Color::BLACK>(pawns) | attacks::pawnRightAttacks<Color::BLACK>(pawns);
+    }
+    value += pawnAttacks.count() * PAWN_ACTIVITY_BONUS;
+
+    while (!knights.empty()) {
+        int sqIndex = knights.lsb();
+        value += attacks::knight(Square(sqIndex)).count() * KNIGHT_ACTIVITY_BONUS;
+        knights.clear(sqIndex);
+    }
+
+    while (!bishops.empty()) {
+        int sqIndex = bishops.lsb();
+        value += attacks::bishop(Square(sqIndex), boardOCC).count() * BISHOP_ACTIVITY_BONUS;
+        bishops.clear(sqIndex);
+    }
+
+    while (!rooks.empty()) {
+        int sqIndex = rooks.lsb();
+        value += attacks::rook(Square(sqIndex), boardOCC).count() * ROOK_ACTIVITY_BONUS;
+        rooks.clear(sqIndex);
+    }
+
+    while (!queens.empty()) {
+        int sqIndex = queens.lsb();
+        value += attacks::queen(Square(sqIndex), boardOCC).count() * QUEEN_ACTIVITY_BONUS;
+        queens.clear(sqIndex);
+    }
+
+    return value;
+}
+
 // Compute the value of the knights on the board
 int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard knights = board.pieces(PieceType::KNIGHT, color);
@@ -47,6 +92,10 @@ int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
 int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
     int value = 0;
+    
+    if (bishops.count() >= 2) {
+        value += BISHOP_PAIR_BONUS;
+    }
 
     while (!bishops.empty()) {
         value += baseValue;
@@ -387,6 +436,10 @@ int evaluate(const chess::Board& board) {
             blackScore += queenValue(board, baseValue, Color::BLACK);
         } 
     }
+
+    // Compute activity of the pieces
+    whiteScore += activity(board, Color::WHITE);
+    blackScore += activity(board, Color::BLACK);
 
     return whiteScore - blackScore;
 }

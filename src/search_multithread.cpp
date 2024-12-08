@@ -10,6 +10,11 @@
 #include <algorithm>
 #include <chrono>
 #include <random>
+#include <limits>
+#include <mutex>
+#include <omp.h> // Include OpenMP header
+
+std::mutex mtx;
 
 using namespace chess;
 
@@ -227,6 +232,7 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
                 break; // Beta cutoff
             }
         }
+        std::lock_guard<std::mutex> lock(mtx); // Lock the mutex
         lowerBoundTable[hash] = {maxEval, depth}; // Store lower bound
         return maxEval;
 
@@ -246,22 +252,11 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
                 break; // Alpha cutoff
             }
         }
+        std::lock_guard<std::mutex> lock(mtx); // Lock the mutex
         upperBoundTable[hash] = {minEval, depth}; // Store upper bound
         return minEval;
     }
 }
-
-    //int r = 0;
-    // Basic openings
-    // if (fen == "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1") {
-    //     return Move::make(Square::underlying::SQ_C7, Square::underlying::SQ_C6);
-    // } //else if (fen == "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
-    // //    return Move::make(Square::underlying::SQ_D2, Square::underlying::SQ_D4);
-    // //} 
-    // else if (fen == "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1") {
-    //     return Move::make(Square::underlying::SQ_D7, Square::underlying::SQ_D5);
-    // }
-
 
 Move findBestMove(Board& board, int timeLimit = 60000) {
     using Clock = std::chrono::high_resolution_clock;
@@ -294,20 +289,26 @@ Move findBestMove(Board& board, int timeLimit = 60000) {
         depth = normalDepth;
     }
 
+
+    #pragma omp parallel for
     for (int j = 0; j < moveCandidates.size(); j++) {
         const auto move = moveCandidates[j].first;
-        board.makeMove(move);
-        int eval = alphaBeta(board, depth - 1, -INF, INF, !whiteTurn);
-        board.unmakeMove(move);
+        Board localBoard = board; // Thread-local copy of the board
+        localBoard.makeMove(move);
+        int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn);
+        localBoard.unmakeMove(move);
 
-        if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
-            bestEval = eval;
-            bestMove = move;
+        #pragma omp critical
+        {
+            if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
+                bestEval = eval;
+                bestMove = move;
+            }
         }
 
         auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - startTime).count();
         if (elapsedTime > timeLimit) {
-            break;
+            break; // Cannot break the loop in OpenMP directly; handle time externally if needed.
         }
     }
 
@@ -320,3 +321,107 @@ Move findBestMove(Board& board, int timeLimit = 60000) {
 
     return bestMove;
 }
+
+// void analyzeMoves(const std::vector<std::pair<Move, int>>& moves, Board& board, int depth, bool whiteTurn, 
+//                   int& bestEval, Move& bestMove) {
+//     int localBestEval = whiteTurn ? -INF : INF;
+//     Move localBestMove = Move::NO_MOVE;
+
+//     for (const auto& movePair : moves) {
+//         const auto move = movePair.first;
+        
+//         board.makeMove(move);
+//         int eval = alphaBeta(board, depth - 1, -std::numeric_limits<int>::max(), std::numeric_limits<int>::max(), !whiteTurn);
+//         board.unmakeMove(move);
+
+//         if ((whiteTurn && eval > localBestEval) || (!whiteTurn && eval < localBestEval)) {
+//             localBestEval = eval;
+//             localBestMove = move;
+//         }
+//     }
+
+//     bestEval = localBestEval;
+//     bestMove = localBestMove;
+// }
+
+
+// Move findBestMove(Board& board, int timeLimit = 60000) {
+//     using Clock = std::chrono::high_resolution_clock;
+//     auto startTime = Clock::now();
+
+//     Movelist moves;
+//     movegen::legalmoves(moves, board);
+
+//     if (moves.empty()) {
+//         auto gameResult = board.isGameOver();
+//         return Move::NO_MOVE;
+//     }
+
+//     bool whiteTurn = (board.sideToMove() == Color::WHITE);
+//     int depth = countPieces(board) <= 10 ? normalDepthEndgame : normalDepth;
+
+//     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
+
+//     // Divide the moves into four roughly equal chunks
+//     size_t chunkSize = (moveCandidates.size() + 3) / 4; // Ensure we handle remainders
+//     std::vector<std::pair<Move, int>> chunk1(moveCandidates.begin(), moveCandidates.begin() + std::min(chunkSize, moveCandidates.size()));
+//     std::vector<std::pair<Move, int>> chunk2(moveCandidates.begin() + chunkSize, moveCandidates.begin() + std::min(2 * chunkSize, moveCandidates.size()));
+//     std::vector<std::pair<Move, int>> chunk3(moveCandidates.begin() + 2 * chunkSize, moveCandidates.begin() + std::min(3 * chunkSize, moveCandidates.size()));
+//     std::vector<std::pair<Move, int>> chunk4(moveCandidates.begin() + 3 * chunkSize, moveCandidates.end());
+
+//     // Variables to store the best results from each thread
+//     int bestEval1 = whiteTurn ? -INF : INF;
+//     Move bestMove1 = Move::NO_MOVE;
+
+//     int bestEval2 = whiteTurn ? -INF : INF;
+//     Move bestMove2 = Move::NO_MOVE;
+
+//     int bestEval3 = whiteTurn ? -INF : INF;
+//     Move bestMove3 = Move::NO_MOVE;
+
+//     int bestEval4 = whiteTurn ? -INF : INF;
+//     Move bestMove4 = Move::NO_MOVE;
+
+//     Board board1 = board;
+//     Board board2 = board;
+//     Board board3 = board;
+//     Board board4 = board;
+
+//     // Launch four threads
+//     std::thread t1(analyzeMoves, chunk1, std::ref(board1), depth, whiteTurn, std::ref(bestEval1), std::ref(bestMove1));
+//     std::thread t2(analyzeMoves, chunk2, std::ref(board2), depth, whiteTurn, std::ref(bestEval2), std::ref(bestMove2));
+//     std::thread t3(analyzeMoves, chunk3, std::ref(board3), depth, whiteTurn, std::ref(bestEval3), std::ref(bestMove3));
+//     std::thread t4(analyzeMoves, chunk4, std::ref(board4), depth, whiteTurn, std::ref(bestEval4), std::ref(bestMove4));
+
+//     // Wait for threads to finish
+//     t1.join();
+//     t2.join();
+//     t3.join();
+//     t4.join();
+
+//     // Compare results from all threads
+//     Move bestMove = bestMove1;
+//     int bestEval = bestEval1;
+
+//     if ((whiteTurn && bestEval2 > bestEval) || (!whiteTurn && bestEval2 < bestEval)) {
+//         bestEval = bestEval2;
+//         bestMove = bestMove2;
+//     }
+//     if ((whiteTurn && bestEval3 > bestEval) || (!whiteTurn && bestEval3 < bestEval)) {
+//         bestEval = bestEval3;
+//         bestMove = bestMove3;
+//     }
+//     if ((whiteTurn && bestEval4 > bestEval) || (!whiteTurn && bestEval4 < bestEval)) {
+//         bestEval = bestEval4;
+//         bestMove = bestMove4;
+//     }
+
+//     if (lowerBoundTable.size() > maxTranspositionTableSize) {
+//         lowerBoundTable.clear();
+//     }
+//     if (upperBoundTable.size() > maxTranspositionTableSize) {
+//         upperBoundTable.clear();
+//     }
+
+//     return bestMove;
+// }
