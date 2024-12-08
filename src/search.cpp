@@ -178,7 +178,7 @@ int quiescence(chess::Board& board, int depth, int alpha, int beta, bool whiteTu
     return whiteTurn ? alpha : beta;
 }
 
-int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTurn) {
+int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTurn, int quiescenceDepth) {
     #pragma omp atomic
     positionCount++;
 
@@ -215,10 +215,6 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
         return quiescence(board, quiescenceDepth, alpha, beta, whiteTurn);
     }
 
-    // if (depth <= 2 && evaluate(board) + RAZOR_MARGIN <= alpha) {
-    //     return evaluate(board);
-    // }
-
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
 
     if (whiteTurn) {
@@ -227,7 +223,7 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
             const auto move = moveCandidates[i].first;
 
             board.makeMove(move); // Apply the move
-            int eval = alphaBeta(board, depth - 1, alpha, beta, false);
+            int eval = alphaBeta(board, depth - 1, alpha, beta, false, quiescenceDepth);
             board.unmakeMove(move); // Revert the move
 
             maxEval = std::max(maxEval, eval);
@@ -247,7 +243,7 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
             const auto move = moveCandidates[i].first;
 
             board.makeMove(move); // Apply the move
-            int eval = alphaBeta(board, depth - 1, alpha, beta, true);
+            int eval = alphaBeta(board, depth - 1, alpha, beta, true, quiescenceDepth);
             board.unmakeMove(move); // Revert the move
 
             minEval = std::min(minEval, eval);
@@ -263,13 +259,23 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
     }
 }
 
-Move findBestMove(Board& board, int timeLimit = 60000, int numThreads = 4) {
+Move findBestMove(Board& board, 
+                int timeLimit = 60000, 
+                int numThreads = 4, 
+                int normalDepth = 6, 
+                int quiescenceDepth = 10,
+                int normalDepthEndgame = 8) {
+
+    if (board.fullMoveNumber() > 15) {
+        normalDepth = 4;
+        quiescenceDepth = 12;
+    }
 
     //int r = 0;
     // Basic openings
     std::string fen = board.getFen();
     if (fen == "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1") {
-        int r = rand() % 6;
+        int r = rand() % 5;
         if (r == 0) {
             return Move::make(Square::underlying::SQ_E7, Square::underlying::SQ_E5);
         } else if (r == 1) {
@@ -278,32 +284,28 @@ Move findBestMove(Board& board, int timeLimit = 60000, int numThreads = 4) {
             return Move::make(Square::underlying::SQ_C7, Square::underlying::SQ_C5);
         } else if (r == 3) {
             return Move::make(Square::underlying::SQ_C7, Square::underlying::SQ_C6);
-        } else if (r == 4){
-            return Move::make(Square::underlying::SQ_E7, Square::underlying::SQ_E6);
         } else {
-            return Move::make(Square::underlying::SQ_D7, Square::underlying::SQ_D6);
-        }
+            return Move::make(Square::underlying::SQ_E7, Square::underlying::SQ_E6);
+        } 
         return Move::make(Square::underlying::SQ_E7, Square::underlying::SQ_E5);
     } else if (fen == "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
-        int r = rand() % 5;
+        int r = rand() % 4;
         if (r == 0) {
             return Move::make(Square::underlying::SQ_E2, Square::underlying::SQ_E4);
         } else if (r == 1) {
             return Move::make(Square::underlying::SQ_D2, Square::underlying::SQ_D4);
         } else if (r == 2) {
             return Move::make(Square::underlying::SQ_E2, Square::underlying::SQ_E4);
-        } else if (r == 3) {
+        } else   {
             return Move::make(Square::underlying::SQ_G1, Square::underlying::SQ_F3);
-        } else {
-            return Move::make(Square::underlying::SQ_G2, Square::underlying::SQ_G3);
         } 
     } else if (fen == "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1") {
         return Move::make(Square::underlying::SQ_G8, Square::underlying::SQ_F6);
     }
 
     omp_set_num_threads(numThreads);
-    using Clock = std::chrono::high_resolution_clock;
-    auto startTime = Clock::now();
+    // using Clock = std::chrono::high_resolution_clock;
+    // auto startTime = Clock::now();
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -323,20 +325,15 @@ Move findBestMove(Board& board, int timeLimit = 60000, int numThreads = 4) {
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
     Move bestMove = moveCandidates[0].first;
 
-    int depth = 0;
-    if (countPieces(board) <= 10) {
-        depth = normalDepthEndgame; 
-    } else {
-        depth = normalDepth;
-    }
-
+    // If the game is in the endgame, increase the search depth
+    int depth = (countPieces(board) <= 10) ? normalDepthEndgame : normalDepth;
 
     #pragma omp parallel for
     for (int j = 0; j < moveCandidates.size(); j++) {
         const auto move = moveCandidates[j].first;
         Board localBoard = board; // Thread-local copy of the board
         localBoard.makeMove(move);
-        int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn);
+        int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn, quiescenceDepth);
         localBoard.unmakeMove(move);
 
         #pragma omp critical
@@ -347,7 +344,7 @@ Move findBestMove(Board& board, int timeLimit = 60000, int numThreads = 4) {
             }
         }
 
-        auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - startTime).count();
+        //auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - startTime).count();
     }
 
     if (lowerBoundTable.size() > maxTranspositionTableSize) {

@@ -5,9 +5,6 @@
 // Function Declarations
 
 const int INF = 100000;
-const int quiescenceDepth = 11;
-const int normalDepth = 5;
-const int normalDepthEndgame = 8;
 const int maxTranspositionTableSize = 100000000;
 
 /**
@@ -35,15 +32,24 @@ int quiescence(chess::Board& board, int depth, int alpha, int beta, bool whiteTu
  * @param alpha The alpha bound for alpha-beta pruning.
  * @param beta The beta bound for alpha-beta pruning.
  * @param whiteTurn Indicates if it's white's turn.
+ * @param quiescenceDepth The depth for quiescence search.
  * @return The evaluation score of the position.
  */
-int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTurn);
+int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTurn, int quiescenceDepth);
 
 /**
  * Finds the best move for the current position using alpha-beta pruning.
  * @param board The current chess board state.
  * @param timeLimit The time limit for the search.
  * @param numThreads The number of threads to use for the search.
+ * @param normalDepth The normal search depth.
+ * @param quiescenceDepth The depth for quiescence search.
  * @return The best move for the current position.
  */
-chess::Move findBestMove(chess::Board& board, int timeLimit, int numThreads);
+chess::Move findBestMove(
+    chess::Board& board, 
+    int timeLimit, 
+    int numThreads, 
+    int normalDepth, 
+    int quiescenceDepth,
+    int normalDepthEndgame);

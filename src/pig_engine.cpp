@@ -29,8 +29,10 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <chrono>
 
 using namespace chess;
+auto startTime = std::chrono::high_resolution_clock::now();
 
 // Engine Metadata
 const std::string ENGINE_NAME = "PIG ENGINE";
@@ -78,7 +80,20 @@ void processPosition(const std::string& command) {
  * Processes the "go" command and finds the best move.
  */
 void processGo() {
-    Move bestMove = findBestMove(board, 60000, 12); // Use your findBestMove implementation
+    int normalDepth = 5;
+    int quiescenceDepth = 12;
+    int normalDepthEndgame = 8;
+
+    // Adjust search depth based on the clock
+    //auto now = std::chrono::high_resolution_clock::now();
+    //auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - startTime).count();
+
+    //if (elapsedTime > 240000) {
+
+    //}
+    normalDepth = 6;
+    quiescenceDepth = 12;
+    Move bestMove = findBestMove(board, 60000, 8, normalDepth, quiescenceDepth, normalDepthEndgame); // Use your findBestMove implementation
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove) << std::endl;
     } else {
