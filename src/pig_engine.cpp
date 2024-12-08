@@ -81,8 +81,8 @@ void processPosition(const std::string& command) {
  */
 void processGo() {
     int normalDepth = 6;
-    int quiescenceDepth = 10;
-    int normalDepthEndgame = 10;
+    int quiescenceDepth = 8;
+    int normalDepthEndgame = 8;
     int R = 2;
 
     Move bestMove = findBestMove(board, 60000, 8, normalDepth, quiescenceDepth, normalDepthEndgame, R); // Use your findBestMove implementation

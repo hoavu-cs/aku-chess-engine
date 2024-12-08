@@ -33,10 +33,10 @@ const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open f
 const int KING_PAWN_SHIELD_BONUS = 20;
 const int KING_PROTECTION_BONUS = 15;
 
-const int PAWN_ACTIVITY_BONUS = 0;
+const int PAWN_ACTIVITY_BONUS = 5;
 const int KNIGHT_ACTIVITY_BONUS = 10;
 const int BISHOP_ACTIVITY_BONUS = 10;
-const int ROOK_ACTIVITY_BONUS = 10;
+const int ROOK_ACTIVITY_BONUS = 20;
 const int QUEEN_ACTIVITY_BONUS = 10;
 
 // Knight piece-square table
@@ -92,17 +92,17 @@ const int PAWN_PENALTY_TABLE_WHITE_MID[64] = {
      5, 10, 10,-30,-30, 10, 10,  5,
      5, 5, 10,  30,  30, 10, 5,  5,
      5,  5,  5, 40, 40,  5,  5,  5,
-     5,  5, 10, 50, 50, 10,  5,  5,
+     5,  5,  5, 40, 40,  5,  5,  5,
+     20, 20, 20, 30, 30, 20, 20, 20,
     20, 20, 20, 30, 30, 20, 20, 20,
-    50, 50, 50, 50, 50, 50, 50, 50,
      0,  0,  0,  0,  0,  0,  0,  0
 };
 
 const int PAWN_PENALTY_TABLE_BLACK_MID[64] = {
      0,  0,  0,  0,  0,  0,  0,  0,
-    50, 50, 50, 50, 50, 50, 50, 50,
     20, 20, 20, 30, 30, 20, 20, 20,
-     5,  5, 10, 50, 50, 10,  5,  5,
+    20, 20, 20, 30, 30, 20, 20, 20,
+     5,  5,  5, 40, 40,  5,  5,  5,
      5,  5,  5, 40, 40,  5,  5,  5,
      5, 5, 10,  30,  30, 10, 5,  5,
      5, 10, 10,-30,-30, 10, 10,  5,
@@ -179,7 +179,7 @@ const int QUEEN_PENALTY_BLACK[64] = {
 
 // King piece-square table
 const int KING_PENALTY_TABLE_WHITE_MID[64] = {
-      20,   75,  75,    0,    0,   10,  75,   20,
+      20,   50,   50,    0,    0,   10,   50,   20,
       20,   20,  -25,  -25,  -25,  -25,   20,   20,
      -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
      -20,  -30,  -30,  -40,  -40,  -30,  -30,  -20,
@@ -197,7 +197,7 @@ const int KING_PENALTY_TABLE_BLACK_MID[64] = {
      -20,  -30,  -30,  -40,  -40,  -30,  -30,  -20,
      -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
       20,   20,  -25,  -25,  -25,   -25,   20,   20,
-      20,   75,  75,    0,    0,   10,  75,   20,
+      20,   50,  50,    0,    0,   10,  50,   20,
 };
 
 const int KING_PENALTY_TABLE_WHITE_END[64] = {
