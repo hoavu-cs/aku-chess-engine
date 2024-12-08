@@ -72,6 +72,10 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
             priority = 300 + (pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())]);
         } else if (isPromotion(move)) {
             priority = 400;
+        } else if (move.CASTLING) {
+            priority = 300; 
+        } else if (move.ENPASSANT) {
+            priority = 250; 
         } else if (board.at<Piece>(move.from()).type() == PieceType::PAWN && board.at<Piece>(move.to()).type() == PieceType::PAWN) {
                 priority = 200; // Pawn push
         } else {
