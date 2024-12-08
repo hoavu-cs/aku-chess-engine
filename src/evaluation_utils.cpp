@@ -249,7 +249,7 @@ int rookValue(const chess::Board& board, int baseValue, chess::Color color) {
         Bitboard enemyKing = board.pieces(PieceType::KING, !color);
         if (!enemyKing.empty()) {
             int enemyKingSqIndex = enemyKing.lsb(); 
-            if (std::abs(sqIndex % 8 - enemyKingSqIndex) <= 1) { // If the rook is in the same or adjacent file as the enemy king 
+            if (std::abs(sqIndex % 8 - enemyKingSqIndex) == 0) {
                 value += ATTACK_KING_BONUS_ROOK; // Add bonus for attacking the enemy king
             }    
         }

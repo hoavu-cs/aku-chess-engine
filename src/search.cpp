@@ -11,6 +11,7 @@
 #include <chrono>
 #include <random>
 #include <omp.h> // Include OpenMP header
+#include <stdlib.h>
 
 using namespace chess;
 
@@ -19,7 +20,6 @@ std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, 
 
 // Global variable to count the number of positions visited
 long long positionCount = 0;
-
 
 // Transposition table for white. At a node, look up the lower bound value for the current position.
 bool probeLowerBoundTable(std::uint64_t hash, int depth, int& eval) {
@@ -264,6 +264,43 @@ int alphaBeta(chess::Board& board, int depth, int alpha, int beta, bool whiteTur
 }
 
 Move findBestMove(Board& board, int timeLimit = 60000, int numThreads = 4) {
+
+    //int r = 0;
+    // Basic openings
+    std::string fen = board.getFen();
+    if (fen == "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1") {
+        int r = rand() % 6;
+        if (r == 0) {
+            return Move::make(Square::underlying::SQ_E7, Square::underlying::SQ_E5);
+        } else if (r == 1) {
+            return Move::make(Square::underlying::SQ_D7, Square::underlying::SQ_D5);
+        } else if (r == 2) {
+            return Move::make(Square::underlying::SQ_C7, Square::underlying::SQ_C5);
+        } else if (r == 3) {
+            return Move::make(Square::underlying::SQ_C7, Square::underlying::SQ_C6);
+        } else if (r == 4){
+            return Move::make(Square::underlying::SQ_E7, Square::underlying::SQ_E6);
+        } else {
+            return Move::make(Square::underlying::SQ_D7, Square::underlying::SQ_D6);
+        }
+        return Move::make(Square::underlying::SQ_E7, Square::underlying::SQ_E5);
+    } else if (fen == "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
+        int r = rand() % 5;
+        if (r == 0) {
+            return Move::make(Square::underlying::SQ_E2, Square::underlying::SQ_E4);
+        } else if (r == 1) {
+            return Move::make(Square::underlying::SQ_D2, Square::underlying::SQ_D4);
+        } else if (r == 2) {
+            return Move::make(Square::underlying::SQ_E2, Square::underlying::SQ_E4);
+        } else if (r == 3) {
+            return Move::make(Square::underlying::SQ_G1, Square::underlying::SQ_F3);
+        } else {
+            return Move::make(Square::underlying::SQ_G2, Square::underlying::SQ_G3);
+        } 
+    } else if (fen == "rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1") {
+        return Move::make(Square::underlying::SQ_G8, Square::underlying::SQ_F6);
+    }
+
     omp_set_num_threads(numThreads);
     using Clock = std::chrono::high_resolution_clock;
     auto startTime = Clock::now();
@@ -281,8 +318,6 @@ Move findBestMove(Board& board, int timeLimit = 60000, int numThreads = 4) {
     }
 
     bool whiteTurn = (board.sideToMove() == Color::WHITE);
-    std::string fen = board.getFen();
-
     int bestEval = whiteTurn ? -INF : INF;
     
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);

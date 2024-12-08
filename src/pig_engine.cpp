@@ -78,7 +78,7 @@ void processPosition(const std::string& command) {
  * Processes the "go" command and finds the best move.
  */
 void processGo() {
-    Move bestMove = findBestMove(board, 60000, 8); // Use your findBestMove implementation
+    Move bestMove = findBestMove(board, 60000, 12); // Use your findBestMove implementation
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove) << std::endl;
     } else {
