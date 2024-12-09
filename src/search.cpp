@@ -58,9 +58,9 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
     const int pieceValues[] = {
         0,    // No piece
         100,  // Pawn
-        320,  // Knight
-        330,  // Bishop
-        500,  // Rook
+        300,  // Knight
+        315,  // Bishop
+        450,  // Rook
         900,  // Queen
         20000 // King
     };
@@ -183,10 +183,7 @@ int alphaBeta(chess::Board& board,
                 int alpha, 
                 int beta, 
                 bool whiteTurn, 
-                int quiescenceDepth, 
-                int R) {
-    #pragma omp atomic
-    positionCount++;
+                int quiescenceDepth) {
 
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
@@ -221,25 +218,6 @@ int alphaBeta(chess::Board& board,
         return quiescence(board, quiescenceDepth, alpha, beta, whiteTurn);
     }
 
-    // null move heuristics
-    if (depth > R) {
-        if (whiteTurn && !board.inCheck()) {
-            board.makeNullMove();
-            int nullEval = alphaBeta(board, depth - R - 1, alpha, beta, false, quiescenceDepth, R);
-            board.unmakeNullMove();
-            if (nullEval >= beta) {
-                return beta;
-            }
-        } else if (!whiteTurn && !board.inCheck()) {
-            board.makeNullMove();
-            int nullEval = alphaBeta(board, depth - R - 1, alpha, beta, true, quiescenceDepth, R);
-            board.unmakeNullMove();
-            if (nullEval <= alpha) {
-                return alpha;
-            }
-        }
-    }
-
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
 
     if (whiteTurn) {
@@ -248,7 +226,7 @@ int alphaBeta(chess::Board& board,
             const auto move = moveCandidates[i].first;
 
             board.makeMove(move); // Apply the move
-            int eval = alphaBeta(board, depth - 1, alpha, beta, false, quiescenceDepth, R);
+            int eval = alphaBeta(board, depth - 1, alpha, beta, false, quiescenceDepth);
             board.unmakeMove(move); // Revert the move
 
             maxEval = std::max(maxEval, eval);
@@ -268,7 +246,7 @@ int alphaBeta(chess::Board& board,
             const auto move = moveCandidates[i].first;
 
             board.makeMove(move); // Apply the move
-            int eval = alphaBeta(board, depth - 1, alpha, beta, true, quiescenceDepth, R);
+            int eval = alphaBeta(board, depth - 1, alpha, beta, true, quiescenceDepth);
             board.unmakeMove(move); // Revert the move
 
             minEval = std::min(minEval, eval);
@@ -288,18 +266,9 @@ Move findBestMove(Board& board,
                 int timeLimit = 60000, 
                 int numThreads = 4, 
                 int normalDepth = 6, 
-                int quiescenceDepth = 10,
-                int normalDepthEndgame = 8,
-                int R = 3) {
-
-    if (board.fullMoveNumber() > 15) {
-        normalDepth = 4;
-        quiescenceDepth = 12;
-    }
+                int quiescenceDepth = 10) {
 
     omp_set_num_threads(numThreads);
-    // using Clock = std::chrono::high_resolution_clock;
-    // auto startTime = Clock::now();
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -320,14 +289,14 @@ Move findBestMove(Board& board,
     Move bestMove = moveCandidates[0].first;
 
     // If the game is in the endgame, increase the search depth
-    int depth = (countPieces(board) <= 10) ? normalDepthEndgame : normalDepth;
+    int depth = normalDepth;
 
     #pragma omp parallel for
     for (int j = 0; j < moveCandidates.size(); j++) {
         const auto move = moveCandidates[j].first;
         Board localBoard = board; // Thread-local copy of the board
         localBoard.makeMove(move);
-        int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn, quiescenceDepth, R);
+        int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn, quiescenceDepth);
         localBoard.unmakeMove(move);
 
         #pragma omp critical

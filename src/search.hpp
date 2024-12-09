@@ -40,7 +40,6 @@ int quiescence(
  * @param beta The beta bound for alpha-beta pruning.
  * @param whiteTurn Indicates if it's white's turn.
  * @param quiescenceDepth The depth for quiescence search.
- * @param R Null move reduction parameter.
  * @return The evaluation score of the position.
  */
 int alphaBeta(
@@ -49,8 +48,7 @@ int alphaBeta(
     int alpha, 
     int beta, 
     bool whiteTurn, 
-    int quiescenceDepth, 
-    int R
+    int quiescenceDepth
 );
 
 /**
@@ -60,8 +58,6 @@ int alphaBeta(
  * @param numThreads The number of threads to use for the search.
  * @param normalDepth The normal search depth.
  * @param quiescenceDepth The depth for quiescence search.
- * @param normalDepthEndgame The normal search depth for the endgame.
- * @param R Null move reduction parameter.
  * @return The best move for the current position.
  */
 chess::Move findBestMove(
@@ -69,7 +65,5 @@ chess::Move findBestMove(
     int timeLimit, 
     int numThreads, 
     int normalDepth, 
-    int quiescenceDepth, 
-    int normalDepthEndgame, 
-    int R
+    int quiescenceDepth
 );
