@@ -54,13 +54,12 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
     movegen::legalmoves(moves, board);
     std::vector<std::pair<Move, int>> moveCandidates;
 
-    // MVV-LVA values for each piece type
     const int pieceValues[] = {
         0,    // No piece
         100,  // Pawn
-        300,  // Knight
-        315,  // Bishop
-        450,  // Rook
+        320,  // Knight
+        330,  // Bishop
+        500,  // Rook
         900,  // Queen
         20000 // King
     };
@@ -75,7 +74,7 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
             auto attacker = board.at<Piece>(move.from());
             priority = 300 + (pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())]);
         } else if (isPromotion(move)) {
-            priority = 400;
+            priority = 2000; // Promotion is the highest priority
         } else if (board.at<Piece>(move.from()).type() == PieceType::PAWN && board.at<Piece>(move.to()).type() == PieceType::PAWN) {
                 priority = 200; // Pawn push
         } else {
@@ -85,10 +84,10 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
             }
             board.unmakeMove(move);
         } 
+
         moveCandidates.push_back({move, priority});
     }
 
-    // Sort moves by priority (descending order)
     std::sort(moveCandidates.begin(), moveCandidates.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
@@ -99,8 +98,6 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
 int quiescence(chess::Board& board, int depth, int alpha, int beta, bool whiteTurn) {
     #pragma omp atomic
     positionCount++;
-
-    // Safeguard: terminate if the depth limit is reached
     if (depth == 0) {
         return evaluate(board);
     }
@@ -109,30 +106,24 @@ int quiescence(chess::Board& board, int depth, int alpha, int beta, bool whiteTu
     int standPat = evaluate(board);
 
     if (whiteTurn) {
-        // Fail-hard beta cutoff
         if (standPat >= beta) {
             return beta;
         }
-        // Update alpha if stand-pat improves the score
         if (standPat > alpha) {
             alpha = standPat;
         }
     } else {
-        // Fail-hard alpha cutoff
         if (standPat <= alpha) {
             return alpha;
         }
-        // Update beta if stand-pat improves the score
         if (standPat < beta) {
             beta = standPat;
         }
     }
-
-    // Generate capture moves only
     Movelist moves;
     movegen::legalmoves(moves, board);
 
-    // Evaluate each capture move
+    // Evaluate each capture, check, or promotion
     for (const auto& move : moves) {
         bool isCapture = board.isCapture(move), inCheck = board.inCheck(), isPromo = isPromotion(move);
         board.makeMove(move);
@@ -154,27 +145,22 @@ int quiescence(chess::Board& board, int depth, int alpha, int beta, bool whiteTu
         board.unmakeMove(move);
 
         if (whiteTurn) {
-            // Beta cutoff for maximizing player
             if (score >= beta) {
                 return beta;
             }
-            // Update alpha if score improves it
             if (score > alpha) {
                 alpha = score;
             }
         } else {
-            // Alpha cutoff for minimizing player
             if (score <= alpha) {
                 return alpha;
             }
-            // Update beta if score improves it
             if (score < beta) {
                 beta = score;
             }
         }
     }
 
-    // Return alpha for maximizing player or beta for minimizing player
     return whiteTurn ? alpha : beta;
 }
 
@@ -213,7 +199,7 @@ int alphaBeta(chess::Board& board,
         }
     }
 
-    // Base case: if depth is zero, evaluate the position
+    // Base case: if depth is zero, evaluate the position using quiescence search
     if (depth == 0) {
         return quiescence(board, quiescenceDepth, alpha, beta, whiteTurn);
     }
@@ -225,15 +211,15 @@ int alphaBeta(chess::Board& board,
         for (int i = 0; i < moveCandidates.size(); i++) {
             const auto move = moveCandidates[i].first;
 
-            board.makeMove(move); // Apply the move
+            board.makeMove(move); 
             int eval = alphaBeta(board, depth - 1, alpha, beta, false, quiescenceDepth);
-            board.unmakeMove(move); // Revert the move
+            board.unmakeMove(move); 
 
             maxEval = std::max(maxEval, eval);
             alpha = std::max(alpha, eval);
 
             if (beta <= alpha) {
-                break; // Beta cutoff
+                break; 
             }
         }
         #pragma omp critical
@@ -245,15 +231,15 @@ int alphaBeta(chess::Board& board,
         for (int i = 0; i < moveCandidates.size(); i++) {
             const auto move = moveCandidates[i].first;
 
-            board.makeMove(move); // Apply the move
+            board.makeMove(move); 
             int eval = alphaBeta(board, depth - 1, alpha, beta, true, quiescenceDepth);
-            board.unmakeMove(move); // Revert the move
+            board.unmakeMove(move); 
 
             minEval = std::min(minEval, eval);
             beta = std::min(beta, eval);
 
             if (beta <= alpha) {
-                break; // Alpha cutoff
+                break; 
             }
         }
         #pragma omp critical
@@ -265,7 +251,7 @@ int alphaBeta(chess::Board& board,
 Move findBestMove(Board& board, 
                 int timeLimit = 60000, 
                 int numThreads = 4, 
-                int normalDepth = 6, 
+                int depth = 6, 
                 int quiescenceDepth = 10) {
 
     omp_set_num_threads(numThreads);
@@ -287,9 +273,6 @@ Move findBestMove(Board& board,
     
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
     Move bestMove = moveCandidates[0].first;
-
-    // If the game is in the endgame, increase the search depth
-    int depth = normalDepth;
 
     #pragma omp parallel for
     for (int j = 0; j < moveCandidates.size(); j++) {

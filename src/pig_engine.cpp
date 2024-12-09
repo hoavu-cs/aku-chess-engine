@@ -80,32 +80,15 @@ void processPosition(const std::string& command) {
  * Processes the "go" command and finds the best move.
  */
 void processGo() {
-    int normalDepth = 5;
-    int quiescenceDepth = 12;
+    int depth = 6;
+    int quiescenceDepth = 8;
     int numThreads = 8;
 
     Move bestMove;
 
     int pieceCount = countPieces(board);
-    
-    // if (pieceCount >= 28) {
-    //     normalDepth = 5;
-    //     quiescenceDepth = 10;
-    // } else if (pieceCount >= 24) {
-    //     normalDepth = 5;
-    //     quiescenceDepth = 12;
-    // } else if (pieceCount >= 20) {
-    //     normalDepth = 6;
-    //     quiescenceDepth = 8;
-    // } else if (pieceCount >= 16) {
-    //     normalDepth = 6;
-    //     quiescenceDepth = 10;
-    // } else {
-    //     normalDepth = 8;
-    //     quiescenceDepth = 10;
-    // }
 
-    bestMove = findBestMove(board, 60000, numThreads, normalDepth, quiescenceDepth); 
+    bestMove = findBestMove(board, 60000, numThreads, depth, quiescenceDepth); 
 
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove) << std::endl;

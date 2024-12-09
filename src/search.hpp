@@ -64,6 +64,6 @@ chess::Move findBestMove(
     chess::Board& board, 
     int timeLimit, 
     int numThreads, 
-    int normalDepth, 
+    int depth, 
     int quiescenceDepth
 );

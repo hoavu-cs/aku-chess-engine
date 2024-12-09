@@ -15,25 +15,24 @@ const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 const int CASTLE_VALUE = 100;
 const int END_PIECE_COUNT = 14;
-const int DOUBLE_PAWN_PENALTY = -20;
+const int DOUBLE_PAWN_PENALTY = -40;
 const int CENTRAL_PAWN_BONUS = 20;
 const int BISHOP_PAIR_BONUS = 30;
 
-const int ATTACK_KING_BONUS_QUEEN = 30; // Bonus for the queen attacking the enemy king, normal: 30
-const int ATTACK_KING_BONUS_KNIGHT = 20; // Bonus for the knight attacking the enemy king, normal: 10
-const int ATTACK_KING_BONUS_BISHOP = 20; // Bonus for the bishop attacking the enemy king, normal: 20
-const int ATTACK_KING_BONUS_ROOK = 25; // Bonus for the rook attacking the enemy king, normal: 25
+//const int ATTACK_KING_BONUS_QUEEN = 30; // Bonus for the queen attacking the enemy king, normal: 30
+//const int ATTACK_KING_BONUS_KNIGHT = 20; // Bonus for the knight attacking the enemy king, normal: 10
+//const int ATTACK_KING_BONUS_BISHOP = 20; // Bonus for the bishop attacking the enemy king, normal: 20
+//const int ATTACK_KING_BONUS_ROOK = 25; // Bonus for the rook attacking the enemy king, normal: 25
 
-const int ATTACK_KING_BONUS_QUEEN_DIST = 5; // Distance for the queen to be considered attacking the enemy king, normal: 4
-const int ATTACK_KING_BONUS_KNIGHT_DIST = 5; // Distance for the knight to be considered attacking the enemy king, normal: 4
+//const int ATTACK_KING_BONUS_QUEEN_DIST = 5; // Distance for the queen to be considered attacking the enemy king, normal: 4
+//const int ATTACK_KING_BONUS_KNIGHT_DIST = 5; // Distance for the knight to be considered attacking the enemy king, normal: 4
 
 const int ROOK_OPEN_FILE_BONUS = 30; // Bonus for the rook on an open file, normal: 30
 const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open file, normal: 15
 
-const int KING_PAWN_SHIELD_BONUS = 20;
+const int KING_PAWN_SHIELD_BONUS = 30;
 const int KING_PROTECTION_BONUS = 15;
 
-const int PAWN_ACTIVITY_BONUS = 5;
 const int KNIGHT_ACTIVITY_BONUS = 10;
 const int BISHOP_ACTIVITY_BONUS = 10;
 const int ROOK_ACTIVITY_BONUS = 20;
@@ -293,13 +292,6 @@ int kingValue(const chess::Board& board, int baseValue, chess::Color color);
 int countPieces(const chess::Board& board);
 
 /**
- * Count the total number of legal moves for the current side.
- * @param board The chess board.
- * @return The total number of legal moves for the current side.
- */
-int countLegalMoves(const chess::Board& board);
-
-/**
  * Evaluate the board position for the current side to move.
  * @param board The chess board.
  * @return The evaluation score of the position (positive if white is better, negative if black is better).
@@ -338,8 +330,12 @@ bool isSemiOpenFile(const chess::Board& board, const File& file, chess::Color co
  */
 Bitboard generateFileMask(const File& file);
 
-
 /**
  * Returns the activity score for the given color.
  */
 int activity(const chess::Board& board, const chess::Color color);
+
+/**
+ * Returns whether the game is in an endgame state.
+ */
+bool endGame(const chess::Board& board);

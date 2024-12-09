@@ -11,20 +11,11 @@ We use value += penalty and not value -= penalty.
 // Compute activity of the pieces on the board
 int activity(const chess::Board& board, const chess::Color color) {
     int value = 0;
-    Bitboard pawns = board.pieces(PieceType::PAWN, color);
     Bitboard knights = board.pieces(PieceType::KNIGHT, color);
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
     Bitboard rooks = board.pieces(PieceType::ROOK, color);
     Bitboard queens = board.pieces(PieceType::QUEEN, color);
     Bitboard boardOCC = board.occ();
-
-    Bitboard pawnAttacks;
-    if (color == Color::WHITE) {
-        pawnAttacks = attacks::pawnLeftAttacks<Color::WHITE>(pawns) | attacks::pawnRightAttacks<Color::WHITE>(pawns);
-    } else {
-        pawnAttacks = attacks::pawnLeftAttacks<Color::BLACK>(pawns) | attacks::pawnRightAttacks<Color::BLACK>(pawns);
-    }
-    value += pawnAttacks.count() * PAWN_ACTIVITY_BONUS;
 
     while (!knights.empty()) {
         int sqIndex = knights.lsb();
@@ -54,16 +45,24 @@ int activity(const chess::Board& board, const chess::Color color) {
 }
 
 bool endGame(const chess::Board& board) {
-    Bitboard whiteKBRQ = board.pieces(PieceType::BISHOP, Color::WHITE) 
+    Bitboard whiteKBR = board.pieces(PieceType::BISHOP, Color::WHITE) 
                     | board.pieces(PieceType::ROOK, Color::WHITE) 
-                    | board.pieces(PieceType::QUEEN, Color::WHITE)
                     | board.pieces(PieceType::KNIGHT, Color::WHITE);
-    Bitboard blackKBRQ = board.pieces(PieceType::BISHOP, Color::BLACK) 
+    Bitboard blackKBR = board.pieces(PieceType::BISHOP, Color::BLACK) 
                     | board.pieces(PieceType::ROOK, Color::BLACK) 
-                    | board.pieces(PieceType::QUEEN, Color::BLACK)
                     | board.pieces(PieceType::KNIGHT, Color::BLACK);
-
-    return (whiteKBRQ.count() <= 3 && blackKBRQ.count() <= 3);
+    Bitboard whiteQ = board.pieces(PieceType::QUEEN, Color::WHITE);
+    Bitboard blackQ = board.pieces(PieceType::QUEEN, Color::BLACK);
+    
+    if (whiteQ.count() == 0 && blackQ.count() == 0) {
+        if (whiteKBR.count() <= 3 && blackKBR.count() <= 3) {
+            return true;
+        } else {
+            return false;
+        }
+    } else {
+        return false;
+    }
 }
 
 
@@ -90,12 +89,12 @@ int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
         value += KNIGHT_PENALTY_TABLE[sqIndex];
 
         // Add bonus for being close to the enemy king
-        if (!enemyKing.empty()) {
-            chess::Square knightSQ = chess::Square(sqIndex); // Create a square object for the knight
-            if (chess::Square::distance(knightSQ, enemyKingSQ) <= ATTACK_KING_BONUS_KNIGHT_DIST) {
-                value += ATTACK_KING_BONUS_KNIGHT;
-            }
-        }
+        // if (!enemyKing.empty()) {
+        //     chess::Square knightSQ = chess::Square(sqIndex); // Create a square object for the knight
+        //     if (chess::Square::distance(knightSQ, enemyKingSQ) <= ATTACK_KING_BONUS_KNIGHT_DIST) {
+        //         value += ATTACK_KING_BONUS_KNIGHT;
+        //     }
+        // }
         knights.clear(sqIndex);
     }
 
@@ -131,8 +130,6 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
     
     Bitboard pawns = board.pieces(PieceType::PAWN, color);
     int value = 0;
-    int totalRank = 0; // Total rank of all pawns for space control
-    // Traverse each pawn
     const int* penaltyTable;
     bool isEndGame = endGame(board);
 
@@ -168,8 +165,7 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
             value += penaltyTable[sqIndex];
         }
 
-        totalRank += sqIndex / 8; // Add the rank of the pawn for space control
-        pawns.clear(sqIndex); // Clear the processed pawn
+        pawns.clear(sqIndex);
     }
 
     for (int i = 0; i < 8; i++) {
@@ -256,13 +252,13 @@ int rookValue(const chess::Board& board, int baseValue, chess::Color color) {
             value += ROOK_SEMI_OPEN_FILE_BONUS; // Add semi-open file bonus
         }
 
-        Bitboard enemyKing = board.pieces(PieceType::KING, !color);
-        if (!enemyKing.empty()) {
-            int enemyKingSqIndex = enemyKing.lsb(); 
-            if (std::abs(sqIndex % 8 - enemyKingSqIndex) == 0) {
-                value += ATTACK_KING_BONUS_ROOK; // Add bonus for attacking the enemy king
-            }    
-        }
+        // Bitboard enemyKing = board.pieces(PieceType::KING, !color);
+        // if (!enemyKing.empty()) {
+        //     int enemyKingSqIndex = enemyKing.lsb(); 
+        //     if (std::abs(sqIndex % 8 - enemyKingSqIndex) == 0) {
+        //         value += ATTACK_KING_BONUS_ROOK; // Add bonus for attacking the enemy king
+        //     }    
+        // }
 
         rooks.clear(sqIndex); // Remove the processed rook
     }
@@ -288,12 +284,12 @@ int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
         }
 
         // Add bonus for being close to the enemy king
-        if (!enemyKing.empty()) {
-            chess::Square queenSQ = chess::Square(sqIndex); // Create a square object for the queen
-            if (chess::Square::distance(queenSQ, enemyKingSQ) <= ATTACK_KING_BONUS_QUEEN_DIST) {
-                value += ATTACK_KING_BONUS_QUEEN;
-            }
-        }
+        // if (!enemyKing.empty()) {
+        //     chess::Square queenSQ = chess::Square(sqIndex); // Create a square object for the queen
+        //     if (chess::Square::distance(queenSQ, enemyKingSQ) <= ATTACK_KING_BONUS_QUEEN_DIST) {
+        //         value += ATTACK_KING_BONUS_QUEEN;
+        //     }
+        // }
 
         queens.clear(sqIndex); // Clear the processed queen
     }
@@ -367,32 +363,20 @@ int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
 int countPieces(const chess::Board& board) {
 
     int pieceCount = 0;
-
-    // Traverse all piece types and colors
     const PieceType allPieceTypes[] = {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, 
                                            PieceType::ROOK, PieceType::QUEEN, PieceType::KING};
-
     for (const auto& type : allPieceTypes) {
-        // Count white pieces of the given type
         Bitboard whitePieces = board.pieces(type, Color::WHITE);
-        pieceCount += whitePieces.count(); // Add the count of set bits
-
-        // Count black pieces of the given type
+        pieceCount += whitePieces.count();
         Bitboard blackPieces = board.pieces(type, Color::BLACK);
-        pieceCount += blackPieces.count(); // Add the count of set bits
+        pieceCount += blackPieces.count();
     }
-
     return pieceCount;
 }
 
 // Function to compute the Manhattan distance between two squares
 int manhattanDistance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
-}
-
-// Function to check space control. Todo.
-int spaceControl(const chess::Board& board, const chess::Color color) {
-    return 0;
 }
 
 // Function to evaluate the board position
