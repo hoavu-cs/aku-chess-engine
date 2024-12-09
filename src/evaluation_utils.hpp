@@ -24,8 +24,8 @@ const int ATTACK_KING_BONUS_KNIGHT = 20; // Bonus for the knight attacking the e
 const int ATTACK_KING_BONUS_BISHOP = 20; // Bonus for the bishop attacking the enemy king, normal: 20
 const int ATTACK_KING_BONUS_ROOK = 25; // Bonus for the rook attacking the enemy king, normal: 25
 
-const int ATTACK_KING_BONUS_QUEEN_DIST = 5; // Distance for the queen to be considered attacking the enemy king, normal: 4
-const int ATTACK_KING_BONUS_KNIGHT_DIST = 5; // Distance for the knight to be considered attacking the enemy king, normal: 4
+const int ATTACK_KING_BONUS_QUEEN_DIST = 4; // Distance for the queen to be considered attacking the enemy king, normal: 4
+const int ATTACK_KING_BONUS_KNIGHT_DIST = 3; // Distance for the knight to be considered attacking the enemy king, normal: 4
 
 const int ROOK_OPEN_FILE_BONUS = 30; // Bonus for the rook on an open file, normal: 30
 const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open file, normal: 15
@@ -33,10 +33,10 @@ const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open f
 const int KING_PAWN_SHIELD_BONUS = 20;
 const int KING_PROTECTION_BONUS = 15;
 
-const int PAWN_ACTIVITY_BONUS = 5;
+const int PAWN_ACTIVITY_BONUS = 10;
 const int KNIGHT_ACTIVITY_BONUS = 10;
 const int BISHOP_ACTIVITY_BONUS = 10;
-const int ROOK_ACTIVITY_BONUS = 20;
+const int ROOK_ACTIVITY_BONUS = 10;
 const int QUEEN_ACTIVITY_BONUS = 10;
 
 // Knight piece-square table
@@ -94,13 +94,13 @@ const int PAWN_PENALTY_TABLE_WHITE_MID[64] = {
      5,  5,  5, 40, 40,  5,  5,  5,
      5,  5,  5, 40, 40,  5,  5,  5,
      20, 20, 20, 30, 30, 20, 20, 20,
-    20, 20, 20, 30, 30, 20, 20, 20,
+    40, 40, 40, 40, 40, 40, 40, 40,
      0,  0,  0,  0,  0,  0,  0,  0
 };
 
 const int PAWN_PENALTY_TABLE_BLACK_MID[64] = {
      0,  0,  0,  0,  0,  0,  0,  0,
-    20, 20, 20, 30, 30, 20, 20, 20,
+    40, 40, 40, 40, 40, 40, 40, 40,
     20, 20, 20, 30, 30, 20, 20, 20,
      5,  5,  5, 40, 40,  5,  5,  5,
      5,  5,  5, 40, 40,  5,  5,  5,
@@ -133,7 +133,7 @@ const int PAWN_PENALTY_TABLE_BLACK_END[64] = {
 
 // Rook piece-square table
 const int ROOK_PENALTY_TABLE_WHITE[64] = {
-       0,    0,   10,   10,   10,   10,    0,    0,
+       0,    0,   20,   20,   20,   20,    0,    0,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
@@ -151,7 +151,7 @@ const int ROOK_PENALTY_TABLE_BLACK[64] = {
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
-       0,    0,   10,    10,   10,   10,    0,    0,
+       0,    0,   20,    20,   20,   20,    0,    0,
 };
 
 // Queen piece-square table
@@ -179,7 +179,7 @@ const int QUEEN_PENALTY_BLACK[64] = {
 
 // King piece-square table
 const int KING_PENALTY_TABLE_WHITE_MID[64] = {
-      20,   50,   50,    0,    0,   10,   50,   20,
+      20,   75,   75,    0,    0,   10,   75,   20,
       20,   20,  -25,  -25,  -25,  -25,   20,   20,
      -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
      -20,  -30,  -30,  -40,  -40,  -30,  -30,  -20,
@@ -197,7 +197,7 @@ const int KING_PENALTY_TABLE_BLACK_MID[64] = {
      -20,  -30,  -30,  -40,  -40,  -30,  -30,  -20,
      -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
       20,   20,  -25,  -25,  -25,   -25,   20,   20,
-      20,   50,  50,    0,    0,   10,  50,   20,
+      20,   75,  75,    0,    0,   10,  75,   20,
 };
 
 const int KING_PENALTY_TABLE_WHITE_END[64] = {
@@ -343,3 +343,10 @@ Bitboard generateFileMask(const File& file);
  * Returns the activity score for the given color.
  */
 int activity(const chess::Board& board, const chess::Color color);
+
+
+// Function to compute the minimum coordinate distance between two squares
+int minimumCoordinateDistance(const Square& sq1, const Square& sq2);
+
+// Function to compute the maximum coordinate distance between two squares
+int maximumCoordinateDistance(const Square& sq1, const Square& sq2);

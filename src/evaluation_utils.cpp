@@ -53,64 +53,6 @@ int activity(const chess::Board& board, const chess::Color color) {
     return value;
 }
 
-// Compute the value of the knights on the board
-int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
-    Bitboard knights = board.pieces(PieceType::KNIGHT, color);
-    Bitboard enemyKing = board.pieces(PieceType::KING, !color);
-
-    chess::Square enemyKingSQ = chess::Square(enemyKing.lsb()); // Get the square of the enemy king
-    int value = 0;
-
-    const int* KNIGHT_PENALTY_TABLE;
-    if (color == Color::WHITE) {
-        KNIGHT_PENALTY_TABLE = KNIGHT_PENALTY_TABLE_WHITE;
-    } else {
-        KNIGHT_PENALTY_TABLE = KNIGHT_PENALTY_TABLE_BLACK;
-    } 
-
-    while (!knights.empty()) {
-        value += baseValue;
-
-        // Get the least significant bit (square index) and create a square object
-        int sqIndex = knights.lsb();
-        value += KNIGHT_PENALTY_TABLE[sqIndex];
-
-        // Add bonus for being close to the enemy king
-        if (!enemyKing.empty()) {
-            chess::Square knightSQ = chess::Square(sqIndex); // Create a square object for the knight
-            if (chess::Square::distance(knightSQ, enemyKingSQ) <= ATTACK_KING_BONUS_KNIGHT_DIST) {
-                value += ATTACK_KING_BONUS_KNIGHT;
-            }
-        }
-        knights.clear(sqIndex);
-    }
-
-    return value;
-}
-
-// Compute the value of the bishops on the board
-int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
-    Bitboard bishops = board.pieces(PieceType::BISHOP, color);
-    int value = 0;
-    
-    if (bishops.count() >= 2) {
-        value += BISHOP_PAIR_BONUS;
-    }
-
-    while (!bishops.empty()) {
-        value += baseValue;
-        // Get the least significant bit (square index) and create a square object
-        int sqIndex = bishops.lsb();
-        if (color == chess::Color::WHITE) {
-            value += BISHOP_PENALTY_TABLE_WHITE[sqIndex];
-        } else {
-            value += BISHOP_PENALTY_TABLE_BLACK[sqIndex];
-        }
-        bishops.clear(sqIndex);
-    }
-
-    return value;
-}
 
 // Compute the value of the pawns on the board
 int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
@@ -166,6 +108,65 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
         if (files[i] > 1) {
             value += DOUBLE_PAWN_PENALTY * (files[i] - 1);
         }
+    }
+
+    return value;
+}
+
+// Compute the value of the knights on the board
+int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
+    Bitboard knights = board.pieces(PieceType::KNIGHT, color);
+    Bitboard enemyKing = board.pieces(PieceType::KING, !color);
+
+    chess::Square enemyKingSQ = chess::Square(enemyKing.lsb()); // Get the square of the enemy king
+    int value = 0;
+
+    const int* KNIGHT_PENALTY_TABLE;
+    if (color == Color::WHITE) {
+        KNIGHT_PENALTY_TABLE = KNIGHT_PENALTY_TABLE_WHITE;
+    } else {
+        KNIGHT_PENALTY_TABLE = KNIGHT_PENALTY_TABLE_BLACK;
+    } 
+
+    while (!knights.empty()) {
+        value += baseValue;
+
+        // Get the least significant bit (square index) and create a square object
+        int sqIndex = knights.lsb();
+        value += KNIGHT_PENALTY_TABLE[sqIndex];
+
+        // Add bonus for being close to the enemy king
+        if (!enemyKing.empty()) {
+            chess::Square knightSQ = chess::Square(sqIndex); // Create a square object for the knight
+            if (manhattanDistance(knightSQ, enemyKingSQ) <= ATTACK_KING_BONUS_KNIGHT_DIST) {
+                value += ATTACK_KING_BONUS_KNIGHT;
+            }
+        }
+        knights.clear(sqIndex);
+    }
+
+    return value;
+}
+
+// Compute the value of the bishops on the board
+int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
+    Bitboard bishops = board.pieces(PieceType::BISHOP, color);
+    int value = 0;
+    
+    if (bishops.count() >= 2) {
+        value += BISHOP_PAIR_BONUS;
+    }
+
+    while (!bishops.empty()) {
+        value += baseValue;
+        // Get the least significant bit (square index) and create a square object
+        int sqIndex = bishops.lsb();
+        if (color == chess::Color::WHITE) {
+            value += BISHOP_PENALTY_TABLE_WHITE[sqIndex];
+        } else {
+            value += BISHOP_PENALTY_TABLE_BLACK[sqIndex];
+        }
+        bishops.clear(sqIndex);
     }
 
     return value;
@@ -249,7 +250,7 @@ int rookValue(const chess::Board& board, int baseValue, chess::Color color) {
         Bitboard enemyKing = board.pieces(PieceType::KING, !color);
         if (!enemyKing.empty()) {
             int enemyKingSqIndex = enemyKing.lsb(); 
-            if (std::abs(sqIndex % 8 - enemyKingSqIndex) == 0) {
+            if (minimumCoordinateDistance(Square(sqIndex), Square(enemyKingSqIndex)) <= 1) {
                 value += ATTACK_KING_BONUS_ROOK; // Add bonus for attacking the enemy king
             }    
         }
@@ -280,7 +281,7 @@ int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
         // Add bonus for being close to the enemy king
         if (!enemyKing.empty()) {
             chess::Square queenSQ = chess::Square(sqIndex); // Create a square object for the queen
-            if (chess::Square::distance(queenSQ, enemyKingSQ) <= ATTACK_KING_BONUS_QUEEN_DIST) {
+            if (manhattanDistance(queenSQ, enemyKingSQ) <= ATTACK_KING_BONUS_QUEEN_DIST) {
                 value += ATTACK_KING_BONUS_QUEEN;
             }
         }
@@ -310,8 +311,8 @@ int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
             Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
             while (!whitePawns.empty()) {
                 int pawnIndex = whitePawns.lsb();
-                int manhattanDist = manhattanDistance(Square(pawnIndex), Square(sqIndex));
-                if (manhattanDist <= 2) {
+                int distance = maximumCoordinateDistance(Square(pawnIndex), Square(sqIndex));
+                if (distance <= 2) {
                     value += KING_PAWN_SHIELD_BONUS;
                 } 
                 whitePawns.clear(pawnIndex);
@@ -326,8 +327,8 @@ int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
             Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
             while (!blackPawns.empty()) {
                 int pawnIndex = blackPawns.lsb();
-                int manhattanDist = manhattanDistance(Square(pawnIndex), Square(sqIndex));
-                if (manhattanDist <= 2) {
+                int distance = maximumCoordinateDistance(Square(pawnIndex), Square(sqIndex));
+                if (distance <= 1) {
                     value += KING_PAWN_SHIELD_BONUS;
                 } 
                 blackPawns.clear(pawnIndex);
@@ -385,6 +386,16 @@ int countLegalMoves(const Board& board) {
 // Function to compute the Manhattan distance between two squares
 int manhattanDistance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
+}
+
+// Function to compute the minimum coordinate distance between two squares
+int minimumCoordinateDistance(const Square& sq1, const Square& sq2) {
+    return std::min(std::abs(sq1.file() - sq2.file()), std::abs(sq1.rank() - sq2.rank()));
+}
+
+// Function to compute the maximum coordinate distance between two squares
+int maximumCoordinateDistance(const Square& sq1, const Square& sq2) {
+    return std::max(std::abs(sq1.file() - sq2.file()), std::abs(sq1.rank() - sq2.rank()));
 }
 
 // Function to check space control. Todo.
