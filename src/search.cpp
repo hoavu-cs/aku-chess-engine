@@ -310,7 +310,6 @@ int evalSecondLevel(Board& board,
     }
 
     clearTranspositionTables(maxTableSize);
-
     return bestEval;
 }
 
