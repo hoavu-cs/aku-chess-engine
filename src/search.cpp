@@ -21,6 +21,7 @@ std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, 
 // Global variable to count the number of positions visited
 long long positionCount = 0;
 const int shallowDepth = 4;
+const int nullMoveDepth = 4;
 const long long unsigned int branchingFactor = 10;
 
 // Transposition table for white. At a node, look up the lower bound value for the current position.
@@ -69,22 +70,24 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
     for (int j = 0; j < moves.size(); j++) {
         const auto move = moves[j];
         int priority = 0;
+        
 
-        if (board.isCapture(move)) { 
+        if (isPromotion(move)) {
+            priority = 5000; 
+        } else if (board.isCapture(move)) { 
             // Calculate MVV-LVA priority for captures
             auto victim = board.at<Piece>(move.to());
             auto attacker = board.at<Piece>(move.from());
-            priority = 300 + (pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())]);
-        } else if (isPromotion(move)) {
-            priority = 2000; // Promotion is the highest priority
-        } else if (board.at<Piece>(move.from()).type() == PieceType::PAWN && board.at<Piece>(move.to()).type() == PieceType::PAWN) {
-                priority = 200; // Pawn push
+            priority = 4000 + (pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())]);
         } else {
+            bool isCheck = false;
             board.makeMove(move);
-            if (board.inCheck()) { 
-                priority = 100; // Check
-            }
+            isCheck = board.inCheck();
             board.unmakeMove(move);
+
+            if (isCheck) {
+                priority = 3000;
+            } 
         } 
 
         moveCandidates.push_back({move, priority});
@@ -206,25 +209,24 @@ int alphaBeta(chess::Board& board,
         return quiescence(board, quiescenceDepth, alpha, beta, whiteTurn);
     }
 
-    // int R = 4;
-    // // null move heuristics
-    // if (depth > R) {
-    //     if (whiteTurn && !board.inCheck()) {
-    //         board.makeNullMove();
-    //         int nullEval = alphaBeta(board, 4, alpha, beta, false, quiescenceDepth);
-    //         board.unmakeNullMove();
-    //         if (nullEval >= beta) {
-    //             return beta;
-    //         }
-    //     } else if (!whiteTurn && !board.inCheck()) {
-    //         board.makeNullMove();
-    //         int nullEval = alphaBeta(board, 4, alpha, beta, true, quiescenceDepth);
-    //         board.unmakeNullMove();
-    //         if (nullEval <= alpha) {
-    //             return alpha;
-    //         }
-    //     }
-    // }
+    // null move heuristics
+    if (depth > nullMoveDepth) {
+        if (whiteTurn && !board.inCheck()) {
+            board.makeNullMove();
+            int nullEval = alphaBeta(board, nullMoveDepth, alpha, beta, false, quiescenceDepth);
+            board.unmakeNullMove();
+            if (nullEval >= beta) {
+                return beta;
+            }
+        } else if (!whiteTurn && !board.inCheck()) {
+            board.makeNullMove();
+            int nullEval = alphaBeta(board, nullMoveDepth, alpha, beta, true, quiescenceDepth);
+            board.unmakeNullMove();
+            if (nullEval <= alpha) {
+                return alpha;
+            }
+        }
+    }
 
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
 
@@ -296,9 +298,8 @@ Move findBestMove(Board& board,
     int bestEval = whiteTurn ? -INF : INF;
     
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
-    Move bestMove = moveCandidates[0].first;
-    
     std::vector<std::pair<Move, int>> shallowedMoves;
+    Move bestMove = moveCandidates[0].first;
 
     // Do a shallow search to find a good ordering of moves
     for (int i = 0; i < moveCandidates.size(); i++) {

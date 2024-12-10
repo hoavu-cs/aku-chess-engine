@@ -81,27 +81,10 @@ void processPosition(const std::string& command) {
  */
 void processGo() {
     int depth = 6;
-    int quiescenceDepth = 8;
+    int quiescenceDepth = 10;
     int numThreads = 8;
 
     Move bestMove;
-
-    int pieceCount = countPieces(board);
-
-    // if (pieceCount >= 28) {
-    //     depth = 6;
-    //     quiescenceDepth = 6;
-    // } else if (pieceCount >= 20) {
-    //     depth = 6;
-    //     quiescenceDepth = 8;
-    // } else if (pieceCount >= 12) {
-    //     depth = 7;
-    //     quiescenceDepth = 10;
-    // } else {
-    //     depth = 8;
-    //     quiescenceDepth = 10;
-    // }
-
     bestMove = findBestMove(board, 60000, numThreads, depth, quiescenceDepth); 
 
     if (bestMove != Move::NO_MOVE) {
