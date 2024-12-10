@@ -81,7 +81,7 @@ void processPosition(const std::string& command) {
  */
 void processGo() {
     int depth = 6;
-    int quiescenceDepth = 10;
+    int quiescenceDepth = 8;
     int numThreads = 8;
 
     Move bestMove;

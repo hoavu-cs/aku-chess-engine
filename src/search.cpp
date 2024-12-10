@@ -204,7 +204,7 @@ int alphaBeta(chess::Board& board,
         return quiescence(board, quiescenceDepth, alpha, beta, whiteTurn);
     }
 
-    int R = 4;
+    int R = 5;
     // null move heuristics
     if (depth > R) {
         if (whiteTurn && !board.inCheck()) {
@@ -228,6 +228,7 @@ int alphaBeta(chess::Board& board,
 
     if (whiteTurn) {
         int maxEval = -INF; // Large negative value
+
         for (int i = 0; i < moveCandidates.size(); i++) {
             const auto move = moveCandidates[i].first;
 
@@ -248,6 +249,7 @@ int alphaBeta(chess::Board& board,
 
     } else {
         int minEval = INF; // Large positive value
+
         for (int i = 0; i < moveCandidates.size(); i++) {
             const auto move = moveCandidates[i].first;
 
@@ -293,10 +295,40 @@ Move findBestMove(Board& board,
     
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
     Move bestMove = moveCandidates[0].first;
+    
+    std::vector<std::pair<Move, int>> movesOrderedByShallowEval;
+
+    // Do a shallow search to find a good ordering of moves
+    for (int i = 0; i < moveCandidates.size(); i++) {
+        const auto move = moveCandidates[i].first;
+        int eval = 0;
+
+        board.makeMove(move);
+        if (whiteTurn) {
+            eval = alphaBeta(board, 4, -INF, INF, false, quiescenceDepth);
+        } else {
+            eval = alphaBeta(board, 4, -INF, INF, true, quiescenceDepth);
+        }
+        board.unmakeMove(move);
+
+        movesOrderedByShallowEval.push_back({move, eval});
+    }
+
+    if (whiteTurn) {
+        // Prioritize moves with higher shallow evaluations for white
+        std::sort(movesOrderedByShallowEval.begin(), movesOrderedByShallowEval.end(), [](const auto& a, const auto& b) {
+            return a.second > b.second;
+        });
+    } else {
+        // Prioritize moves with lower shallow evaluations for black
+        std::sort(movesOrderedByShallowEval.begin(), movesOrderedByShallowEval.end(), [](const auto& a, const auto& b) {
+            return a.second < b.second;
+        });
+    }
 
     #pragma omp parallel for
-    for (int j = 0; j < moveCandidates.size(); j++) {
-        const auto move = moveCandidates[j].first;
+    for (int j = 0; j < movesOrderedByShallowEval.size(); j++) {
+        const auto move = movesOrderedByShallowEval[j].first;
         Board localBoard = board; // Thread-local copy of the board
         localBoard.makeMove(move);
         int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn, quiescenceDepth);
@@ -309,7 +341,14 @@ Move findBestMove(Board& board,
                 bestMove = move;
             }
         }
-        //auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - startTime).count();
+    }
+
+    if (whiteTurn) {
+            #pragma omp critical
+            lowerBoundTable[board.hash()] = {bestEval, depth}; 
+    } else {
+            #pragma omp critical
+            upperBoundTable[board.hash()] = {bestEval, depth}; 
     }
 
     if (lowerBoundTable.size() > maxTranspositionTableSize) {
