@@ -25,7 +25,7 @@ const int nullMoveDepth = 4;
 const long long unsigned int numShallowMoves = 3;
 const size_t maxTableSize = 100000000;
 
-// Transposition table for white. At a node, look up the lower bound value for the current position.
+// Transposition table lookup.
 bool probeTranspositionTable(std::map<std::uint64_t, std::pair<int, int>>& table, std::uint64_t hash, int depth, int& eval) {
     auto it = table.find(hash);
     return it != table.end() && it->second.second >= depth && (eval = it->second.first, true);
