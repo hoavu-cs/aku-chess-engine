@@ -82,7 +82,7 @@ void processPosition(const std::string& command) {
 void processGo() {
     int depth = 7;
     int quiescenceDepth = 10;
-    int numThreads = 8;
+    int numThreads = 6;
 
     Move bestMove;
     bestMove = findBestMove(board, 60000, numThreads, depth, quiescenceDepth); 

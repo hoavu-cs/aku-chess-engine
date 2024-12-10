@@ -20,7 +20,7 @@ using namespace chess;
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
 long long positionCount = 0;
-const int shallowDepth = 4;
+const int shallowDepth = 5;
 const int nullMoveDepth = 4;
 const long long unsigned int numShallowMoves = 3;
 const size_t maxTableSize = 100000000;
