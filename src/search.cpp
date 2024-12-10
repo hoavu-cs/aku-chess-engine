@@ -15,33 +15,26 @@
 
 using namespace chess;
 
+
+// Constants and global variables
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
-
-// Global variable to count the number of positions visited
 long long positionCount = 0;
-const int shallowDepth = 4;
+const int shallowDepth = 5;
 const int nullMoveDepth = 4;
-const long long unsigned int branchingFactor = 10;
+const long long unsigned int numShallowMoves = 3;
+const size_t maxTableSize = 100000000;
 
 // Transposition table for white. At a node, look up the lower bound value for the current position.
-bool probeLowerBoundTable(std::uint64_t hash, int depth, int& eval) {
-    auto it = lowerBoundTable.find(hash);
-    if (it != lowerBoundTable.end() && it->second.second >= depth) {
-        eval = it->second.first;
-        return true;
-    }
-    return false;
+bool probeTranspositionTable(std::map<std::uint64_t, std::pair<int, int>>& table, std::uint64_t hash, int depth, int& eval) {
+    auto it = table.find(hash);
+    return it != table.end() && it->second.second >= depth && (eval = it->second.first, true);
 }
 
-// Transposition table for black. At a node, look up the upper bound value for the current position.
-bool probeUpperBoundTable(std::uint64_t hash, int depth, int& eval) {
-    auto it = upperBoundTable.find(hash);
-    if (it != upperBoundTable.end() && it->second.second >= depth) {
-        eval = it->second.first;
-        return true;
-    }
-    return false;
+// Clear the transposition tables if they exceed a certain size
+void clearTranspositionTables(size_t maxSize) {
+    if (lowerBoundTable.size() > maxSize) lowerBoundTable.clear();
+    if (upperBoundTable.size() > maxSize) upperBoundTable.clear();
 }
 
 // Transposition table type: maps Zobrist hash to a tuple (evaluation, depth)
@@ -70,7 +63,6 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
     for (int j = 0; j < moves.size(); j++) {
         const auto move = moves[j];
         int priority = 0;
-        
 
         if (isPromotion(move)) {
             priority = 5000; 
@@ -96,7 +88,6 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
     std::sort(moveCandidates.begin(), moveCandidates.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
-
     return moveCandidates;
 }
 
@@ -194,14 +185,9 @@ int alphaBeta(chess::Board& board,
     std::uint64_t hash = board.hash();
     int storedEval;
 
-    if (whiteTurn) {
-        if (probeLowerBoundTable(hash, depth, storedEval) && storedEval >= beta) {
-            return storedEval; // Beta cutoff from lower bound
-        }
-    } else {
-        if (probeUpperBoundTable(hash, depth, storedEval) && storedEval <= alpha) {
-            return storedEval; // Alpha cutoff from upper bound
-        }
+    if ((whiteTurn && probeTranspositionTable(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
+        (!whiteTurn && probeTranspositionTable(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
+        return storedEval;
     }
 
     // Base case: if depth is zero, evaluate the position using quiescence search
@@ -274,6 +260,66 @@ int alphaBeta(chess::Board& board,
     }
 }
 
+// This function evaluates the root position up to the given depth.
+// It is mostly use to utilize OpenMP for parallelization in the second level of the search tree.
+int evalSecondLevel(Board& board, 
+                int numThreads, 
+                int depth, 
+                int quiescenceDepth) {
+    
+    omp_set_num_threads(numThreads);
+
+    Movelist moves;
+    movegen::legalmoves(moves, board);
+
+    if (moves.empty()) {
+        auto gameResult = board.isGameOver();
+        if (gameResult.first == GameResultReason::CHECKMATE) {
+            return Move::NO_MOVE;
+        } else {
+            return Move::NO_MOVE;
+        }
+    }
+
+    bool whiteTurn = (board.sideToMove() == Color::WHITE);
+    int bestEval = whiteTurn ? -INF : INF;
+    
+    std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
+    Move bestMove = moveCandidates[0].first;
+
+
+    #pragma omp parallel for
+    for (int j = 0; j < std::min(moveCandidates.size(), numShallowMoves); j++) {
+
+        const auto move = moveCandidates[j].first;
+        Board localBoard = board; // Thread-local copy of the board
+        localBoard.makeMove(move);
+        int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn, quiescenceDepth);
+        localBoard.unmakeMove(move);
+
+        #pragma omp critical
+        {
+            if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
+                bestEval = eval;
+                bestMove = move;
+            }
+        }
+    }
+
+    if (whiteTurn) {
+            #pragma omp critical
+            lowerBoundTable[board.hash()] = {bestEval, depth}; 
+    } else {
+            #pragma omp critical
+            upperBoundTable[board.hash()] = {bestEval, depth}; 
+    }
+
+    clearTranspositionTables(maxTableSize);
+
+    return bestEval;
+}
+
+
 Move findBestMove(Board& board, 
                 int timeLimit = 60000, 
                 int numThreads = 4, 
@@ -329,12 +375,13 @@ Move findBestMove(Board& board,
     }
 
     #pragma omp parallel for
-    for (int j = 0; j < std::min(shallowedMoves.size(), branchingFactor); j++) {
+    for (int j = 0; j < std::min(shallowedMoves.size(), numShallowMoves); j++) {
 
         const auto move = shallowedMoves[j].first;
         Board localBoard = board; // Thread-local copy of the board
         localBoard.makeMove(move);
-        int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn, quiescenceDepth);
+        //int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn, quiescenceDepth);
+        int eval = evalSecondLevel(localBoard, numThreads, depth - 1, quiescenceDepth);
         localBoard.unmakeMove(move);
 
         #pragma omp critical
@@ -354,12 +401,7 @@ Move findBestMove(Board& board,
             upperBoundTable[board.hash()] = {bestEval, depth}; 
     }
 
-    if (lowerBoundTable.size() > maxTranspositionTableSize) {
-        lowerBoundTable.clear();
-    }
-    if (upperBoundTable.size() > maxTranspositionTableSize) {
-        upperBoundTable.clear();
-    }
+    clearTranspositionTables(maxTableSize);
 
     return bestMove;
 }
