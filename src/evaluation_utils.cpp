@@ -425,8 +425,8 @@ int evaluate(const chess::Board& board) {
     }
 
     // Compute activity of the pieces
-    whiteScore += activity(board, Color::WHITE);
-    blackScore += activity(board, Color::BLACK);
+    // whiteScore += activity(board, Color::WHITE);
+    // blackScore += activity(board, Color::BLACK);
 
     return whiteScore - blackScore;
 }
