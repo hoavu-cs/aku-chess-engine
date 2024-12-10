@@ -33,10 +33,10 @@ const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open f
 const int KING_PAWN_SHIELD_BONUS = 30;
 const int KING_PROTECTION_BONUS = 15;
 
-const int KNIGHT_ACTIVITY_BONUS = 10;
-const int BISHOP_ACTIVITY_BONUS = 10;
-const int ROOK_ACTIVITY_BONUS = 20;
-const int QUEEN_ACTIVITY_BONUS = 10;
+const int KNIGHT_ACTIVITY_BONUS = 5;
+const int BISHOP_ACTIVITY_BONUS = 5;
+const int ROOK_ACTIVITY_BONUS = 5;
+const int QUEEN_ACTIVITY_BONUS = 5;
 
 // Knight piece-square table
 const int KNIGHT_PENALTY_TABLE_WHITE[64] = {

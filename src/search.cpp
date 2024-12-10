@@ -22,7 +22,7 @@ std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, 
 long long positionCount = 0;
 const int shallowDepth = 5;
 const int nullMoveDepth = 4;
-const long long unsigned int numShallowMoves = 3;
+const long long unsigned int numShallowMoves = 6;
 const size_t maxTableSize = 100000000;
 
 // Transposition table lookup.
@@ -172,9 +172,9 @@ int alphaBeta(chess::Board& board,
         // If the game is over, return an appropriate evaluation
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
             if (whiteTurn) {
-                return -INF - board.halfMoveClock(); // Get the fastest checkmate possible
+                return -INF + board.halfMoveClock(); // Get the fastest checkmate possible
             } else {
-                return INF + board.halfMoveClock(); 
+                return INF - board.halfMoveClock(); 
             }
         }
         return 0; // For stalemates or draws, return 0
@@ -270,9 +270,13 @@ int evalSecondLevel(Board& board,
     if (moves.empty()) {
         auto gameResult = board.isGameOver();
         if (gameResult.first == GameResultReason::CHECKMATE) {
-            return Move::NO_MOVE;
+            if (board.sideToMove() == Color::WHITE) {
+                return -INF + board.halfMoveClock();
+            } else {
+                return INF - board.halfMoveClock();
+            }
         } else {
-            return Move::NO_MOVE;
+            return 0;
         }
     }
 
