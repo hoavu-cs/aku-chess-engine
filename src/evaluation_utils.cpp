@@ -44,7 +44,7 @@ int activity(const chess::Board& board, const chess::Color color) {
     return value;
 }
 
-bool endGame(const chess::Board& board) {
+bool isEndGame(const chess::Board& board) {
     Bitboard whiteKBR = board.pieces(PieceType::BISHOP, Color::WHITE) 
                     | board.pieces(PieceType::ROOK, Color::WHITE) 
                     | board.pieces(PieceType::KNIGHT, Color::WHITE);
@@ -87,14 +87,6 @@ int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
         // Get the least significant bit (square index) and create a square object
         int sqIndex = knights.lsb();
         value += KNIGHT_PENALTY_TABLE[sqIndex];
-
-        // Add bonus for being close to the enemy king
-        // if (!enemyKing.empty()) {
-        //     chess::Square knightSQ = chess::Square(sqIndex); // Create a square object for the knight
-        //     if (chess::Square::distance(knightSQ, enemyKingSQ) <= ATTACK_KING_BONUS_KNIGHT_DIST) {
-        //         value += ATTACK_KING_BONUS_KNIGHT;
-        //     }
-        // }
         knights.clear(sqIndex);
     }
 
@@ -131,9 +123,9 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard pawns = board.pieces(PieceType::PAWN, color);
     int value = 0;
     const int* penaltyTable;
-    bool isEndGame = endGame(board);
+    bool endGameFlag = isEndGame(board);
 
-    if (!isEndGame) {
+    if (!endGameFlag) {
         if (color == Color::WHITE) {
             penaltyTable = PAWN_PENALTY_TABLE_WHITE_MID;
         } else {
@@ -252,14 +244,6 @@ int rookValue(const chess::Board& board, int baseValue, chess::Color color) {
             value += ROOK_SEMI_OPEN_FILE_BONUS; // Add semi-open file bonus
         }
 
-        // Bitboard enemyKing = board.pieces(PieceType::KING, !color);
-        // if (!enemyKing.empty()) {
-        //     int enemyKingSqIndex = enemyKing.lsb(); 
-        //     if (std::abs(sqIndex % 8 - enemyKingSqIndex) == 0) {
-        //         value += ATTACK_KING_BONUS_ROOK; // Add bonus for attacking the enemy king
-        //     }    
-        // }
-
         rooks.clear(sqIndex); // Remove the processed rook
     }
     return value;
@@ -282,15 +266,7 @@ int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
         } else {
             value += QUEEN_PENALTY_BLACK[sqIndex];
         }
-
-        // Add bonus for being close to the enemy king
-        // if (!enemyKing.empty()) {
-        //     chess::Square queenSQ = chess::Square(sqIndex); // Create a square object for the queen
-        //     if (chess::Square::distance(queenSQ, enemyKingSQ) <= ATTACK_KING_BONUS_QUEEN_DIST) {
-        //         value += ATTACK_KING_BONUS_QUEEN;
-        //     }
-        // }
-
+        
         queens.clear(sqIndex); // Clear the processed queen
     }
     return value;
@@ -302,13 +278,13 @@ int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
     Bitboard CASTLE_SQUARES;
     
     int pieceCount = countPieces(board);
-    bool isEndGame = endGame(board);
+    bool endGameFlag = isEndGame(board);
 
     int value = baseValue;
     int sqIndex = king.lsb();
 
     if (color == chess::Color::WHITE) {
-        if (isEndGame) {
+        if (endGameFlag) {
             value += KING_PENALTY_TABLE_WHITE_END[sqIndex];
         } else {
             value += KING_PENALTY_TABLE_WHITE_MID[sqIndex];
@@ -324,7 +300,7 @@ int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
             }
         }
     } else {
-        if (isEndGame) {
+        if (endGameFlag) {
             value += KING_PENALTY_TABLE_BLACK_END[sqIndex];
         } else {
             value += KING_PENALTY_TABLE_BLACK_MID[sqIndex];
@@ -423,7 +399,6 @@ int evaluate(const chess::Board& board) {
             blackScore += queenValue(board, baseValue, Color::BLACK);
         } 
     }
-
     // Compute activity of the pieces
     // whiteScore += activity(board, Color::WHITE);
     // blackScore += activity(board, Color::BLACK);

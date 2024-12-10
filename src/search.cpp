@@ -20,6 +20,8 @@ std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, 
 
 // Global variable to count the number of positions visited
 long long positionCount = 0;
+const int shallowDepth = 4;
+const long long unsigned int branchingFactor = 10;
 
 // Transposition table for white. At a node, look up the lower bound value for the current position.
 bool probeLowerBoundTable(std::uint64_t hash, int depth, int& eval) {
@@ -296,7 +298,7 @@ Move findBestMove(Board& board,
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
     Move bestMove = moveCandidates[0].first;
     
-    std::vector<std::pair<Move, int>> movesOrderedByShallowEval;
+    std::vector<std::pair<Move, int>> shallowedMoves;
 
     // Do a shallow search to find a good ordering of moves
     for (int i = 0; i < moveCandidates.size(); i++) {
@@ -305,30 +307,30 @@ Move findBestMove(Board& board,
 
         board.makeMove(move);
         if (whiteTurn) {
-            eval = alphaBeta(board, 4, -INF, INF, false, quiescenceDepth);
+            eval = alphaBeta(board, shallowDepth, -INF, INF, false, quiescenceDepth);
         } else {
-            eval = alphaBeta(board, 4, -INF, INF, true, quiescenceDepth);
+            eval = alphaBeta(board, shallowDepth, -INF, INF, true, quiescenceDepth);
         }
         board.unmakeMove(move);
 
-        movesOrderedByShallowEval.push_back({move, eval});
+        shallowedMoves.push_back({move, eval});
     }
 
+    // Sort the moves by the shallow evaluation
     if (whiteTurn) {
-        // Prioritize moves with higher shallow evaluations for white
-        std::sort(movesOrderedByShallowEval.begin(), movesOrderedByShallowEval.end(), [](const auto& a, const auto& b) {
+        std::sort(shallowedMoves.begin(), shallowedMoves.end(), [](const auto& a, const auto& b) {
             return a.second > b.second;
         });
     } else {
-        // Prioritize moves with lower shallow evaluations for black
-        std::sort(movesOrderedByShallowEval.begin(), movesOrderedByShallowEval.end(), [](const auto& a, const auto& b) {
+        std::sort(shallowedMoves.begin(), shallowedMoves.end(), [](const auto& a, const auto& b) {
             return a.second < b.second;
         });
     }
 
     #pragma omp parallel for
-    for (int j = 0; j < movesOrderedByShallowEval.size(); j++) {
-        const auto move = movesOrderedByShallowEval[j].first;
+    for (int j = 0; j < std::min(shallowedMoves.size(), branchingFactor); j++) {
+
+        const auto move = shallowedMoves[j].first;
         Board localBoard = board; // Thread-local copy of the board
         localBoard.makeMove(move);
         int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn, quiescenceDepth);

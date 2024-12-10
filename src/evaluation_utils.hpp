@@ -338,4 +338,4 @@ int activity(const chess::Board& board, const chess::Color color);
 /**
  * Returns whether the game is in an endgame state.
  */
-bool endGame(const chess::Board& board);
+bool isEndGame(const chess::Board& board);
