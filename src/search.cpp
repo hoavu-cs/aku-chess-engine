@@ -20,7 +20,7 @@ using namespace chess;
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
 long long positionCount = 0;
-const int shallowDepth = 5;
+const int shallowDepth = 4;
 const int nullMoveDepth = 4;
 const long long unsigned int numShallowMoves = 3;
 const size_t maxTableSize = 100000000;
@@ -60,8 +60,7 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
         20000 // King
     };
 
-    for (int j = 0; j < moves.size(); j++) {
-        const auto move = moves[j];
+    for (const auto& move : moves) {
         int priority = 0;
 
         if (isPromotion(move)) {
@@ -229,9 +228,7 @@ int alphaBeta(chess::Board& board,
             maxEval = std::max(maxEval, eval);
             alpha = std::max(alpha, eval);
 
-            if (beta <= alpha) {
-                break; 
-            }
+            if (beta <= alpha) break; 
         }
         #pragma omp critical
         lowerBoundTable[hash] = {maxEval, depth}; // Store lower bound
@@ -250,9 +247,7 @@ int alphaBeta(chess::Board& board,
             minEval = std::min(minEval, eval);
             beta = std::min(beta, eval);
 
-            if (beta <= alpha) {
-                break; 
-            }
+            if (beta <= alpha) break; 
         }
         #pragma omp critical
         upperBoundTable[hash] = {minEval, depth}; // Store upper bound
@@ -319,60 +314,40 @@ int evalSecondLevel(Board& board,
     return bestEval;
 }
 
+// Helper to evaluate and sort moves based on shallow search
+std::vector<std::pair<Move, int>> evaluateAndSortMoves(Board& board, bool whiteTurn, int depth, int quiescenceDepth) {
+    std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
+    for (auto& [move, priority] : moveCandidates) {
+        board.makeMove(move);
+        priority = alphaBeta(board, depth, -INF, INF, !whiteTurn, quiescenceDepth);
+        board.unmakeMove(move);
+    }
+    std::sort(moveCandidates.begin(), moveCandidates.end(), [&](const auto& a, const auto& b) {
+        return whiteTurn ? a.second > b.second : a.second < b.second;
+    });
+    return moveCandidates;
+}
+
 
 Move findBestMove(Board& board, 
                 int timeLimit = 60000, 
                 int numThreads = 4, 
                 int depth = 6, 
                 int quiescenceDepth = 10) {
+    
+    // If there are no legal moves, return NO_MOVE
+    Movelist legalMoves;
+    movegen::legalmoves(legalMoves, board);
+    if (legalMoves.empty()) {
+        return Move::NO_MOVE;
+    }
 
     omp_set_num_threads(numThreads);
 
-    Movelist moves;
-    movegen::legalmoves(moves, board);
-
-    if (moves.empty()) {
-        auto gameResult = board.isGameOver();
-        if (gameResult.first == GameResultReason::CHECKMATE) {
-            return Move::NO_MOVE;
-        } else {
-            return Move::NO_MOVE;
-        }
-    }
-
-    bool whiteTurn = (board.sideToMove() == Color::WHITE);
-    int bestEval = whiteTurn ? -INF : INF;
-    
-    std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
-    std::vector<std::pair<Move, int>> shallowedMoves;
-    Move bestMove = moveCandidates[0].first;
-
-    // Do a shallow search to find a good ordering of moves
-    for (int i = 0; i < moveCandidates.size(); i++) {
-        const auto move = moveCandidates[i].first;
-        int eval = 0;
-
-        board.makeMove(move);
-        if (whiteTurn) {
-            eval = alphaBeta(board, shallowDepth, -INF, INF, false, quiescenceDepth);
-        } else {
-            eval = alphaBeta(board, shallowDepth, -INF, INF, true, quiescenceDepth);
-        }
-        board.unmakeMove(move);
-
-        shallowedMoves.push_back({move, eval});
-    }
-
-    // Sort the moves by the shallow evaluation
-    if (whiteTurn) {
-        std::sort(shallowedMoves.begin(), shallowedMoves.end(), [](const auto& a, const auto& b) {
-            return a.second > b.second;
-        });
-    } else {
-        std::sort(shallowedMoves.begin(), shallowedMoves.end(), [](const auto& a, const auto& b) {
-            return a.second < b.second;
-        });
-    }
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    auto shallowedMoves = evaluateAndSortMoves(board, whiteTurn, shallowDepth, quiescenceDepth);
+    int bestEval = board.sideToMove() == Color::WHITE ? -INF : INF;
+    Move bestMove = shallowedMoves.front().first;
 
     #pragma omp parallel for
     for (int j = 0; j < std::min(shallowedMoves.size(), numShallowMoves); j++) {
@@ -380,7 +355,6 @@ Move findBestMove(Board& board,
         const auto move = shallowedMoves[j].first;
         Board localBoard = board; // Thread-local copy of the board
         localBoard.makeMove(move);
-        //int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn, quiescenceDepth);
         int eval = evalSecondLevel(localBoard, numThreads, depth - 1, quiescenceDepth);
         localBoard.unmakeMove(move);
 
@@ -402,6 +376,5 @@ Move findBestMove(Board& board,
     }
 
     clearTranspositionTables(maxTableSize);
-
     return bestMove;
 }
