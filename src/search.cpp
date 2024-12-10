@@ -204,25 +204,25 @@ int alphaBeta(chess::Board& board,
         return quiescence(board, quiescenceDepth, alpha, beta, whiteTurn);
     }
 
-    int R = 5;
-    // null move heuristics
-    if (depth > R) {
-        if (whiteTurn && !board.inCheck()) {
-            board.makeNullMove();
-            int nullEval = alphaBeta(board, 4, alpha, beta, false, quiescenceDepth);
-            board.unmakeNullMove();
-            if (nullEval >= beta) {
-                return beta;
-            }
-        } else if (!whiteTurn && !board.inCheck()) {
-            board.makeNullMove();
-            int nullEval = alphaBeta(board, 4, alpha, beta, true, quiescenceDepth);
-            board.unmakeNullMove();
-            if (nullEval <= alpha) {
-                return alpha;
-            }
-        }
-    }
+    // int R = 4;
+    // // null move heuristics
+    // if (depth > R) {
+    //     if (whiteTurn && !board.inCheck()) {
+    //         board.makeNullMove();
+    //         int nullEval = alphaBeta(board, 4, alpha, beta, false, quiescenceDepth);
+    //         board.unmakeNullMove();
+    //         if (nullEval >= beta) {
+    //             return beta;
+    //         }
+    //     } else if (!whiteTurn && !board.inCheck()) {
+    //         board.makeNullMove();
+    //         int nullEval = alphaBeta(board, 4, alpha, beta, true, quiescenceDepth);
+    //         board.unmakeNullMove();
+    //         if (nullEval <= alpha) {
+    //             return alpha;
+    //         }
+    //     }
+    // }
 
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
 
