@@ -19,9 +19,9 @@ using namespace chess;
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
 long long positionCount = 0;
-const int shallowDepth = 4;
+const int shallowDepth = 5;
 const int nullMoveDepth = 4;
-const long long unsigned int numShallowMoves = 4;
+const long long unsigned int numShallowMoves = 3;
 const size_t maxTableSize = 100000000;
 
 // Transposition table lookup.
@@ -173,9 +173,11 @@ int alphaBeta(chess::Board& board,
         // If the game is over, return an appropriate evaluation
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
             if (whiteTurn) {
-                return -2 * INF + board.halfMoveClock(); // Get the fastest checkmate possible
+                return -INF/2 + (1000 - depth); // Get the fastest checkmate possible
             } else {
-                return 2 * INF - board.halfMoveClock(); 
+                //std::cout << "Checkmate at depth " << depth  << " moves" << std::endl;
+                //std::cout << "Evaluation: " << 2 * INF - (1000 - depth) << std::endl;
+                return INF/2 - (1000 - depth); 
             }
         }
         return 0; // For stalemates or draws, return 0
