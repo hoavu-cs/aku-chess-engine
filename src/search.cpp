@@ -175,8 +175,6 @@ int alphaBeta(chess::Board& board,
             if (whiteTurn) {
                 return -INF/2 + (1000 - depth); // Get the fastest checkmate possible
             } else {
-                //std::cout << "Checkmate at depth " << depth  << " moves" << std::endl;
-                //std::cout << "Evaluation: " << 2 * INF - (1000 - depth) << std::endl;
                 return INF/2 - (1000 - depth); 
             }
         }
