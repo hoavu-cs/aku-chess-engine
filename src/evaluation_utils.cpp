@@ -361,6 +361,34 @@ int evaluate(const Board& board) {
     int whiteScore = 0;
     int blackScore = 0;
 
+    // Mop-up phase: if only enemy king is left
+    Color theirColor = (board.sideToMove() == Color::WHITE) ? Color::BLACK : Color::WHITE;
+    Bitboard enemyPieces = board.pieces(PieceType::PAWN, theirColor) | board.pieces(PieceType::KNIGHT, theirColor) | 
+                           board.pieces(PieceType::BISHOP, theirColor) | board.pieces(PieceType::ROOK, theirColor) | 
+                           board.pieces(PieceType::QUEEN, theirColor);
+    if (enemyPieces.count() == 0) {
+        // only the enemy king is left
+        // std::cout << "Mop-up phase" << std::endl;
+        Square ourKing = Square(board.pieces(PieceType::KING, board.sideToMove()).lsb());
+        Square theirKing = Square(board.pieces(PieceType::KING, theirColor).lsb());
+        Square E4 = Square(28);
+
+        int kingDist = manhattanDistance(ourKing, theirKing);
+        int distToCenter = manhattanDistance(theirKing, E4);
+        int ourMaterial = 900 * board.pieces(PieceType::QUEEN, board.sideToMove()).count() + 
+                          500 * board.pieces(PieceType::ROOK, board.sideToMove()).count() + 
+                          300 * board.pieces(PieceType::BISHOP, board.sideToMove()).count() + 
+                          300 * board.pieces(PieceType::KNIGHT, board.sideToMove()).count() + 
+                          100 * board.pieces(PieceType::PAWN, board.sideToMove()).count(); // avoid throwing away pieces
+        int score = 5000 + 47 * distToCenter + 14 * (14 - kingDist);
+
+        std::cout << "Score: " << score << std::endl;
+
+        return board.sideToMove() == Color::WHITE ? score : -score;
+    }
+
+
+
     // Traverse each piece type
     const PieceType allPieceTypes[] = {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, 
                                            PieceType::ROOK, PieceType::QUEEN, PieceType::KING};
@@ -368,6 +396,7 @@ int evaluate(const Board& board) {
     for (const auto& type : allPieceTypes) {
         // Determine base value of the current piece type
         int baseValue = 0;
+
         switch (type.internal()) {
             case PieceType::PAWN: baseValue = PAWN_VALUE; break;
             case PieceType::KNIGHT: baseValue = KNIGHT_VALUE; break;

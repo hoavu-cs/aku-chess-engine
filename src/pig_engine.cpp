@@ -83,9 +83,10 @@ void processGo() {
     int depth = 6;
     int quiescenceDepth = 10;
     int numThreads = 8;
+    int shallowDepth = 5;
 
     Move bestMove;
-    bestMove = findBestMove(board, 60000, numThreads, depth, quiescenceDepth); 
+    bestMove = findBestMove(board, 60000, numThreads, depth, quiescenceDepth, shallowDepth); 
 
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove) << std::endl;

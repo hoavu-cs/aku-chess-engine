@@ -19,7 +19,6 @@ using namespace chess;
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
 long long positionCount = 0;
-const int shallowDepth = 5;
 const int nullMoveDepth = 4;
 const long long unsigned int numShallowMoves = 5;
 const size_t maxTableSize = 100000000;
@@ -277,7 +276,8 @@ Move findBestMove(Board& board,
                 int timeLimit = 60000, 
                 int numThreads = 4, 
                 int depth = 6, 
-                int quiescenceDepth = 10) {
+                int quiescenceDepth = 10,
+                int shallowDepth = 4) {
     
     // If there are no legal moves, return NO_MOVE
     Movelist legalMoves;
