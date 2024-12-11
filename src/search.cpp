@@ -21,10 +21,10 @@ std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, 
 long long positionCount = 0;
 const int shallowDepth = 5;
 const int nullMoveDepth = 4;
-const long long unsigned int numShallowMoves = 3;
+const long long unsigned int numShallowMoves = 5;
 const size_t maxTableSize = 100000000;
 
-// Transposition table lookup.
+// Transposition table lookup
 bool probeTranspositionTable(std::map<std::uint64_t, std::pair<int, int>>& table, std::uint64_t hash, int depth, int& eval) {
     auto it = table.find(hash);
     return it != table.end() && it->second.second >= depth && (eval = it->second.first, true);
@@ -39,6 +39,7 @@ void clearTranspositionTables(size_t maxSize) {
 // Transposition table type: maps Zobrist hash to a tuple (evaluation, depth)
 std::map<std::uint64_t, std::tuple<int, int>> transpositionTable;
 
+// Check if a move is a promotion
 bool isPromotion(const Move& move) {
     return (move.typeOf() & Move::PROMOTION) != 0;
 }
@@ -201,6 +202,7 @@ int alphaBeta(chess::Board& board,
             board.makeNullMove();
             int nullEval = alphaBeta(board, nullMoveDepth, alpha, beta, quiescenceDepth);
             board.unmakeNullMove();
+
             if (nullEval >= beta) {
                 return beta;
             }
@@ -208,6 +210,7 @@ int alphaBeta(chess::Board& board,
             board.makeNullMove();
             int nullEval = alphaBeta(board, nullMoveDepth, alpha, beta, quiescenceDepth);
             board.unmakeNullMove();
+
             if (nullEval <= alpha) {
                 return alpha;
             }
@@ -219,9 +222,7 @@ int alphaBeta(chess::Board& board,
     if (whiteTurn) {
         int maxEval = -INF; // Large negative value
 
-        for (int i = 0; i < moveCandidates.size(); i++) {
-            const auto move = moveCandidates[i].first;
-
+        for (auto& [move, priority] : moveCandidates) {
             board.makeMove(move); 
             int eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth);
             board.unmakeMove(move); 
@@ -238,9 +239,7 @@ int alphaBeta(chess::Board& board,
     } else {
         int minEval = INF; // Large positive value
 
-        for (int i = 0; i < moveCandidates.size(); i++) {
-            const auto move = moveCandidates[i].first;
-
+        for (auto& [move, priority] : moveCandidates) {
             board.makeMove(move); 
             int eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth);
             board.unmakeMove(move); 
@@ -250,6 +249,7 @@ int alphaBeta(chess::Board& board,
 
             if (beta <= alpha) break; 
         }
+        
         #pragma omp critical
         upperBoundTable[hash] = {minEval, depth}; // Store upper bound
         return minEval;
@@ -260,11 +260,13 @@ int alphaBeta(chess::Board& board,
 std::vector<std::pair<Move, int>> evaluateAndSortMoves(Board& board, int depth, int quiescenceDepth) {
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
     bool whiteTurn = board.sideToMove() == Color::WHITE;
+
     for (auto& [move, priority] : moveCandidates) {
         board.makeMove(move);
         priority = alphaBeta(board, depth, -INF, INF, quiescenceDepth);
         board.unmakeMove(move);
     }
+
     std::sort(moveCandidates.begin(), moveCandidates.end(), [&](const auto& a, const auto& b) {
         return whiteTurn ? a.second > b.second : a.second < b.second;
     });
