@@ -20,7 +20,6 @@ std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, 
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
 long long positionCount = 0;
 const int nullMoveDepth = 4;
-const long long unsigned int numShallowMoves = 5;
 const size_t maxTableSize = 100000000;
 
 // Transposition table lookup
@@ -273,11 +272,11 @@ std::vector<std::pair<Move, int>> evaluateAndSortMoves(Board& board, int depth, 
 }
 
 Move findBestMove(Board& board, 
-                int timeLimit = 60000, 
                 int numThreads = 4, 
                 int depth = 6, 
                 int quiescenceDepth = 10,
-                int shallowDepth = 4) {
+                int shallowDepth = 4,
+                int numShallowMoves = 5) {
     
     // If there are no legal moves, return NO_MOVE
     Movelist legalMoves;
@@ -289,14 +288,19 @@ Move findBestMove(Board& board,
     omp_set_num_threads(numThreads);
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-    auto shallowedMoves = evaluateAndSortMoves(board, shallowDepth, quiescenceDepth);
+    auto shallowMoves = evaluateAndSortMoves(board, shallowDepth, quiescenceDepth);
+    Move bestMove = shallowMoves.front().first;
+
+    if (shallowDepth >= depth) {
+        return bestMove;
+    }
+
     int bestEval = board.sideToMove() == Color::WHITE ? -INF : INF;
-    Move bestMove = shallowedMoves.front().first;
 
     #pragma omp parallel for
-    for (int j = 0; j < std::min(shallowedMoves.size(), numShallowMoves); j++) {
+    for (int j = 0; j < std::min(shallowMoves.size(), static_cast<size_t>(numShallowMoves)); j++) {
 
-        const auto move = shallowedMoves[j].first;
+        const auto move = shallowMoves[j].first;
         Board localBoard = board; // Thread-local copy of the board
         localBoard.makeMove(move);
         int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth);

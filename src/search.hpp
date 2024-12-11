@@ -53,18 +53,18 @@ int alphaBeta(
 /**
  * Finds the best move for the current position using alpha-beta pruning.
  * @param board The current chess board state.
- * @param timeLimit The time limit for the search.
  * @param numThreads The number of threads to use for the search.
  * @param depth The normal search depth.
  * @param quiescenceDepth The depth for quiescence search.
  * @param shallowDepth The depth for shallower search to guide full depth search.
+ * @param numShallowMoves The number of moves to evaluate given by the shallower search.
  * @return The best move for the current position.
  */
 Move findBestMove(
     Board& board, 
-    int timeLimit, 
     int numThreads, 
     int depth, 
     int quiescenceDepth,
-    int shallowDepth
+    int shallowDepth,
+    int numShallowMoves
 );

@@ -367,8 +367,6 @@ int evaluate(const Board& board) {
                            board.pieces(PieceType::BISHOP, theirColor) | board.pieces(PieceType::ROOK, theirColor) | 
                            board.pieces(PieceType::QUEEN, theirColor);
     if (enemyPieces.count() == 0) {
-        // only the enemy king is left
-        // std::cout << "Mop-up phase" << std::endl;
         Square ourKing = Square(board.pieces(PieceType::KING, board.sideToMove()).lsb());
         Square theirKing = Square(board.pieces(PieceType::KING, theirColor).lsb());
         Square E4 = Square(28);

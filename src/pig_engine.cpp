@@ -81,12 +81,13 @@ void processPosition(const std::string& command) {
  */
 void processGo() {
     int depth = 6;
-    int quiescenceDepth = 10;
+    int quiescenceDepth = 6;
     int numThreads = 8;
     int shallowDepth = 5;
+    int numShallowMoves = 5;
 
     Move bestMove;
-    bestMove = findBestMove(board, 60000, numThreads, depth, quiescenceDepth, shallowDepth); 
+    bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, shallowDepth, numShallowMoves); 
 
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove) << std::endl;
