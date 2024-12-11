@@ -173,7 +173,6 @@ int alphaBeta(chess::Board& board,
         // If the game is over, return an appropriate evaluation
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
             if (whiteTurn) {
-                
                 return -2 * INF + board.halfMoveClock(); // Get the fastest checkmate possible
             } else {
                 return 2 * INF - board.halfMoveClock(); 
