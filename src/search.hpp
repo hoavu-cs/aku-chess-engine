@@ -21,15 +21,13 @@ std::vector<std::pair<chess::Move, int>> generatePrioritizedMoves(chess::Board& 
  * @param depth The remaining depth for the quiescence search.
  * @param alpha The alpha bound for alpha-beta pruning.
  * @param beta The beta bound for alpha-beta pruning.
- * @param whiteTurn Indicates if it's white's turn.
  * @return The evaluation score of the position.
  */
 int quiescence(
     chess::Board& board, 
     int depth, 
     int alpha, 
-    int beta, 
-    bool whiteTurn
+    int beta
 );
 
 /**
@@ -38,7 +36,6 @@ int quiescence(
  * @param depth The remaining depth for the search.
  * @param alpha The alpha bound for alpha-beta pruning.
  * @param beta The beta bound for alpha-beta pruning.
- * @param whiteTurn Indicates if it's white's turn.
  * @param quiescenceDepth The depth for quiescence search.
  * @return The evaluation score of the position.
  */
@@ -47,31 +44,30 @@ int alphaBeta(
     int depth, 
     int alpha, 
     int beta, 
-    bool whiteTurn, 
     int quiescenceDepth
 );
 
-/**
- * @brief Evaluates the root position of the chess board up to a given depth.
- * This function is mostly used mostly for a parallelized search at the second level of the search tree
- * using OpenMP for multi-threading since the first level only has a few moves to evaluate.
- * @param board Reference to the chess board object representing the current position.
- * @param numThreads The number of threads to utilize for parallel search.
- * @param depth The search depth limit for evaluation.
- * @param quiescenceDepth The depth for quiescence search to resolve tactical sequences.
- * @return The evaluation score of the root position after searching the second level.
- */
-int evalSecondLevel(chess::Board& board, 
-                    int numThreads, 
-                    int depth, 
-                    int quiescenceDepth);
+// /**
+//  * @brief Evaluates the root position of the chess board up to a given depth.
+//  * This function is mostly used mostly for a parallelized search at the second level of the search tree
+//  * using OpenMP for multi-threading since the first level only has a few moves to evaluate.
+//  * @param board Reference to the chess board object representing the current position.
+//  * @param numThreads The number of threads to utilize for parallel search.
+//  * @param depth The search depth limit for evaluation.
+//  * @param quiescenceDepth The depth for quiescence search to resolve tactical sequences.
+//  * @return The evaluation score of the root position after searching the second level.
+//  */
+// int evalSecondLevel(chess::Board& board, 
+//                     int numThreads, 
+//                     int depth, 
+//                     int quiescenceDepth);
 
 /**
  * Finds the best move for the current position using alpha-beta pruning.
  * @param board The current chess board state.
  * @param timeLimit The time limit for the search.
  * @param numThreads The number of threads to use for the search.
- * @param normalDepth The normal search depth.
+ * @param depth The normal search depth.
  * @param quiescenceDepth The depth for quiescence search.
  * @return The best move for the current position.
  */

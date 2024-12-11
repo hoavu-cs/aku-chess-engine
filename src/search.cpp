@@ -9,7 +9,6 @@
 #include <vector>
 #include <algorithm>
 #include <chrono>
-#include <random>
 #include <omp.h> // Include OpenMP header
 #include <stdlib.h>
 
@@ -20,9 +19,9 @@ using namespace chess;
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
 long long positionCount = 0;
-const int shallowDepth = 5;
+const int shallowDepth = 4;
 const int nullMoveDepth = 4;
-const long long unsigned int numShallowMoves = 6;
+const long long unsigned int numShallowMoves = 4;
 const size_t maxTableSize = 100000000;
 
 // Transposition table lookup.
@@ -71,11 +70,9 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
             auto attacker = board.at<Piece>(move.from());
             priority = 4000 + (pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())]);
         } else {
-            bool isCheck = false;
             board.makeMove(move);
-            isCheck = board.inCheck();
+            bool isCheck = board.inCheck();
             board.unmakeMove(move);
-
             if (isCheck) {
                 priority = 3000;
             } 
@@ -84,21 +81,24 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
         moveCandidates.push_back({move, priority});
     }
 
+    // Sort the moves by priority
     std::sort(moveCandidates.begin(), moveCandidates.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
     return moveCandidates;
 }
 
-int quiescence(chess::Board& board, int depth, int alpha, int beta, bool whiteTurn) {
+int quiescence(chess::Board& board, int depth, int alpha, int beta) {
     #pragma omp atomic
     positionCount++;
+    
     if (depth == 0) {
         return evaluate(board);
     }
 
     // Stand-pat evaluation: Evaluate the static position
     int standPat = evaluate(board);
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
 
     if (whiteTurn) {
         if (standPat >= beta) {
@@ -122,20 +122,20 @@ int quiescence(chess::Board& board, int depth, int alpha, int beta, bool whiteTu
     for (const auto& move : moves) {
         bool isCapture = board.isCapture(move), inCheck = board.inCheck(), isPromo = isPromotion(move);
         board.makeMove(move);
+        bool isCheckMove = board.inCheck();
         board.unmakeMove(move);
 
-        if (!isCapture && !inCheck && !isPromo) {
+        // If not in check, not a capture, not a promotion, and not a check move, skip
+        if (!isCapture && !inCheck && !isPromo && !isCheckMove) {
             continue;
         }
 
         int score;
         board.makeMove(move);
         if (whiteTurn) {
-            // Maximizing player searches for the highest score
-            score = quiescence(board, depth - 1, alpha, beta, false);
+            score = quiescence(board, depth - 1, alpha, beta);
         } else {
-            // Minimizing player searches for the lowest score
-            score = quiescence(board, depth - 1, alpha, beta, true);
+            score = quiescence(board, depth - 1, alpha, beta);
         }
         board.unmakeMove(move);
 
@@ -163,18 +163,20 @@ int alphaBeta(chess::Board& board,
                 int depth, 
                 int alpha, 
                 int beta, 
-                bool whiteTurn, 
                 int quiescenceDepth) {
 
     // Check if the game is over
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
     auto gameOverResult = board.isGameOver();
+
     if (gameOverResult.first != GameResultReason::NONE) {
         // If the game is over, return an appropriate evaluation
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
             if (whiteTurn) {
-                return -INF + board.halfMoveClock(); // Get the fastest checkmate possible
+                
+                return -2 * INF + board.halfMoveClock(); // Get the fastest checkmate possible
             } else {
-                return INF - board.halfMoveClock(); 
+                return 2 * INF - board.halfMoveClock(); 
             }
         }
         return 0; // For stalemates or draws, return 0
@@ -191,21 +193,21 @@ int alphaBeta(chess::Board& board,
 
     // Base case: if depth is zero, evaluate the position using quiescence search
     if (depth == 0) {
-        return quiescence(board, quiescenceDepth, alpha, beta, whiteTurn);
+        return quiescence(board, quiescenceDepth, alpha, beta);
     }
 
     // null move heuristics
     if (depth > nullMoveDepth) {
         if (whiteTurn && !board.inCheck()) {
             board.makeNullMove();
-            int nullEval = alphaBeta(board, nullMoveDepth, alpha, beta, false, quiescenceDepth);
+            int nullEval = alphaBeta(board, nullMoveDepth, alpha, beta, quiescenceDepth);
             board.unmakeNullMove();
             if (nullEval >= beta) {
                 return beta;
             }
         } else if (!whiteTurn && !board.inCheck()) {
             board.makeNullMove();
-            int nullEval = alphaBeta(board, nullMoveDepth, alpha, beta, true, quiescenceDepth);
+            int nullEval = alphaBeta(board, nullMoveDepth, alpha, beta, quiescenceDepth);
             board.unmakeNullMove();
             if (nullEval <= alpha) {
                 return alpha;
@@ -222,7 +224,7 @@ int alphaBeta(chess::Board& board,
             const auto move = moveCandidates[i].first;
 
             board.makeMove(move); 
-            int eval = alphaBeta(board, depth - 1, alpha, beta, false, quiescenceDepth);
+            int eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth);
             board.unmakeMove(move); 
 
             maxEval = std::max(maxEval, eval);
@@ -241,7 +243,7 @@ int alphaBeta(chess::Board& board,
             const auto move = moveCandidates[i].first;
 
             board.makeMove(move); 
-            int eval = alphaBeta(board, depth - 1, alpha, beta, true, quiescenceDepth);
+            int eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth);
             board.unmakeMove(move); 
 
             minEval = std::min(minEval, eval);
@@ -255,74 +257,13 @@ int alphaBeta(chess::Board& board,
     }
 }
 
-// This function evaluates the root position up to the given depth.
-// It is mostly use to utilize OpenMP for parallelization in the second level of the search tree.
-int evalSecondLevel(Board& board, 
-                int numThreads, 
-                int depth, 
-                int quiescenceDepth) {
-    
-    omp_set_num_threads(numThreads);
-
-    Movelist moves;
-    movegen::legalmoves(moves, board);
-
-    if (moves.empty()) {
-        auto gameResult = board.isGameOver();
-        if (gameResult.first == GameResultReason::CHECKMATE) {
-            if (board.sideToMove() == Color::WHITE) {
-                return -INF + board.halfMoveClock();
-            } else {
-                return INF - board.halfMoveClock();
-            }
-        } else {
-            return 0;
-        }
-    }
-
-    bool whiteTurn = (board.sideToMove() == Color::WHITE);
-    int bestEval = whiteTurn ? -INF : INF;
-    
-    std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
-    Move bestMove = moveCandidates[0].first;
-
-
-    #pragma omp parallel for
-    for (int j = 0; j < std::min(moveCandidates.size(), numShallowMoves); j++) {
-
-        const auto move = moveCandidates[j].first;
-        Board localBoard = board; // Thread-local copy of the board
-        localBoard.makeMove(move);
-        int eval = alphaBeta(localBoard, depth - 1, -INF, INF, !whiteTurn, quiescenceDepth);
-        localBoard.unmakeMove(move);
-
-        #pragma omp critical
-        {
-            if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
-                bestEval = eval;
-                bestMove = move;
-            }
-        }
-    }
-
-    if (whiteTurn) {
-            #pragma omp critical
-            lowerBoundTable[board.hash()] = {bestEval, depth}; 
-    } else {
-            #pragma omp critical
-            upperBoundTable[board.hash()] = {bestEval, depth}; 
-    }
-
-    clearTranspositionTables(maxTableSize);
-    return bestEval;
-}
-
 // Helper to evaluate and sort moves based on shallow search
-std::vector<std::pair<Move, int>> evaluateAndSortMoves(Board& board, bool whiteTurn, int depth, int quiescenceDepth) {
+std::vector<std::pair<Move, int>> evaluateAndSortMoves(Board& board, int depth, int quiescenceDepth) {
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
     for (auto& [move, priority] : moveCandidates) {
         board.makeMove(move);
-        priority = alphaBeta(board, depth, -INF, INF, !whiteTurn, quiescenceDepth);
+        priority = alphaBeta(board, depth, -INF, INF, quiescenceDepth);
         board.unmakeMove(move);
     }
     std::sort(moveCandidates.begin(), moveCandidates.end(), [&](const auto& a, const auto& b) {
@@ -330,7 +271,6 @@ std::vector<std::pair<Move, int>> evaluateAndSortMoves(Board& board, bool whiteT
     });
     return moveCandidates;
 }
-
 
 Move findBestMove(Board& board, 
                 int timeLimit = 60000, 
@@ -348,7 +288,7 @@ Move findBestMove(Board& board,
     omp_set_num_threads(numThreads);
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-    auto shallowedMoves = evaluateAndSortMoves(board, whiteTurn, shallowDepth, quiescenceDepth);
+    auto shallowedMoves = evaluateAndSortMoves(board, shallowDepth, quiescenceDepth);
     int bestEval = board.sideToMove() == Color::WHITE ? -INF : INF;
     Move bestMove = shallowedMoves.front().first;
 
@@ -358,7 +298,7 @@ Move findBestMove(Board& board,
         const auto move = shallowedMoves[j].first;
         Board localBoard = board; // Thread-local copy of the board
         localBoard.makeMove(move);
-        int eval = evalSecondLevel(localBoard, numThreads, depth - 1, quiescenceDepth);
+        int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth);
         localBoard.unmakeMove(move);
 
         #pragma omp critical
