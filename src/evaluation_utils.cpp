@@ -9,7 +9,7 @@ We use value += penalty and not value -= penalty.
 */
 
 // Compute activity of the pieces on the board
-int activity(const chess::Board& board, const chess::Color color) {
+int activity(const Board& board, const Color color) {
     int value = 0;
     Bitboard knights = board.pieces(PieceType::KNIGHT, color);
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
@@ -44,7 +44,7 @@ int activity(const chess::Board& board, const chess::Color color) {
     return value;
 }
 
-bool isEndGame(const chess::Board& board) {
+bool isEndGame(const Board& board) {
     Bitboard whiteKBR = board.pieces(PieceType::BISHOP, Color::WHITE) 
                     | board.pieces(PieceType::ROOK, Color::WHITE) 
                     | board.pieces(PieceType::KNIGHT, Color::WHITE);
@@ -67,11 +67,11 @@ bool isEndGame(const chess::Board& board) {
 
 
 // Compute the value of the knights on the board
-int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
+int knightValue(const Board& board, int baseValue, Color color) {
     Bitboard knights = board.pieces(PieceType::KNIGHT, color);
     Bitboard enemyKing = board.pieces(PieceType::KING, !color);
 
-    chess::Square enemyKingSQ = chess::Square(enemyKing.lsb()); // Get the square of the enemy king
+    Square enemyKingSQ = Square(enemyKing.lsb()); // Get the square of the enemy king
     int value = 0;
 
     const int* KNIGHT_PENALTY_TABLE;
@@ -94,7 +94,7 @@ int knightValue(const chess::Board& board, int baseValue, chess::Color color) {
 }
 
 // Compute the value of the bishops on the board
-int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
+int bishopValue(const Board& board, int baseValue, Color color) {
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
     int value = 0;
     
@@ -106,7 +106,7 @@ int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
         value += baseValue;
         // Get the least significant bit (square index) and create a square object
         int sqIndex = bishops.lsb();
-        if (color == chess::Color::WHITE) {
+        if (color == Color::WHITE) {
             value += BISHOP_PENALTY_TABLE_WHITE[sqIndex];
         } else {
             value += BISHOP_PENALTY_TABLE_BLACK[sqIndex];
@@ -118,7 +118,7 @@ int bishopValue(const chess::Board& board, int baseValue, chess::Color color) {
 }
 
 // Compute the value of the pawns on the board
-int pawnValue(const chess::Board& board, int baseValue, chess::Color color) {
+int pawnValue(const Board& board, int baseValue, Color color) {
     
     Bitboard pawns = board.pieces(PieceType::PAWN, color);
     int value = 0;
@@ -194,7 +194,7 @@ Bitboard generateFileMask(const File& file) {
 }
 
 
-bool isOpenFile(const chess::Board& board, const File& file) {
+bool isOpenFile(const Board& board, const File& file) {
     // Get bitboards for white and black pawns
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
@@ -206,7 +206,7 @@ bool isOpenFile(const chess::Board& board, const File& file) {
     return !(whitePawns & mask) && !(blackPawns & mask);
 }
 
-bool isSemiOpenFile(const chess::Board& board, const File& file, Color color) {
+bool isSemiOpenFile(const Board& board, const File& file, Color color) {
     // Get the bitboard for the pawns of the given color
     Bitboard ownPawns = board.pieces(PieceType::PAWN, color);
 
@@ -218,7 +218,7 @@ bool isSemiOpenFile(const chess::Board& board, const File& file, Color color) {
 }
 
 // Compute the total value of the rooks on the board
-int rookValue(const chess::Board& board, int baseValue, chess::Color color) {
+int rookValue(const Board& board, int baseValue, Color color) {
     Bitboard rooks = board.pieces(PieceType::ROOK, color);
     int value = 0;
 
@@ -251,11 +251,11 @@ int rookValue(const chess::Board& board, int baseValue, chess::Color color) {
 
 
 // Compute the total value of the queens on the board
-int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
+int queenValue(const Board& board, int baseValue, Color color) {
     Bitboard queens = board.pieces(PieceType::QUEEN, color);
     Bitboard enemyKing = board.pieces(PieceType::KING, !color);
 
-    chess::Square enemyKingSQ = chess::Square(enemyKing.lsb()); // Get the square of the enemy king
+    Square enemyKingSQ = Square(enemyKing.lsb()); // Get the square of the enemy king
     int value = 0;
 
     while (!queens.empty()) {
@@ -273,7 +273,7 @@ int queenValue(const chess::Board& board, int baseValue, chess::Color color) {
 }
 
 // Compute the value of the kings on the board
-int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
+int kingValue(const Board& board, int baseValue, Color color) {
     Bitboard king = board.pieces(PieceType::KING, color);
     Bitboard CASTLE_SQUARES;
     
@@ -283,7 +283,7 @@ int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
     int value = baseValue;
     int sqIndex = king.lsb();
 
-    if (color == chess::Color::WHITE) {
+    if (color == Color::WHITE) {
         if (endGameFlag) {
             value += KING_PENALTY_TABLE_WHITE_END[sqIndex];
         } else {
@@ -336,7 +336,7 @@ int kingValue(const chess::Board& board, int baseValue, chess::Color color) {
 
 
 // Function to count the total number of pieces on the board
-int countPieces(const chess::Board& board) {
+int countPieces(const Board& board) {
 
     int pieceCount = 0;
     const PieceType allPieceTypes[] = {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, 
@@ -356,7 +356,7 @@ int manhattanDistance(const Square& sq1, const Square& sq2) {
 }
 
 // Function to evaluate the board position
-int evaluate(const chess::Board& board) {
+int evaluate(const Board& board) {
     // Initialize totals
     int whiteScore = 0;
     int blackScore = 0;

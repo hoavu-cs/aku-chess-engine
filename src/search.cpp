@@ -89,7 +89,7 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
     return moveCandidates;
 }
 
-int quiescence(chess::Board& board, int depth, int alpha, int beta) {
+int quiescence(Board& board, int depth, int alpha, int beta) {
     #pragma omp atomic
     positionCount++;
     
@@ -160,7 +160,7 @@ int quiescence(chess::Board& board, int depth, int alpha, int beta) {
     return whiteTurn ? alpha : beta;
 }
 
-int alphaBeta(chess::Board& board, 
+int alphaBeta(Board& board, 
                 int depth, 
                 int alpha, 
                 int beta, 
@@ -249,7 +249,7 @@ int alphaBeta(chess::Board& board,
 
             if (beta <= alpha) break; 
         }
-        
+
         #pragma omp critical
         upperBoundTable[hash] = {minEval, depth}; // Store upper bound
         return minEval;

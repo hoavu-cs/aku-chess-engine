@@ -33,10 +33,10 @@ const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open f
 const int KING_PAWN_SHIELD_BONUS = 30;
 const int KING_PROTECTION_BONUS = 15;
 
-const int KNIGHT_ACTIVITY_BONUS = 5;
-const int BISHOP_ACTIVITY_BONUS = 5;
-const int ROOK_ACTIVITY_BONUS = 5;
-const int QUEEN_ACTIVITY_BONUS = 5;
+const int KNIGHT_ACTIVITY_BONUS = 1;
+const int BISHOP_ACTIVITY_BONUS = 1;
+const int ROOK_ACTIVITY_BONUS = 1;
+const int QUEEN_ACTIVITY_BONUS = 1;
 
 // Knight piece-square table
 const int KNIGHT_PENALTY_TABLE_WHITE[64] = {
@@ -228,7 +228,7 @@ const int KING_PENALTY_TABLE_BLACK_END[64] = {
  * @param side The castling side (king-side or queen-side).
  * @return True if the castling rights are lost, otherwise false.
  */
-bool hasLostCastlingRights(const chess::Board& board, chess::Color color, chess::Board::CastlingRights::Side side);
+bool hasLostCastlingRights(const Board& board, Color color, Board::CastlingRights::Side side);
 
 /**
  * Compute the value of knights on the board.
@@ -237,7 +237,7 @@ bool hasLostCastlingRights(const chess::Board& board, chess::Color color, chess:
  * @param color The color of knights to evaluate.
  * @return The total value of knights for the specified color.
  */
-int knightValue(const chess::Board& board, int baseValue, chess::Color color);
+int knightValue(const Board& board, int baseValue, Color color);
 
 /**
  * Compute the value of bishops on the board.
@@ -246,7 +246,7 @@ int knightValue(const chess::Board& board, int baseValue, chess::Color color);
  * @param color The color of bishops to evaluate.
  * @return The total value of bishops for the specified color.
  */
-int bishopValue(const chess::Board& board, int baseValue, chess::Color color);
+int bishopValue(const Board& board, int baseValue, Color color);
 
 /**
  * Compute the value of pawns on the board.
@@ -255,7 +255,7 @@ int bishopValue(const chess::Board& board, int baseValue, chess::Color color);
  * @param color The color of pawns to evaluate.
  * @return The total value of pawns for the specified color.
  */
-int pawnValue(const chess::Board& board, int baseValue, chess::Color color);
+int pawnValue(const Board& board, int baseValue, Color color);
 
 /**
  * Compute the value of rooks on the board.
@@ -264,7 +264,7 @@ int pawnValue(const chess::Board& board, int baseValue, chess::Color color);
  * @param color The color of rooks to evaluate.
  * @return The total value of rooks for the specified color.
  */
-int rookValue(const chess::Board& board, int baseValue, chess::Color color);
+int rookValue(const Board& board, int baseValue, Color color);
 
 /**
  * Compute the value of queens on the board.
@@ -273,7 +273,7 @@ int rookValue(const chess::Board& board, int baseValue, chess::Color color);
  * @param color The color of queens to evaluate.
  * @return The total value of queens for the specified color.
  */
-int queenValue(const chess::Board& board, int baseValue, chess::Color color);
+int queenValue(const Board& board, int baseValue, Color color);
 
 /**
  * Compute the value of kings on the board.
@@ -282,21 +282,21 @@ int queenValue(const chess::Board& board, int baseValue, chess::Color color);
  * @param color The color of kings to evaluate.
  * @return The total value of kings for the specified color.
  */
-int kingValue(const chess::Board& board, int baseValue, chess::Color color);
+int kingValue(const Board& board, int baseValue, Color color);
 
 /**
  * Count the total number of pieces on the board.
  * @param board The chess board.
  * @return The total number of pieces on the board.
  */
-int countPieces(const chess::Board& board);
+int countPieces(const Board& board);
 
 /**
  * Evaluate the board position for the current side to move.
  * @param board The chess board.
  * @return The evaluation score of the position (positive if white is better, negative if black is better).
  */
-int evaluate(const chess::Board& board);
+int evaluate(const Board& board);
 
 /**
  * Check if the specified file is open (no pawns on it).
@@ -304,7 +304,7 @@ int evaluate(const chess::Board& board);
  * @param file The file to check.
  * @return True if the file is open, otherwise false.
  */
-bool isOpenFile(const chess::Board& board, const File& file);
+bool isOpenFile(const Board& board, const File& file);
 
 /**
  * Compute the Manhattan distance between two squares.
@@ -321,7 +321,7 @@ int manhattanDistance(const Square& sq1, const Square& sq2);
  * @param color The color to check against.
  * @return True if the file is semi-open, otherwise false.
  */
-bool isSemiOpenFile(const chess::Board& board, const File& file, chess::Color color);
+bool isSemiOpenFile(const Board& board, const File& file, Color color);
 
 /**
  * Generate a bitboard mask for the specified file.
@@ -333,9 +333,9 @@ Bitboard generateFileMask(const File& file);
 /**
  * Returns the activity score for the given color.
  */
-int activity(const chess::Board& board, const chess::Color color);
+int activity(const Board& board, const Color color);
 
 /**
  * Returns whether the game is in an endgame state.
  */
-bool isEndGame(const chess::Board& board);
+bool isEndGame(const Board& board);
