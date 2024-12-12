@@ -333,62 +333,62 @@ int kingValue(const Board& board, int baseValue, Color color) {
     }
 
     // Add bonus for protection from other pieces
-    // for (const auto& type : allPieceTypes) {
-    //     Bitboard pieces = board.pieces(type, color);
-    //     while (!pieces.empty()) {
-    //         int pieceIndex = pieces.lsb();
-    //         int manhattanDist = manhattanDistance(Square(pieceIndex), Square(sqIndex));
-    //         if (manhattanDist <= 4) {
-    //             value += KING_PROTECTION_BONUS;
-    //         }
-    //         pieces.clear(pieceIndex);
-    //     }
-    // }
+    for (const auto& type : allPieceTypes) {
+        Bitboard pieces = board.pieces(type, color);
+        while (!pieces.empty()) {
+            int pieceIndex = pieces.lsb();
+            int manhattanDist = manhattanDistance(Square(pieceIndex), Square(sqIndex));
+            if (manhattanDist <= 4) {
+                value += KING_PROTECTION_BONUS;
+            }
+            pieces.clear(pieceIndex);
+        }
+    }
 
     // Penalty for being attacked
-    std::vector<int> adjacentSquares = getAdjacentSquares(sqIndex); 
-    Bitboard attackers;
+    // std::vector<int> adjacentSquares = getAdjacentSquares(sqIndex); 
+    // Bitboard attackers;
     
-    // Get the bitboard of attackers
-    for (const auto& sq : adjacentSquares) {
-        attackers = attackers | attacks::attackers(board, !color, Square(sq));
-    }
+    // // Get the bitboard of attackers
+    // for (const auto& sq : adjacentSquares) {
+    //     attackers = attackers | attacks::attackers(board, !color, Square(sq));
+    // }
 
-    double attackWeight = 0;
-    double threatScore = 0;
+    // double attackWeight = 0;
+    // double threatScore = 0;
 
-    // The more attackers, the higher the penalty
-    switch (attackers.count()) {
-        case 0: attackWeight = 0; break;
-        case 1: attackWeight = 0; break;
-        case 2: attackWeight = 0.75; break;
-        case 3: attackWeight = 0.80; break;
-        case 4: attackWeight = 0.89; break;
-        case 5: attackWeight = 0.94; break;
-        case 6: attackWeight = 0.32; break;
-        case 7: attackWeight = 0.97; break;
-        case 8: attackWeight = 0.99; break;
-        default: break;
-    }
+    // // The more attackers, the higher the penalty
+    // switch (attackers.count()) {
+    //     case 0: attackWeight = 0; break;
+    //     case 1: attackWeight = 0; break;
+    //     case 2: attackWeight = 0.75; break;
+    //     case 3: attackWeight = 0.80; break;
+    //     case 4: attackWeight = 0.89; break;
+    //     case 5: attackWeight = 0.94; break;
+    //     case 6: attackWeight = 0.32; break;
+    //     case 7: attackWeight = 0.97; break;
+    //     case 8: attackWeight = 0.99; break;
+    //     default: break;
+    // }
 
-    while (attackers) {
-        int attackerIndex = attackers.lsb();
-        Piece attacker = board.at(Square(attackerIndex));
-        if (attacker.type() == PieceType::PAWN) {
-            threatScore += attackWeight * 10;
-        } else if (attacker.type() == PieceType::KNIGHT) {
-            threatScore += attackWeight * 20;
-        } else if (attacker.type() == PieceType::BISHOP) {
-            threatScore += attackWeight * 20;
-        } else if (attacker.type() == PieceType::ROOK) {
-            threatScore += attackWeight * 40;
-        } else if (attacker.type() == PieceType::QUEEN) {
-            threatScore += attackWeight * 90;
-        }
-        attackers.clear(attackerIndex);
-    }
+    // while (attackers) {
+    //     int attackerIndex = attackers.lsb();
+    //     Piece attacker = board.at(Square(attackerIndex));
+    //     if (attacker.type() == PieceType::PAWN) {
+    //         threatScore += attackWeight * 10;
+    //     } else if (attacker.type() == PieceType::KNIGHT) {
+    //         threatScore += attackWeight * 20;
+    //     } else if (attacker.type() == PieceType::BISHOP) {
+    //         threatScore += attackWeight * 20;
+    //     } else if (attacker.type() == PieceType::ROOK) {
+    //         threatScore += attackWeight * 40;
+    //     } else if (attacker.type() == PieceType::QUEEN) {
+    //         threatScore += attackWeight * 90;
+    //     }
+    //     attackers.clear(attackerIndex);
+    // }
     
-    value -= static_cast<int>(threatScore);
+    // value -= static_cast<int>(threatScore);
 
     return value;
 }
