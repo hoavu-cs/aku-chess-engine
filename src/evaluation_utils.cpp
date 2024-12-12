@@ -275,6 +275,9 @@ int rookValue(const Board& board, int baseValue, Color color) {
             value += ROOK_SEMI_OPEN_FILE_BONUS; // Add semi-open file bonus
         }
 
+        int mobility = attacks::rook(sq, board.occ()).count(); // Get the mobility of the rook
+        value += mobility * ROOK_ACTIVITY_BONUS; // Add the mobility bonus
+
         rooks.clear(sqIndex); // Remove the processed rook
     }
     return value;

@@ -36,7 +36,7 @@ const int KING_PROTECTION_BONUS = 15;
 
 const int KNIGHT_ACTIVITY_BONUS = 3;
 const int BISHOP_ACTIVITY_BONUS = 3;
-const int ROOK_ACTIVITY_BONUS = 0;
+const int ROOK_ACTIVITY_BONUS = 3;
 const int QUEEN_ACTIVITY_BONUS = 0;
 
 // Knight piece-square table for White
