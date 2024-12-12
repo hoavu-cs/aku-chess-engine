@@ -18,6 +18,7 @@ const int END_PIECE_COUNT = 14;
 const int DOUBLE_PAWN_PENALTY = -40;
 const int CENTRAL_PAWN_BONUS = 20;
 const int BISHOP_PAIR_BONUS = 30;
+const int PASSED_PAWN_BONUS = 20;
 
 //const int ATTACK_KING_BONUS_QUEEN = 30; // Bonus for the queen attacking the enemy king, normal: 30
 //const int ATTACK_KING_BONUS_KNIGHT = 20; // Bonus for the knight attacking the enemy king, normal: 10
@@ -38,8 +39,8 @@ const int BISHOP_ACTIVITY_BONUS = 3;
 const int ROOK_ACTIVITY_BONUS = 0;
 const int QUEEN_ACTIVITY_BONUS = 0;
 
-// Knight piece-square table
-const int KNIGHT_PENALTY_TABLE_WHITE[64] = {
+// Knight piece-square table for White
+const int whiteKnightTable[64] = {
     -50,-40,-30,-30,-30,-30,-40,-50,
     -40,-20,  0,  5,  5,  0,-20,-40,
     -30, 10, 15, 15, 15, 15, 10,-30,
@@ -50,7 +51,8 @@ const int KNIGHT_PENALTY_TABLE_WHITE[64] = {
     -50,-40,-30,-30,-30,-30,-40,-50,
 };
 
-const int KNIGHT_PENALTY_TABLE_BLACK[64] = {
+// Knight piece-square table for Black
+const int blackKnightTable[64] = {
     -50,-40,-30,-30,-30,-30,-40,-50,
     -40,-20,  0,  5,  5,  0,-20,-40,
     -30,  5, 15, 15, 15, 15,  5,-30,
@@ -62,7 +64,7 @@ const int KNIGHT_PENALTY_TABLE_BLACK[64] = {
 };
 
 // Bishop piece-square table for White
-const int BISHOP_PENALTY_TABLE_WHITE[64] = {
+const int whiteBishopTable[64] = {
     -20, -20, -35, -20, -20, -35, -20, -20,
      10,  30,   0,   0,   0,   0,  30,  10,
     -10,  20,  10,  20,  20,  10,  20, -10,
@@ -74,7 +76,7 @@ const int BISHOP_PENALTY_TABLE_WHITE[64] = {
 };
 
 // Bishop piece-square table for Black
-const int BISHOP_PENALTY_TABLE_BLACK[64] = {
+const int blackBishopTable[64] = {
     -20, -10, -10, -10, -10, -10, -10, -20,
     -10,   0,   0,   0,   0,   0,   0, -10,
     -10,   0,   5,  10,  10,   5,   0, -10,
@@ -85,8 +87,8 @@ const int BISHOP_PENALTY_TABLE_BLACK[64] = {
     -20, -20, -35, -20, -20, -35, -20, -20
 };
 
-/// Piece-square tables for pawns 
-const int PAWN_PENALTY_TABLE_WHITE_MID[64] = {
+// Pawn piece-square tables for White in the middle game
+const int whitePawnTableMid[64] = {
      0,  0,  0,  0,  0,  0,  0,  0,
      5, 10, 10,-30,-30, 10, 10,  5,
      5, 5, 10,  30,  30, 10, 5,  5,
@@ -97,7 +99,8 @@ const int PAWN_PENALTY_TABLE_WHITE_MID[64] = {
      0,  0,  0,  0,  0,  0,  0,  0
 };
 
-const int PAWN_PENALTY_TABLE_BLACK_MID[64] = {
+// Pawn piece-square tables for Black in the middle game
+const int blackPawnTableMid[64] = {
      0,  0,  0,  0,  0,  0,  0,  0,
     20, 20, 20, 30, 30, 20, 20, 20,
     20, 20, 20, 30, 30, 20, 20, 20,
@@ -108,7 +111,8 @@ const int PAWN_PENALTY_TABLE_BLACK_MID[64] = {
      0,  0,  0,  0,  0,  0,  0,  0
 };
 
-const int PAWN_PENALTY_TABLE_WHITE_END[64] = {
+// Pawn piece-square tables for White in the end game
+const int whitePawnTableEnd[64] = {
      0,    0,    0,    0,    0,    0,    0,    0,  // 1st rank
     -20,  -30,  -10,  -40,  -40,  -10,  -30,  -20, // 2nd rank 
       0,    0,   20,   50,   50,   20,    0,    0, // 3rd rank
@@ -119,7 +123,8 @@ const int PAWN_PENALTY_TABLE_WHITE_END[64] = {
       0,    0,    0,    0,    0,    0,    0,    0  // 8th rank
 };
 
-const int PAWN_PENALTY_TABLE_BLACK_END[64] = {
+// Pawn piece-square tables for Black in the end game
+const int blackPawnTableEnd[64] = {
      0,    0,    0,    0,    0,    0,    0,    0,  // 8th rank
      200,   300,  300,  300,  300,  300,   300,   200, // 7th rank
      50,   50,  100,  200,  200,  100,   50,   50, // 6th rank
@@ -130,8 +135,8 @@ const int PAWN_PENALTY_TABLE_BLACK_END[64] = {
       0,    0,    0,    0,    0,    0,    0,    0  // 1st rank
 };
 
-// Rook piece-square table
-const int ROOK_PENALTY_TABLE_WHITE[64] = {
+// Rook piece-square table for White
+const int whiteRookTable[64] = {
        0,    0,   10,   10,   10,   10,    0,    0,
       -5,    0,    0,    0,    0,    0,    0,   -5,
       -5,    0,    0,    0,    0,    0,    0,   -5,
@@ -142,7 +147,8 @@ const int ROOK_PENALTY_TABLE_WHITE[64] = {
        0,    0,    0,    0,    0,    0,    0,    0,
 };
 
-const int ROOK_PENALTY_TABLE_BLACK[64] = {
+// Rook piece-square table for Black
+const int blackRookTable[64] = {
        0,    0,    0,    0,    0,    0,    0,    0,
        20,   30,   30,   30,   30,   30,   30,    20,
       -5,    0,    0,    0,    0,    0,    0,   -5,
@@ -153,8 +159,8 @@ const int ROOK_PENALTY_TABLE_BLACK[64] = {
        0,    0,   10,    10,   10,   10,    0,    0,
 };
 
-// Queen piece-square table
-const int QUEEN_PENALTY_WHITE[64] = {
+// Queen piece-square table for White
+const int whiteQueenTable[64] = {
      -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
      -10,    0,    0,    0,    0,    5,    0,  -10,
      -10,    0,    5,    5,    5,    5,    5,  -10,
@@ -165,7 +171,8 @@ const int QUEEN_PENALTY_WHITE[64] = {
      -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
 };
 
-const int QUEEN_PENALTY_BLACK[64] = {
+// Queen piece-square table for Black
+const int blackQueenTable[64] = {
      -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
      -10,    0,    0,    0,    0,    0,    0,  -10,
      -10,    0,    5,    5,    5,    5,    0,  -10,
@@ -176,8 +183,8 @@ const int QUEEN_PENALTY_BLACK[64] = {
      -20,  -10,  -10,   -5,   -5,  -10,  -10,  -20,
 };
 
-// King piece-square table
-const int KING_PENALTY_TABLE_WHITE_MID[64] = {
+// King piece-square table for White in the middle game
+const int whiteKingTableMid[64] = {
       20,   50,   50,    0,    0,   10,   50,   20,
       20,   20,  -25,  -25,  -25,  -25,   20,   20,
      -10,  -20,  -20,  -20,  -20,  -20,  -20,  -10,
@@ -188,7 +195,8 @@ const int KING_PENALTY_TABLE_WHITE_MID[64] = {
      -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
 };
 
-const int KING_PENALTY_TABLE_BLACK_MID[64] = {
+// King piece-square table for Black in the middle game
+const int blackKingTableMid[64] = {
      -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
      -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
      -30,  -40,  -40,  -50,  -50,  -40,  -40,  -30,
@@ -199,7 +207,8 @@ const int KING_PENALTY_TABLE_BLACK_MID[64] = {
       20,   50,  50,    0,    0,   10,  50,   20,
 };
 
-const int KING_PENALTY_TABLE_WHITE_END[64] = {
+// King piece-square table for White in the end game
+const int whiteKingTableEnd[64] = {
      -50,  -30,  -30,  -30,  -30,  -30,  -30,  -50,
      -30,  -30,    0,    0,    0,    0,  -30,  -30,
      -30,  -10,   20,   30,   30,   20,  -10,  -30,
@@ -210,7 +219,8 @@ const int KING_PENALTY_TABLE_WHITE_END[64] = {
      -50,  -40,  -30,  -20,  -20,  -30,  -40,  -50,
 };
 
-const int KING_PENALTY_TABLE_BLACK_END[64] = {
+// King piece-square table for Black in the middle game
+const int blackKingTableEnd[64] = {
      -50,  -40,  -30,  -20,  -20,  -30,  -40,  -50,
      -30,  -20,  -10,    0,    0,  -10,  -20,  -30,
      -30,  -10,   20,   30,   30,   20,  -10,  -30,
@@ -331,11 +341,40 @@ bool isSemiOpenFile(const Board& board, const File& file, Color color);
 Bitboard generateFileMask(const File& file);
 
 /**
- * Returns the activity score for the given color.
- */
-int activity(const Board& board, const Color color);
-
-/**
  * Returns whether the game is in an endgame state.
  */
 bool isEndGame(const Board& board);
+
+/**
+* @brief Generates a bitboard mask for all squares in the given file.
+* @param file The file for which to generate the mask (A through H).
+* @return A Bitboard with bits set for all squares in the specified file.
+ */
+Bitboard generateFileMask(const File& file);
+
+/**
+* @brief Check if the given square is a passed pawn.
+* @param squareIndex The index of the square to check.
+* @param color The color of the pawn.
+* @param enemyPawns The bitboard of enemy pawns.
+* @return True if the pawn is passed, otherwise false.
+*/
+bool isPassedPawn(int squareIndex, Color color, const Bitboard& enemyPawns);
+
+/**
+ * @brief Check if the specified file is open (no pawns on it).
+ * @param board The chess board.
+ * @param file The file to check.
+ * @return True if the file is open, otherwise false.
+ */
+bool isOpenFile(const Board& board, const File& file);
+
+
+/** 
+ * @brief Check if the specified file is semi-open (no pawns of the given color).
+ * @param board The chess board.
+ * @param file The file to check.
+ * @param color The color to check against.
+ * @return True if the file is semi-open, otherwise false.
+ */
+bool isSemiOpenFile(const Board& board, const File& file, Color color);

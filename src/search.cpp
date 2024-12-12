@@ -114,6 +114,7 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
             beta = standPat;
         }
     }
+
     Movelist moves;
     movegen::legalmoves(moves, board);
 
@@ -129,13 +130,8 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
             continue;
         }
 
-        int score;
         board.makeMove(move);
-        if (whiteTurn) {
-            score = quiescence(board, depth - 1, alpha, beta);
-        } else {
-            score = quiescence(board, depth - 1, alpha, beta);
-        }
+        int score = quiescence(board, depth - 1, alpha, beta);
         board.unmakeMove(move);
 
         if (whiteTurn) {
