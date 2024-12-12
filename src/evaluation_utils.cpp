@@ -5,7 +5,7 @@
 #include <cstdint>
 using namespace chess; 
 
-
+long long hit = 0;
  
 
 /*------------------------------------------------------------------------
@@ -230,7 +230,8 @@ int pawnValue(const Board& board, int baseValue, Color color) {
 
     // If the pawn evaluation is already in the table, return the value
     if (pawnEvalTable.find(std::make_tuple(whitePawns.getBits(), blackPawns.getBits(), endGameFlag, isWhiteTurn)) != pawnEvalTable.end()) {
-            pawnEvalTable[std::make_tuple(whitePawns.getBits(), blackPawns.getBits(), endGameFlag, isWhiteTurn)];
+            value = pawnEvalTable[std::make_tuple(whitePawns.getBits(), blackPawns.getBits(), endGameFlag, isWhiteTurn)];
+            return value;
     }
 
     const int* pawnTable;
