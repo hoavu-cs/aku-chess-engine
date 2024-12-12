@@ -14,7 +14,6 @@
 
 using namespace chess;
 
-
 // Constants and global variables
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
@@ -84,6 +83,7 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
     std::sort(moveCandidates.begin(), moveCandidates.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
+
     return moveCandidates;
 }
 

@@ -42,7 +42,7 @@ int main() {
     
 
     for (int i = 0; i < moveCount; i++) {
-        Move bestMove = findBestMove(board, 6, 60000, 4, depth, 10);
+        Move bestMove = findBestMove(board, 4, 6, 8, 4, 5);
 
         if (bestMove == Move::NO_MOVE) {
             auto gameResult = board.isGameOver();

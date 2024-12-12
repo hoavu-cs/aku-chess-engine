@@ -80,11 +80,11 @@ void processPosition(const std::string& command) {
  * Processes the "go" command and finds the best move.
  */
 void processGo() {
-    int depth = 7;
+    int depth = 6;
     int quiescenceDepth = 8;
-    int numThreads = 10;
+    int numThreads = 6;
     int shallowDepth = 5;
-    int numShallowMoves = 5;
+    int numShallowMoves = 10;
 
     Move bestMove;
     bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, shallowDepth, numShallowMoves); 

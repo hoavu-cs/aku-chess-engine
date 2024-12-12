@@ -1,12 +1,39 @@
 #include "chess.hpp"
 #include "evaluation_utils.hpp"
+#include <tuple>
+#include <unordered_map>
+#include <cstdint>
+using namespace chess; 
 
-using namespace chess;
+
  
 
 /*------------------------------------------------------------------------
     Helper Functions
 ------------------------------------------------------------------------*/
+
+
+struct TupleHash {
+    std::size_t operator()(const std::tuple<std::uint64_t, std::uint64_t, bool, bool>& t) const {
+        std::size_t h1 = std::hash<std::uint64_t>()(std::get<0>(t));
+        std::size_t h2 = std::hash<std::uint64_t>()(std::get<1>(t));
+        std::size_t h3 = std::hash<bool>()(std::get<2>(t));
+        std::size_t h4 = std::hash<bool>()(std::get<3>(t));
+
+        // Combine the hashes using a common hashing technique
+        std::size_t seed = 0;
+        seed ^= h1 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= h2 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= h3 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= h4 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+
+        return seed;
+    }
+};
+
+// Pawn hash table <White pawns, Black pawns, isEndGame, sideToMove> -> score
+std::unordered_map<std::tuple<std::uint64_t, std::uint64_t, bool, bool>, int, TupleHash> pawnEvalTable;
+const size_t MAX_PAWN_TABLE_SIZE = 100000000;
 
 // Return true if the game is in the endgame phase 
 bool isEndGame(const Board& board) {
@@ -190,22 +217,32 @@ int bishopValue(const Board& board, int baseValue, Color color) {
 
 // Compute the value of the pawns on the board
 int pawnValue(const Board& board, int baseValue, Color color) {
-    
+
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     Bitboard enemyPawns = board.pieces(PieceType::PAWN, !color);
     int files[8] = {0};
     int value = 0;
     bool endGameFlag = isEndGame(board);
+    bool isWhiteTurn = board.sideToMove() == Color::WHITE;
+
+    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE).getBits();
+    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK).getBits();
+
+    // If the pawn evaluation is already in the table, return the value
+    if (pawnEvalTable.find(std::make_tuple(whitePawns.getBits(), blackPawns.getBits(), endGameFlag, isWhiteTurn)) != pawnEvalTable.end()) {
+            pawnEvalTable[std::make_tuple(whitePawns.getBits(), blackPawns.getBits(), endGameFlag, isWhiteTurn)];
+    }
+
     const int* pawnTable;
 
     if (!endGameFlag) {
-        if (color == Color::WHITE) {
+        if (isWhiteTurn) {
             pawnTable = whitePawnTableMid;
         } else {
             pawnTable = blackPawnTableMid;
         }
     } else {
-        if (color == Color::WHITE) {
+        if (isWhiteTurn) {
             pawnTable = whitePawnTableEnd;
         } else {
             pawnTable = blackPawnTableEnd;
@@ -241,6 +278,16 @@ int pawnValue(const Board& board, int baseValue, Color color) {
         if (files[i] > 1) {
             value += DOUBLE_PAWN_PENALTY * (files[i] - 1);
         }
+    }
+
+    // Store the value in the table
+
+    # pragma omp critical
+    pawnEvalTable.insert(std::make_pair(std::make_tuple(whitePawns.getBits(), blackPawns.getBits(), endGameFlag, isWhiteTurn), value));
+
+    if (pawnEvalTable.size() > MAX_PAWN_TABLE_SIZE) {
+        # pragma omp critical
+        pawnEvalTable.clear();
     }
 
     return value;

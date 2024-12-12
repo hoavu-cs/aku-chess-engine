@@ -49,7 +49,6 @@ int alphaBeta(
     int quiescenceDepth
 );
 
-
 /**
  * Finds the best move for the current position using alpha-beta pruning.
  * @param board The current chess board state.
