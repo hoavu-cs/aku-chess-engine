@@ -180,9 +180,7 @@ int bishopValue(const Board& board, int baseValue, Color color) {
             value += blackBishopTable[sqIndex];
         }
 
-        // Get the mobility of the bishop considering the pawns on the board
-        Bitboard pawns = board.pieces(PieceType::PAWN, color);
-        int mobility = attacks::bishop(Square(sqIndex), pawns).count(); 
+        int mobility = attacks::bishop(Square(sqIndex), board.occ()).count(); 
         value += mobility * BISHOP_ACTIVITY_BONUS;
         bishops.clear(sqIndex);
     }
