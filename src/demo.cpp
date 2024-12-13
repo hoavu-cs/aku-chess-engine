@@ -40,7 +40,7 @@ int main() {
     std::vector<std::string> pgnMoves; // Store moves in PGN format
     int depth = 6;
     int numThreads = 6;
-    int quiescenceDepth = 8;
+    int quiescenceDepth = 10;
     int shallowDepth = 5;
     int numShallowMoves = 5;
     int moveCount = 40;

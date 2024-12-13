@@ -301,11 +301,12 @@ Move findBestMove(Board& board,
     Move bestMove = Move::NO_MOVE;
     std::vector<std::pair<Move, int>> orderedMoves;
 
-    for (int i = 1; i <= depth; i++) {
-        if (i == 1) {
+    int startDepth = 4;
+
+    for (int i = startDepth; i <= depth; i++) {
+        if (i == startDepth) {
             orderedMoves = generatePrioritizedMoves(board);
         }
-
         std::vector<std::pair<Move, int>> newOrderedMoves;
         # pragma omp parallel for
         for (const auto& [move, priority] : orderedMoves) {
@@ -323,8 +324,13 @@ Move findBestMove(Board& board,
             }
             
         }
+        std::sort(newOrderedMoves.begin(), newOrderedMoves.end(), [&](const auto& a, const auto& b) {
+            return whiteTurn ? a.second > b.second : a.second < b.second;
+        });
+        
         //std::cout << "finish depth " << i << std::endl;
-        orderedMoves = newOrderedMoves;
+        // Only keep the top 10 moves
+        orderedMoves = newOrderedMoves.size() > 15 ? std::vector<std::pair<Move, int>>(newOrderedMoves.begin(), newOrderedMoves.begin() + 5) : newOrderedMoves;
     }
 
 
