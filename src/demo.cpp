@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <chrono>
 
 using namespace chess;
 
@@ -38,11 +39,24 @@ int main() {
     Board board = Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     std::vector<std::string> pgnMoves; // Store moves in PGN format
     int depth = 6;
+    int numThreads = 6;
+    int quiescenceDepth = 8;
+    int shallowDepth = 5;
+    int numShallowMoves = 5;
     int moveCount = 40;
     
-
     for (int i = 0; i < moveCount; i++) {
-        Move bestMove = findBestMove(board, 6, 4, 10, 4, 5);
+        // Start timer
+        auto start = std::chrono::high_resolution_clock::now();
+
+        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, shallowDepth, numShallowMoves);
+
+        // End timer
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> duration = end - start;
+        std::cout << "Time taken: " << duration.count() << "s" << std::endl;
+        std::cout << "Nodes searched per second: " << positionCount / duration.count() << std::endl;
+
 
         if (bestMove == Move::NO_MOVE) {
             auto gameResult = board.isGameOver();

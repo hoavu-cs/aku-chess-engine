@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <chrono>
 #include <omp.h> // Include OpenMP header
 #include <stdlib.h>
 
@@ -17,7 +16,7 @@ using namespace chess;
 // Constants and global variables
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
-long long positionCount = 0;
+uint64_t positionCount = 0;
 const int nullMoveDepth = 4;
 const size_t maxTableSize = 100000000;
 
@@ -29,8 +28,11 @@ bool probeTranspositionTable(std::map<std::uint64_t, std::pair<int, int>>& table
 
 // Clear the transposition tables if they exceed a certain size
 void clearTranspositionTables(size_t maxSize) {
-    if (lowerBoundTable.size() > maxSize) lowerBoundTable.clear();
-    if (upperBoundTable.size() > maxSize) upperBoundTable.clear();
+    #pragma omp critical
+    {
+        if (lowerBoundTable.size() > maxSize) lowerBoundTable.clear();
+        if (upperBoundTable.size() > maxSize) upperBoundTable.clear();
+    }
 }
 
 // Transposition table type: maps Zobrist hash to a tuple (evaluation, depth)
@@ -88,7 +90,7 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
 }
 
 int quiescence(Board& board, int depth, int alpha, int beta) {
-    #pragma omp atomic
+    #pragma  omp critical
     positionCount++;
     
     if (depth == 0) {
@@ -160,6 +162,9 @@ int alphaBeta(Board& board,
                 int beta, 
                 int quiescenceDepth) {
 
+    #pragma  omp critical
+    positionCount++;
+
     // Check if the game is over
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     auto gameOverResult = board.isGameOver();
@@ -178,12 +183,19 @@ int alphaBeta(Board& board,
 
     // Probe the transposition table
     std::uint64_t hash = board.hash();
+    bool found = false;
     int storedEval;
 
-    if ((whiteTurn && probeTranspositionTable(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
-        (!whiteTurn && probeTranspositionTable(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
-        return storedEval;
+    #pragma omp critical
+    { 
+        if ((whiteTurn && probeTranspositionTable(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
+            (!whiteTurn && probeTranspositionTable(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
+            found = true;
+        }
     }
+    if (found) {
+        return storedEval;
+    } 
 
     // Base case: if depth is zero, evaluate the position using quiescence search
     if (depth == 0) {
@@ -243,7 +255,6 @@ int alphaBeta(Board& board,
 
             if (beta <= alpha) break; 
         }
-
         #pragma omp critical
         upperBoundTable[hash] = {minEval, depth}; // Store upper bound
         return minEval;
@@ -255,10 +266,12 @@ std::vector<std::pair<Move, int>> evaluateAndSortMoves(Board& board, int depth, 
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
     bool whiteTurn = board.sideToMove() == Color::WHITE;
 
+    #pragma omp parallel for
     for (auto& [move, priority] : moveCandidates) {
-        board.makeMove(move);
-        priority = alphaBeta(board, depth, -INF, INF, quiescenceDepth);
-        board.unmakeMove(move);
+        Board localBoard = board; // Thread-local copy of the board
+        localBoard.makeMove(move);
+        priority = alphaBeta(localBoard, depth, -INF, INF, quiescenceDepth);
+        localBoard.unmakeMove(move);
     }
 
     std::sort(moveCandidates.begin(), moveCandidates.end(), [&](const auto& a, const auto& b) {
@@ -273,6 +286,9 @@ Move findBestMove(Board& board,
                 int quiescenceDepth = 10,
                 int shallowDepth = 4,
                 int numShallowMoves = 5) {
+
+    #pragma  omp critical
+    positionCount = 0;
     
     // If there are no legal moves, return NO_MOVE
     Movelist legalMoves;
@@ -319,6 +335,7 @@ Move findBestMove(Board& board,
             upperBoundTable[board.hash()] = {bestEval, depth}; 
     }
 
-    clearTranspositionTables(maxTableSize);
+    clearTranspositionTables(maxTableSize); // Clear the transposition tables if they exceed a certain size
+
     return bestMove;
 }

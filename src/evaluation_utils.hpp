@@ -18,7 +18,7 @@ const int END_PIECE_COUNT = 14;
 const int DOUBLE_PAWN_PENALTY = -40;
 const int CENTRAL_PAWN_BONUS = 20;
 const int BISHOP_PAIR_BONUS = 30;
-const int PASSED_PAWN_BONUS = 20;
+const int PASSED_PAWN_BONUS = 50;
 
 //const int ATTACK_KING_BONUS_QUEEN = 30; // Bonus for the queen attacking the enemy king, normal: 30
 //const int ATTACK_KING_BONUS_KNIGHT = 20; // Bonus for the knight attacking the enemy king, normal: 10
@@ -34,9 +34,9 @@ const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open f
 const int KING_PAWN_SHIELD_BONUS = 30;
 const int KING_PROTECTION_BONUS = 15;
 
-const int KNIGHT_ACTIVITY_BONUS = 3;
-const int BISHOP_ACTIVITY_BONUS = 3;
-const int ROOK_ACTIVITY_BONUS = 3;
+const int KNIGHT_ACTIVITY_BONUS = 2;
+const int BISHOP_ACTIVITY_BONUS = 2;
+const int ROOK_ACTIVITY_BONUS = 2;
 const int QUEEN_ACTIVITY_BONUS = 0;
 
 // Knight piece-square table for White
@@ -90,7 +90,7 @@ const int blackBishopTable[64] = {
 // Pawn piece-square tables for White in the middle game
 const int whitePawnTableMid[64] = {
      0,  0,  0,  0,  0,  0,  0,  0,
-     5, 10, 10,-30,-30, 10, 10,  5,
+     5, 10, 10,-30,-30, 10, 10,  10,
      5, 5, 10,  30,  30, 10, 5,  5,
      5,  5,  5, 40, 40,  5,  5,  5,
      5,  5,  5, 40, 40,  5,  5,  5,
@@ -107,7 +107,7 @@ const int blackPawnTableMid[64] = {
      5,  5,  5, 40, 40,  5,  5,  5,
      5,  5,  5, 40, 40,  5,  5,  5,
      5, 5, 10,  30,  30, 10, 5,  5,
-     5, 10, 10,-30,-30, 10, 10,  5,
+     5, 10, 10,-30,-30, 10, 10, 10,
      0,  0,  0,  0,  0,  0,  0,  0
 };
 
