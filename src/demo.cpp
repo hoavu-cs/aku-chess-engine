@@ -41,8 +41,8 @@ int main() {
     int depth = 7;
     int quiescenceDepth = 8;
     int numThreads = 8;
-    int lookAheadDepth = 5;
-    int k = 5;
+    int lookAheadDepth = 4;
+    int k = 20;
     int moveCount = 40;
     
     for (int i = 0; i < moveCount; i++) {
