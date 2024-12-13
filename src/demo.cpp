@@ -49,7 +49,7 @@ int main() {
         // Start timer
         auto start = std::chrono::high_resolution_clock::now();
 
-        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, shallowDepth, numShallowMoves);
+        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth);
 
         // End timer
         auto end = std::chrono::high_resolution_clock::now();

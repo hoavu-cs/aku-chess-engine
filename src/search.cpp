@@ -283,9 +283,7 @@ std::vector<std::pair<Move, int>> evaluateAndSortMoves(Board& board, int depth, 
 Move findBestMove(Board& board, 
                 int numThreads = 4, 
                 int depth = 6, 
-                int quiescenceDepth = 10,
-                int shallowDepth = 4,
-                int numShallowMoves = 5) {
+                int quiescenceDepth = 10) {
 
     #pragma  omp critical
     positionCount = 0;
@@ -298,34 +296,65 @@ Move findBestMove(Board& board,
     }
 
     omp_set_num_threads(numThreads);
-
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-    auto shallowMoves = evaluateAndSortMoves(board, shallowDepth, quiescenceDepth);
-    Move bestMove = shallowMoves.front().first;
+    int bestEval = whiteTurn ? -INF : INF;
+    Move bestMove = Move::NO_MOVE;
+    std::vector<std::pair<Move, int>> orderedMoves;
 
-    if (shallowDepth >= depth) {
-        return bestMove;
-    }
-
-    int bestEval = board.sideToMove() == Color::WHITE ? -INF : INF;
-
-    #pragma omp parallel for
-    for (int j = 0; j < std::min(shallowMoves.size(), static_cast<size_t>(numShallowMoves)); j++) {
-
-        const auto move = shallowMoves[j].first;
-        Board localBoard = board; // Thread-local copy of the board
-        localBoard.makeMove(move);
-        int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth);
-        localBoard.unmakeMove(move);
-
-        #pragma omp critical
-        {
-            if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
-                bestEval = eval;
-                bestMove = move;
-            }
+    for (int i = 1; i <= depth; i++) {
+        if (i == 1) {
+            orderedMoves = generatePrioritizedMoves(board);
         }
+
+        std::vector<std::pair<Move, int>> newOrderedMoves;
+        # pragma omp parallel for
+        for (const auto& [move, priority] : orderedMoves) {
+            Board localBoard = board; // Thread-local copy of the board
+            localBoard.makeMove(move);
+            int eval = alphaBeta(localBoard, i - 1, -INF, INF, quiescenceDepth);
+            localBoard.unmakeMove(move);
+            #pragma omp critical
+            {
+                newOrderedMoves.push_back({move, eval});
+                if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
+                    bestEval = eval;
+                    bestMove = move;
+                }
+            }
+            
+        }
+        //std::cout << "finish depth " << i << std::endl;
+        orderedMoves = newOrderedMoves;
     }
+
+
+
+    // auto shallowMoves = evaluateAndSortMoves(board, shallowDepth, quiescenceDepth);
+    // Move bestMove = shallowMoves.front().first;
+
+    // if (shallowDepth >= depth) {
+    //     return bestMove;
+    // }
+
+    // int bestEval = board.sideToMove() == Color::WHITE ? -INF : INF;
+
+    // #pragma omp parallel for
+    // for (int j = 0; j < std::min(shallowMoves.size(), static_cast<size_t>(numShallowMoves)); j++) {
+
+    //     const auto move = shallowMoves[j].first;
+    //     Board localBoard = board; // Thread-local copy of the board
+    //     localBoard.makeMove(move);
+    //     int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth);
+    //     localBoard.unmakeMove(move);
+
+    //     #pragma omp critical
+    //     {
+    //         if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
+    //             bestEval = eval;
+    //             bestMove = move;
+    //         }
+    //     }
+    // }
 
     if (whiteTurn) {
             #pragma omp critical
