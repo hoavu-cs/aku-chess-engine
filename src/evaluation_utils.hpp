@@ -18,7 +18,7 @@ const int END_PIECE_COUNT = 14;
 const int DOUBLE_PAWN_PENALTY = -40;
 const int CENTRAL_PAWN_BONUS = 20;
 const int BISHOP_PAIR_BONUS = 30;
-const int PASSED_PAWN_BONUS = 50;
+const int PASSED_PAWN_BONUS = 20;
 
 //const int ATTACK_KING_BONUS_QUEEN = 30; // Bonus for the queen attacking the enemy king, normal: 30
 //const int ATTACK_KING_BONUS_KNIGHT = 20; // Bonus for the knight attacking the enemy king, normal: 10
