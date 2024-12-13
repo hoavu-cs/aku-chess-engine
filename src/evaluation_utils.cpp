@@ -134,8 +134,6 @@ int knightValue(const Board& board, int baseValue, Color color) {
         value += baseValue;
         int sqIndex = knights.lsb();
         value += knightTable[sqIndex];
-        // int mobility = attacks::knight(Square(sqIndex)).count();
-        // value += mobility * KNIGHT_ACTIVITY_BONUS;
         knights.clear(sqIndex);
     }
 
@@ -159,9 +157,6 @@ int bishopValue(const Board& board, int baseValue, Color color) {
         } else {
             value += blackBishopTable[sqIndex];
         }
-
-        // int mobility = attacks::bishop(Square(sqIndex), board.occ()).count();
-        // value += mobility * BISHOP_ACTIVITY_BONUS;
         bishops.clear(sqIndex);
     }
 
@@ -195,9 +190,6 @@ int rookValue(const Board& board, int baseValue, Color color) {
         } else if (isSemiOpenFile(board, file, color)) {
             value += ROOK_SEMI_OPEN_FILE_BONUS; // Add semi-open file bonus
         }
-
-        // int mobility = attacks::rook(sq, board.occ()).count();
-        // value += mobility * ROOK_ACTIVITY_BONUS; 
         rooks.clear(sqIndex); // Remove the processed rook
     }
     return value;

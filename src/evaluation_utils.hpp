@@ -15,7 +15,7 @@ const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 const int CASTLE_VALUE = 100;
 const int END_PIECE_COUNT = 14;
-const int DOUBLE_PAWN_PENALTY = -40;
+const int DOUBLE_PAWN_PENALTY = -30;
 const int CENTRAL_PAWN_BONUS = 20;
 const int BISHOP_PAIR_BONUS = 30;
 const int PASSED_PAWN_BONUS = 20;
@@ -32,12 +32,12 @@ const int ROOK_OPEN_FILE_BONUS = 30; // Bonus for the rook on an open file, norm
 const int ROOK_SEMI_OPEN_FILE_BONUS = 20; // Bonus for the rook on a semi-open file, normal: 15
 
 const int KING_PAWN_SHIELD_BONUS = 30;
-const int KING_PROTECTION_BONUS = 15;
+// const int KING_PROTECTION_BONUS = 10;
 
-const int KNIGHT_ACTIVITY_BONUS = 2;
-const int BISHOP_ACTIVITY_BONUS = 2;
-const int ROOK_ACTIVITY_BONUS = 2;
-const int QUEEN_ACTIVITY_BONUS = 0;
+// const int KNIGHT_ACTIVITY_BONUS = 2;
+// const int BISHOP_ACTIVITY_BONUS = 2;
+// const int ROOK_ACTIVITY_BONUS = 2;
+// const int QUEEN_ACTIVITY_BONUS = 0;
 
 // Knight piece-square table for White
 const int whiteKnightTable[64] = {

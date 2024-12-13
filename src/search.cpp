@@ -261,31 +261,82 @@ int alphaBeta(Board& board,
     }
 }
 
-// Helper to evaluate and sort moves based on shallow search
-std::vector<std::pair<Move, int>> evaluateAndSortMoves(Board& board, int depth, int quiescenceDepth) {
-    std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
-    bool whiteTurn = board.sideToMove() == Color::WHITE;
+int alphaBetaPrune(Board& board, 
+                   int depth, 
+                   int lookAheadDepth, 
+                   int k, 
+                   int alpha, 
+                   int beta, 
+                   int quiescenceDepth) {
 
-    #pragma omp parallel for
-    for (auto& [move, priority] : moveCandidates) {
-        Board localBoard = board; // Thread-local copy of the board
-        localBoard.makeMove(move);
-        priority = alphaBeta(localBoard, depth, -INF, INF, quiescenceDepth);
-        localBoard.unmakeMove(move);
+    #pragma  omp critical
+    positionCount++;
+
+    if (depth == 0) {
+        return quiescence(board, quiescenceDepth, alpha, beta);
     }
 
-    std::sort(moveCandidates.begin(), moveCandidates.end(), [&](const auto& a, const auto& b) {
-        return whiteTurn ? a.second > b.second : a.second < b.second;
-    });
-    return moveCandidates;
+    // Generate all possible moves and their priorities
+    std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
+    std::vector<std::pair<Move, int>> scoredMoves;
+
+    // Evaluate each move using alpha-beta search with the shallower lookAheadDepth
+    for (auto& [move, priority] : moveCandidates) {
+        board.makeMove(move);
+        int eval = alphaBeta(board, lookAheadDepth, alpha, beta, quiescenceDepth);
+        board.unmakeMove(move);
+        scoredMoves.push_back({move, eval});
+    }
+
+    // Sort moves based on evaluation (descending for max, ascending for min)
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    if (whiteTurn) {
+        std::sort(scoredMoves.begin(), scoredMoves.end(),
+                  [](const auto& a, const auto& b) { return a.second > b.second; });
+    } else {
+        std::sort(scoredMoves.begin(), scoredMoves.end(),
+                  [](const auto& a, const auto& b) { return a.second < b.second; });
+    }
+
+    // Select the top k moves
+    if (scoredMoves.size() > k) {
+        scoredMoves.resize(k);
+    }
+
+    // Initialize best evaluation
+    int bestEval = whiteTurn ? -INF : INF;
+
+    // Recurse on the top k moves with reduced depth
+    for (auto& [move, score] : scoredMoves) {
+        board.makeMove(move);
+        int eval = alphaBetaPrune(board, depth - 1, lookAheadDepth, k, alpha, beta, quiescenceDepth);
+        board.unmakeMove(move);
+
+        if (whiteTurn) {
+            bestEval = std::max(bestEval, eval);
+            alpha = std::max(alpha, eval);
+        } else {
+            bestEval = std::min(bestEval, eval);
+            beta = std::min(beta, eval);
+        }
+
+        // Prune if alpha >= beta
+        if (beta <= alpha) {
+            break;
+        }
+    }
+
+    return bestEval;
 }
 
 Move findBestMove(Board& board, 
                 int numThreads = 4, 
                 int depth = 6, 
+                int lookAheadDepth = 4,
+                int k = 10,
                 int quiescenceDepth = 10) {
 
-    #pragma  omp critical
+    #pragma omp critical
     positionCount = 0;
     
     // If there are no legal moves, return NO_MOVE
@@ -299,40 +350,27 @@ Move findBestMove(Board& board,
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     int bestEval = whiteTurn ? -INF : INF;
     Move bestMove = Move::NO_MOVE;
-    std::vector<std::pair<Move, int>> orderedMoves;
 
-    int startDepth = 4;
+    Movelist moves;
+    movegen::legalmoves(moves, board);
+    std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
 
-    for (int i = startDepth; i <= depth; i++) {
-        if (i == startDepth) {
-            orderedMoves = generatePrioritizedMoves(board);
-        }
-        std::vector<std::pair<Move, int>> newOrderedMoves;
-        # pragma omp parallel for
-        for (const auto& [move, priority] : orderedMoves) {
-            Board localBoard = board; // Thread-local copy of the board
-            localBoard.makeMove(move);
-            int eval = alphaBeta(localBoard, i - 1, -INF, INF, quiescenceDepth);
-            localBoard.unmakeMove(move);
-            #pragma omp critical
-            {
-                newOrderedMoves.push_back({move, eval});
-                if (i == depth) {
-                    if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
-                        bestEval = eval;
-                        bestMove = move;
-                    }
-                }
+    // Evaluate each move using alpha-beta search with the shallower lookAheadDepth
+    #pragma omp parallel for
+    for (int i = 0; i < moveCandidates.size(); i++) {
+        auto [move, priority] = moveCandidates[i];
+        Board localBoard = board; // Thread-local copy of the board
+        localBoard.makeMove(move);
+        int eval = alphaBeta(localBoard, lookAheadDepth, -INF, INF, quiescenceDepth);
+        localBoard.unmakeMove(move);
+
+        #pragma omp critical 
+        {
+            if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
+                bestEval = eval;
+                bestMove = move;
             }
-            
         }
-        std::sort(newOrderedMoves.begin(), newOrderedMoves.end(), [&](const auto& a, const auto& b) {
-            return whiteTurn ? a.second > b.second : a.second < b.second;
-        });
-        
-        //std::cout << "finish depth " << i << std::endl; r4rk1/Pb1q2bp/2nppnp1/1Bp5/Q1N1P3/5NP1/PP3P1P/R1B1K2R w KQ - 3 16
-        // Only keep the top 10 moves
-        orderedMoves = newOrderedMoves.size() > 15 ? std::vector<std::pair<Move, int>>(newOrderedMoves.begin(), newOrderedMoves.begin() + 15) : newOrderedMoves;
     }
 
     if (whiteTurn) {

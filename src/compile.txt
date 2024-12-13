@@ -1,1 +1,2 @@
 g++ -std=c++17 -O3 -fopenmp -march=native -o pigengine pig_engine.cpp search.cpp evaluation_utils.cpp 
+g++ -std=c++17 -O3 -fopenmp -march=native -o demo demo.cpp search.cpp evaluation_utils.cpp 

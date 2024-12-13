@@ -38,25 +38,23 @@ void writePNGToFile(const std::vector<std::string>& pgnMoves, std::string filena
 int main() {
     Board board = Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     std::vector<std::string> pgnMoves; // Store moves in PGN format
-    int depth = 6;
-    int numThreads = 6;
+    int depth = 8;
     int quiescenceDepth = 10;
-    int shallowDepth = 5;
-    int numShallowMoves = 5;
+    int numThreads = 6;
+    int lookAheadDepth = 5;
+    int k = 5;
     int moveCount = 40;
     
     for (int i = 0; i < moveCount; i++) {
         // Start timer
         auto start = std::chrono::high_resolution_clock::now();
 
-        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth);
+        Move bestMove = findBestMove(board, numThreads, depth, lookAheadDepth, k, quiescenceDepth);
 
         // End timer
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> duration = end - start;
-        std::cout << "Time taken: " << duration.count() << "s" << std::endl;
-        std::cout << "Nodes searched per second: " << positionCount / duration.count() << std::endl;
-
+        std::cout << "(Time taken: " << duration.count() << "s" << "; NPS: " << positionCount / duration.count() << ")"<< std::endl;
 
         if (bestMove == Move::NO_MOVE) {
             auto gameResult = board.isGameOver();
