@@ -170,7 +170,6 @@ int alphaBeta(Board& board,
     auto gameOverResult = board.isGameOver();
 
     if (gameOverResult.first != GameResultReason::NONE) {
-        // If the game is over, return an appropriate evaluation
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
             if (whiteTurn) {
                 return -INF/2 + (1000 - depth); // Get the fastest checkmate possible
@@ -261,6 +260,35 @@ int alphaBeta(Board& board,
     }
 }
 
+
+std::vector<std::pair<Move, int>> getShallowCandidates(Board& board, int lookAheadDepth, int alpha, int beta, int k) {
+
+    std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
+    std::vector<std::pair<Move, int>> scoredMoves;
+
+    for (auto& [move, priority] : moveCandidates) {
+        board.makeMove(move);
+        int eval = alphaBeta(board, lookAheadDepth, alpha, beta, 0);
+        board.unmakeMove(move);
+        scoredMoves.push_back({move, eval});
+    }
+
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    if (whiteTurn) {
+        std::sort(scoredMoves.begin(), scoredMoves.end(),
+                  [](const auto& a, const auto& b) { return a.second > b.second; });
+    } else {
+        std::sort(scoredMoves.begin(), scoredMoves.end(),
+                  [](const auto& a, const auto& b) { return a.second < b.second; });
+    }
+
+    if (scoredMoves.size() > k) {
+        scoredMoves.resize(k);
+    }
+
+    return scoredMoves;
+}
+
 int alphaBetaPrune(Board& board, 
                    int depth, 
                    int lookAheadDepth, 
@@ -276,34 +304,8 @@ int alphaBetaPrune(Board& board,
         return quiescence(board, quiescenceDepth, alpha, beta);
     }
 
-    // Generate all possible moves and their priorities
-    std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
-    std::vector<std::pair<Move, int>> scoredMoves;
-
-    // Evaluate each move using alpha-beta search with the shallower lookAheadDepth
-    for (auto& [move, priority] : moveCandidates) {
-        board.makeMove(move);
-        int eval = alphaBeta(board, lookAheadDepth, alpha, beta, quiescenceDepth);
-        board.unmakeMove(move);
-        scoredMoves.push_back({move, eval});
-    }
-
-    // Sort moves based on evaluation (descending for max, ascending for min)
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-    if (whiteTurn) {
-        std::sort(scoredMoves.begin(), scoredMoves.end(),
-                  [](const auto& a, const auto& b) { return a.second > b.second; });
-    } else {
-        std::sort(scoredMoves.begin(), scoredMoves.end(),
-                  [](const auto& a, const auto& b) { return a.second < b.second; });
-    }
-
-    // Select the top k moves
-    if (scoredMoves.size() > k) {
-        scoredMoves.resize(k);
-    }
-
-    // Initialize best evaluation
+    std::vector<std::pair<Move, int>> scoredMoves = getShallowCandidates(board, lookAheadDepth, alpha, beta, k);
     int bestEval = whiteTurn ? -INF : INF;
 
     // Recurse on the top k moves with reduced depth
@@ -320,11 +322,20 @@ int alphaBetaPrune(Board& board,
             beta = std::min(beta, eval);
         }
 
-        // Prune if alpha >= beta
         if (beta <= alpha) {
             break;
         }
     }
+
+    if (whiteTurn) {
+            #pragma omp critical
+            lowerBoundTable[board.hash()] = {bestEval, depth}; 
+    } else {
+            #pragma omp critical
+            upperBoundTable[board.hash()] = {bestEval, depth}; 
+    }
+
+    clearTranspositionTables(maxTableSize); // Clear the transposition tables if they exceed a certain size
 
     return bestEval;
 }
@@ -338,27 +349,25 @@ Move findBestMove(Board& board,
 
     #pragma omp critical
     positionCount = 0;
-    
-    // If there are no legal moves, return NO_MOVE
-    Movelist legalMoves;
-    movegen::legalmoves(legalMoves, board);
-    if (legalMoves.empty()) {
-        return Move::NO_MOVE;
-    }
-
-    omp_set_num_threads(numThreads);
-    bool whiteTurn = board.sideToMove() == Color::WHITE;
-    int bestEval = whiteTurn ? -INF : INF;
-    Move bestMove = Move::NO_MOVE;
 
     Movelist moves;
     movegen::legalmoves(moves, board);
-    std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
+    if (moves.empty()) {
+        return Move::NO_MOVE;
+    }
+    
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    std::vector<std::pair<Move, int>> scoredMoves = getShallowCandidates(board, lookAheadDepth, -INF, INF, k);
+    Move bestMove = Move::NO_MOVE;
+    int bestEval = whiteTurn ? -INF : INF;
+
+    // Set the number of threads
+    omp_set_num_threads(numThreads);
 
     // Evaluate each move using alpha-beta search with the shallower lookAheadDepth
-    #pragma omp parallel for
-    for (int i = 0; i < moveCandidates.size(); i++) {
-        auto [move, priority] = moveCandidates[i];
+    #pragma omp parallel for // Use OpenMP parallel for parallelism at the root level
+    for (int i = 0; i < scoredMoves.size(); i++) { 
+        auto [move, priority] = scoredMoves[i];
         Board localBoard = board; // Thread-local copy of the board
         localBoard.makeMove(move);
         int eval = alphaBeta(localBoard, lookAheadDepth, -INF, INF, quiescenceDepth);

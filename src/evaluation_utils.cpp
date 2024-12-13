@@ -268,7 +268,6 @@ int queenValue(const Board& board, int baseValue, Color color) {
 // Compute the value of the kings on the board
 int kingValue(const Board& board, int baseValue, Color color) {
     Bitboard king = board.pieces(PieceType::KING, color);
-    Bitboard CASTLE_SQUARES;
     const PieceType allPieceTypes[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
     
     int pieceCount = countPieces(board);
@@ -292,6 +291,39 @@ int kingValue(const Board& board, int baseValue, Color color) {
             pawns.clear(pawnIndex);
         }
     }
+
+    // king tropism
+    // int kingSafety = 0;
+    // Bitboard enemyQueens = board.pieces(PieceType::QUEEN, !color);
+    // Bitboard enemyRooks = board.pieces(PieceType::ROOK, !color);
+    // Bitboard enemyKnights = board.pieces(PieceType::KNIGHT, !color);
+    // Bitboard enemyBishops = board.pieces(PieceType::BISHOP, !color);
+
+    // // The larger manhattan distance to the enemy queen, rooks, and knights, the safer the king
+    // while (!enemyQueens.empty()) {
+    //     int sqIndexEQ = enemyQueens.lsb();
+    //     kingSafety += manhattanDistance(Square(sqIndex), Square(sqIndexEQ)) * 3;
+    //     enemyQueens.clear(sqIndexEQ);
+    // }
+
+    // while (!enemyRooks.empty()) {
+    //     int sqIndexER = enemyRooks.lsb();
+    //     kingSafety += static_cast<int>(manhattanDistance(Square(sqIndex), Square(sqIndexER))) * 2;
+    //     enemyRooks.clear(sqIndexER);
+    // }
+
+    // while (!enemyKnights.empty()) {
+    //     int sqIndexEN = enemyKnights.lsb();
+    //     kingSafety += static_cast<int>(manhattanDistance(Square(sqIndex), Square(sqIndexEN))) ;
+    //     enemyKnights.clear(sqIndexEN);
+    // }
+
+    // // Here, we use the diagonal distance for bishops
+    // while (!enemyBishops.empty()) {
+    //     int sqIndexEB = enemyBishops.lsb();
+    //     kingSafety += abs(abs(Square(sqIndex).file() - Square(sqIndexEB).file()) - abs(Square(sqIndex).rank() - Square(sqIndexEB).rank())) ;
+    //     enemyBishops.clear(sqIndexEB);
+    // }
 
     return value;
 }

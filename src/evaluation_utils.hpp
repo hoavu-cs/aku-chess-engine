@@ -10,14 +10,13 @@ using namespace chess;
 const int PAWN_VALUE = 100;
 const int KNIGHT_VALUE = 320;
 const int BISHOP_VALUE = 330;
-const int ROOK_VALUE = 500;
+const int ROOK_VALUE = 510;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
-const int CASTLE_VALUE = 100;
 const int END_PIECE_COUNT = 14;
 const int DOUBLE_PAWN_PENALTY = -30;
 const int CENTRAL_PAWN_BONUS = 20;
-const int BISHOP_PAIR_BONUS = 30;
+const int BISHOP_PAIR_BONUS = 50;
 const int PASSED_PAWN_BONUS = 20;
 
 //const int ATTACK_KING_BONUS_QUEEN = 30; // Bonus for the queen attacking the enemy king, normal: 30
