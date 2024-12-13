@@ -81,12 +81,12 @@ void processPosition(const std::string& command) {
  */
 void processGo() {
 
-    // Rapid suggestion: depth 7, quiescence depth 8, 8 threads, look ahead depth 5, k = 20
-    int depth = 7;
-    int quiescenceDepth = 8;
+    // Rapid suggestion: depth 8, quiescence depth 6, 8 threads, look ahead depth 4, k = 5
+    int depth = 8;
+    int quiescenceDepth = 6;
     int numThreads = 8;
     int lookAheadDepth = 4;
-    int k = 20;
+    int k = 5;
 
     Move bestMove;
     bestMove = findBestMove(board, numThreads, depth, lookAheadDepth, k, quiescenceDepth);

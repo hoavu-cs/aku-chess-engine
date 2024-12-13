@@ -38,11 +38,11 @@ void writePNGToFile(const std::vector<std::string>& pgnMoves, std::string filena
 int main() {
     Board board = Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     std::vector<std::string> pgnMoves; // Store moves in PGN format
-    int depth = 7;
-    int quiescenceDepth = 8;
+    int depth = 8;
+    int quiescenceDepth = 6;
     int numThreads = 8;
     int lookAheadDepth = 4;
-    int k = 20;
+    int k = 5;
     int moveCount = 40;
     
     for (int i = 0; i < moveCount; i++) {
