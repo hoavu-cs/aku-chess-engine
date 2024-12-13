@@ -261,14 +261,14 @@ int alphaBeta(Board& board,
 }
 
 
-std::vector<std::pair<Move, int>> getShallowCandidates(Board& board, int lookAheadDepth, int alpha, int beta, int k) {
+std::vector<std::pair<Move, int>> getShallowCandidates(Board& board, int lookAheadDepth, int quiescenceDepth, int alpha, int beta, int k) {
 
     std::vector<std::pair<Move, int>> moveCandidates = generatePrioritizedMoves(board);
     std::vector<std::pair<Move, int>> scoredMoves;
 
     for (auto& [move, priority] : moveCandidates) {
         board.makeMove(move);
-        int eval = alphaBeta(board, lookAheadDepth, alpha, beta, 0);
+        int eval = alphaBeta(board, lookAheadDepth, alpha, beta, quiescenceDepth);
         board.unmakeMove(move);
         scoredMoves.push_back({move, eval});
     }
@@ -305,7 +305,7 @@ int alphaBetaPrune(Board& board,
     }
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-    std::vector<std::pair<Move, int>> scoredMoves = getShallowCandidates(board, lookAheadDepth, alpha, beta, k);
+    std::vector<std::pair<Move, int>> scoredMoves = getShallowCandidates(board, lookAheadDepth, quiescenceDepth, alpha, beta, k);
     int bestEval = whiteTurn ? -INF : INF;
 
     // Recurse on the top k moves with reduced depth
@@ -357,7 +357,7 @@ Move findBestMove(Board& board,
     }
     
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-    std::vector<std::pair<Move, int>> scoredMoves = getShallowCandidates(board, lookAheadDepth, -INF, INF, k);
+    std::vector<std::pair<Move, int>> scoredMoves = getShallowCandidates(board, lookAheadDepth, quiescenceDepth, -INF, INF, k);
     Move bestMove = Move::NO_MOVE;
     int bestEval = whiteTurn ? -INF : INF;
 
