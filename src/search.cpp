@@ -333,35 +333,6 @@ Move findBestMove(Board& board,
         orderedMoves = newOrderedMoves.size() > 15 ? std::vector<std::pair<Move, int>>(newOrderedMoves.begin(), newOrderedMoves.begin() + 5) : newOrderedMoves;
     }
 
-
-
-    // auto shallowMoves = evaluateAndSortMoves(board, shallowDepth, quiescenceDepth);
-    // Move bestMove = shallowMoves.front().first;
-
-    // if (shallowDepth >= depth) {
-    //     return bestMove;
-    // }
-
-    // int bestEval = board.sideToMove() == Color::WHITE ? -INF : INF;
-
-    // #pragma omp parallel for
-    // for (int j = 0; j < std::min(shallowMoves.size(), static_cast<size_t>(numShallowMoves)); j++) {
-
-    //     const auto move = shallowMoves[j].first;
-    //     Board localBoard = board; // Thread-local copy of the board
-    //     localBoard.makeMove(move);
-    //     int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth);
-    //     localBoard.unmakeMove(move);
-
-    //     #pragma omp critical
-    //     {
-    //         if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
-    //             bestEval = eval;
-    //             bestMove = move;
-    //         }
-    //     }
-    // }
-
     if (whiteTurn) {
             #pragma omp critical
             lowerBoundTable[board.hash()] = {bestEval, depth}; 
