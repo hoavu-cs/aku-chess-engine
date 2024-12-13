@@ -330,9 +330,9 @@ Move findBestMove(Board& board,
             return whiteTurn ? a.second > b.second : a.second < b.second;
         });
         
-        //std::cout << "finish depth " << i << std::endl;
+        //std::cout << "finish depth " << i << std::endl; r4rk1/Pb1q2bp/2nppnp1/1Bp5/Q1N1P3/5NP1/PP3P1P/R1B1K2R w KQ - 3 16
         // Only keep the top 10 moves
-        orderedMoves = newOrderedMoves.size() > 15 ? std::vector<std::pair<Move, int>>(newOrderedMoves.begin(), newOrderedMoves.begin() + 5) : newOrderedMoves;
+        orderedMoves = newOrderedMoves.size() > 15 ? std::vector<std::pair<Move, int>>(newOrderedMoves.begin(), newOrderedMoves.begin() + 15) : newOrderedMoves;
     }
 
     if (whiteTurn) {
