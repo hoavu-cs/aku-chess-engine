@@ -317,9 +317,11 @@ Move findBestMove(Board& board,
             #pragma omp critical
             {
                 newOrderedMoves.push_back({move, eval});
-                if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
-                    bestEval = eval;
-                    bestMove = move;
+                if (i == depth) {
+                    if ((whiteTurn && eval > bestEval) || (!whiteTurn && eval < bestEval)) {
+                        bestEval = eval;
+                        bestMove = move;
+                    }
                 }
             }
             
