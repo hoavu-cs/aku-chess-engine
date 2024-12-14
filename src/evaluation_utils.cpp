@@ -203,17 +203,12 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     int value = 0;
     bool endGameFlag = isEndGame(board);
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-    int pushedPawnScore = 0;
-    int pushedPawnBonus = 0;
-    
-    if (endGameFlag) {
-        pushedPawnBonus = 10;
-    } else {
-        pushedPawnBonus = 0;
-    }
+    int averageRank = 0;
+    int advancedPawns = endGameFlag ? 10 : 2;
 
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
+    Bitboard ourKing = board.pieces(PieceType::KING, color);
 
     const int* pawnTable = (!endGameFlag) 
         ? (whiteTurn ? whitePawnTableMid : blackPawnTableMid)
@@ -226,6 +221,7 @@ int pawnValue(const Board& board, int baseValue, Color color) {
         value += pawnTable[sqIndex]; 
 
         int file = sqIndex % 8; // Get the file of the pawn
+        int rank = sqIndex / 8; // Get the rank of the pawn
         files[file]++; // Increment the count of pawns on the file
 
         if (file == 3 || file == 4) {
@@ -237,13 +233,19 @@ int pawnValue(const Board& board, int baseValue, Color color) {
             value += PASSED_PAWN_BONUS;
         }
 
+        // if (endGameFlag && manhattanDistance(Square(sqIndex), Square(ourKing.lsb())) <= 2) {
+        //     if (whiteTurn) {
+        //         value += (7 - sqIndex / 8) * 30;
+        //     } else {
+        //         value += (sqIndex / 8) * 30;
+        //     }
+        // } 
+
         if (whiteTurn) {
-            pushedPawnScore += (7 - sqIndex / 8) * pushedPawnBonus;
+            advancedPawns += rank * 10;
         } else {
-            pushedPawnScore += (sqIndex / 8) * pushedPawnBonus;
+            advancedPawns += (7 - rank) * 10;
         }
-        pushedPawnScore = std::min(pushedPawnScore, 100);
-        value += pushedPawnScore;
 
         ourPawns.clear(sqIndex);
     }
@@ -254,7 +256,6 @@ int pawnValue(const Board& board, int baseValue, Color color) {
             value += DOUBLE_PAWN_PENALTY * (files[i] - 1);
         }
     }
-
 
     return value;
 }

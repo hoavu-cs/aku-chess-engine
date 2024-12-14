@@ -85,15 +85,15 @@ void processGo() {
     int quiescenceDepth = 8;
     int numThreads = 8;
     int lookAheadDepth = 5;
-    int k = 10;
+    int k = 5;
 
     Move bestMove = Move::NO_MOVE;
     // debug fen 1 r2qk2r/pppn1pb1/3p2p1/2n4p/2P1P3/2N1QB1P/PP3PPB/3RK2R b Kkq - 4 13
     // debug fen 2 8/8/8/5k2/2B2P2/1P2b1K1/P6P/8 w - - 89 117
     if (isEndGame(board)) {
-        depth = 8;
+        depth = 7;
         quiescenceDepth = 8;
-        lookAheadDepth = 6;
+        lookAheadDepth = 5;
         k = 10;
     }
 
