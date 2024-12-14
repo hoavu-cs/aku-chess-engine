@@ -6,7 +6,6 @@
 using namespace chess; 
 
 long long hit = 0;
- 
 
 /*------------------------------------------------------------------------
     Helper Functions
@@ -141,11 +140,14 @@ int knightValue(const Board& board, int baseValue, Color color) {
 
 // Compute the value of the bishops on the board
 int bishopValue(const Board& board, int baseValue, Color color) {
+    // Constants
+    const int bishopPairBonus = 30;
+
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
     int value = 0;
     
     if (bishops.count() >= 2) {
-        value += BISHOP_PAIR_BONUS;
+        value += bishopPairBonus;
     }
 
     while (!bishops.empty()) {
@@ -165,6 +167,10 @@ int bishopValue(const Board& board, int baseValue, Color color) {
 
 // Compute the total value of the rooks on the board
 int rookValue(const Board& board, int baseValue, Color color) {
+    // Constants
+    const int openFileBonus = 20;
+    const int semiOpenFileBonus = 15;
+
     Bitboard rooks = board.pieces(PieceType::ROOK, color);
     int value = 0;
 
@@ -185,9 +191,9 @@ int rookValue(const Board& board, int baseValue, Color color) {
 
         // Check for open and semi-open files
         if (isOpenFile(board, file)) {
-            value += ROOK_OPEN_FILE_BONUS; // Add open file bonus
+            value += openFileBonus; // Add open file bonus
         } else if (isSemiOpenFile(board, file, color)) {
-            value += ROOK_SEMI_OPEN_FILE_BONUS; // Add semi-open file bonus
+            value += semiOpenFileBonus; // Add semi-open file bonus
         }
         rooks.clear(sqIndex); // Remove the processed rook
     }
@@ -196,6 +202,10 @@ int rookValue(const Board& board, int baseValue, Color color) {
 
 // Compute the value of the pawns on the board
 int pawnValue(const Board& board, int baseValue, Color color) {
+    // constants
+    const int passedPawnBonus = 20;
+    const int doublePawnPenalty = 30;
+    const int centralPawnBonus = 10;
 
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     Bitboard enemyPawns = board.pieces(PieceType::PAWN, !color);
@@ -225,21 +235,13 @@ int pawnValue(const Board& board, int baseValue, Color color) {
         files[file]++; // Increment the count of pawns on the file
 
         if (file == 3 || file == 4) {
-            value += CENTRAL_PAWN_BONUS; // Add central pawn bonus
+            value += centralPawnBonus; // Add central pawn bonus
         }
 
         // Check if the pawn is a passed pawn
         if (isPassedPawn(sqIndex, color, enemyPawns)) {
-            value += PASSED_PAWN_BONUS;
+            value += passedPawnBonus;
         }
-
-        // if (endGameFlag && manhattanDistance(Square(sqIndex), Square(ourKing.lsb())) <= 2) {
-        //     if (whiteTurn) {
-        //         value += (7 - sqIndex / 8) * 30;
-        //     } else {
-        //         value += (sqIndex / 8) * 30;
-        //     }
-        // } 
 
         if (whiteTurn) {
             advancedPawns += rank * 10;
@@ -253,7 +255,7 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     // Add penalty for doubled pawns
     for (int i = 0; i < 8; i++) {
         if (files[i] > 1) {
-            value += DOUBLE_PAWN_PENALTY * (files[i] - 1);
+            value += doublePawnPenalty * (files[i] - 1);
         }
     }
 
@@ -284,11 +286,16 @@ int queenValue(const Board& board, int baseValue, Color color) {
 
 // Compute the value of the kings on the board
 int kingValue(const Board& board, int baseValue, Color color) {
+    // Constants
+    const int pawnShieldBonus = 30;
+    const int pieceProtectionBonus = 30;
+
     Bitboard king = board.pieces(PieceType::KING, color);
     const PieceType allPieceTypes[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
     
     int pieceCount = countPieces(board);
     bool endGameFlag = isEndGame(board);
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
 
     int value = baseValue;
     int sqIndex = king.lsb();
@@ -300,12 +307,28 @@ int kingValue(const Board& board, int baseValue, Color color) {
     value += endGameFlag ? kingTableEnd[sqIndex] : kingTableMid[sqIndex];
 
     if (!endGameFlag) {
+        // King protection by pawns
         while (!pawns.empty()) {
             int pawnIndex = pawns.lsb();
             if (manhattanDistance(Square(pawnIndex), Square(sqIndex)) <= 2) {
-                value += KING_PAWN_SHIELD_BONUS;
+                value += pawnShieldBonus;
             }
             pawns.clear(pawnIndex);
+        }
+        // King protection by pieces
+        for (const auto& type : allPieceTypes) {
+            Bitboard pieces = board.pieces(type, !color);
+            while (!pieces.empty()) {
+                int pieceIndex = pieces.lsb();
+                if (whiteTurn) {
+                    if (pieceIndex / 8 > sqIndex / 8 && manhattanDistance(Square(pieceIndex), Square(sqIndex)) <= 4) 
+                        value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
+                } else {
+                    if (pieceIndex / 8 < sqIndex / 8 && manhattanDistance(Square(pieceIndex), Square(sqIndex)) <= 4) 
+                        value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
+                }
+                pieces.clear(pieceIndex);
+            }
         }
     }
 
@@ -347,10 +370,13 @@ int evaluate(const Board& board) {
 
     // Mop-up phase: if only enemy king is left
     Color theirColor = (board.sideToMove() == Color::WHITE) ? Color::BLACK : Color::WHITE;
+
     Bitboard enemyPieces = board.pieces(PieceType::PAWN, theirColor) | board.pieces(PieceType::KNIGHT, theirColor) | 
                            board.pieces(PieceType::BISHOP, theirColor) | board.pieces(PieceType::ROOK, theirColor) | 
                            board.pieces(PieceType::QUEEN, theirColor);
+
     Bitboard ourPieces =  board.pieces(PieceType::ROOK, board.sideToMove()) | board.pieces(PieceType::QUEEN, board.sideToMove());
+
     if (enemyPieces.count() == 0 && ourPieces.count() > 0) {
         Square ourKing = Square(board.pieces(PieceType::KING, board.sideToMove()).lsb());
         Square theirKing = Square(board.pieces(PieceType::KING, theirColor).lsb());
