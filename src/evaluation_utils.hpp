@@ -15,7 +15,7 @@ const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 const int END_PIECE_COUNT = 14;
 const int DOUBLE_PAWN_PENALTY = -30;
-const int CENTRAL_PAWN_BONUS = 20;
+const int CENTRAL_PAWN_BONUS = 10;
 const int BISHOP_PAIR_BONUS = 50;
 const int PASSED_PAWN_BONUS = 20;
 

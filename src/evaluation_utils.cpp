@@ -204,7 +204,7 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     bool endGameFlag = isEndGame(board);
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     int pushedPawnScore = 0;
-    int pawnPushBonus = endGameFlag ? 2 : 8;
+    int pawnPushBonus = endGameFlag ? 2 : 12;
 
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
