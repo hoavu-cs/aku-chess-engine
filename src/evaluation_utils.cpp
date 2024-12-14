@@ -17,15 +17,6 @@ const size_t MAX_PAWN_TABLE_SIZE = 100000000;
 
 // Return true if the game is in the endgame phase 
 bool isEndGame(const Board& board) {
-    Bitboard whiteKBR = board.pieces(PieceType::BISHOP, Color::WHITE) 
-                    | board.pieces(PieceType::ROOK, Color::WHITE) 
-                    | board.pieces(PieceType::KNIGHT, Color::WHITE);
-    Bitboard blackKBR = board.pieces(PieceType::BISHOP, Color::BLACK) 
-                    | board.pieces(PieceType::ROOK, Color::BLACK) 
-                    | board.pieces(PieceType::KNIGHT, Color::BLACK);
-    Bitboard whiteQ = board.pieces(PieceType::QUEEN, Color::WHITE);
-    Bitboard blackQ = board.pieces(PieceType::QUEEN, Color::BLACK);
-
     const int pawnValue = 1, knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
     const int materialThreshold = 32;
 
@@ -45,23 +36,6 @@ bool isEndGame(const Board& board) {
     } else {
         return false;
     }
-    
-    // if (whiteQ.count() == 0 && blackQ.count() == 0) { // If there are no queens
-    //     if (whiteKBR.count() <= 3 && blackKBR.count() <= 3) {
-    //         return true;
-    //     } else {
-    //         return false;
-    //     }
-    // } else { // If there are queens
-    //     if (whiteQ.count() == 1 && blackQ.count() == 1 && whiteKBR.count() <= 1 && blackKBR.count() <= 1) {
-    //         return true;
-    //     } else if (whiteQ.count() == 1 && blackQ.count() == 1 && whiteKBR.count() == 0 && blackKBR.count() == 0) {
-    //         return true;
-    //     } else {
-    //         return false;
-    //     }
-    //     return false;
-    // }
 }
 
 // Generate a bitboard mask for the specified file
