@@ -17,15 +17,13 @@ const size_t MAX_PAWN_TABLE_SIZE = 100000000;
 
 // Return true if the game is in the endgame phase 
 bool isEndGame(const Board& board) {
-    const int pawnValue = 1, knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
+    const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
     const int materialThreshold = 32;
 
-    int totalValue = board.pieces(PieceType::PAWN, Color::WHITE).count() * pawnValue
-                  + board.pieces(PieceType::KNIGHT, Color::WHITE).count() * knightValue
+    int totalValue = board.pieces(PieceType::KNIGHT, Color::WHITE).count() * knightValue
                   + board.pieces(PieceType::BISHOP, Color::WHITE).count() * bishopValue
                   + board.pieces(PieceType::ROOK, Color::WHITE).count() * rookValue
                   + board.pieces(PieceType::QUEEN, Color::WHITE).count() * queenValue
-                  + board.pieces(PieceType::PAWN, Color::BLACK).count() * pawnValue
                   + board.pieces(PieceType::KNIGHT, Color::BLACK).count() * knightValue
                   + board.pieces(PieceType::BISHOP, Color::BLACK).count() * bishopValue
                   + board.pieces(PieceType::ROOK, Color::BLACK).count() * rookValue
