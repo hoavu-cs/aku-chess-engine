@@ -84,7 +84,7 @@ void processGo() {
     int depth = 8;
     int quiescenceDepth = 8;
     int numThreads = 8;
-    int lookAheadDepth = 4;
+    int lookAheadDepth = 5;
     int k = 10;
 
     Move bestMove = Move::NO_MOVE;

@@ -204,7 +204,13 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     bool endGameFlag = isEndGame(board);
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     int pushedPawnScore = 0;
-    int pawnPushBonus = endGameFlag ? 2 : 12;
+    int pushedPawnBonus = 0;
+    
+    if (endGameFlag) {
+        pushedPawnBonus = 10;
+    } else {
+        pushedPawnBonus = 0;
+    }
 
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
@@ -232,10 +238,11 @@ int pawnValue(const Board& board, int baseValue, Color color) {
         }
 
         if (whiteTurn) {
-            pushedPawnScore += (7 - sqIndex / 8) * pawnPushBonus;
+            pushedPawnScore += (7 - sqIndex / 8) * pushedPawnBonus;
         } else {
-            pushedPawnScore += (sqIndex / 8) * pawnPushBonus;
+            pushedPawnScore += (sqIndex / 8) * pushedPawnBonus;
         }
+        pushedPawnScore = std::min(pushedPawnScore, 100);
         value += pushedPawnScore;
 
         ourPawns.clear(sqIndex);
