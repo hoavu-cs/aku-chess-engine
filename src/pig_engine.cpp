@@ -84,22 +84,21 @@ void processGo() {
     int depth = 8;
     int quiescenceDepth = 8;
     int numThreads = 8;
-    int lookAheadDepth = 4;
-    int k = 3;
+    int lookAheadDepth = 5;
+    int k = 5;
 
-    Move bestMove;
+    Move bestMove = Move::NO_MOVE;
 
     if (isEndGame(board)) {
         depth = 8;
         quiescenceDepth = 8;
         lookAheadDepth = 6;
-        k = 5;
+        k = 10;
     }
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     bestMove = findBestMove(board, numThreads, depth, lookAheadDepth, k, quiescenceDepth);
     
-
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove) << std::endl;
     } else {

@@ -28,7 +28,7 @@ bool isEndGame(const Board& board) {
                   + board.pieces(PieceType::BISHOP, Color::BLACK).count() * bishopValue
                   + board.pieces(PieceType::ROOK, Color::BLACK).count() * rookValue
                   + board.pieces(PieceType::QUEEN, Color::BLACK).count() * queenValue;
-    
+
     if (totalValue <= materialThreshold) {
         return true;
     } else {
@@ -204,7 +204,7 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     bool endGameFlag = isEndGame(board);
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     int pushedPawnScore = 0;
-    int pawnPushBonus = endGameFlag ? 2 : 8;
+    int pawnPushBonus = endGameFlag ? 2 : 10;
 
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);

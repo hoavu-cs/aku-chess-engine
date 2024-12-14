@@ -121,17 +121,21 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     movegen::legalmoves(moves, board);
 
     // Evaluate each capture, check, or promotion
-    bool inCheck = board.inCheck();
+    //bool inCheck = board.inCheck();
     for (const auto& move : moves) {
-        bool isCapture = board.isCapture(move), isPromo = isPromotion(move);
-        board.makeMove(move);
-        bool isCheckMove = board.inCheck();
-        board.unmakeMove(move);
+        // bool isCapture = board.isCapture(move), isPromo = isPromotion(move);
+        // board.makeMove(move);
+        // bool isCheckMove = board.inCheck();
+        // board.unmakeMove(move);
 
-        // If not in check, not a capture, not a promotion, and not a check move, skip
-        if (!isCapture && !inCheck && !isPromo && !isCheckMove) {
+        // // If not in check, not a capture, not a promotion, and not a check move, skip
+        // if (!isCapture && !inCheck && !isPromo && !isCheckMove) {
+        //     continue;
+        // }
+
+        if (!board.isCapture(move))
             continue;
-        }
+        
 
         board.makeMove(move);
         int score = quiescence(board, depth - 1, alpha, beta);
