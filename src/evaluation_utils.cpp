@@ -206,6 +206,7 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     bool endGameFlag = isEndGame(board);
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     int pushedPawnScore = 0;
+    int pawnPushBonus = endGameFlag ? 2 : 8;
 
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
@@ -232,14 +233,12 @@ int pawnValue(const Board& board, int baseValue, Color color) {
             value += PASSED_PAWN_BONUS;
         }
 
-        if (endGameFlag) { // If in the endgame, add bonus for pushing the pawn
-            if (whiteTurn) {
-                pushedPawnScore += (7 - sqIndex / 8) * 8;
-            } else {
-                pushedPawnScore += (sqIndex / 8) * 8;
-            }
-            value += pushedPawnScore;
+        if (whiteTurn) {
+            pushedPawnScore += (7 - sqIndex / 8) * pawnPushBonus;
+        } else {
+            pushedPawnScore += (sqIndex / 8) * pawnPushBonus;
         }
+        value += pushedPawnScore;
 
         ourPawns.clear(sqIndex);
     }
