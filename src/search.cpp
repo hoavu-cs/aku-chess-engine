@@ -121,8 +121,9 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     movegen::legalmoves(moves, board);
 
     // Evaluate each capture, check, or promotion
+    bool inCheck = board.inCheck();
     for (const auto& move : moves) {
-        bool isCapture = board.isCapture(move), inCheck = board.inCheck(), isPromo = isPromotion(move);
+        bool isCapture = board.isCapture(move), isPromo = isPromotion(move);
         board.makeMove(move);
         bool isCheckMove = board.inCheck();
         board.unmakeMove(move);
@@ -358,6 +359,11 @@ Move findBestMove(Board& board,
     
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     std::vector<std::pair<Move, int>> scoredMoves = getShallowCandidates(board, lookAheadDepth, quiescenceDepth, -INF, INF, k);
+
+    if (lookAheadDepth >= depth) {
+        return scoredMoves[0].first;
+    }
+
     Move bestMove = Move::NO_MOVE;
     int bestEval = whiteTurn ? -INF : INF;
 

@@ -25,16 +25,43 @@ bool isEndGame(const Board& board) {
                     | board.pieces(PieceType::KNIGHT, Color::BLACK);
     Bitboard whiteQ = board.pieces(PieceType::QUEEN, Color::WHITE);
     Bitboard blackQ = board.pieces(PieceType::QUEEN, Color::BLACK);
+
+    const int pawnValue = 1, knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
+    const int materialThreshold = 32;
+
+    int totalValue = board.pieces(PieceType::PAWN, Color::WHITE).count() * pawnValue
+                  + board.pieces(PieceType::KNIGHT, Color::WHITE).count() * knightValue
+                  + board.pieces(PieceType::BISHOP, Color::WHITE).count() * bishopValue
+                  + board.pieces(PieceType::ROOK, Color::WHITE).count() * rookValue
+                  + board.pieces(PieceType::QUEEN, Color::WHITE).count() * queenValue
+                  + board.pieces(PieceType::PAWN, Color::BLACK).count() * pawnValue
+                  + board.pieces(PieceType::KNIGHT, Color::BLACK).count() * knightValue
+                  + board.pieces(PieceType::BISHOP, Color::BLACK).count() * bishopValue
+                  + board.pieces(PieceType::ROOK, Color::BLACK).count() * rookValue
+                  + board.pieces(PieceType::QUEEN, Color::BLACK).count() * queenValue;
     
-    if (whiteQ.count() == 0 && blackQ.count() == 0) {
-        if (whiteKBR.count() <= 3 && blackKBR.count() <= 3) {
-            return true;
-        } else {
-            return false;
-        }
+    if (totalValue <= materialThreshold) {
+        return true;
     } else {
         return false;
     }
+    
+    // if (whiteQ.count() == 0 && blackQ.count() == 0) { // If there are no queens
+    //     if (whiteKBR.count() <= 3 && blackKBR.count() <= 3) {
+    //         return true;
+    //     } else {
+    //         return false;
+    //     }
+    // } else { // If there are queens
+    //     if (whiteQ.count() == 1 && blackQ.count() == 1 && whiteKBR.count() <= 1 && blackKBR.count() <= 1) {
+    //         return true;
+    //     } else if (whiteQ.count() == 1 && blackQ.count() == 1 && whiteKBR.count() == 0 && blackKBR.count() == 0) {
+    //         return true;
+    //     } else {
+    //         return false;
+    //     }
+    //     return false;
+    // }
 }
 
 // Generate a bitboard mask for the specified file
@@ -204,6 +231,7 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     int value = 0;
     bool endGameFlag = isEndGame(board);
     bool whiteTurn = board.sideToMove() == Color::WHITE;
+    int pushedPawnScore = 0;
 
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
@@ -230,6 +258,15 @@ int pawnValue(const Board& board, int baseValue, Color color) {
             value += PASSED_PAWN_BONUS;
         }
 
+        if (endGameFlag) { // If in the endgame, add bonus for pushing the pawn
+            if (whiteTurn) {
+                pushedPawnScore += (7 - sqIndex / 8) * 8;
+            } else {
+                pushedPawnScore += (sqIndex / 8) * 8;
+            }
+            value += pushedPawnScore;
+        }
+
         ourPawns.clear(sqIndex);
     }
     
@@ -239,6 +276,7 @@ int pawnValue(const Board& board, int baseValue, Color color) {
             value += DOUBLE_PAWN_PENALTY * (files[i] - 1);
         }
     }
+
 
     return value;
 }
@@ -292,39 +330,6 @@ int kingValue(const Board& board, int baseValue, Color color) {
         }
     }
 
-    // king tropism
-    // int kingSafety = 0;
-    // Bitboard enemyQueens = board.pieces(PieceType::QUEEN, !color);
-    // Bitboard enemyRooks = board.pieces(PieceType::ROOK, !color);
-    // Bitboard enemyKnights = board.pieces(PieceType::KNIGHT, !color);
-    // Bitboard enemyBishops = board.pieces(PieceType::BISHOP, !color);
-
-    // // The larger manhattan distance to the enemy queen, rooks, and knights, the safer the king
-    // while (!enemyQueens.empty()) {
-    //     int sqIndexEQ = enemyQueens.lsb();
-    //     kingSafety += manhattanDistance(Square(sqIndex), Square(sqIndexEQ)) * 3;
-    //     enemyQueens.clear(sqIndexEQ);
-    // }
-
-    // while (!enemyRooks.empty()) {
-    //     int sqIndexER = enemyRooks.lsb();
-    //     kingSafety += static_cast<int>(manhattanDistance(Square(sqIndex), Square(sqIndexER))) * 2;
-    //     enemyRooks.clear(sqIndexER);
-    // }
-
-    // while (!enemyKnights.empty()) {
-    //     int sqIndexEN = enemyKnights.lsb();
-    //     kingSafety += static_cast<int>(manhattanDistance(Square(sqIndex), Square(sqIndexEN))) ;
-    //     enemyKnights.clear(sqIndexEN);
-    // }
-
-    // // Here, we use the diagonal distance for bishops
-    // while (!enemyBishops.empty()) {
-    //     int sqIndexEB = enemyBishops.lsb();
-    //     kingSafety += abs(abs(Square(sqIndex).file() - Square(sqIndexEB).file()) - abs(Square(sqIndex).rank() - Square(sqIndexEB).rank())) ;
-    //     enemyBishops.clear(sqIndexEB);
-    // }
-
     return value;
 }
 
@@ -366,7 +371,8 @@ int evaluate(const Board& board) {
     Bitboard enemyPieces = board.pieces(PieceType::PAWN, theirColor) | board.pieces(PieceType::KNIGHT, theirColor) | 
                            board.pieces(PieceType::BISHOP, theirColor) | board.pieces(PieceType::ROOK, theirColor) | 
                            board.pieces(PieceType::QUEEN, theirColor);
-    if (enemyPieces.count() == 0) {
+    Bitboard ourPieces =  board.pieces(PieceType::ROOK, board.sideToMove()) | board.pieces(PieceType::QUEEN, board.sideToMove());
+    if (enemyPieces.count() == 0 && ourPieces.count() > 0) {
         Square ourKing = Square(board.pieces(PieceType::KING, board.sideToMove()).lsb());
         Square theirKing = Square(board.pieces(PieceType::KING, theirColor).lsb());
         Square E4 = Square(28);
@@ -378,7 +384,7 @@ int evaluate(const Board& board) {
                           300 * board.pieces(PieceType::BISHOP, board.sideToMove()).count() + 
                           300 * board.pieces(PieceType::KNIGHT, board.sideToMove()).count() + 
                           100 * board.pieces(PieceType::PAWN, board.sideToMove()).count(); // avoid throwing away pieces
-        int score = 5000 + 47 * distToCenter + 14 * (14 - kingDist);
+        int score = 5000 +  distToCenter + (14 - kingDist);
 
         return board.sideToMove() == Color::WHITE ? score : -score;
     }
