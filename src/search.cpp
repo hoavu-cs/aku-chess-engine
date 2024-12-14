@@ -68,7 +68,7 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board) {
             // Calculate MVV-LVA priority for captures
             auto victim = board.at<Piece>(move.to());
             auto attacker = board.at<Piece>(move.from());
-            priority = 4000 + (pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())]);
+            priority = 4000 + pieceValues[static_cast<int>(attacker.type())] - pieceValues[static_cast<int>(victim.type())];
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
@@ -123,17 +123,8 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     // Evaluate each capture, check, or promotion
     //bool inCheck = board.inCheck();
     for (const auto& move : moves) {
-        // bool isCapture = board.isCapture(move), isPromo = isPromotion(move);
-        // board.makeMove(move);
-        // bool isCheckMove = board.inCheck();
-        // board.unmakeMove(move);
 
-        // // If not in check, not a capture, not a promotion, and not a check move, skip
-        // if (!isCapture && !inCheck && !isPromo && !isCheckMove) {
-        //     continue;
-        // }
-
-        if (!board.isCapture(move))
+        if (!board.isCapture(move) && !isPromotion(move))
             continue;
         
 
@@ -288,7 +279,7 @@ std::vector<std::pair<Move, int>> getShallowCandidates(Board& board, int lookAhe
     }
 
     if (scoredMoves.size() > k) {
-        scoredMoves.resize(k);
+        scoredMoves = std::vector<std::pair<Move, int>>(scoredMoves.begin(), scoredMoves.begin() + k);
     }
 
     return scoredMoves;
@@ -369,7 +360,9 @@ Move findBestMove(Board& board,
     }
 
     Move bestMove = Move::NO_MOVE;
+    Move bestPawnMove = Move::NO_MOVE;
     int bestEval = whiteTurn ? -INF : INF;
+    
 
     // Set the number of threads
     omp_set_num_threads(numThreads);
@@ -390,7 +383,20 @@ Move findBestMove(Board& board,
                 bestMove = move;
             }
         }
+
+        Square from = scoredMoves[i].first.from();
+        if (board.at<Piece>(from).type() == PieceType::PAWN) { 
+            // If a panw push is good enough, return it. This avoids infinite moves in the endgame.
+            if (whiteTurn && eval > 600 || !whiteTurn && eval < -600) {
+                #pragma omp critical
+                {
+                    bestPawnMove = move;
+                }
+            }
+        }
     }
+
+    
 
     if (whiteTurn) {
             #pragma omp critical
@@ -398,6 +404,12 @@ Move findBestMove(Board& board,
     } else {
             #pragma omp critical
             upperBoundTable[board.hash()] = {bestEval, depth}; 
+    }
+
+    if (bestPawnMove.promotionType() == PieceType::QUEEN) {
+        return bestPawnMove;
+    } else if (bestPawnMove != Move::NO_MOVE) {
+        return bestPawnMove;
     }
 
     clearTranspositionTables(maxTableSize); // Clear the transposition tables if they exceed a certain size

@@ -78,7 +78,7 @@ bool isPassedPawn(int squareIndex, Color color, const Bitboard& enemyPawns) {
     Bitboard frontMask;
     if (color == Color::WHITE) {
         frontMask = relevantFilesMask & Bitboard(0xFFFFFFFFFFFFFFFFULL << ((rank + 1) * 8));
-    } else { // Color::BLACK
+    } else { 
         frontMask = relevantFilesMask & Bitboard(0xFFFFFFFFFFFFFFFFULL >> ((7 - rank) * 8));
     }
 
@@ -118,6 +118,7 @@ bool isSemiOpenFile(const Board& board, const File& file, Color color) {
 
 // Compute the value of the knights on the board
 int knightValue(const Board& board, int baseValue, Color color) {
+
     Bitboard knights = board.pieces(PieceType::KNIGHT, color);
     int value = 0;
     const int* knightTable;
@@ -142,6 +143,7 @@ int knightValue(const Board& board, int baseValue, Color color) {
 int bishopValue(const Board& board, int baseValue, Color color) {
     // Constants
     const int bishopPairBonus = 30;
+    //const int mobilityBonus = 1;
 
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
     int value = 0;
@@ -158,6 +160,11 @@ int bishopValue(const Board& board, int baseValue, Color color) {
         } else {
             value += blackBishopTable[sqIndex];
         }
+
+        // Mobility bonus
+        // Bitboard bishopMoves = attacks::bishop(Square(sqIndex), board.occ());
+        // value += bishopMoves.count() * mobilityBonus;
+
         bishops.clear(sqIndex);
     }
 
@@ -170,6 +177,7 @@ int rookValue(const Board& board, int baseValue, Color color) {
     // Constants
     const int openFileBonus = 20;
     const int semiOpenFileBonus = 15;
+    //const int mobilityBonus = 1;
 
     Bitboard rooks = board.pieces(PieceType::ROOK, color);
     int value = 0;
@@ -195,6 +203,11 @@ int rookValue(const Board& board, int baseValue, Color color) {
         } else if (isSemiOpenFile(board, file, color)) {
             value += semiOpenFileBonus; // Add semi-open file bonus
         }
+
+        // Mobility bonus
+        // Bitboard rookMoves = attacks::rook(Square(sq), board.occ());
+        // value += mobilityBonus * rookMoves.count();
+
         rooks.clear(sqIndex); // Remove the processed rook
     }
     return value;
@@ -202,8 +215,9 @@ int rookValue(const Board& board, int baseValue, Color color) {
 
 // Compute the value of the pawns on the board
 int pawnValue(const Board& board, int baseValue, Color color) {
+    bool endGameFlag = isEndGame(board);
     // constants
-    const int passedPawnBonus = 20;
+    const int passedPawnBonus = 15;
     const int doublePawnPenalty = 30;
     const int centralPawnBonus = 10;
 
@@ -211,18 +225,29 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     Bitboard enemyPawns = board.pieces(PieceType::PAWN, !color);
     int files[8] = {0};
     int value = 0;
-    bool endGameFlag = isEndGame(board);
-    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    
+    bool white = (color == Color::WHITE);
     int averageRank = 0;
-    int advancedPawns = endGameFlag ? 10 : 2;
+    int advancedPawnBonus = endGameFlag ? 5 : 0;
+    
+    Bitboard enemyPieces = board.pieces(PieceType::BISHOP, !color) | board.pieces(PieceType::KNIGHT, !color) | board.pieces(PieceType::ROOK, !color) | board.pieces(PieceType::QUEEN, !color); 
+    int enemyPieceCount = enemyPieces.count();
 
-    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
-    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
-    Bitboard ourKing = board.pieces(PieceType::KING, color);
+    const int* pawnTable;
 
-    const int* pawnTable = (!endGameFlag) 
-        ? (whiteTurn ? whitePawnTableMid : blackPawnTableMid)
-        : (whiteTurn ? whitePawnTableEnd : blackPawnTableEnd);
+    if (white) {
+        if (endGameFlag) {
+            pawnTable = whitePawnTableEnd;
+        } else {
+            pawnTable = whitePawnTableMid;
+        }
+    } else {
+        if (endGameFlag) {
+            pawnTable = blackPawnTableEnd;
+        } else {
+            pawnTable = blackPawnTableMid;
+        }
+    }
 
     while (!ourPawns.empty()) {
         int sqIndex = ourPawns.lsb(); 
@@ -243,10 +268,10 @@ int pawnValue(const Board& board, int baseValue, Color color) {
             value += passedPawnBonus;
         }
 
-        if (whiteTurn) {
-            advancedPawns += rank * 10;
+        if (white) {
+            value += rank * advancedPawnBonus;
         } else {
-            advancedPawns += (7 - rank) * 10;
+            value += (7 - rank) * advancedPawnBonus;
         }
 
         ourPawns.clear(sqIndex);
@@ -287,21 +312,22 @@ int queenValue(const Board& board, int baseValue, Color color) {
 // Compute the value of the kings on the board
 int kingValue(const Board& board, int baseValue, Color color) {
     // Constants
-    const int pawnShieldBonus = 30;
-    const int pieceProtectionBonus = 30;
+    const int pawnShieldBonus = 20;
+    const int pieceProtectionBonus = 20;
+    const int openFilePenalty = 15;
 
     Bitboard king = board.pieces(PieceType::KING, color);
     const PieceType allPieceTypes[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
     
     int pieceCount = countPieces(board);
     bool endGameFlag = isEndGame(board);
-    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    bool white = (color == Color::WHITE);
 
     int value = baseValue;
     int sqIndex = king.lsb();
 
-    const auto& kingTableMid = (color == Color::WHITE) ? whiteKingTableMid : blackKingTableMid;
-    const auto& kingTableEnd = (color == Color::WHITE) ? whiteKingTableEnd : blackKingTableEnd;
+    const auto& kingTableMid = white ? whiteKingTableMid : blackKingTableMid;
+    const auto& kingTableEnd = white ? whiteKingTableEnd : blackKingTableEnd;
     Bitboard pawns = board.pieces(PieceType::PAWN, color);
 
     value += endGameFlag ? kingTableEnd[sqIndex] : kingTableMid[sqIndex];
@@ -320,7 +346,7 @@ int kingValue(const Board& board, int baseValue, Color color) {
             Bitboard pieces = board.pieces(type, !color);
             while (!pieces.empty()) {
                 int pieceIndex = pieces.lsb();
-                if (whiteTurn) {
+                if (white) {
                     if (pieceIndex / 8 > sqIndex / 8 && manhattanDistance(Square(pieceIndex), Square(sqIndex)) <= 4) 
                         value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
                 } else {
@@ -330,6 +356,11 @@ int kingValue(const Board& board, int baseValue, Color color) {
                 pieces.clear(pieceIndex);
             }
         }
+        // Penalize king for being in an open file
+        if (isOpenFile(board, Square(sqIndex).file()) || isSemiOpenFile(board, Square(sqIndex).file(), color)) {
+            value -= openFilePenalty;
+        }
+
     }
 
     return value;
