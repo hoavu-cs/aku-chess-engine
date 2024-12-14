@@ -143,7 +143,7 @@ int knightValue(const Board& board, int baseValue, Color color) {
 int bishopValue(const Board& board, int baseValue, Color color) {
     // Constants
     const int bishopPairBonus = 30;
-    //const int mobilityBonus = 1;
+    const int mobilityBonus = 1;
 
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
     int value = 0;
@@ -161,9 +161,8 @@ int bishopValue(const Board& board, int baseValue, Color color) {
             value += blackBishopTable[sqIndex];
         }
 
-        // Mobility bonus
-        // Bitboard bishopMoves = attacks::bishop(Square(sqIndex), board.occ());
-        // value += bishopMoves.count() * mobilityBonus;
+        Bitboard bishopMoves = attacks::bishop(Square(sqIndex), board.occ());
+        value += bishopMoves.count() * mobilityBonus;
 
         bishops.clear(sqIndex);
     }
@@ -177,7 +176,7 @@ int rookValue(const Board& board, int baseValue, Color color) {
     // Constants
     const int openFileBonus = 20;
     const int semiOpenFileBonus = 15;
-    //const int mobilityBonus = 1;
+    const int mobilityBonus = 1;
 
     Bitboard rooks = board.pieces(PieceType::ROOK, color);
     int value = 0;
@@ -204,9 +203,8 @@ int rookValue(const Board& board, int baseValue, Color color) {
             value += semiOpenFileBonus; // Add semi-open file bonus
         }
 
-        // Mobility bonus
-        // Bitboard rookMoves = attacks::rook(Square(sq), board.occ());
-        // value += mobilityBonus * rookMoves.count();
+        Bitboard rookMoves = attacks::rook(Square(sq), board.occ());
+        value += mobilityBonus * rookMoves.count();
 
         rooks.clear(sqIndex); // Remove the processed rook
     }
@@ -229,7 +227,7 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     bool white = (color == Color::WHITE);
     int averageRank = 0;
     int advancedPawnBonus = endGameFlag ? 5 : 0;
-    
+
     Bitboard enemyPieces = board.pieces(PieceType::BISHOP, !color) | board.pieces(PieceType::KNIGHT, !color) | board.pieces(PieceType::ROOK, !color) | board.pieces(PieceType::QUEEN, !color); 
     int enemyPieceCount = enemyPieces.count();
 

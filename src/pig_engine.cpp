@@ -98,8 +98,6 @@ void processGo() {
     }
 
     Move bestMove = Move::NO_MOVE;
-
-
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     bestMove = findBestMove(board, numThreads, depth, lookAheadDepth, k, quiescenceDepth);
     

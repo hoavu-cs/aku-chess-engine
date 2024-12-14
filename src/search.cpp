@@ -384,16 +384,6 @@ Move findBestMove(Board& board,
             }
         }
 
-        Square from = scoredMoves[i].first.from();
-        if (board.at<Piece>(from).type() == PieceType::PAWN) { 
-            // If a panw push is good enough, return it. This avoids infinite moves in the endgame.
-            if (whiteTurn && eval > 600 || !whiteTurn && eval < -600) {
-                #pragma omp critical
-                {
-                    bestPawnMove = move;
-                }
-            }
-        }
     }
 
     
@@ -404,12 +394,6 @@ Move findBestMove(Board& board,
     } else {
             #pragma omp critical
             upperBoundTable[board.hash()] = {bestEval, depth}; 
-    }
-
-    if (bestPawnMove.promotionType() == PieceType::QUEEN) {
-        return bestPawnMove;
-    } else if (bestPawnMove != Move::NO_MOVE) {
-        return bestPawnMove;
     }
 
     clearTranspositionTables(maxTableSize); // Clear the transposition tables if they exceed a certain size
