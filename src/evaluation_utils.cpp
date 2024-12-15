@@ -7,14 +7,15 @@ using namespace chess;
 
 long long hit = 0;
 
+
 /*------------------------------------------------------------------------
     Helper Functions
 ------------------------------------------------------------------------*/
 
 // Return true if the game is in the endgame phase 
 bool isEndGame(const Board& board) {
-    const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
     const int materialThreshold = 32;
+    const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
 
     int totalValue = board.pieces(PieceType::KNIGHT, Color::WHITE).count() * knightValue
                   + board.pieces(PieceType::BISHOP, Color::WHITE).count() * bishopValue
@@ -215,6 +216,7 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     const int passedPawnBonus = 15;
     const int doublePawnPenalty = 30;
     const int centralPawnBonus = 10;
+    const int isolatedPawnPenalty = 20;
 
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     Bitboard enemyPawns = board.pieces(PieceType::PAWN, !color);
@@ -241,15 +243,29 @@ int pawnValue(const Board& board, int baseValue, Color color) {
         }
     }
 
+    Bitboard ourPawnsCopy = ourPawns;
+    while (!ourPawns.empty()) {
+        int sqIndex = ourPawns.lsb(); 
+        int file = sqIndex % 8; // Get the file of the pawn
+        files[file]++; // Increment the count of pawns on the file
+        ourPawns.clear(sqIndex);
+    }
+    ourPawns = ourPawnsCopy;
+
     while (!ourPawns.empty()) {
         int sqIndex = ourPawns.lsb(); 
         
-        value += baseValue; // Add the base value
+        value += baseValue; 
         value += pawnTable[sqIndex]; 
 
-        int file = sqIndex % 8; // Get the file of the pawn
-        int rank = sqIndex / 8; // Get the rank of the pawn
-        files[file]++; // Increment the count of pawns on the file
+        int file = sqIndex % 8;
+        int rank = sqIndex / 8; 
+
+        if (file > 0 && file < 7) {
+            if (files[file - 1] == 0 && files[file + 1] == 0) {
+                value -= 10; 
+            }
+        }
 
         if (file == 3 || file == 4) {
             value += centralPawnBonus; // Add central pawn bonus
@@ -452,6 +468,26 @@ int evaluate(const Board& board) {
             whiteScore += queenValue(board, baseValue, Color::WHITE);
             blackScore += queenValue(board, baseValue, Color::BLACK);
         } 
+    }
+
+    // Avoid trading pieces for pawns in middle game
+    const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
+    int whitePieceValue = queenValue * board.pieces(PieceType::QUEEN, Color::WHITE).count() + 
+                        rookValue * board.pieces(PieceType::ROOK, Color::WHITE).count() + 
+                        bishopValue * board.pieces(PieceType::BISHOP, Color::WHITE).count() + 
+                        knightValue * board.pieces(PieceType::KNIGHT, Color::WHITE).count();
+
+    int blackPieceValue = queenValue * board.pieces(PieceType::QUEEN, Color::BLACK).count() + 
+                        rookValue * board.pieces(PieceType::ROOK, Color::BLACK).count() + 
+                        bishopValue * board.pieces(PieceType::BISHOP, Color::BLACK).count() + 
+                        knightValue * board.pieces(PieceType::KNIGHT, Color::BLACK).count();
+
+    if (!isEndGame(board)) { // avoid trading pieces for pawns in middle game
+        if (whitePieceValue > blackPieceValue) {
+            whiteScore += 20;
+        } else if (blackPieceValue > whitePieceValue) {
+            blackScore += 20;
+        }
     }
 
     return whiteScore - blackScore;

@@ -81,7 +81,6 @@ void processPosition(const std::string& command) {
  */
 void processGo() {
     // Rapid suggestion: depth 12, quiescence depth 10, look-ahead depth 6, k = 20
-    int mode = 1; // 1: rapid, 2: blitz, 3: classical
     int depth = 12;
     int quiescenceDepth = 10;
     int numThreads = 8;
