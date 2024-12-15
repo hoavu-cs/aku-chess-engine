@@ -362,7 +362,6 @@ Move findBestMove(Board& board,
     Move bestMove = Move::NO_MOVE;
     Move bestPawnMove = Move::NO_MOVE;
     int bestEval = whiteTurn ? -INF : INF;
-    
 
     // Set the number of threads
     omp_set_num_threads(numThreads);
@@ -385,8 +384,6 @@ Move findBestMove(Board& board,
         }
 
     }
-
-    
 
     if (whiteTurn) {
             #pragma omp critical

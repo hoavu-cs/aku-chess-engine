@@ -81,21 +81,12 @@ void processPosition(const std::string& command) {
  */
 void processGo() {
     // Rapid suggestion: depth 12, quiescence depth 10, look-ahead depth 6, k = 20
-    // Todo FEN r4rk1/p1p3p1/1p6/3b1pn1/3p2P1/PP2P1KP/R2N1P2/2B1R3 b - - 3 24
-    // debug FEN 1r6/3Rbr1p/p3N3/k1p5/4R3/4P1P1/1P3P1P/6K1 w - - 2 35
     int mode = 1; // 1: rapid, 2: blitz, 3: classical
-    int depth = 5;
+    int depth = 12;
     int quiescenceDepth = 10;
     int numThreads = 8;
     int lookAheadDepth = 5;
-    int k = 10;
-
-    if (isEndGame(board)) {
-        depth = 8;
-        quiescenceDepth = 10;
-        lookAheadDepth = 5;
-        k = 10;
-    }
+    int k = 20;
 
     Move bestMove = Move::NO_MOVE;
     bool whiteTurn = board.sideToMove() == Color::WHITE;
