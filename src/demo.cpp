@@ -43,7 +43,6 @@ int main() {
     int numThreads = 8;
     int lookAheadDepth = 5;
     int k = 20;
-
     Move bestMove;
 
     if (isEndGame(board)) {

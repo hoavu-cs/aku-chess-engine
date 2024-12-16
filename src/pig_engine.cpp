@@ -46,6 +46,7 @@ Board board;
  * @param command The full position command received from the GUI.
  */
 void processPosition(const std::string& command) {
+
     std::istringstream iss(command);
     std::string token;
 
@@ -62,11 +63,14 @@ void processPosition(const std::string& command) {
         }
     } else if (token == "fen") {
         std::string fen;
+
         while (iss >> token && token != "moves") {
             if (!fen.empty()) fen += " ";
             fen += token;
         }
+
         board = Board(fen); // Set board to the FEN position
+
         if (token == "moves") {
             while (iss >> token) {
                 Move move = uci::uciToMove(board, token);
@@ -80,6 +84,7 @@ void processPosition(const std::string& command) {
  * Processes the "go" command and finds the best move.
  */
 void processGo() {
+
     // Rapid suggestion: depth 12, quiescence depth 10, look-ahead depth 6, k = 20
     int depth = 12;
     int quiescenceDepth = 10;
@@ -112,6 +117,7 @@ void processUci() {
  */
 void uciLoop() {
     std::string line;
+    
     while (std::getline(std::cin, line)) {
         if (line == "uci") {
             processUci();
