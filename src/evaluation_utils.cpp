@@ -143,7 +143,7 @@ int bishopValue(const Board& board, int baseValue, Color color) {
 
     // Constants
     const int bishopPairBonus = 30;
-    const int mobilityBonus = 1;
+    //const int mobilityBonus = 1;
 
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
     int value = 0;
@@ -161,8 +161,8 @@ int bishopValue(const Board& board, int baseValue, Color color) {
             value += blackBishopTable[sqIndex];
         }
 
-        Bitboard bishopMoves = attacks::bishop(Square(sqIndex), board.occ());
-        value += bishopMoves.count() * mobilityBonus;
+        //Bitboard bishopMoves = attacks::bishop(Square(sqIndex), board.occ());
+        //value += bishopMoves.count() * mobilityBonus;
         bishops.clear(sqIndex);
     }
 
@@ -176,7 +176,7 @@ int rookValue(const Board& board, int baseValue, Color color) {
     // Constants
     const int openFileBonus = 20;
     const int semiOpenFileBonus = 15;
-    const int mobilityBonus = 1;
+    //const int mobilityBonus = 1;
 
     Bitboard rooks = board.pieces(PieceType::ROOK, color);
     int value = 0;
@@ -203,8 +203,8 @@ int rookValue(const Board& board, int baseValue, Color color) {
             value += semiOpenFileBonus; // Add semi-open file bonus
         }
 
-        Bitboard rookMoves = attacks::rook(Square(sq), board.occ());
-        value += mobilityBonus * rookMoves.count();
+        //Bitboard rookMoves = attacks::rook(Square(sq), board.occ());
+        //value += mobilityBonus * rookMoves.count();
 
         rooks.clear(sqIndex); // Remove the processed rook
     }
@@ -533,9 +533,9 @@ int evaluate(const Board& board) {
 
     if (!isEndGame(board)) { // avoid trading pieces for pawns in middle game
         if (whitePieceValue > blackPieceValue) {
-            whiteScore += 20;
+            whiteScore += 30;
         } else if (blackPieceValue > whitePieceValue) {
-            blackScore += 20;
+            blackScore += 30;
         }
     }
 

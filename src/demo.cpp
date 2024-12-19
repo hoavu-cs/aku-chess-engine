@@ -9,6 +9,7 @@
 #include <vector>
 #include <algorithm>
 #include <chrono>
+#include <unordered_map>
 
 using namespace chess;
 
