@@ -1,3 +1,16 @@
 g++ -std=c++17 -O3 -fopenmp -march=native -o pigengine pig_engine.cpp search.cpp evaluation_utils.cpp 
 g++ -std=c++17 -O3 -fopenmp -march=native -o demo demo.cpp search.cpp evaluation_utils.cpp 
 g++ -std=c++17 -O3 -fopenmp -march=native -o pigengine_blitz pig_engine_blitz.cpp search_blitz.cpp evaluation_utils.cpp 
+
+
+makefile for macos:
+# Define compiler and flags
+CXX = /opt/homebrew/opt/llvm/bin/clang++
+CXXFLAGS = -std=c++17 -O3 -fopenmp -march=native
+LDFLAGS = -L/opt/homebrew/opt/libomp/lib
+CPPFLAGS = -I/opt/homebrew/opt/libomp/include
+
+# Target
+pigengine: pig_engine.cpp search.cpp evaluation_utils.cpp
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@ $^
+å

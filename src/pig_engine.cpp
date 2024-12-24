@@ -80,24 +80,66 @@ void processPosition(const std::string& command) {
     }
 }
 
+/*
+    * Processes the "setoption" command and updates the engine options.
+    * @param command The full setoption command received from the GUI.
+*/
+
+// void processSetOption(const std::string& command) {
+//     std::istringstream iss(command);
+//     std::string token, optionName, value;
+
+//     iss >> token; // Skip "setoption"
+//     iss >> token; // Skip "name"
+//     std::getline(iss, optionName, ' ');
+
+//     size_t pos = optionName.find(" value ");
+//     if (pos != std::string::npos) {
+//         value = optionName.substr(pos + 7);
+//         optionName = optionName.substr(0, pos);
+//     }
+
+//     if (optionName == "Hash") {
+//         int hashSize = std::stoi(value);
+//         // Set hash table size
+//     } else if (optionName == "Threads") {
+//         int threads = std::stoi(value);
+//         // Set number of threads
+//     } else if (optionName == "Ponder") {
+//         bool ponder = (value == "true");
+//         // Enable or disable pondering
+//     } else {
+//         std::cerr << "Unknown option: " << optionName << std::endl;
+//     }
+// }
+
+
 /**
  * Processes the "go" command and finds the best move.
  */
 void processGo() {
 
-    // Rapid suggestion: depth 12, quiescence depth 10, look-ahead depth 6, k = 20
-    int depth = 12;
+    // Default settings
+    int depth = 16;
     int quiescenceDepth = 10;
     int numThreads = 8;
     int lookAheadDepth = 5;
-    int k = 20;
+    int k = 40;
 
+    if (isEndGame(board)) {
+        depth = 24;
+        quiescenceDepth = 10;
+        lookAheadDepth = 6;
+        k = 40;
+    }
+
+
+    // Simply find the best move without considering `t` or other options
     Move bestMove = Move::NO_MOVE;
-    bool whiteTurn = board.sideToMove() == Color::WHITE;
     bestMove = findBestMove(board, numThreads, depth, lookAheadDepth, k, quiescenceDepth);
-    
+
     if (bestMove != Move::NO_MOVE) {
-        std::cout << "bestmove " << uci::moveToUci(bestMove) << std::endl;
+        std::cout << "bestmove " << uci::moveToUci(bestMove)  << std::endl;
     } else {
         std::cout << "bestmove 0000" << std::endl; // No legal moves
     }

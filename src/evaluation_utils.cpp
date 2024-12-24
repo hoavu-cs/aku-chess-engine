@@ -6,8 +6,6 @@
 #include <map>
 using namespace chess; 
 
-long long hit = 0;
-
 /*------------------------------------------------------------------------
     Helper Functions
 ------------------------------------------------------------------------*/
@@ -59,7 +57,7 @@ Bitboard generateFileMask(const File& file) {
 }
 
 // Check if the given square is a passed pawn
-bool isPassedPawn(int squareIndex, Color color, const Bitboard& enemyPawns) {
+bool isPassedPawn(int squareIndex, Color color, const Bitboard& theirPawns) {
     // Determine the rank and file of the pawn
     int file = squareIndex % 8;  // File index (0 = A, ..., 7 = H)
     int rank = squareIndex / 8;  // Rank index (0 = 1, ..., 7 = 8)
@@ -80,154 +78,34 @@ bool isPassedPawn(int squareIndex, Color color, const Bitboard& enemyPawns) {
         frontMask = relevantFilesMask & Bitboard(0xFFFFFFFFFFFFFFFFULL >> ((7 - rank) * 8));
     }
 
-    // Check if any enemy pawns are in the front mask
-    return (frontMask & enemyPawns).empty();
+    // Check if any their pawns are in the front mask
+    return (frontMask & theirPawns).empty();
 }
-
-// Check if the specified file is open (no pawns on it)
-bool isOpenFile(const Board& board, const File& file) {
-    // Get bitboards for white and black pawns
-    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
-    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
-
-    // Generate the mask for the given file
-    Bitboard mask = generateFileMask(file);
-
-    // A file is open if it has no pawns of either color
-    return !(whitePawns & mask) && !(blackPawns & mask);
-}
-
-// Check if the specified file is semi-open (no pawns of the given color)
-bool isSemiOpenFile(const Board& board, const File& file, Color color) {
-    // Get the bitboard for the pawns of the given color
-    Bitboard ownPawns = board.pieces(PieceType::PAWN, color);
-
-    // Generate the mask for the given file
-    Bitboard mask = generateFileMask(file);
-
-    // A file is semi-open if it has no pawns of the given color
-    return !(ownPawns & mask);
-}
-
 
 /*------------------------------------------------------------------------
  Main Functions 
 ------------------------------------------------------------------------*/
 
-
-// Compute the value of the knights on the board
-int knightValue(const Board& board, int baseValue, Color color) {
-
-    Bitboard knights = board.pieces(PieceType::KNIGHT, color);
-    int value = 0;
-    const int* knightTable;
-    
-    if (color == Color::WHITE) {
-        knightTable = whiteKnightTable;
-    } else {
-        knightTable = blackKnightTable;
-    } 
-
-    while (!knights.empty()) {
-        value += baseValue;
-        int sqIndex = knights.lsb();
-        value += knightTable[sqIndex];
-        knights.clear(sqIndex);
-    }
-
-    return value;
-}
-
-// Compute the value of the bishops on the board
-int bishopValue(const Board& board, int baseValue, Color color) {
-
-    // Constants
-    const int bishopPairBonus = 30;
-    //const int mobilityBonus = 1;
-
-    Bitboard bishops = board.pieces(PieceType::BISHOP, color);
-    int value = 0;
-    
-    if (bishops.count() >= 2) {
-        value += bishopPairBonus;
-    }
-
-    while (!bishops.empty()) {
-        value += baseValue;
-        int sqIndex = bishops.lsb();
-        if (color == Color::WHITE) {
-            value += whiteBishopTable[sqIndex];
-        } else {
-            value += blackBishopTable[sqIndex];
-        }
-
-        //Bitboard bishopMoves = attacks::bishop(Square(sqIndex), board.occ());
-        //value += bishopMoves.count() * mobilityBonus;
-        bishops.clear(sqIndex);
-    }
-
-    return value;
-}
-
-
-// Compute the total value of the rooks on the board
-int rookValue(const Board& board, int baseValue, Color color) {
-
-    // Constants
-    const int openFileBonus = 20;
-    const int semiOpenFileBonus = 15;
-    //const int mobilityBonus = 1;
-
-    Bitboard rooks = board.pieces(PieceType::ROOK, color);
-    int value = 0;
-
-    // Traverse each rook
-    while (!rooks.empty()) {
-        int sqIndex = rooks.lsb(); // Get the index of the least significant bit and remove it
-        Square sq = Square(sqIndex); // Create a Square object
-        File file = sq.file();       // Get the file of the rook
-
-        value += baseValue; // Add the base value of the rook
-
-        // Add piece-square table bonus
-        if (color == Color::WHITE) {
-            value += whiteRookTable[sqIndex];
-        } else {
-            value += blackRookTable[sqIndex];
-        }
-
-        // Check for open and semi-open files
-        if (isOpenFile(board, file)) {
-            value += openFileBonus; // Add open file bonus
-        } else if (isSemiOpenFile(board, file, color)) {
-            value += semiOpenFileBonus; // Add semi-open file bonus
-        }
-
-        //Bitboard rookMoves = attacks::rook(Square(sq), board.occ());
-        //value += mobilityBonus * rookMoves.count();
-
-        rooks.clear(sqIndex); // Remove the processed rook
-    }
-    return value;
-}
-
 // Compute the value of the pawns on the board
 int pawnValue(const Board& board, int baseValue, Color color) {
     bool endGameFlag = isEndGame(board);
     // constants
-    const int passedPawnBonus = 15;
-    const int doublePawnPenalty = 40;
+    const int passedPawnBonus = 40;
     const int centralPawnBonus = 20;
-    const int isolatedPawnPenalty = 20;
+    const int isolatedPawnPenalty = 30;
 
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
-    Bitboard enemyPawns = board.pieces(PieceType::PAWN, !color);
+    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
     int files[8] = {0};
     int value = 0;
-    int advancedPawnBonus = endGameFlag ? 3 : 0;
+    int advancedPawnBonus = endGameFlag ? 4 : 2;
 
-    Bitboard enemyPieces = board.pieces(PieceType::BISHOP, !color) | board.pieces(PieceType::KNIGHT, !color) | board.pieces(PieceType::ROOK, !color) | board.pieces(PieceType::QUEEN, !color); 
-    int enemyPieceCount = enemyPieces.count();
+    Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
+                            | board.pieces(PieceType::KNIGHT, !color) 
+                            | board.pieces(PieceType::ROOK, !color) 
+                            | board.pieces(PieceType::QUEEN, !color); 
+                            
+    int theirPieceCount = theirPieces.count();
 
     const int* pawnTable;
 
@@ -269,12 +147,26 @@ int pawnValue(const Board& board, int baseValue, Color color) {
             }
         }
 
+        if (file > 0 && file < 7) {
+            if (files[file - 1] == 0 && files[file + 1] == 0) {
+                value -= isolatedPawnPenalty; 
+            }
+        }
+
+        if (file == 0 && files[1] == 0) {
+            value -= isolatedPawnPenalty;
+        }
+
+        if (file == 7 && files[6] == 0) {
+                value -= isolatedPawnPenalty; 
+        }    
+
         if (file == 3 || file == 4) {
             value += centralPawnBonus; // Add central pawn bonus
         }
 
         // Check if the pawn is a passed pawn
-        if (isPassedPawn(sqIndex, color, enemyPawns)) {
+        if (isPassedPawn(sqIndex, color, theirPawns)) {
             value += passedPawnBonus;
         }
 
@@ -289,25 +181,120 @@ int pawnValue(const Board& board, int baseValue, Color color) {
     
     // Add penalty for doubled pawns
     for (int i = 0; i < 8; i++) {
-        if (files[i] > 1) {
-            value += doublePawnPenalty * (files[i] - 1);
+        switch (files[i]) {
+            case 2: value -= 30; break;
+            case 3: value -= 100; break;
+            case 4: value -= 200; break;
+            case 5: value -= 300; break;
+            case 6: value -= 400; break;
+            case 7: value -= 500; break;
+            case 8: value -= 600; break;
+            default: break;
         }
     }
 
     return value;
 }
 
+// Compute the value of the knights on the board
+int knightValue(const Board& board, int baseValue, Color color) {
+
+    Bitboard knights = board.pieces(PieceType::KNIGHT, color);
+    int value = 0;
+    const int* knightTable;
+    
+    if (color == Color::WHITE) {
+        knightTable = whiteKnightTable;
+    } else {
+        knightTable = blackKnightTable;
+    } 
+
+    while (!knights.empty()) {
+        value += baseValue;
+        int sqIndex = knights.lsb();
+        value += knightTable[sqIndex];
+        knights.clear(sqIndex);
+    }
+
+    return value;
+}
+
+// Compute the value of the bishops on the board
+int bishopValue(const Board& board, int baseValue, Color color) {
+
+    // Constants
+    const int bishopPairBonus = 30;
+    const int mobilityBonus = 2;
+
+    Bitboard bishops = board.pieces(PieceType::BISHOP, color);
+    int value = 0;
+    
+    if (bishops.count() >= 2) {
+        value += bishopPairBonus;
+    }
+
+    while (!bishops.empty()) {
+        value += baseValue;
+        int sqIndex = bishops.lsb();
+        if (color == Color::WHITE) {
+            value += whiteBishopTable[sqIndex];
+        } else {
+            value += blackBishopTable[sqIndex];
+        }
+
+        Bitboard bishopMoves = attacks::bishop(Square(sqIndex), board.occ());
+        value += bishopMoves.count() * mobilityBonus;
+        bishops.clear(sqIndex);
+    }
+
+    return value;
+}
+
+
+// Compute the total value of the rooks on the board
+int rookValue(const Board& board, int baseValue, Color color) {
+
+    // Constants
+    const double mobilityBonus = 2;
+
+    Bitboard rooks = board.pieces(PieceType::ROOK, color);
+    int value = 0;
+
+    while (!rooks.empty()) {
+        int sqIndex = rooks.lsb(); // Get the index of the least significant bit and remove it
+        Square sq = Square(sqIndex); // Create a Square object
+        File file = sq.file();       // Get the file of the rook
+
+        value += baseValue; // Add the base value of the rook
+
+        // Add piece-square table bonus
+        if (color == Color::WHITE) {
+            value += whiteRookTable[sqIndex];
+        } else {
+            value += blackRookTable[sqIndex];
+        }
+
+        Bitboard rookMoves = attacks::rook(Square(sq), board.occ());
+        value += mobilityBonus * rookMoves.count();
+
+        rooks.clear(sqIndex); // Remove the processed rook
+    }
+    return value;
+}
+
 // Compute the total value of the queens on the board
 int queenValue(const Board& board, int baseValue, Color color) {
+    
     Bitboard queens = board.pieces(PieceType::QUEEN, color);
-    Bitboard enemyKing = board.pieces(PieceType::KING, !color);
+    Bitboard theirKing = board.pieces(PieceType::KING, !color);
 
-    Square enemyKingSQ = Square(enemyKing.lsb()); // Get the square of the enemy king
+    Square theirKingSQ = Square(theirKing.lsb()); // Get the square of the their king
     int value = 0;
 
     while (!queens.empty()) {
         int sqIndex = queens.lsb(); // Get the index of the least significant bit and remove it
         value += baseValue; // Add the base value
+
         if (color == Color::WHITE) {
             value += whiteQueenTable[sqIndex];
         } else {
@@ -325,7 +312,6 @@ int kingValue(const Board& board, int baseValue, Color color) {
     // Constants
     const int pawnShieldBonus = 20;
     const int pieceProtectionBonus = 20;
-    const int openFilePenalty = 15;
 
     Bitboard king = board.pieces(PieceType::KING, color);
     const PieceType allPieceTypes[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
@@ -334,6 +320,7 @@ int kingValue(const Board& board, int baseValue, Color color) {
     bool endGameFlag = isEndGame(board);
     int value = baseValue;
     int sqIndex = king.lsb();
+    int kingRank = sqIndex / 8, kingFile = sqIndex % 8;
 
     const auto& kingTableMid = (color == Color::WHITE) ? whiteKingTableMid : blackKingTableMid;
     const auto& kingTableEnd = (color == Color::WHITE) ? whiteKingTableEnd : blackKingTableEnd;
@@ -345,31 +332,31 @@ int kingValue(const Board& board, int baseValue, Color color) {
         // King protection by pawns
         while (!pawns.empty()) {
             int pawnIndex = pawns.lsb();
-            if (manhattanDistance(Square(pawnIndex), Square(sqIndex)) <= 2) {
+            int pawnRank = pawnIndex / 8, pawnFile = pawnIndex % 8;
+            // if the pawn is in front of the king and on an adjacent file, add shield bonus
+            if (color == Color::WHITE && pawnRank == kingRank + 1 && std::abs(pawnFile - kingFile) <= 1) {
                 value += pawnShieldBonus;
+            } else if (color == Color::BLACK && pawnRank == kingRank - 1 && std::abs(pawnFile - kingFile) <= 1) {
+                value += pawnShieldBonus; 
             }
             pawns.clear(pawnIndex);
         }
+        
         // King protection by pieces
-        // for (const auto& type : allPieceTypes) {
-        //     Bitboard pieces = board.pieces(type, !color);
+        for (const auto& type : allPieceTypes) {
+            Bitboard pieces = board.pieces(type, !color);
 
-        //     while (!pieces.empty()) {
-        //         int pieceIndex = pieces.lsb();
-        //         if (color == Color::WHITE) {
-        //             if (pieceIndex / 8 > sqIndex / 8 && manhattanDistance(Square(pieceIndex), Square(sqIndex)) <= 4) 
-        //                 value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
-        //         } else {
-        //             if (pieceIndex / 8 < sqIndex / 8 && manhattanDistance(Square(pieceIndex), Square(sqIndex)) <= 4) 
-        //                 value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
-        //         }
-        //         pieces.clear(pieceIndex);
-        //     }
-        // }
-
-        // Penalize king for being in an open file
-        if (isOpenFile(board, Square(sqIndex).file()) || isSemiOpenFile(board, Square(sqIndex).file(), color)) {
-            value -= openFilePenalty;
+            while (!pieces.empty()) {
+                int pieceIndex = pieces.lsb();
+                if (color == Color::WHITE) {
+                    if (pieceIndex / 8 > sqIndex / 8 && manhattanDistance(Square(pieceIndex), Square(sqIndex)) <= 4) 
+                        value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
+                } else {
+                    if (pieceIndex / 8 < sqIndex / 8 && manhattanDistance(Square(pieceIndex), Square(sqIndex)) <= 4) 
+                        value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
+                }
+                pieces.clear(pieceIndex);
+            }
         }
 
         // Penalty for being attacked
@@ -387,13 +374,13 @@ int kingValue(const Board& board, int baseValue, Color color) {
         switch (attackers.count()) {
             case 0: attackWeight = 0; break;
             case 1: attackWeight = 0; break;
-            case 2: attackWeight = 0.75; break;
-            case 3: attackWeight = 0.80; break;
-            case 4: attackWeight = 0.89; break;
-            case 5: attackWeight = 0.94; break;
-            case 6: attackWeight = 0.32; break;
-            case 7: attackWeight = 0.97; break;
-            case 8: attackWeight = 0.99; break;
+            case 2: attackWeight = 0.50; break;
+            case 3: attackWeight = 0.75; break;
+            case 4: attackWeight = 1.00; break;
+            case 5: attackWeight = 1.25; break;
+            case 6: attackWeight = 1.50; break;
+            case 7: attackWeight = 1.70; break;
+            case 8: attackWeight = 2.00; break;
             default: break;
         }
 
@@ -453,16 +440,16 @@ int evaluate(const Board& board) {
     int whiteScore = 0;
     int blackScore = 0;
 
-    // Mop-up phase: if only enemy king is left
+    // Mop-up phase: if only their king is left
     Color theirColor = (board.sideToMove() == Color::WHITE) ? Color::BLACK : Color::WHITE;
 
-    Bitboard enemyPieces = board.pieces(PieceType::PAWN, theirColor) | board.pieces(PieceType::KNIGHT, theirColor) | 
+    Bitboard theirPieces = board.pieces(PieceType::PAWN, theirColor) | board.pieces(PieceType::KNIGHT, theirColor) | 
                            board.pieces(PieceType::BISHOP, theirColor) | board.pieces(PieceType::ROOK, theirColor) | 
                            board.pieces(PieceType::QUEEN, theirColor);
 
     Bitboard ourPieces =  board.pieces(PieceType::ROOK, board.sideToMove()) | board.pieces(PieceType::QUEEN, board.sideToMove());
 
-    if (enemyPieces.count() == 0 && ourPieces.count() > 0) {
+    if (theirPieces.count() == 0 && ourPieces.count() > 0) {
         Square ourKing = Square(board.pieces(PieceType::KING, board.sideToMove()).lsb());
         Square theirKing = Square(board.pieces(PieceType::KING, theirColor).lsb());
         Square E4 = Square(28);
@@ -541,4 +528,3 @@ int evaluate(const Board& board) {
 
     return whiteScore - blackScore;
 }
-

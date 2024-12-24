@@ -21,7 +21,11 @@ const int nullMoveDepth = 4;
 const size_t maxTableSize = 100000000;
 
 // Transposition table lookup
-bool probeTranspositionTable(std::map<std::uint64_t, std::pair<int, int>>& table, std::uint64_t hash, int depth, int& eval) {
+bool probeTranspositionTable(std::map<std::uint64_t, 
+                            std::pair<int, int>>& table, 
+                            std::uint64_t hash, 
+                            int depth, 
+                            int& eval) {
     auto it = table.find(hash);
     return it != table.end() && it->second.second >= depth && (eval = it->second.first, true);
 }
@@ -121,12 +125,18 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     movegen::legalmoves(moves, board);
 
     // Evaluate each capture, check, or promotion
-    //bool inCheck = board.inCheck();
+    
     for (const auto& move : moves) {
+        bool isCheckMove = false;
 
-        if (!board.isCapture(move) && !isPromotion(move))
+        board.makeMove(move);
+        if (board.inCheck()) {
+            isCheckMove = true;
+        }
+        board.unmakeMove(move);
+
+        if (!board.isCapture(move) && !isPromotion(move) && !isCheckMove)
             continue;
-        
 
         board.makeMove(move);
         int score = quiescence(board, depth - 1, alpha, beta);
@@ -157,6 +167,8 @@ int alphaBeta(Board& board,
                 int alpha, 
                 int beta, 
                 int quiescenceDepth) {
+
+    //int razorMargin = 100;
 
     #pragma  omp critical
     positionCount++;
@@ -197,6 +209,18 @@ int alphaBeta(Board& board,
         return quiescence(board, quiescenceDepth, alpha, beta);
     }
 
+    // if (depth <= 2) { // Razor pruning
+    //     int eval = quiescence(board, quiescenceDepth, alpha, beta);
+        
+    //     if (whiteTurn && eval < alpha - razorMargin) {
+    //         return eval;
+    //     } 
+
+    //     if (!whiteTurn && eval > beta + razorMargin) {
+    //         return eval;
+    //     }
+    // }
+
     // null move heuristics
     if (depth > nullMoveDepth) {
         if (whiteTurn && !board.inCheck()) {
@@ -233,10 +257,11 @@ int alphaBeta(Board& board,
 
             if (beta <= alpha) break; 
         }
+
         #pragma omp critical
         lowerBoundTable[hash] = {maxEval, depth}; // Store lower bound
-        return maxEval;
 
+        return maxEval;
     } else {
         int minEval = INF; // Large positive value
 
@@ -250,12 +275,13 @@ int alphaBeta(Board& board,
 
             if (beta <= alpha) break; 
         }
+
         #pragma omp critical
         upperBoundTable[hash] = {minEval, depth}; // Store upper bound
+
         return minEval;
     }
 }
-
 
 std::vector<std::pair<Move, int>> getShallowCandidates(Board& board, int lookAheadDepth, int quiescenceDepth, int alpha, int beta, int k) {
 
@@ -359,7 +385,7 @@ Move findBestMove(Board& board,
         return scoredMoves[0].first;
     }
 
-    Move bestMove = Move::NO_MOVE;
+    Move bestMove = scoredMoves[0].first;
     Move bestPawnMove = Move::NO_MOVE;
     int bestEval = whiteTurn ? -INF : INF;
 
