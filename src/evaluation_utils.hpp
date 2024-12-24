@@ -274,14 +274,51 @@ const std::unordered_map<int, std::vector<int>> adjSquares = {
     {63, {54, 55, 62}}
 };
 
+/*------------------------------------------------------------------------
+    Helper Functions
+------------------------------------------------------------------------*/
+
 /**
- * Check if the given color has lost castling rights on the specified side.
- * @param board The chess board.
- * @param color The color to check.
- * @param side The castling side (king-side or queen-side).
- * @return True if the castling rights are lost, otherwise false.
+ * Generate a bitboard mask for the specified file.
+ * @param file The file for which to generate the mask.
+ * @return The bitboard mask for the specified file.
  */
-bool hasLostCastlingRights(const Board& board, Color color, Board::CastlingRights::Side side);
+Bitboard generateFileMask(const File& file);
+
+/**
+ * Returns whether the game is in an endgame state.
+ */
+bool isEndGame(const Board& board);
+
+/**
+* @brief Check if the given square is a passed pawn.
+* @param squareIndex The index of the square to check.
+* @param color The color of the pawn.
+* @param enemyPawns The bitboard of enemy pawns.
+* @return True if the pawn is passed, otherwise false.
+*/
+bool isPassedPawn(int squareIndex, Color color, const Bitboard& enemyPawns);
+
+/**
+ * Compute the Manhattan distance between two squares.
+ * @param sq1 The first square.
+ * @param sq2 The second square.
+ * @return The Manhattan distance between the two squares.
+ */
+int manhattanDistance(const Square& sq1, const Square& sq2);
+
+/*------------------------------------------------------------------------
+    Main Functions
+------------------------------------------------------------------------*/
+
+/**
+ * Compute the value of pawns on the board.
+ * @param board The chess board.
+ * @param baseValue The base value of a pawn.
+ * @param color The color of pawns to evaluate.
+ * @return The total value of pawns for the specified color.
+ */
+int pawnValue(const Board& board, int baseValue, Color color);
 
 /**
  * Compute the value of knights on the board.
@@ -300,15 +337,6 @@ int knightValue(const Board& board, int baseValue, Color color);
  * @return The total value of bishops for the specified color.
  */
 int bishopValue(const Board& board, int baseValue, Color color);
-
-/**
- * Compute the value of pawns on the board.
- * @param board The chess board.
- * @param baseValue The base value of a pawn.
- * @param color The color of pawns to evaluate.
- * @return The total value of pawns for the specified color.
- */
-int pawnValue(const Board& board, int baseValue, Color color);
 
 /**
  * Compute the value of rooks on the board.
@@ -338,86 +366,11 @@ int queenValue(const Board& board, int baseValue, Color color);
 int kingValue(const Board& board, int baseValue, Color color);
 
 /**
- * Count the total number of pieces on the board.
- * @param board The chess board.
- * @return The total number of pieces on the board.
- */
-int countPieces(const Board& board);
-
-/**
  * Evaluate the board position for the current side to move.
  * @param board The chess board.
  * @return The evaluation score of the position (positive if white is better, negative if black is better).
  */
 int evaluate(const Board& board);
 
-/**
- * Check if the specified file is open (no pawns on it).
- * @param board The chess board.
- * @param file The file to check.
- * @return True if the file is open, otherwise false.
- */
-bool isOpenFile(const Board& board, const File& file);
-
-/**
- * Compute the Manhattan distance between two squares.
- * @param sq1 The first square.
- * @param sq2 The second square.
- * @return The Manhattan distance between the two squares.
- */
-int manhattanDistance(const Square& sq1, const Square& sq2);
-
-/**
- * Check if the specified file is semi-open (no pawns of the given color).
- * @param board The chess board.
- * @param file The file to check.
- * @param color The color to check against.
- * @return True if the file is semi-open, otherwise false.
- */
-bool isSemiOpenFile(const Board& board, const File& file, Color color);
-
-/**
- * Generate a bitboard mask for the specified file.
- * @param file The file for which to generate the mask.
- * @return The bitboard mask for the specified file.
- */
-Bitboard generateFileMask(const File& file);
-
-/**
- * Returns whether the game is in an endgame state.
- */
-bool isEndGame(const Board& board);
-
-/**
-* @brief Generates a bitboard mask for all squares in the given file.
-* @param file The file for which to generate the mask (A through H).
-* @return A Bitboard with bits set for all squares in the specified file.
- */
-Bitboard generateFileMask(const File& file);
-
-/**
-* @brief Check if the given square is a passed pawn.
-* @param squareIndex The index of the square to check.
-* @param color The color of the pawn.
-* @param enemyPawns The bitboard of enemy pawns.
-* @return True if the pawn is passed, otherwise false.
-*/
-bool isPassedPawn(int squareIndex, Color color, const Bitboard& enemyPawns);
-
-/**
- * @brief Check if the specified file is open (no pawns on it).
- * @param board The chess board.
- * @param file The file to check.
- * @return True if the file is open, otherwise false.
- */
-bool isOpenFile(const Board& board, const File& file);
 
 
-/** 
- * @brief Check if the specified file is semi-open (no pawns of the given color).
- * @param board The chess board.
- * @param file The file to check.
- * @param color The color to check against.
- * @return True if the file is semi-open, otherwise false.
- */
-bool isSemiOpenFile(const Board& board, const File& file, Color color);

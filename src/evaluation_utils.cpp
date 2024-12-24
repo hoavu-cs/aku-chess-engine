@@ -80,6 +80,18 @@ bool isPassedPawn(int squareIndex, Color color, const Bitboard& theirPawns) {
 
     // Check if any their pawns are in the front mask
     return (frontMask & theirPawns).empty();
+} 
+
+// Function to compute the Manhattan distance between two squares
+int manhattanDistance(const Square& sq1, const Square& sq2) {
+    return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
+}
+
+// Function to compute the minimum distance between two squares
+int minDistance(const Square& sq1, const Square& sq2) {
+    int dx = std::abs(sq1.file() - sq2.file());
+    int dy = std::abs(sq1.rank() - sq2.rank());
+    return std::min(dx, dy);
 }
 
 /*------------------------------------------------------------------------
@@ -316,7 +328,6 @@ int kingValue(const Board& board, int baseValue, Color color) {
     Bitboard king = board.pieces(PieceType::KING, color);
     const PieceType allPieceTypes[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
     
-    int pieceCount = countPieces(board);
     bool endGameFlag = isEndGame(board);
     int value = baseValue;
     int sqIndex = king.lsb();
@@ -405,33 +416,6 @@ int kingValue(const Board& board, int baseValue, Color color) {
     }
 
     return value;
-}
-
-
-// Function to count the total number of pieces on the board
-int countPieces(const Board& board) {
-
-    int pieceCount = 0;
-    const PieceType allPieceTypes[] = {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, 
-                                           PieceType::ROOK, PieceType::QUEEN, PieceType::KING};
-    for (const auto& type : allPieceTypes) {
-        Bitboard whitePieces = board.pieces(type, Color::WHITE);
-        pieceCount += whitePieces.count();
-        Bitboard blackPieces = board.pieces(type, Color::BLACK);
-        pieceCount += blackPieces.count();
-    }
-    return pieceCount;
-}
-
-// Function to compute the Manhattan distance between two squares
-int manhattanDistance(const Square& sq1, const Square& sq2) {
-    return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
-}
-
-int minDistance(const Square& sq1, const Square& sq2) {
-    int dx = std::abs(sq1.file() - sq2.file());
-    int dy = std::abs(sq1.rank() - sq2.rank());
-    return std::min(dx, dy);
 }
 
 // Function to evaluate the board position
