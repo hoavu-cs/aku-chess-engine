@@ -120,19 +120,11 @@ void processPosition(const std::string& command) {
 void processGo() {
 
     // Default settings
-    int depth = 16;
-    int quiescenceDepth = 10;
+    int depth = 10;
+    int quiescenceDepth = 8;
     int numThreads = 8;
-    int lookAheadDepth = 5;
-    int k = 40;
-
-    if (isEndGame(board)) {
-        depth = 24;
-        quiescenceDepth = 10;
-        lookAheadDepth = 6;
-        k = 40;
-    }
-
+    int lookAheadDepth = 2;
+    int k = 3;
 
     // Simply find the best move without considering `t` or other options
     Move bestMove = Move::NO_MOVE;

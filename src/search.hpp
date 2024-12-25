@@ -14,9 +14,10 @@ extern std::uint64_t positionCount;
 /**
  * Generates a prioritized list of moves based on their tactical value.
  * @param board The chess board for which to generate moves.
+ * @param depth The depth for to be used in killer move.
  * @return A vector of move-priority pairs sorted by priority.
  */
-std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board);
+std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board, int depth);
 
 /**
  * Performs quiescence search to evaluate a position.
