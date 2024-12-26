@@ -42,11 +42,11 @@ int main() {
 
     Board board = Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     std::vector<std::string> pgnMoves; // Store moves in PGN format
-    int depth = 10;
-    int quiescenceDepth = 8;
+    // Default settings
+    int depth = 12;
+    int quiescenceDepth = 6;
     int numThreads = 8;
-    int lookAheadDepth = 2;
-    int k = 3;
+
     Move bestMove;
 
     int moveCount = 40;
@@ -55,7 +55,7 @@ int main() {
         // Start timer
         auto start = std::chrono::high_resolution_clock::now();
 
-        Move bestMove = findBestMove(board, numThreads, depth, lookAheadDepth, k, quiescenceDepth);
+        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth);
 
         // End timer
         auto end = std::chrono::high_resolution_clock::now();

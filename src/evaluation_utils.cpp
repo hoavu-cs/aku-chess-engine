@@ -4,6 +4,8 @@
 #include <unordered_map>
 #include <cstdint>
 #include <map>
+#include <omp.h> 
+
 using namespace chess; 
 
 /*------------------------------------------------------------------------
@@ -87,6 +89,71 @@ int manhattanDistance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
 }
 
+// Check if a square is an outpost
+bool isOutPost(const Board& board, int sqIndex, Color color) {
+    // Determine the file and rank of the square
+    int file = sqIndex % 8, rank = sqIndex / 8;
+
+    if (color == Color::WHITE) {
+        if (rank < 4) {
+            return false;
+        }
+    } else {
+        if (rank > 3) {
+            return false;
+        }
+    }
+
+    bool isSupported = false;
+
+    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
+
+    while (ourPawns) {
+        int pawnIndex = ourPawns.lsb();
+        int pawnFile = pawnIndex % 8, pawnRank = pawnIndex / 8;
+
+        if (std::abs(pawnFile - file) == 1) {
+            if (color == Color::WHITE) {
+                if (pawnRank == rank - 1) {
+                    isSupported = true;
+                    break;
+                }
+            } else {
+                if (pawnRank == rank + 1) {
+                    isSupported = true;
+                    break;
+                }
+            }
+        }
+        ourPawns.clear(pawnIndex);
+    }
+
+    if (!isSupported) {
+        return false;
+    }
+    
+    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+    while (theirPawns) {
+        int pawnIndex = theirPawns.lsb();
+
+        int pawnFile = pawnIndex % 8, pawnRank = pawnIndex / 8;
+        if (std::abs(pawnFile - file) == 1) {
+            if (color == Color::WHITE) {
+                if (pawnRank > rank) {
+                    return false;
+                }
+            } else {
+                if (pawnRank < rank) {
+                    return false;
+                }
+            }
+        }
+        theirPawns.clear(pawnIndex);
+    }
+
+    return true;
+}
+
 /*------------------------------------------------------------------------
  Main Functions 
 ------------------------------------------------------------------------*/
@@ -94,11 +161,20 @@ int manhattanDistance(const Square& sq1, const Square& sq2) {
 // Compute the value of the pawns on the board
 int pawnValue(const Board& board, int baseValue, Color color, bool endGameFlag) {
 
+    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
+    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+
+    std::uint64_t ourPawnsBits = ourPawns.getBits();
+    std::uint64_t theirPawnsBits = theirPawns.getBits();
+
+    std::tuple<std::uint64_t, std::uint64_t, bool> key = 
+            std::make_tuple(ourPawnsBits, theirPawnsBits, endGameFlag);
+
     // constants
-    const int passedPawnBonus = 40;
+    const int passedPawnBonus = 50;
     const int centralPawnBonus = 20;
-    const int isolatedPawnPenalty = 30;
-    const int doubledPawnPenalty = 30;
+    const int isolatedPawnPenalty = 20;
+    const int doubledPawnPenalty = 20;
     const int* pawnTable;
 
     if (color == Color::WHITE) {
@@ -115,8 +191,6 @@ int pawnValue(const Board& board, int baseValue, Color color, bool endGameFlag) 
         }
     }
 
-    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
-    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
     int files[8] = {0};
     int value = 0;
     int advancedPawnBonus = endGameFlag ? 5 : 2;
@@ -196,6 +270,8 @@ int knightValue(const Board& board, int baseValue, Color color, bool endGameFlag
 
     // Constants
     const int* knightTable;
+    const int attackPenalty = 10;
+    const int outpostBonus = 20;
  
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -218,6 +294,18 @@ int knightValue(const Board& board, int baseValue, Color color, bool endGameFlag
         value += baseValue;
         int sqIndex = knights.lsb();
         value += knightTable[sqIndex];
+
+        Bitboard attackers = attacks::attackers(board, !color, Square(sqIndex));
+        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+
+        if (attackers & theirPawns) {
+            value -= attackPenalty;
+        }
+
+        if (isOutPost(board, sqIndex, color)) {
+            value += outpostBonus;
+        }
+
         knights.clear(sqIndex);
     }
 
@@ -230,6 +318,8 @@ int bishopValue(const Board& board, int baseValue, Color color, bool endGameFlag
     // Constants
     const int bishopPairBonus = 30;
     const int mobilityBonus = 2;
+    const int attackedPenalty = 10;
+    const int outpostBonus = 20;
     const int *bishopTable;
 
     if (color == Color::WHITE) {
@@ -259,6 +349,18 @@ int bishopValue(const Board& board, int baseValue, Color color, bool endGameFlag
         value += bishopTable[sqIndex];
         Bitboard bishopMoves = attacks::bishop(Square(sqIndex), board.occ());
         value += bishopMoves.count() * mobilityBonus;
+
+        Bitboard attackers = attacks::attackers(board, !color, Square(sqIndex));
+        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+        
+        if (attackers & theirPawns) {
+            value -= attackedPenalty;
+        }
+
+        if (isOutPost(board, sqIndex, color)) {
+            value += outpostBonus;
+        }
+
         bishops.clear(sqIndex);
     }
 
@@ -272,6 +374,7 @@ int rookValue(const Board& board, int baseValue, Color color, bool endGameFlag) 
     // Constants
     const double mobilityBonus = 2;
     const int* rookTable;
+    const int attackedPenalty = 10;
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -299,6 +402,13 @@ int rookValue(const Board& board, int baseValue, Color color, bool endGameFlag) 
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
         value += mobilityBonus * rookMoves.count();
 
+        Bitboard attackers = attacks::attackers(board, !color, Square(sqIndex));
+        Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
+
+        if (attackers & ~theirQueen) {
+            value -= attackedPenalty;
+        }
+
         rooks.clear(sqIndex); // Remove the processed rook
     }
     return value;
@@ -310,6 +420,7 @@ int queenValue(const Board& board, int baseValue, Color color, bool endGameFlag)
     // Constants
     const int* queenTable;
     const int mobilityBonus = 1;
+    const int attackedPenalty = 15;
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -340,6 +451,12 @@ int queenValue(const Board& board, int baseValue, Color color, bool endGameFlag)
         Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
         value += mobilityBonus * queenMoves.count();
 
+        Bitboard attackers = attacks::attackers(board, !color, Square(sqIndex));
+        
+        if (attackers) {
+            value -= attackedPenalty;
+        }
+
         queens.clear(sqIndex); 
     }
     return value;
@@ -350,7 +467,7 @@ int kingValue(const Board& board, int baseValue, Color color, bool endGameFlag) 
 
     // Constants
     const int pawnShieldBonus = 20;
-    const int pieceProtectionBonus = 20;
+    const int pieceProtectionBonus = 15;
     const int* kingTable;
 
     if (color == Color::WHITE) {

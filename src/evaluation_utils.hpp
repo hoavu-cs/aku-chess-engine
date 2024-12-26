@@ -391,6 +391,16 @@ bool isPassedPawn(int squareIndex, Color color, const Bitboard& enemyPawns);
  */
 int manhattanDistance(const Square& sq1, const Square& sq2);
 
+/* 
+ * Check if the given square is an outpost for the given color.
+ * @param board The chess board.
+ * @param sqIndex The index of the square to check.
+ * @param color The color of the outpost.
+ * @return True if the square is an outpost, otherwise false.
+*/
+
+bool isOutPost(const Board& board, int sqIndex, Color color);
+
 /*------------------------------------------------------------------------
     Main Functions
 ------------------------------------------------------------------------*/

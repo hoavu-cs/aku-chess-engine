@@ -64,8 +64,6 @@ int alphaBeta(
  */
 int alphaBetaPrune(Board& board, 
                    int depth, 
-                   int lookAheadDepth, 
-                   int k, 
                    int alpha, 
                    int beta, 
                    int quiescenceDepth);
@@ -75,8 +73,6 @@ int alphaBetaPrune(Board& board,
  * @param board The current chess board state.
  * @param numThreads The number of threads to use for the search.
  * @param depth The normal search depth.
- * @param lookAheadDepth The depth for the shallow search.
- * @param k The number of moves to consider for next level.
  * @param quiescenceDepth The depth for quiescence search.
  * @return The best move for the current position.
  */
@@ -84,7 +80,5 @@ Move findBestMove(
     Board& board, 
     int numThreads, 
     int depth, 
-    int lookAheadDepth,
-    int k,
     int quiescenceDepth
 );
