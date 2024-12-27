@@ -555,7 +555,7 @@ int pawnValue(const Board& board, int baseValue, Color color, bool endGameFlag) 
     const int passedPawnBonus = 40;
     const int centralPawnBonus = 20;
     const int isolatedPawnPenalty = 20;
-    const int doubledPawnPenalty = 30;
+    const int doubledPawnPenalty = 20;
     const int* pawnTable;
 
     if (color == Color::WHITE) {
