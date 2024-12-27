@@ -1,5 +1,5 @@
 #include "chess.hpp"
-#include "evaluation_utils.hpp"
+#include "evaluation.hpp"
 #include "search.hpp"
 #include <fstream>
 #include <iostream>
@@ -43,9 +43,10 @@ int main() {
     Board board = Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     std::vector<std::string> pgnMoves; // Store moves in PGN format
     // Default settings
-    int depth = 12;
+    int depth = 10;
     int quiescenceDepth = 6;
     int numThreads = 8;
+    int timeLimit = 30000;
 
     Move bestMove;
 
@@ -55,7 +56,7 @@ int main() {
         // Start timer
         auto start = std::chrono::high_resolution_clock::now();
 
-        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth);
+        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit);
 
         // End timer
         auto end = std::chrono::high_resolution_clock::now();

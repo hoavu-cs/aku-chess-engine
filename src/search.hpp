@@ -51,22 +51,6 @@ int alphaBeta(
     int quiescenceDepth
 );
 
-/**
- * Performs alpha-beta search with move ordering and pruning.
- * @param board The current chess board state.
- * @param depth The remaining depth for the search.
- * @param lookAheadDepth The depth for the shallow search.
- * @param k The number of moves to consider.
- * @param alpha The alpha bound for alpha-beta pruning.
- * @param beta The beta bound for alpha-beta pruning.
- * @param quiescenceDepth The depth for quiescence search.
- * @return The evaluation score of the position.
- */
-int alphaBetaPrune(Board& board, 
-                   int depth, 
-                   int alpha, 
-                   int beta, 
-                   int quiescenceDepth);
                    
 /**
  * Finds the best move for the current position using alpha-beta pruning.
@@ -80,5 +64,6 @@ Move findBestMove(
     Board& board, 
     int numThreads, 
     int depth, 
-    int quiescenceDepth
+    int quiescenceDepth,
+    int timeLimitMs
 );

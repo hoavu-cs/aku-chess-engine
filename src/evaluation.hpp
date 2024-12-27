@@ -62,7 +62,7 @@ const int blackKnightTableEnd[64] = {
 // Bishop piece-square tablesint 
 const int whiteBishopTableMid[64] = {
     -33,  -3, -14, -21, -13, -12, -39, -21,
-      4,  15,  16,   0,   7,  21,  33,   1,
+      4,  25,  16,   0,   7,  21,  33,   1,
       0,  15,  15,  15,  14,  27,  18,  10,
      -6,  13,  13,  26,  34,  12,  10,   4,
      -4,   5,  19,  50,  37,  37,   7,  -2,
@@ -78,7 +78,7 @@ const int blackBishopTableMid[64] = {
      -4,   5,  19,  50,  37,  37,   7,  -2,
      -6,  13,  13,  26,  34,  12,  10,   4,
       0,  15,  15,  15,  14,  27,  18,  10,
-      4,  15,  16,   0,   7,  21,  33,   1,
+      4,  25,  16,   0,   7,  21,  33,   1,
     -33,  -3, -14, -21, -13, -12, -39, -21,
 };
 
@@ -108,8 +108,8 @@ const int blackBishopTableEnd[64] = {
 const int whitePawnTableMid[64] = {
       0,   0,   0,   0,   0,   0,   0,   0,
     -35,  -1, -20, -35, -35,  24,  38, -22,
-    -26,  -4,  -4, -10,   3,   3,  33, -12,
-    -27,  -2,  -5,  12,  17,   6,  10, -25,
+    -26,  -4,  -4,  0,   3,   3,  33, -12,
+    -27,  -2,  15,  30,  30,   6,  10, -25,
     -14,  13,   6,  21,  23,  12,  17, -23,
      -6,   7,  26,  31,  65,  56,  25, -20,
      98, 134,  61,  95,  68, 126,  34, -11,
@@ -122,8 +122,8 @@ const int blackPawnTableMid[64] = {
      98, 134,  61,  95,  68, 126,  34, -11,
      -6,   7,  26,  31,  65,  56,  25, -20,
     -14,  13,   6,  21,  23,  12,  17, -23,
-    -27,  -2,  -5,  12,  17,   6,  10, -25,
-    -26,  -4,  -4, -10,   3,   3,  33, -12,
+    -27,  -2,  15,  30,  30,   6,  10, -25,
+    -26,  -4,  -4,  0,   3,   3,  33, -12,
     -35,  -1, -20, -35, -35,  24,  38, -22,
       0,   0,   0,   0,   0,   0,   0,   0,
 };
@@ -248,7 +248,7 @@ const int blackQueenTableEnd[64] = {
 
 // King piece-square tables
 const int whiteKingTableMid[64] = {
-    -15,  36,  12, -54,   8, -28,  24,  14,
+    -15,  40,  30, -54,   8, -28,  40,  14,
       1,   7,  -8, -64, -43, -16,   9,   8,
     -14, -14, -22, -46, -44, -30, -15, -27,
     -49,  -1, -27, -39, -46, -44, -33, -51,
@@ -266,7 +266,7 @@ const int blackKingTableMid[64] = {
     -49,  -1, -27, -39, -46, -44, -33, -51,
     -14, -14, -22, -46, -44, -30, -15, -27,
       1,   7,  -8, -64, -43, -16,   9,   8,
-    -15,  36,  12, -54,   8, -28,  24,  14,
+    -15,  40,  30, -54,   8, -28,  40,  14,
 };
 
 const int whiteKingTableEnd[64] = {
@@ -398,8 +398,17 @@ int manhattanDistance(const Square& sq1, const Square& sq2);
  * @param color The color of the outpost.
  * @return True if the square is an outpost, otherwise false.
 */
-
 bool isOutPost(const Board& board, int sqIndex, Color color);
+
+/* 
+ *   Open file check
+*/
+bool isOpenFile(const chess::Board& board, const File& file);
+
+/* 
+ *   Semi-open file check
+*/
+bool isSemiOpenFile(const chess::Board& board, const File& file, Color color); 
 
 /*------------------------------------------------------------------------
     Main Functions
@@ -464,6 +473,11 @@ int queenValue(const Board& board, int baseValue, Color color, bool endGameFlag)
  * @return The total value of kings for the specified color.
  */
 int kingValue(const Board& board, int baseValue, Color color, bool endGameFlag);
+
+/**
+ * Compute the reward for center control.
+ */
+int centerControl(const Board& board, Color color);
 
 /**
  * Evaluate the board position for the current side to move.
