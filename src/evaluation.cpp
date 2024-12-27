@@ -1,5 +1,5 @@
 #include "chess.hpp"
-#include "evaluation_utils.hpp"
+#include "evaluation.hpp"
 #include <tuple>
 #include <unordered_map>
 #include <cstdint>
@@ -271,7 +271,7 @@ int knightValue(const Board& board, int baseValue, Color color, bool endGameFlag
     // Constants
     const int* knightTable;
     const int attackPenalty = 10;
-    const int outpostBonus = 20;
+    const int outpostBonus = 15;
  
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -318,7 +318,7 @@ int bishopValue(const Board& board, int baseValue, Color color, bool endGameFlag
     // Constants
     const int bishopPairBonus = 30;
     const int mobilityBonus = 2;
-    const int attackedPenalty = 10;
+    const int attackedPenalty = 5;
     const int outpostBonus = 20;
     const int *bishopTable;
 
