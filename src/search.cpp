@@ -17,7 +17,8 @@ using namespace chess;
 // Constants and global variables
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
-int maxDepth = 0; // Maximum depth 
+int globalMaxDepth = 0; // Maximum depth
+bool globalDebug = false; // Debug flag
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -130,8 +131,10 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board, int dep
 
 int quiescence(Board& board, int depth, int alpha, int beta) {
     
-    // #pragma  omp critical
-    // positionCount++;
+    if (globalDebug) {
+        #pragma  omp critical
+        positionCount++;
+    }
     
     if (depth == 0) {
         return evaluate(board);
@@ -211,8 +214,10 @@ int alphaBeta(Board& board,
                    int beta, 
                    int quiescenceDepth) {
 
-    // #pragma  omp critical
-    // positionCount++;
+    if (globalDebug) {
+        #pragma  omp critical
+        positionCount++;
+    }
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
 
@@ -262,14 +267,14 @@ int alphaBeta(Board& board,
     }
 
     // Razor pruning
-    if (maxDepth - depth  == 4) {
-        int staticEval = evaluate(board);
-        if (whiteTurn && staticEval + razorMargin <= alpha) {
-            return staticEval;
-        } else if (!whiteTurn && staticEval - razorMargin >= beta) {
-            return staticEval;
-        }
-    }
+    // if (globalMaxDepth - depth  >= 6) {
+    //     int staticEval = evaluate(board);
+    //     if (whiteTurn && staticEval + razorMargin <= alpha) {
+    //         return staticEval;
+    //     } else if (!whiteTurn && staticEval - razorMargin >= beta) {
+    //         return staticEval;
+    //     }
+    // }
 
     // Null move pruning
     if (depth >= nullMoveThreshold) {
@@ -294,9 +299,17 @@ int alphaBeta(Board& board,
     
     int bestEval = whiteTurn ? -INF : INF;
 
-    for (auto& [move, priority] : moves) {
+    for (int i = 0; i < moves.size(); i++) {
+        Move move = moves[i].first;
+
+        // Apply Late Move Reduction (LMR)
+        int newDepth = depth - 1;
+        if (!board.inCheck() && i >= 5 && depth >= 5) {
+            newDepth -= 1;
+        }
+
         board.makeMove(move);
-        int eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth);
+        int eval = alphaBeta(board, newDepth, alpha, beta, quiescenceDepth);
         board.unmakeMove(move);
 
         if (whiteTurn) {
@@ -329,7 +342,8 @@ Move findBestMove(Board& board,
                   int numThreads = 4, 
                   int maxDepth = 6, 
                   int quiescenceDepth = 10, 
-                  int timeLimit = 5000) {
+                  int timeLimit = 5000,
+                  bool debug = false) {
     // Initialize variables
     std::chrono::time_point<std::chrono::high_resolution_clock> startTime = 
         std::chrono::high_resolution_clock::now();
@@ -337,6 +351,8 @@ Move findBestMove(Board& board,
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     std::vector<std::pair<Move, int>> moves;
+    globalMaxDepth = maxDepth;
+    globalDebug = debug;
 
     // Set the number of threads
     omp_set_num_threads(numThreads);
@@ -373,10 +389,15 @@ Move findBestMove(Board& board,
                 }
 
                 Move move = moves[i].first;
+                // Apply Late Move Reduction (LMR)
+                int newDepth = depth - 1;
+                if (!board.inCheck() && i >= 5 && depth >= 5) {
+                    newDepth -= 1;
+                }
 
                 Board localBoard = board;
                 localBoard.makeMove(move);
-                int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth);
+                int eval = alphaBeta(localBoard, newDepth, -INF, INF, quiescenceDepth);
                 localBoard.unmakeMove(move);
 
                 localNewMoves.push_back({move, eval});
@@ -422,11 +443,14 @@ Move findBestMove(Board& board,
             });
         }
 
-        // for (int j = 0; j < std::min<int>(5, newMoves.size()); j++) {
-        //     std::cout << "Depth: " << depth 
-        //               << " Move: " << uci::moveToUci(newMoves[j].first) 
-        //               << " Eval: " << newMoves[j].second << std::endl;
-        // }
+        if (debug) {
+            std::cout << "---------------------------------" << std::endl;
+            for (int j = 0; j < std::min<int>(5, newMoves.size()); j++) {
+                std::cout << "Depth: " << depth 
+                        << " Move: " << uci::moveToUci(newMoves[j].first) 
+                        << " Eval: " << newMoves[j].second << std::endl;
+            }
+        }
 
         moves = newMoves;
 

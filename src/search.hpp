@@ -58,6 +58,8 @@ int alphaBeta(
  * @param numThreads The number of threads to use for the search.
  * @param depth The normal search depth.
  * @param quiescenceDepth The depth for quiescence search.
+ * @param timeLimit The time limit for the search.
+ * @param debug A flag indicating whether to print debug information.
  * @return The best move for the current position.
  */
 Move findBestMove(
@@ -65,5 +67,6 @@ Move findBestMove(
     int numThreads, 
     int depth, 
     int quiescenceDepth,
-    int timeLimitMs
+    int timeLimit,
+    bool debug
 );

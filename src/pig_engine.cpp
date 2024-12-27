@@ -120,14 +120,14 @@ void processPosition(const std::string& command) {
 void processGo() {
 
     // Default settings
-    int depth = 10; 
+    int depth = 20;
     int quiescenceDepth = 6;
     int numThreads = 8;
-    int timeLimit = 20000;
+    int timeLimit = 30000;
   
     // Simply find the best move without considering `t` or other options
     Move bestMove = Move::NO_MOVE;
-    bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit);
+    bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, false);
 
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove)  << std::endl;
