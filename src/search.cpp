@@ -69,7 +69,7 @@ bool isPromotion(const Move& move) {
 
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
-    # pragma omp critical
+    #pragma omp critical
     {
         if (killerMoves[depth].size() < 2) {
             killerMoves[depth].push_back(move);

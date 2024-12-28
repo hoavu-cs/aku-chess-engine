@@ -40,11 +40,12 @@ int main() {
     // Board board1 = Board("r4rk1/pp3ppp/2pp1q2/2P1p3/N1PnP3/P4N1P/2P2PP1/R2Q1RK1 b - - 0 14");
     // std::cout << "Eval = " << evaluate(board1) << std::endl;
 
-    Board board = Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    // Board board = Board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    Board board = Board("rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2");
     std::vector<std::string> pgnMoves; // Store moves in PGN format
     // Default settings
-    int depth = 20;
-    int quiescenceDepth = 6;
+    int depth = 10;
+    int quiescenceDepth = 8;
     int numThreads = 8;
     int timeLimit = 30000;
 
@@ -75,12 +76,14 @@ int main() {
         
         board.makeMove(bestMove);
         std::cout << "Move " << i + 1 << ": " << uci::moveToUci(bestMove) << std::endl;
-        std::string moveStr = uci::moveToUci(bestMove);
-        if (board.sideToMove() == Color::BLACK) {
-            pgnMoves.push_back(std::to_string((i / 2) + 1) + ". " + moveStr);
-        } else {
-            pgnMoves.back() += " " + moveStr;
-        }
+        
+        // std::string moveStr = uci::moveToUci(bestMove);
+        
+        // if (board.sideToMove() == Color::BLACK) {
+        //     pgnMoves.push_back(std::to_string((i / 2) + 1) + ". " + moveStr);
+        // } else {
+        //     pgnMoves.back() += " " + moveStr;
+        // }
     }
 
     // Write PGN to file

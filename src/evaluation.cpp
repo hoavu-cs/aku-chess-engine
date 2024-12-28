@@ -114,8 +114,8 @@ const int blackBishopTableEnd[64] = {
 const int whitePawnTableMid[64] = {
       0,   0,   0,   0,   0,   0,   0,   0,
     -35,  -1, -20, -35, -35,  24,  38, -22,
-    -26,  -4,  -4,  0,   3,   3,  33, -12,
-    -27,  -2,  15,  30,  30,   6,  10, -25,
+    -26,  -4,  -4,  10,  10,   3,  33, -12,
+    -27,  -2,  15,  35,  35,   6,  10, -25,
     -14,  13,   6,  21,  23,  12,  17, -23,
      -6,   7,  26,  31,  65,  56,  25, -20,
      98, 134,  61,  95,  68, 126,  34, -11,
@@ -128,8 +128,8 @@ const int blackPawnTableMid[64] = {
      98, 134,  61,  95,  68, 126,  34, -11,
      -6,   7,  26,  31,  65,  56,  25, -20,
     -14,  13,   6,  21,  23,  12,  17, -23,
-    -27,  -2,  15,  30,  30,   6,  10, -25,
-    -26,  -4,  -4,  0,   3,   3,  33, -12,
+    -27,  -2,  15,  35,  35,   6,  10, -25,
+    -26,  -4,  -4,  10,  10,   3,  33, -12,
     -35,  -1, -20, -35, -35,  24,  38, -22,
       0,   0,   0,   0,   0,   0,   0,   0,
 };
@@ -254,7 +254,7 @@ const int blackQueenTableEnd[64] = {
 
 // King piece-square tables
 const int whiteKingTableMid[64] = {
-    -15,  40,  30, -54,   8, -28,  40,  14,
+    -15,  3,  35, -54,   8, -28,  35,  14,
       1,   7,  -8, -64, -43, -16,   9,   8,
     -14, -14, -22, -46, -44, -30, -15, -27,
     -49,  -1, -27, -39, -46, -44, -33, -51,
@@ -272,7 +272,7 @@ const int blackKingTableMid[64] = {
     -49,  -1, -27, -39, -46, -44, -33, -51,
     -14, -14, -22, -46, -44, -30, -15, -27,
       1,   7,  -8, -64, -43, -16,   9,   8,
-    -15,  40,  30, -54,   8, -28,  40,  14,
+    -15,  40,  35, -54,   8, -28,  35,  14,
 };
 
 const int whiteKingTableEnd[64] = {
@@ -553,9 +553,8 @@ int pawnValue(const Board& board, int baseValue, Color color, bool endGameFlag) 
 
     // constants
     const int passedPawnBonus = 40;
-    const int centralPawnBonus = 20;
     const int isolatedPawnPenalty = 20;
-    const int doubledPawnPenalty = 20;
+    const int doubledPawnPenalty = 25;
     const int* pawnTable;
 
     if (color == Color::WHITE) {
@@ -609,10 +608,6 @@ int pawnValue(const Board& board, int baseValue, Color color, bool endGameFlag) 
             (file == 7 && files[6] == 0) || 
             (file > 0 && file < 7 && files[file - 1] == 0 && files[file + 1] == 0)) {
             value -= isolatedPawnPenalty;
-        }
-
-        if (file == 3 || file == 4) {
-            value += centralPawnBonus; 
         }
 
         if (isPassedPawn(sqIndex, color, theirPawns)) {
@@ -839,7 +834,7 @@ int kingValue(const Board& board, int baseValue, Color color, bool endGameFlag) 
 
     // Constants
     const int pawnShieldBonus = 25;
-    const int pieceProtectionBonus = 30;
+    const int pieceProtectionBonus = 25;
     const int* kingTable;
 
     if (color == Color::WHITE) {
