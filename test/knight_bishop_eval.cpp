@@ -11,7 +11,9 @@
 using namespace chess;
 
 int main() {
-    Board board = Board("1r1r2k1/1p6/8/8/8/3P4/3R4/1RR3K1 w - - 1 1");
-    std::cout << "overall evaluation: " << evaluate(board) << std::endl;
+    Board board = Board("8/1n4k1/8/1N1Bp1N1/1pPb2pP/5n2/8/1K6 w - - 0 1");
+    std::cout << "Evaluate now" << std::endl;
+    evaluate(board);
+
     return 0;
 }

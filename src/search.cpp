@@ -143,7 +143,8 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     // Stand-pat evaluation: Evaluate the static position
     int standPat = evaluate(board);
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-
+ 
+    // perform stand-pat pruning only if not in check
     if (whiteTurn) {
         if (standPat >= beta) {
             return beta;
@@ -158,7 +159,7 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
         if (standPat < beta) {
             beta = standPat;
         }
-    }
+    }    
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -167,6 +168,10 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     std::vector<std::pair<Move, int>> captureMoves;
 
     for (const auto& move : moves) {
+
+        
+        // Ignore non-captures, non-promotions, and non-checks if not in check
+        // If in check, keep searching
         if (!board.isCapture(move) && !isPromotion(move)) {
             continue;
         }

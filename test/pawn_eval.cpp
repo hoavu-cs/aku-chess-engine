@@ -11,7 +11,11 @@
 using namespace chess;
 
 int main() {
-    Board board = Board("1r1r2k1/1p6/8/8/8/3P4/3R4/1RR3K1 w - - 1 1");
+    Board board = Board("5k2/3p4/6p1/P3Pp2/1PP5/3P3P/7P/5K2 w - - 0 1");
+    std::vector<bool> openFiles(8, false);
+    std::vector<bool> semiOpenFilesWhite(8, false);
+    std::vector<bool> semiOpenFilesBlack(8, false);
+
     std::cout << "overall evaluation: " << evaluate(board) << std::endl;
     return 0;
 }
