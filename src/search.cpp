@@ -309,7 +309,7 @@ int alphaBeta(Board& board,
 
         // Apply Late Move Reduction (LMR)
         int newDepth = depth - 1;
-        if (!board.inCheck() && i >= 5 && depth >= 5) {
+        if (!board.inCheck() && i >= 10 && depth >= 6) {
             newDepth -= 1;
         }
 
@@ -396,7 +396,7 @@ Move findBestMove(Board& board,
                 Move move = moves[i].first;
                 // Apply Late Move Reduction (LMR)
                 int newDepth = depth - 1;
-                if (!board.inCheck() && i >= 5 && depth >= 5) {
+                if (!board.inCheck() && i >= 10 && depth >= 6) {
                     newDepth -= 1;
                 }
 

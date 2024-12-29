@@ -936,11 +936,6 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         for (const auto& adjSqIndex : adjSquares.at(sqIndex)) {
             adjSq = adjSq | Bitboard::fromSquare(adjSqIndex);
         }
-        
-        // // Get the bitboard of attackers
-        // for (const auto& sq : adjSquares.at(sqIndex)) {
-        //     attackers = attackers | attacks::attackers(board, !color, Square(sq));
-        // }
 
         Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
         while (theirPawns) {
