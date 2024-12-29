@@ -114,8 +114,8 @@ const int blackBishopTableEnd[64] = {
 const int whitePawnTableMid[64] = {
       0,   0,   0,   0,   0,   0,   0,   0,
     -35,  -1, -20, -35, -35,  24,  38, -22,
-    -26,  -4,  -4,  10,  10,   3,  33, -12,
-    -27,  -2,  15,  35,  35,   6,  10, -25,
+    -26,  -4,  -4,  5,  5,   3,  33, -12,
+    -27,  -2,  12,  25,  25,   6,  10, -25,
     -14,  13,   6,  21,  23,  12,  17, -23,
      -6,   7,  26,  31,  65,  56,  25, -20,
      98, 134,  61,  95,  68, 126,  34, -11,
@@ -128,8 +128,8 @@ const int blackPawnTableMid[64] = {
      98, 134,  61,  95,  68, 126,  34, -11,
      -6,   7,  26,  31,  65,  56,  25, -20,
     -14,  13,   6,  21,  23,  12,  17, -23,
-    -27,  -2,  15,  35,  35,   6,  10, -25,
-    -26,  -4,  -4,  10,  10,   3,  33, -12,
+    -27,  -2,  12,  25,  25,   6,  10, -25,
+    -26,  -4,  -4,  5,  5,   3,  33, -12,
     -35,  -1, -20, -35, -35,  24,  38, -22,
       0,   0,   0,   0,   0,   0,   0,   0,
 };
@@ -576,7 +576,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     const int protectedPassedPawnBonus = 35;
     const int isolatedPawnPenalty = 20;
     const int unSupportedPenalty = 10;
-    const int doubledPawnPenalty = 25;
+    const int doubledPawnPenalty = 20;
     const int* pawnTable;
 
     if (color == Color::WHITE) {
@@ -595,7 +595,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     int files[8] = {0};
     int value = 0;
-    int advancedPawnBonus = endGameFlag ? 5 : 2;
+    int advancedPawnBonus = endGameFlag ? 5 : 3;
 
     Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
                             | board.pieces(PieceType::KNIGHT, !color) 
@@ -712,7 +712,7 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
 int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
-    const int bishopPairBonus = 30;
+    const int bishopPairBonus = 20;
     const int mobilityBonus = 2;
     const int outpostBonus = 30;
     const int *bishopTable;
@@ -734,6 +734,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
     }
 
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
+    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     int value = 0;
     
     if (bishops.count() >= 2) {
@@ -744,11 +745,11 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
         value += baseValue;
         int sqIndex = bishops.lsb();
         value += bishopTable[sqIndex];
-        Bitboard bishopMoves = attacks::bishop(Square(sqIndex), board.occ());
+        Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
         value += bishopMoves.count() * mobilityBonus;
 
         if (isOutpost(board, sqIndex, color)) {
-                        value += outpostBonus;
+            value += outpostBonus;
         }
 
         bishops.clear(sqIndex);
@@ -764,8 +765,8 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const double mobilityBonus = 1;
     const int* rookTable;
-    const int semiOpenFileBonus = 15;
-    const int openFileBonus = 20;
+    const int semiOpenFileBonus = 10;
+    const int openFileBonus = 15;
 
     bool endGameFlag = info.endGameFlag;
 
@@ -860,9 +861,8 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int pawnShieldBonus = 30;
-    const int pieceProtectionBonus = 30;
     const int* kingTable;
-    const int openFileThreat = 40;
+    int pieceProtectionBonus = 30;
 
     bool endGameFlag = info.endGameFlag;
 
@@ -911,7 +911,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         // King protection by pieces
         for (const auto& type : allPieceTypes) {
             Bitboard pieces = board.pieces(type, color);
-
+            int numProtector = 0;
             while (!pieces.empty()) {
                 int pieceSqIndex = pieces.lsb();
                 if (color == Color::WHITE) {
@@ -923,7 +923,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
                         value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
                     }
                 }
-
+                pieceProtectionBonus = pieceProtectionBonus / 2;
                 pieces.clear(pieceSqIndex);
             }
         }
@@ -947,6 +947,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         }
 
         theirPawns = board.pieces(PieceType::PAWN, !color);
+
         Bitboard theirQueens = board.pieces(PieceType::QUEEN, !color);
         while (theirQueens) {
             int queenIndex = theirQueens.lsb();
@@ -997,12 +998,12 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
             case 0: attackWeight = 0; break;
             case 1: attackWeight = 0.25; break;
             case 2: attackWeight = 0.50; break;
-            case 3: attackWeight = 0.75; break;
+            case 3: attackWeight = 0.80; break;
             case 4: attackWeight = 1.00; break;
-            case 5: attackWeight = 1.25; break;
-            case 6: attackWeight = 1.50; break;
-            case 7: attackWeight = 1.75; break;
-            case 8: attackWeight = 2.00; break;
+            case 5: attackWeight = 1.10; break;
+            case 6: attackWeight = 1.25; break;
+            case 7: attackWeight = 1.50; break;
+            case 8: attackWeight = 1.75; break;
             default: break;
         }
 
@@ -1146,6 +1147,43 @@ int evaluate(const Board& board) {
         whiteScore += 50;
     } else if (blackPieceValue > whitePieceValue) {
         blackScore += 50;
+    }
+
+    /*--------------------------------------------------------------------------
+        Pattern detection
+    --------------------------------------------------------------------------*/
+
+    Bitboard d2 = Bitboard::fromSquare(11);
+    Bitboard e2 = Bitboard::fromSquare(12);
+    Bitboard d3 = Bitboard::fromSquare(19);
+    Bitboard e3 = Bitboard::fromSquare(20);
+    Bitboard d6 = Bitboard::fromSquare(43);
+    Bitboard e6 = Bitboard::fromSquare(44);
+
+    const int blockCentralPawnPenalty = 10;
+    if (board.occ() && d3) {
+        Piece piece = board.at(Square(11));
+        if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
+            whiteScore -= blockCentralPawnPenalty;
+        }
+    }
+    if (board.occ() && e3) {
+        Piece piece = board.at(Square(12));
+        if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
+            whiteScore -= blockCentralPawnPenalty;
+        }
+    }
+    if (board.occ() && d6) {
+        Piece piece = board.at(Square(43));
+        if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
+            blackScore -= blockCentralPawnPenalty;
+        }
+    }
+    if (board.occ() && e6) {
+        Piece piece = board.at(Square(44));
+        if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
+            blackScore -= blockCentralPawnPenalty;
+        }
     }
 
     return whiteScore - blackScore;

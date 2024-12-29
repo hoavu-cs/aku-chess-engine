@@ -44,6 +44,8 @@ int main() {
     // Tactical fen 
     //Board board = Board("2rq1rk1/pp3ppp/2p2n2/3p3P/3P1n2/2N2N2/PPPQ1PP1/1K1R3R b - - 2 16");
     std::vector<std::string> pgnMoves; // Store moves in PGN format
+    //board = Board("2rq1rk1/pp3ppp/2p2n2/3p3P/3P1n2/2N2N2/PPPQ1PP1/1K1R3R b - - 2 16");
+    //board = Board("4r1k1/1p1rbpp1/1Bppqnb1/p3p2p/P1P1P3/1PNN1P2/2P2QPP/4RRK1 b - - 1 21");
     // Default settings
     int depth = 20;
     int quiescenceDepth = 8;

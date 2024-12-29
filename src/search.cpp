@@ -38,7 +38,7 @@ const size_t maxTableSize = 1000000000; // Maximum size of the transposition tab
 
 const int nullMoveThreshold = 3; // Null move pruning threshold
 const int R = 2; // Null move reduction
-const int razorMargin = 300; // Razor pruning margin
+const int razorMargin = 200; // Razor pruning margin
 
 // Transposition table lookup
 bool probeTranspositionTable(std::map<std::uint64_t, 
@@ -272,14 +272,14 @@ int alphaBeta(Board& board,
     }
 
     // Razor pruning
-    // if (globalMaxDepth - depth  >= 6) {
-    //     int staticEval = evaluate(board);
-    //     if (whiteTurn && staticEval + razorMargin <= alpha) {
-    //         return staticEval;
-    //     } else if (!whiteTurn && staticEval - razorMargin >= beta) {
-    //         return staticEval;
-    //     }
-    // }
+    if (globalMaxDepth - depth  >= 6) {
+        int staticEval = evaluate(board);
+        if (whiteTurn && staticEval + razorMargin <= alpha) {
+            return staticEval;
+        } else if (!whiteTurn && staticEval - razorMargin >= beta) {
+            return staticEval;
+        }
+    }
 
     // Null move pruning
     if (depth >= nullMoveThreshold) {
@@ -309,7 +309,7 @@ int alphaBeta(Board& board,
 
         // Apply Late Move Reduction (LMR)
         int newDepth = depth - 1;
-        if (!board.inCheck() && i >= 10 && depth >= 6) {
+        if (!board.inCheck() && i >= 7 && depth >= 6) {
             newDepth -= 1;
         }
 
@@ -396,7 +396,7 @@ Move findBestMove(Board& board,
                 Move move = moves[i].first;
                 // Apply Late Move Reduction (LMR)
                 int newDepth = depth - 1;
-                if (!board.inCheck() && i >= 10 && depth >= 6) {
+                if (!board.inCheck() && i >= 6 && depth >= 6) {
                     newDepth -= 1;
                 }
 
