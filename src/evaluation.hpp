@@ -122,6 +122,8 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info);
  */
 int queenValue(const Board& board, int baseValue, Color color, Info& info);
 
+int kingThreat(const Board& board, Color color);
+
 /**
  * Compute the value of kings on the board.
  * @param board The chess board.
