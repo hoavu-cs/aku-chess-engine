@@ -17,17 +17,21 @@ using namespace chess;
 std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
 
+// History heuristic tables
+std::vector<std::vector<int>> whiteHistory (64, std::vector<int>(64, 0)); 
+std::vector<std::vector<int>> blackHistory (64, std::vector<int>(64, 0));
+
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t transpositionTableLimit = 1000000000; 
-const int R = 2; 
+const size_t transTableMaxSize = 1000000000; 
+const int R = 3; 
 const int razorMargin = 350; 
 
-int nullDepthThreshold = 6; 
-int razorPlyThreshold = 6; 
+int nullDepth = 6; 
+int razorPly = 6; 
 
-int globalMaxDepth = -1; // Maximum depth of current search
+int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
 bool globalDebug = false; // Debug flag
 
@@ -43,19 +47,21 @@ const int pieceValues[] = {
 };
 
 // Transposition table lookup
-bool probeTranspositionTable(std::map<std::uint64_t, 
-                            std::pair<int, int>>& table, 
+bool transTableLookUp(std::map<std::uint64_t, std::pair<int, int>>& table, 
                             std::uint64_t hash, 
                             int depth, 
                             int& eval) {
     auto it = table.find(hash);
-    return it != table.end() && it->second.second >= depth && (eval = it->second.first, true);
+    bool found = it != table.end() && it->second.second >= depth;
+
+    if (found) {
+        eval = it->second.first;
+        return true;
+    } else {
+        return false;
+    }
 }
 
-// Transposition table type: maps Zobrist hash to a tuple (evaluation, depth)
-std::map<std::uint64_t, std::tuple<int, int>> transpositionTable;
-
-// Check if a move is a promotion
 bool isPromotion(const Move& move) {
     return (move.typeOf() & Move::PROMOTION) != 0;
 }
@@ -84,24 +90,30 @@ int depthReduction(Board& board, Move move, int i, int depth) {
 }
 
 // Generate a prioritized list of moves based on their tactical value
-std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board, int depth) {
+std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
+
     Movelist moves;
     movegen::legalmoves(moves, board);
-    std::vector<std::pair<Move, int>> moveCandidates;
+    std::vector<std::pair<Move, int>> candidates;
+    std::vector<std::pair<Move, int>> quietCandidates;
+
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
 
     // Move ordering 1. promotion 2. captures 3. killer moves 4. check moves
 
     for (const auto& move : moves) {
         int priority = 0;
+        bool quiet = false;
 
         if (isPromotion(move)) {
             priority = 5000; 
         } else if (board.isCapture(move)) { 
-            // Calculate MVV-LVA priority for captures
+            // MVV-LVA priority for captures
             auto victim = board.at<Piece>(move.to());
             auto attacker = board.at<Piece>(move.from());
 
-            priority = 4000 + pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())];
+            priority = 4000 + pieceValues[static_cast<int>(victim.type())] 
+                            - pieceValues[static_cast<int>(attacker.type())];
         } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end()) {
             priority = 3000;
         } else {
@@ -111,18 +123,42 @@ std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board, int dep
 
             if (isCheck) {
                 priority = 2000;
-            } 
-        } 
+            } else {
+                // quite move
+                int from = move.from().index(), to = move.to().index();
+                quiet = true;
 
-        moveCandidates.push_back({move, priority});
+                if (whiteTurn) {
+                    priority = whiteHistory[move.from().index()][move.to().index()];
+                } else {
+                    priority = blackHistory[move.from().index()][move.to().index()];
+                }
+            }
+        } 
+        if (!quiet) {
+            candidates.push_back({move, priority});
+        } else {
+            int from = move.from().index(), to = move.to().index();
+            quietCandidates.push_back({move, priority});
+        }
+        
     }
 
-    // Sort the moves by priority
-    std::sort(moveCandidates.begin(), moveCandidates.end(), [](const auto& a, const auto& b) {
+    // Sort capture, promotion, checks by priority
+    std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
-    return moveCandidates;
+    // Sort the quiet moves by priority
+    std::sort(quietCandidates.begin(), quietCandidates.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
+
+    for (const auto& move : quietCandidates) {
+        candidates.push_back(move);
+    }
+
+    return candidates;
 }
 
 int quiescence(Board& board, int depth, int alpha, int beta) {
@@ -163,9 +199,9 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     for (const auto& move : moves) {
         //int mateThreat = kingThreat(board, board.sideToMove());
         //if (mateThreat < 100) { 
-            if (!board.isCapture(move) && !isPromotion(move)) {
-                continue;
-            }
+        if (!board.isCapture(move) && !isPromotion(move)) {
+            continue;
+        }
         //}
 
         if (isPromotion(move)) {
@@ -215,11 +251,11 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
 }
 
 int alphaBeta(Board& board, 
-                int depth, 
-                int alpha, 
-                int beta, 
-                int quiescenceDepth,
-                std::vector<Move>& PV) {
+            int depth, 
+            int alpha, 
+            int beta, 
+            int quiescenceDepth,
+            std::vector<Move>& PV) {
 
     if (globalDebug) {
         #pragma  omp critical
@@ -249,8 +285,8 @@ int alphaBeta(Board& board,
 
     #pragma omp critical
     { 
-        if ((whiteTurn && probeTranspositionTable(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
-            (!whiteTurn && probeTranspositionTable(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
+        if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
+            (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
             found = true;
         }
     }
@@ -274,12 +310,12 @@ int alphaBeta(Board& board,
     }
 
     // Null move pruning
-    if (depth >= nullDepthThreshold) {
+    if (depth >= nullDepth) {
         if (!board.inCheck()) {
             board.makeNullMove();
             std::vector<Move> nullPV;
             int nullEval = alphaBeta(board, 
-                                    depth - 1 - R,  
+                                    depth - R,  
                                     alpha, 
                                     beta, 
                                     quiescenceDepth,
@@ -296,7 +332,7 @@ int alphaBeta(Board& board,
 
     // Razor pruning
     // int ply = globalMaxDepth - depth;
-    // if (ply >= razorPlyThreshold && !board.inCheck()) {
+    // if (ply >= razorPly && !board.inCheck()) {
     //     int staticEval = evaluate(board);
     //     if (whiteTurn && staticEval + razorMargin <= alpha) {
     //         return staticEval;
@@ -305,7 +341,7 @@ int alphaBeta(Board& board,
     //     }
     // }
 
-    std::vector<std::pair<Move, int>> moves = generatePrioritizedMoves(board, depth);
+    std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth);
     
     int bestEval = whiteTurn ? -INF : INF;
 
@@ -321,7 +357,6 @@ int alphaBeta(Board& board,
         board.unmakeMove(move);
 
         if (whiteTurn) {
-
             if (eval > alpha) {
                 PV.clear();
                 PV.push_back(move);
@@ -348,6 +383,16 @@ int alphaBeta(Board& board,
 
         if (beta <= alpha) {
             updateKillerMoves(move, depth);
+
+            if (!board.isCapture(move)) {
+                int fromSq = move.from().index(), toSq = move.to().index();
+                if (whiteTurn) {
+                    whiteHistory[fromSq][toSq] += depth * depth;
+                } else {
+                    blackHistory[fromSq][toSq] += depth * depth;
+                }
+            }
+
             break;
         }
     }
@@ -369,13 +414,18 @@ Move findBestMove(Board& board,
                   int maxDepth = 6, 
                   int quiescenceDepth = 10, 
                   int timeLimit = 5000,
-                  bool debug = false) {
-    // Initialize variables
-    std::chrono::time_point<std::chrono::high_resolution_clock> startTime = 
-        std::chrono::high_resolution_clock::now();
+                  bool debug = false,
+                  bool resetHistory = false) {
+    // Initialize timer
+
+    if (resetHistory) {
+        whiteHistory = std::vector<std::vector<int>>(64, std::vector<int>(64, 0)); 
+        blackHistory = std::vector<std::vector<int>>(64, std::vector<int>(64, 0));
+    }
+
+    auto startTime = std::chrono::high_resolution_clock::now();
 
     Move bestMove = Move(); 
-
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
     bool whiteTurn = board.sideToMove() == Color::WHITE;
 
@@ -384,17 +434,15 @@ Move findBestMove(Board& board,
 
     globalDebug = debug;
     globalQuiescenceDepth = quiescenceDepth;
-
-    // Set the number of threads
     omp_set_num_threads(numThreads);
 
     // Clear transposition tables
     #pragma omp critical
     {
-        if (lowerBoundTable.size() > transpositionTableLimit) {
+        if (lowerBoundTable.size() > transTableMaxSize) {
             lowerBoundTable.clear();
         }
-        if (upperBoundTable.size() > transpositionTableLimit) {
+        if (upperBoundTable.size() > transTableMaxSize) {
             upperBoundTable.clear();
         }  
     }
@@ -403,8 +451,8 @@ Move findBestMove(Board& board,
 
     for (int depth = 1; depth <= maxDepth; ++depth) {
         globalMaxDepth = depth;
-        nullDepthThreshold = depth / 2;
-        razorPlyThreshold = depth - 2;
+        nullDepth = depth / 2;
+        razorPly = depth - 2;
         
         // Track the best move for the current depth
         Move currentBestMove = Move();
@@ -415,13 +463,11 @@ Move findBestMove(Board& board,
 
         // Generate all moves
         if (depth == 1) {
-            moves = generatePrioritizedMoves(board, depth);
+            moves = prioritizedMoves(board, depth);
         }
 
         #pragma omp parallel
         {
-
-
             #pragma omp for
             for (int i = 0; i < moves.size(); i++) {
 
@@ -458,8 +504,7 @@ Move findBestMove(Board& board,
 
                 // Check time limit
                 auto currentTime = std::chrono::high_resolution_clock::now();
-                if (std::chrono::duration_cast<std::chrono::milliseconds>(
-                        currentTime - startTime).count() >= timeLimit) {
+                if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
                     #pragma omp critical
                     {
                         timeLimitExceeded = true;
@@ -488,7 +533,6 @@ Move findBestMove(Board& board,
                 std::cout << "Depth: " << depth 
                         << " Move: " << uci::moveToUci(newMoves[j].first) 
                         << " Eval: " << newMoves[j].second << std::endl;
-
             }
             std::cout << "PV: ";
             
@@ -503,9 +547,8 @@ Move findBestMove(Board& board,
 
         // Check time limit again
         auto currentTime = std::chrono::high_resolution_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(
-                currentTime - startTime).count() >= timeLimit) {
-            break; // Exit iterative deepening if time is up
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
+            break; 
         }
     }
 

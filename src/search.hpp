@@ -35,4 +35,5 @@ Move findBestMove(
     int depth, 
     int quiescenceDepth,
     int timeLimit,
-    bool debug);
+    bool debug,
+    bool resetHistory);

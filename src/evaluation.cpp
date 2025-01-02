@@ -432,9 +432,10 @@ bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
     int file = sqIndex % 8;
     int rank = sqIndex / 8;
 
-    Bitboard opponentPawns = theirPawns;
-    while (opponentPawns) {
-        int sqIndex2 = opponentPawns.lsb();  
+    Bitboard theirPawnsCopy = theirPawns;
+
+    while (theirPawnsCopy) {
+        int sqIndex2 = theirPawnsCopy.lsb();  
         int file2 = sqIndex2 % 8;
         int rank2 = sqIndex2 / 8;
 
@@ -446,7 +447,7 @@ bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
             return false; 
         }
 
-        opponentPawns.clear(sqIndex2);
+        theirPawnsCopy.clear(sqIndex2);
     }
 
     return true;  
@@ -460,9 +461,10 @@ int manhattanDistance(const Square& sq1, const Square& sq2) {
 // Check if a square is an outpost
 bool isOutpost(const Board& board, int sqIndex, Color color) {
     int file = sqIndex % 8, rank = sqIndex / 8;
+    bool isWhite = color == Color::WHITE;
 
     // Outposts must be in the opponent's half of the board
-    if ((color == Color::WHITE && rank < 4) || (color == Color::BLACK && rank > 3)) {
+    if ((isWhite && rank < 4) || (!isWhite && rank > 3)) {
         return false;
     }
 
@@ -470,15 +472,16 @@ bool isOutpost(const Board& board, int sqIndex, Color color) {
     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
 
     // Check for support from our pawns
-    int frontRank = (color == Color::WHITE) ? rank - 1 : rank + 1;
+    int frontRank = (isWhite) ? rank - 1 : rank + 1;
     Bitboard supportMask = (file > 0 ? (1ULL << (frontRank * 8 + file - 1)) : 0) |
                            (file < 7 ? (1ULL << (frontRank * 8 + file + 1)) : 0);
+
     if (!(ourPawns & supportMask)) {
         return false; 
     }
 
     // Check for potential attack from opponent pawns
-    for (int r = rank + 1; r < 8 && color == Color::WHITE; ++r) {
+    for (int r = rank + 1; r < 8 && isWhite; ++r) {
         if (file > 0 && (theirPawns & (1ULL << (r * 8 + file - 1)))) {
             return false; 
         }
@@ -486,7 +489,7 @@ bool isOutpost(const Board& board, int sqIndex, Color color) {
             return false; 
         }
     }
-    for (int r = rank - 1; r >= 0 && color == Color::BLACK; --r) {
+    for (int r = rank - 1; r >= 0 && !isWhite; --r) {
         if (file > 0 && (theirPawns & (1ULL << (r * 8 + file - 1)))) {
             return false; 
         }

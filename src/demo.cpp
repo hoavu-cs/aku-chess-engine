@@ -59,12 +59,14 @@ int main() {
     Move bestMove;
 
     int moveCount = 40;
-    
+    bool resetHistory = true;
+
     for (int i = 0; i < moveCount; i++) {
         // Start timer
         auto start = std::chrono::high_resolution_clock::now();
 
-        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, true);
+        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, true, resetHistory);
+        resetHistory = false;
 
         // End timer
         auto end = std::chrono::high_resolution_clock::now();

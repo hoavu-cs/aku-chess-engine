@@ -37,6 +37,7 @@ auto startTime = std::chrono::high_resolution_clock::now();
 // Engine Metadata
 const std::string ENGINE_NAME = "PIG ENGINE";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
+bool resetHistory = false;
 
 // Global Board State
 Board board;
@@ -120,14 +121,15 @@ void processPosition(const std::string& command) {
 void processGo() {
 
     // Default settings
-    int depth = 8;
-    int quiescenceDepth = 8;
+    int depth = 20;
+    int quiescenceDepth = 10;
     int numThreads = 8;
     int timeLimit = 30000;
   
     // Simply find the best move without considering `t` or other options
     Move bestMove = Move::NO_MOVE;
-    bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, false);
+    bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, false, resetHistory);
+    resetHistory = false;
 
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove)  << std::endl;
@@ -158,6 +160,7 @@ void uciLoop() {
             std::cout << "readyok" << std::endl;
         } else if (line == "ucinewgame") {
             board = Board(); // Reset board to starting position
+            resetHistory = true;
         } else if (line.find("position") == 0) {
             processPosition(line);
         } else if (line.find("go") == 0) {
