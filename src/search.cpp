@@ -26,10 +26,10 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t transTableMaxSize = 1000000000; 
 const int R = 3; 
-const int razorMargin = 350; 
+//const int razorMargin = 350; 
 
 int nullDepth = 6; 
-int razorPly = 6; 
+//int razorPly = 6; 
 
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
@@ -81,13 +81,17 @@ void updateKillerMoves(const Move& move, int depth) {
 
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
-    //return depth - 1;
     if (i <= 5) {
         return depth - 1;
     }  else {
         return depth / 2;
     }
 }
+
+// Compute futility margine
+// int futilityMargin(int depth) {
+//     return (100 + 15 * depth + 2 * depth * depth);
+// }
 
 // Generate a prioritized list of moves based on their tactical value
 std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
@@ -197,12 +201,10 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     std::vector<std::pair<Move, int>> candidateMoves;
 
     for (const auto& move : moves) {
-        //int mateThreat = kingThreat(board, board.sideToMove());
-        //if (mateThreat < 100) { 
+
         if (!board.isCapture(move) && !isPromotion(move)) {
             continue;
         }
-        //}
 
         if (isPromotion(move)) {
             candidateMoves.push_back({move, 5000});
@@ -214,10 +216,6 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
             int priority = pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())];
             candidateMoves.push_back({move, priority});
         } 
-        
-        //else {
-        //    candidateMoves.push_back({move, 0});
-        //}
     }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
@@ -330,17 +328,6 @@ int alphaBeta(Board& board,
         }
     }
 
-    // Razor pruning
-    // int ply = globalMaxDepth - depth;
-    // if (ply >= razorPly && !board.inCheck()) {
-    //     int staticEval = evaluate(board);
-    //     if (whiteTurn && staticEval + razorMargin <= alpha) {
-    //         return staticEval;
-    //     } else if (!whiteTurn && staticEval - razorMargin >= beta) {
-    //         return staticEval;
-    //     }
-    // }
-
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth);
     
     int bestEval = whiteTurn ? -INF : INF;
@@ -452,7 +439,6 @@ Move findBestMove(Board& board,
     for (int depth = 1; depth <= maxDepth; ++depth) {
         globalMaxDepth = depth;
         nullDepth = depth / 2;
-        razorPly = depth - 2;
         
         // Track the best move for the current depth
         Move currentBestMove = Move();

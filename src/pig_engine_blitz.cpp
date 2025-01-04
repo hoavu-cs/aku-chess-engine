@@ -121,8 +121,8 @@ void processPosition(const std::string& command) {
 void processGo() {
 
     // Default settings
-    int depth = 20;
-    int quiescenceDepth = 8;
+    int depth = 9;
+    int quiescenceDepth = 10;
     int numThreads = 8;
     int timeLimit = 30000;
   
