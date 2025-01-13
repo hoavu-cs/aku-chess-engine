@@ -21,6 +21,12 @@ int quiescence(
     int beta
 );
 
+int alphaBetaVanilla(Board& board, 
+            int depth, 
+            int alpha, 
+            int beta, 
+            int quiescenceDepth);
+
 int alphaBeta(
     Board& board, 
     int depth, 

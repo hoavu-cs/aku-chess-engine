@@ -26,11 +26,7 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t transTableMaxSize = 1000000000; 
 const int R = 3; 
-//const int razorMargin = 350; 
-
 int nullDepth = 8; 
-// const int razorPly = 6; 
-// const int razorMargin = 300;
 
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
@@ -82,10 +78,10 @@ void updateKillerMoves(const Move& move, int depth) {
 
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
-    if (i <= 6) {
+    if (i <= 5) {
         return depth - 1;
     }  else {
-        return depth / 3;
+        return depth / 2;
     } 
 }
 
@@ -327,21 +323,6 @@ int alphaBeta(Board& board,
             }
         }
     }
-
-    // Razoring
-    // int ply = globalMaxDepth - depth;
-    // if (ply >= razorPly) {
-    //     int razorEval = quiescence(board, quiescenceDepth, alpha, beta);
-    //     if (whiteTurn) {
-    //         if (razorEval + razorMargin <= alpha) {
-    //             return razorEval + razorMargin;
-    //         }
-    //     } else {
-    //         if (razorEval - razorMargin >= beta) {
-    //             return razorEval - razorMargin;
-    //         }
-    //     }
-    // }
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth);
     
