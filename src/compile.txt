@@ -3,6 +3,7 @@ g++ -std=c++17 -O3 -fopenmp -march=native -o demo demo.cpp search.cpp evaluation
 
 MacOS:
 /opt/homebrew/opt/llvm/bin/clang++ -std=c++17 -O3 -fopenmp debug.cpp search.cpp evaluation.cpp -o debug
-/opt/homebrew/opt/llvm/bin/clang++ -std=c++17 -O3 -fopenmp pig_engine_blitz.cpp search.cpp evaluation.cpp -o pigengine_blitz
+/opt/homebrew/opt/llvm/bin/clang++ -std=c++17 -O3 -fopenmp pig_engine_blitz.cpp search_blitz.cpp evaluation.cpp -o pigengine_blitz
+/opt/homebrew/opt/llvm/bin/clang++ -std=c++17 -O3 -fopenmp pig_engine.cpp search.cpp evaluation.cpp -o pigengine
 
 

@@ -812,7 +812,6 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int* queenTable;
-
     //const int mobilityBonus = 1;
 
     // const int QUEEN_MOBILITY_BONUSES[9] = {
@@ -854,6 +853,20 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         int queenRank = sqIndex / 8, queenFile = sqIndex % 8;
         value += baseValue; 
         value += queenTable[sqIndex]; 
+
+        // Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
+        // switch (queenMoves.count()) {
+        //     case 0: value += QUEEN_MOBILITY_BONUSES[0]; break;
+        //     case 1: value += QUEEN_MOBILITY_BONUSES[1]; break;
+        //     case 2: value += QUEEN_MOBILITY_BONUSES[2]; break;
+        //     case 3: value += QUEEN_MOBILITY_BONUSES[3]; break;
+        //     case 4: value += QUEEN_MOBILITY_BONUSES[4]; break;
+        //     case 5: value += QUEEN_MOBILITY_BONUSES[5]; break;
+        //     case 6: value += QUEEN_MOBILITY_BONUSES[6]; break;
+        //     case 7: value += QUEEN_MOBILITY_BONUSES[7]; break;
+        //     default: value += QUEEN_MOBILITY_BONUSES[8]; break;
+        // }
+
         queens.clear(sqIndex); 
     }
     return value;
@@ -972,7 +985,6 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const int pawnShieldBonus = 30;
     const int* kingTable;
-    const int openFilePenalty = 15;
     int pieceProtectionBonus = 30;
 
     bool endGameFlag = info.endGameFlag;
@@ -1018,12 +1030,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
 
             ourPawns.clear(pawnIndex);
         }
-
-        // Open/semi-open file penalty
-        if (info.openFiles[kingFile] || info.semiOpenFilesWhite[kingFile] || info.semiOpenFilesBlack[kingFile]) {
-            value -= openFilePenalty;
-        }
-
+        
         // King protection by pieces
         for (const auto& type : allPieceTypes) {
             Bitboard pieces = board.pieces(type, color);
@@ -1039,6 +1046,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
                         value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
                     }
                 }
+                pieceProtectionBonus = pieceProtectionBonus / 2;
                 pieces.clear(pieceSqIndex);
             }
         }

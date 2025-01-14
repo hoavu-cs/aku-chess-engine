@@ -27,10 +27,9 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 const size_t transTableMaxSize = 1000000000; 
 const int R = 3; 
 //const int razorMargin = 350; 
+//int razorPly = 6; 
 
-int nullDepth = 8; 
-// const int razorPly = 6; 
-// const int razorMargin = 300;
+int nullDepth = 6; 
 
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
@@ -82,13 +81,17 @@ void updateKillerMoves(const Move& move, int depth) {
 
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
-    if (i <= 6) {
+    if (i <= 5) {
         return depth - 1;
     }  else {
-        return depth / 3;
-    } 
+        return std::max(depth / 2, depth - 2);
+    }
 }
 
+// Compute futility margine
+// int futilityMargin(int depth) {
+//     return (100 + 15 * depth + 2 * depth * depth);
+// }
 
 // Generate a prioritized list of moves based on their tactical value
 std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
@@ -245,15 +248,12 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     return whiteTurn ? alpha : beta;
 }
 
-
-
 int alphaBeta(Board& board, 
             int depth, 
             int alpha, 
             int beta, 
             int quiescenceDepth,
             std::vector<Move>& PV) {
-
 
     if (globalDebug) {
         #pragma  omp critical
@@ -293,7 +293,7 @@ int alphaBeta(Board& board,
         return storedEval;
     } 
 
-    if (depth <= 0) {       
+    if (depth <= 0) {
         int quiescenceEval = quiescence(board, quiescenceDepth, alpha, beta);
         
         if (whiteTurn) {
@@ -328,27 +328,14 @@ int alphaBeta(Board& board,
         }
     }
 
-    // Razoring
-    // int ply = globalMaxDepth - depth;
-    // if (ply >= razorPly) {
-    //     int razorEval = quiescence(board, quiescenceDepth, alpha, beta);
-    //     if (whiteTurn) {
-    //         if (razorEval + razorMargin <= alpha) {
-    //             return razorEval + razorMargin;
-    //         }
-    //     } else {
-    //         if (razorEval - razorMargin >= beta) {
-    //             return razorEval - razorMargin;
-    //         }
-    //     }
-    // }
-
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth);
     
     int bestEval = whiteTurn ? -INF : INF;
 
     for (int i = 0; i < moves.size(); i++) {
         Move move = moves[i].first;
+
+        // Apply Late Move Reduction (LMR)
         int nextDepth = depthReduction(board, move, i, depth);
 
         board.makeMove(move);
@@ -423,14 +410,6 @@ Move findBestMove(Board& board,
         blackHistory = std::vector<std::vector<int>>(64, std::vector<int>(64, 0));
     }
 
-
-    // If there is only one legal move, return it
-    Movelist legalMoves;
-    movegen::legalmoves(legalMoves, board);
-    if (legalMoves.size() == 1) {
-        return legalMoves[0];
-    }
-
     auto startTime = std::chrono::high_resolution_clock::now();
 
     Move bestMove = Move(); 
@@ -459,7 +438,6 @@ Move findBestMove(Board& board,
 
     for (int depth = 1; depth <= maxDepth; ++depth) {
         globalMaxDepth = depth;
-        nullDepth = depth / 2;
         
         // Track the best move for the current depth
         Move currentBestMove = Move();
@@ -486,9 +464,8 @@ Move findBestMove(Board& board,
                 std::vector<Move> childPV; 
                 
                 Board localBoard = board;
-                int nextDepth = depthReduction(localBoard, move, i, depth);
-
                 localBoard.makeMove(move);
+                int nextDepth = depthReduction(localBoard, move, i, depth);
                 int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV);
                 localBoard.unmakeMove(move);
 
