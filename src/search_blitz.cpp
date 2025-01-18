@@ -83,15 +83,12 @@ void updateKillerMoves(const Move& move, int depth) {
 int depthReduction(Board& board, Move move, int i, int depth) {
     if (i <= 4) {
         return depth - 1;
-    }  else {
+    }  else if (i <= 7) {
         return std::max(depth - 2, depth / 2);
+    } else {
+        return depth / 2;
     }
 }
-
-// Compute futility margine
-// int futilityMargin(int depth) {
-//     return (100 + 15 * depth + 2 * depth * depth);
-// }
 
 // Generate a prioritized list of moves based on their tactical value
 std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {

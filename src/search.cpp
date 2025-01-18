@@ -31,6 +31,7 @@ const int R = 3;
 
 int nullDepth = 6; 
 
+int improvement = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
 bool globalDebug = false; // Debug flag
@@ -81,17 +82,15 @@ void updateKillerMoves(const Move& move, int depth) {
 
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
+    if (depth <= 2) {
+        return depth - 1;
+    }
     if (i <= 5) {
         return depth - 1;
     }  else {
-        return std::max(depth / 2, depth - 2);
+        return depth / 3;
     }
 }
-
-// Compute futility margine
-// int futilityMargin(int depth) {
-//     return (100 + 15 * depth + 2 * depth * depth);
-// }
 
 // Generate a prioritized list of moves based on their tactical value
 std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
@@ -104,7 +103,6 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
     bool whiteTurn = board.sideToMove() == Color::WHITE;
 
     // Move ordering 1. promotion 2. captures 3. killer moves 4. check moves
-
     for (const auto& move : moves) {
         int priority = 0;
         bool quiet = false;
@@ -338,6 +336,7 @@ int alphaBeta(Board& board,
         // Apply Late Move Reduction (LMR)
         int nextDepth = depthReduction(board, move, i, depth);
 
+
         board.makeMove(move);
         std::vector<Move> pvChild;
         int eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, pvChild);
@@ -446,7 +445,6 @@ Move findBestMove(Board& board,
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; // Principal variation
 
-        // Generate all moves
         if (depth == 1) {
             moves = prioritizedMoves(board, depth);
         }
