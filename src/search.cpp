@@ -25,7 +25,7 @@ std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t transTableMaxSize = 1000000000; 
-const int R = 3; 
+const int R = 2; 
 //const int razorMargin = 350; 
 //int razorPly = 6; 
 

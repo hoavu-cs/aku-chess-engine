@@ -706,7 +706,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int bishopPairBonus = 30;
-    const int mobilityBonus = 3;
+    const int mobilityBonus = 2;
     const int outpostBonus = 30;
     const int *bishopTable;
 
@@ -814,17 +814,17 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
     const int* queenTable;
     //const int mobilityBonus = 1;
 
-    // const int QUEEN_MOBILITY_BONUSES[9] = {
-    //     -5,  // 0 moves (blocked)
-    //     0,   // 1 move
-    //     5,   // 2 moves
-    //     10,  // 3 moves
-    //     15,  // 4 moves
-    //     20,  // 5 moves
-    //     25,  // 6 moves
-    //     30,  // 7 moves
-    //     35   // 8+ moves
-    // };
+    const int QUEEN_MOBILITY_BONUSES[9] = {
+        -5,  // 0 moves (blocked)
+        0,   // 1 move
+        3,   // 2 moves
+        5,  // 3 moves
+        7,  // 4 moves
+        9,  // 5 moves
+        11,  // 6 moves
+        13,  // 7 moves
+        15   // 8+ moves
+    };
 
     bool endGameFlag = info.endGameFlag;
 
@@ -854,18 +854,18 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         value += baseValue; 
         value += queenTable[sqIndex]; 
 
-        // Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
-        // switch (queenMoves.count()) {
-        //     case 0: value += QUEEN_MOBILITY_BONUSES[0]; break;
-        //     case 1: value += QUEEN_MOBILITY_BONUSES[1]; break;
-        //     case 2: value += QUEEN_MOBILITY_BONUSES[2]; break;
-        //     case 3: value += QUEEN_MOBILITY_BONUSES[3]; break;
-        //     case 4: value += QUEEN_MOBILITY_BONUSES[4]; break;
-        //     case 5: value += QUEEN_MOBILITY_BONUSES[5]; break;
-        //     case 6: value += QUEEN_MOBILITY_BONUSES[6]; break;
-        //     case 7: value += QUEEN_MOBILITY_BONUSES[7]; break;
-        //     default: value += QUEEN_MOBILITY_BONUSES[8]; break;
-        // }
+        Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
+        switch (queenMoves.count()) {
+            case 0: value += QUEEN_MOBILITY_BONUSES[0]; break;
+            case 1: value += QUEEN_MOBILITY_BONUSES[1]; break;
+            case 2: value += QUEEN_MOBILITY_BONUSES[2]; break;
+            case 3: value += QUEEN_MOBILITY_BONUSES[3]; break;
+            case 4: value += QUEEN_MOBILITY_BONUSES[4]; break;
+            case 5: value += QUEEN_MOBILITY_BONUSES[5]; break;
+            case 6: value += QUEEN_MOBILITY_BONUSES[6]; break;
+            case 7: value += QUEEN_MOBILITY_BONUSES[7]; break;
+            default: value += QUEEN_MOBILITY_BONUSES[8]; break;
+        }
 
         queens.clear(sqIndex); 
     }

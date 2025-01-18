@@ -1,5 +1,6 @@
 g++ -std=c++17 -O3 -fopenmp -march=native -o pigengine pig_engine.cpp search.cpp evaluation.cpp 
 g++ -std=c++17 -O3 -fopenmp -march=native -o demo demo.cpp search.cpp evaluation.cpp 
+g++ -std=c++17 -O3 -fopenmp debug.cpp search.cpp evaluation.cpp -o debug
 
 MacOS:
 /opt/homebrew/opt/llvm/bin/clang++ -std=c++17 -O3 -fopenmp debug.cpp search.cpp evaluation.cpp -o debug
