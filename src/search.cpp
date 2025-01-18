@@ -82,13 +82,12 @@ void updateKillerMoves(const Move& move, int depth) {
 
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
-    if (depth <= 2) {
+    if (i <= 4) {
         return depth - 1;
-    }
-    if (i <= 5) {
-        return depth - 1;
-    }  else {
-        return depth / 3;
+    }  else if (i <= 7) {
+        return std::max(depth - 2, depth / 2);
+    } else {
+        return depth / 2;
     }
 }
 
@@ -143,7 +142,6 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
             int from = move.from().index(), to = move.to().index();
             quietCandidates.push_back({move, priority});
         }
-        
     }
 
     // Sort capture, promotion, checks by priority

@@ -574,6 +574,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     const int isolatedPawnPenalty = 20;
     const int unSupportedPenalty = 10;
     const int doubledPawnPenalty = 20;
+    const int centerBonus = 10;
     const int* pawnTable;
 
     if (color == Color::WHITE) {
@@ -592,7 +593,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     int files[8] = {0};
     int value = 0;
-    int advancedPawnBonus = endGameFlag ? 4 : 2;
+    int advancedPawnBonus = endGameFlag ? 5 : 3;
 
     Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
                             | board.pieces(PieceType::KNIGHT, !color) 
@@ -616,6 +617,10 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
         int file = sqIndex % 8;
         int rank = sqIndex / 8;
+
+        if (file == 3 || file == 4) {
+            value += centerBonus;
+        }
 
         if ((file == 0 && files[1] == 0) || 
             (file == 7 && files[6] == 0) || 
@@ -707,7 +712,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const int bishopPairBonus = 30;
     const int mobilityBonus = 2;
-    const int outpostBonus = 30;
+    const int outpostBonus = 20;
     const int *bishopTable;
 
     bool endGameFlag = info.endGameFlag;
@@ -739,7 +744,10 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
         int sqIndex = bishops.lsb();
         value += bishopTable[sqIndex];
         Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
-        value += bishopMoves.count() * mobilityBonus;
+
+        int mobility = bishopMoves.count();
+        mobility = std::min(mobility, 10); 
+        value += mobilityBonus * mobility;
 
         if (isOutpost(board, sqIndex, color)) {
             value += outpostBonus;
@@ -888,7 +896,7 @@ int kingThreat(const Board& board, Color color) {
     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
     while (theirPawns) {
         int pawnIndex = theirPawns.lsb();
-        if (manhattanDistance(Square(pawnIndex), Square(sqIndex)) <= 3) {
+        if (manhattanDistance(Square(pawnIndex), Square(sqIndex)) <= 4) {
             attackers.set(pawnIndex);
         }
         theirPawns.clear(pawnIndex);
@@ -962,7 +970,7 @@ int kingThreat(const Board& board, Color color) {
         Piece attacker = board.at(Square(attackerIndex));
 
         if (attacker.type() == PieceType::PAWN) {
-            threatScore += attackWeight * 10;
+            threatScore += attackWeight * 15;
         } else if (attacker.type() == PieceType::KNIGHT) {
             threatScore += attackWeight * 30;
         } else if (attacker.type() == PieceType::BISHOP) {
@@ -985,7 +993,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const int pawnShieldBonus = 30;
     const int* kingTable;
-    int pieceProtectionBonus = 30;
+    int pieceProtectionBonus = 40;
 
     bool endGameFlag = info.endGameFlag;
 
