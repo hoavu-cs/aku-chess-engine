@@ -10,6 +10,7 @@
 #include <omp.h> // Include OpenMP header
 #include <chrono>
 #include <stdlib.h>
+#include <cmath>
 
 using namespace chess;
 
@@ -29,8 +30,7 @@ const int R = 2;
 //const int razorMargin = 350; 
 //int razorPly = 6; 
 
-int nullDepth = 6; 
-
+int nullDepth = 4; 
 int improvement = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
@@ -82,13 +82,26 @@ void updateKillerMoves(const Move& move, int depth) {
 
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
-    if (i <= 4) {
+    // if (i <= 5) {
+    //     return depth - 1;
+    // }  else if (i <= 10) {
+    //     return std::max(depth - 2, depth / 2);
+    // } else {
+    //     return depth / 2;
+    // }
+
+    // if (i <= 2 || depth <= 2) {
+    //     return depth - 1;
+    // } else {
+    //     return std::min(depth - 1, depth / 3);
+    // }
+
+    if (i <= 1 || depth <= 2) {
         return depth - 1;
-    }  else if (i <= 7) {
-        return std::max(depth - 2, depth / 2);
-    } else {
-        return depth / 2;
-    }
+    } 
+
+    int R = 1 + 0.75 * log(depth) / log(2.0) + 0.75 * log(i) / log(2.0);
+    return depth - R;
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -161,7 +174,9 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
     return candidates;
 }
 
-int quiescence(Board& board, int depth, int alpha, int beta) {
+int quiescence(Board& board, int depth, int alpha, int beta, int numChecks) {
+
+    const int maxChecks = 4;
 
     if (globalDebug) {
         #pragma  omp critical
@@ -172,23 +187,27 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
         return evaluate(board);
     }
 
-    // Stand-pat evaluation: Evaluate the static position
-    int standPat = evaluate(board);
+    bool inCheck = board.inCheck();
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-        
-    if (whiteTurn) {
-        if (standPat >= beta) {
-            return beta;
-        }
-        if (standPat > alpha) {
-            alpha = standPat;
-        }
-    } else {
-        if (standPat <= alpha) {
-            return alpha;
-        }
-        if (standPat < beta) {
-            beta = standPat;
+
+    // Stand-pat evaluation: Evaluate the static position
+    if (!inCheck) {
+        int standPat = evaluate(board);
+            
+        if (whiteTurn) {
+            if (standPat >= beta) {
+                return beta;
+            }
+            if (standPat > alpha) {
+                alpha = standPat;
+            }
+        } else {
+            if (standPat <= alpha) {
+                return alpha;
+            }
+            if (standPat < beta) {
+                beta = standPat;
+            }
         }
     }
 
@@ -198,8 +217,16 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
 
     for (const auto& move : moves) {
 
-        if (!board.isCapture(move) && !isPromotion(move)) {
+        board.makeMove(move);
+        bool isCheck = board.inCheck();
+        board.unmakeMove(move);
+
+        if (!board.isCapture(move) && !isPromotion(move) && !isCheck && !inCheck) {
             continue;
+        }
+
+        if (numChecks > maxChecks && isCheck) {
+            continue; // Skip the check moves if we have reached the maximum number of checks
         }
 
         if (isPromotion(move)) {
@@ -221,7 +248,14 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     for (const auto& [move, priority] : candidateMoves) {
 
         board.makeMove(move);
-        int score = quiescence(board, depth - 1, alpha, beta);
+        int score;
+
+        if (board.inCheck()) {
+            score = quiescence(board, depth - 1, alpha, beta, numChecks + 1);
+        } else {
+            score = quiescence(board, depth - 1, alpha, beta, numChecks);
+        }
+
         board.unmakeMove(move);
 
         if (whiteTurn) {
@@ -290,7 +324,7 @@ int alphaBeta(Board& board,
     } 
 
     if (depth <= 0) {
-        int quiescenceEval = quiescence(board, quiescenceDepth, alpha, beta);
+        int quiescenceEval = quiescence(board, quiescenceDepth, alpha, beta, 0);
         
         if (whiteTurn) {
             #pragma omp critical
@@ -325,7 +359,6 @@ int alphaBeta(Board& board,
     }
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth);
-    
     int bestEval = whiteTurn ? -INF : INF;
 
     for (int i = 0; i < moves.size(); i++) {
@@ -334,13 +367,18 @@ int alphaBeta(Board& board,
         // Apply Late Move Reduction (LMR)
         int nextDepth = depthReduction(board, move, i, depth);
 
-
         board.makeMove(move);
         std::vector<Move> pvChild;
         int eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, pvChild);
         board.unmakeMove(move);
 
         if (whiteTurn) {
+            if (eval > alpha && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
+                board.makeMove(move);
+                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild);
+                board.unmakeMove(move);
+            }
+
             if (eval > alpha) {
                 PV.clear();
                 PV.push_back(move);
@@ -352,6 +390,11 @@ int alphaBeta(Board& board,
             bestEval = std::max(bestEval, eval);
             alpha = std::max(alpha, eval);
         } else {
+            if (eval < beta && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
+                board.makeMove(move);
+                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild);
+                board.unmakeMove(move);
+            }
 
             if (eval < beta) {
                 PV.clear();
@@ -460,9 +503,9 @@ Move findBestMove(Board& board,
                 std::vector<Move> childPV; 
                 
                 Board localBoard = board;
+            
                 localBoard.makeMove(move);
-                int nextDepth = depthReduction(localBoard, move, i, depth);
-                int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV);
+                int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV);
                 localBoard.unmakeMove(move);
 
                 #pragma omp critical

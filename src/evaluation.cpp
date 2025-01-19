@@ -115,7 +115,7 @@ const int whitePawnTableMid[64] = {
       0,   0,   0,   0,   0,   0,   0,   0,
     -35,  -1, -20, -35, -35,  24,  38, -22,
     -26,  -4,  -4,  5,  5,   3,  33, -12,
-    -27,  -2,  12,  25,  25,   6,  10, -25,
+    -27,  -2,  20,  25,  25,   6,  10, -25,
     -14,  13,   6,  21,  23,  12,  17, -23,
      -6,   7,  26,  31,  65,  56,  25, -20,
      98, 134,  61,  95,  68, 126,  34, -11,
@@ -128,7 +128,7 @@ const int blackPawnTableMid[64] = {
      98, 134,  61,  95,  68, 126,  34, -11,
      -6,   7,  26,  31,  65,  56,  25, -20,
     -14,  13,   6,  21,  23,  12,  17, -23,
-    -27,  -2,  12,  25,  25,   6,  10, -25,
+    -27,  -2,  20,  25,  25,   6,  10, -25,
     -26,  -4,  -4,  5,  5,   3,  33, -12,
     -35,  -1, -20, -35, -35,  24,  38, -22,
       0,   0,   0,   0,   0,   0,   0,   0,
@@ -249,7 +249,7 @@ const int blackQueenTableEnd[64] = {
 };
 
 const int whiteKingTableMid[64] = {
-    -15,  3,  35, -54,   8, -28,  35,  14,
+    -15,  3,  35, -54,  -5, -28,  35,  14,
       1,   7,  -8, -64, -43, -16,   9,   8,
     -14, -14, -22, -46, -44, -30, -15, -27,
     -49,  -1, -27, -39, -46, -44, -33, -51,
@@ -267,7 +267,7 @@ const int blackKingTableMid[64] = {
     -49,  -1, -27, -39, -46, -44, -33, -51,
     -14, -14, -22, -46, -44, -30, -15, -27,
       1,   7,  -8, -64, -43, -16,   9,   8,
-    -15,  40,  35, -54,   8, -28,  35,  14,
+    -15,  40,  35, -54, -5, -28,  35,  14,
 };
 
 const int whiteKingTableEnd[64] = {
@@ -422,8 +422,7 @@ Bitboard generateFileMask(int file) {
     if (file >= 0 && file < 8) {
         return Bitboard(fileMasks[file]);
     }
-
-    // Return an empty bitboard for invalid files
+    
     return Bitboard(0ULL);
 }
 
@@ -571,10 +570,13 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     // constants
     const int passedPawnBonus = 35;
     const int protectedPassedPawnBonus = 45;
+    const int centerBonus = 10;
+
+    const int isolatedPawnPenaltyAH = 10;
     const int isolatedPawnPenalty = 20;
     const int unSupportedPenalty = 10;
     const int doubledPawnPenalty = 20;
-    const int centerBonus = 10;
+   
     const int* pawnTable;
 
     if (color == Color::WHITE) {
@@ -622,9 +624,9 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
             value += centerBonus;
         }
 
-        if ((file == 0 && files[1] == 0) || 
-            (file == 7 && files[6] == 0) || 
-            (file > 0 && file < 7 && files[file - 1] == 0 && files[file + 1] == 0)) {
+        if ((file == 0 && files[1] == 0) || (file == 7 && files[6] == 0)) {
+            value -= isolatedPawnPenaltyAH;
+        } else if (file > 0 && file < 7 && files[file - 1] == 0  && files[file + 1] == 0) {
             value -= isolatedPawnPenalty;
         }
 
@@ -671,6 +673,7 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const int* knightTable;
     const int outpostBonus = 30;
+    const int mobilityBonus = 2;
     
     bool endGameFlag = info.endGameFlag;
  
@@ -699,6 +702,10 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         if (isOutpost(board, sqIndex, color)) {
             value += outpostBonus;
         }
+
+        Bitboard knightMoves = attacks::knight(Square(sqIndex));
+        int mobility = knightMoves.count();
+        value += mobilityBonus * mobility;
 
         knights.clear(sqIndex);
     }
@@ -746,7 +753,6 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
         Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
 
         int mobility = bishopMoves.count();
-        mobility = std::min(mobility, 10); 
         value += mobilityBonus * mobility;
 
         if (isOutpost(board, sqIndex, color)) {
@@ -768,6 +774,7 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     const int* rookTable;
     const int semiOpenFileBonus = 10;
     const int openFileBonus = 20;
+    // const int xRayPenalty = 5;
 
     bool endGameFlag = info.endGameFlag;
 
@@ -806,7 +813,33 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         }
         
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
-        value += mobilityBonus * rookMoves.count();
+        int mobility = rookMoves.count();
+        value += mobilityBonus * mobility;
+
+        // Penalty for x-ray attacks
+        // Bitboard theirBishops = board.pieces(PieceType::BISHOP, !color);
+        // while (theirBishops) {
+        //     int bishopIndex = theirBishops.lsb();
+        //     int bishopRank = bishopIndex / 8, bishopFile = bishopIndex % 8;
+
+        //     // if ((std::abs(bishopRank - sqIndex / 8) == 0) || (std::abs(bishopFile - sqIndex % 8) == 0)) {
+        //     //     value -= xRayPenalty; // x-ray attack by the bishop
+        //     // }
+
+        //     theirBishops.clear(bishopIndex);
+        // }
+
+        // Bitboard theirQueens = board.pieces(PieceType::QUEEN, !color);
+        // while (theirQueens) {
+        //     int queenIndex = theirQueens.lsb();
+        //     int queenRank = queenIndex / 8, queenFile = queenIndex % 8;
+
+        //     if ((std::abs(queenRank - sqIndex / 8) == 0) || (std::abs(queenFile - sqIndex % 8) == 0)) {
+        //         value -= xRayPenalty; // x-ray attack by the queen
+        //     }
+
+        //     theirQueens.clear(queenIndex);
+        // }
 
         rooks.clear(sqIndex); // Remove the processed rook
     }
@@ -820,19 +853,10 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int* queenTable;
-    //const int mobilityBonus = 1;
+    const int mobilityBonus = 2;
+    // const int xRayPenalty = 15;
 
-    const int QUEEN_MOBILITY_BONUSES[9] = {
-        -5,  // 0 moves (blocked)
-        0,   // 1 move
-        3,   // 2 moves
-        5,  // 3 moves
-        7,  // 4 moves
-        9,  // 5 moves
-        11,  // 6 moves
-        13,  // 7 moves
-        15   // 8+ moves
-    };
+    const int mobilityBonuses = 2;
 
     bool endGameFlag = info.endGameFlag;
 
@@ -856,6 +880,9 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
     Square theirKingSQ = Square(theirKing.lsb()); // Get the square of the their king
     int value = 0;
 
+    Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
+    Bitboard theirBishops = board.pieces(PieceType::BISHOP, !color);
+
     while (!queens.empty()) {
         int sqIndex = queens.lsb(); 
         int queenRank = sqIndex / 8, queenFile = sqIndex % 8;
@@ -863,17 +890,35 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         value += queenTable[sqIndex]; 
 
         Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
-        switch (queenMoves.count()) {
-            case 0: value += QUEEN_MOBILITY_BONUSES[0]; break;
-            case 1: value += QUEEN_MOBILITY_BONUSES[1]; break;
-            case 2: value += QUEEN_MOBILITY_BONUSES[2]; break;
-            case 3: value += QUEEN_MOBILITY_BONUSES[3]; break;
-            case 4: value += QUEEN_MOBILITY_BONUSES[4]; break;
-            case 5: value += QUEEN_MOBILITY_BONUSES[5]; break;
-            case 6: value += QUEEN_MOBILITY_BONUSES[6]; break;
-            case 7: value += QUEEN_MOBILITY_BONUSES[7]; break;
-            default: value += QUEEN_MOBILITY_BONUSES[8]; break;
+        int mobility = queenMoves.count();
+        if (mobility > 8) {
+            mobility = 8;
         }
+        value += mobilityBonus * mobility;
+
+        // penalty for x-ray attacks
+        // while (theirRooks) {
+        //     int rookIndex = theirRooks.lsb();
+        //     int rookRank = rookIndex / 8, rookFile = rookIndex % 8;
+
+        //     if ((rookRank == queenRank) || (rookFile == queenFile)) {
+        //         value -= xRayPenalty; // x-ray attack by the rook
+        //     }
+
+        //     theirRooks.clear(rookIndex);
+        // }
+
+        // while (theirBishops) {
+        //     int bishopIndex = theirBishops.lsb();
+        //     int bishopRank = bishopIndex / 8, bishopFile = bishopIndex % 8;
+
+        //     if ((std::abs(bishopRank - queenRank) == std::abs(bishopFile - queenFile))) {
+        //         value -= xRayPenalty; // x-ray attack by the bishop
+        //     }
+
+        //     theirBishops.clear(bishopIndex);
+        // }
+ 
 
         queens.clear(sqIndex); 
     }
@@ -881,81 +926,147 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 }
 
 int kingThreat(const Board& board, Color color) {
+    // const int xRayPenaltyQ = 15;
+    // const int xRayPenaltyR = 10;
+    // const int xRayPenaltyB = 10;
+
+    // const int proximityPenaltyQ = 10;
+    // const int proximityPenaltyR = 7;
+    // const int proximityPenaltyB = 5;
+    // const int proximityPenaltyN = 5;
+    // const int proximityPenaltyP = 3;
+    // const int proximityDistance = 6;
+
     Bitboard king = board.pieces(PieceType::KING, color);
     int sqIndex = king.lsb();
+    int kingRank = sqIndex / 8, kingFile = sqIndex % 8;
+
+    double attackWeight = 0;
+    double threatScore = 0;
 
     // Penalty for being attacked
     Bitboard attackers;
     int numAttackers;
 
+    // Get the adjacent squares to the king
     Bitboard adjSq;
     for (const auto& adjSqIndex : adjSquares.at(sqIndex)) {
         adjSq = adjSq | Bitboard::fromSquare(adjSqIndex);
     }
 
+    // A pawn is a threat if it is within Manhattan distance of 4
     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
     while (theirPawns) {
         int pawnIndex = theirPawns.lsb();
+
         if (manhattanDistance(Square(pawnIndex), Square(sqIndex)) <= 4) {
             attackers.set(pawnIndex);
         }
+
+        // if (manhattanDistance(Square(pawnIndex), Square(sqIndex)) <= proximityDistance) {
+        //     threatScore += proximityPenaltyP; // proximity attack by the pawn
+        // }
+
         theirPawns.clear(pawnIndex);
     }
 
     theirPawns = board.pieces(PieceType::PAWN, !color);
 
+    // Check for attacks from opponent's Queen (proximity, x-ray, attack the adjacent squares)
     Bitboard theirQueens = board.pieces(PieceType::QUEEN, !color);
     Bitboard ourDefenders = allPieces(board, color);
 
     while (theirQueens) {
         int queenIndex = theirQueens.lsb();
+        int queenRank = queenIndex / 8, queenFile = queenIndex % 8; 
+
         Bitboard queenAttacks = attacks::queen(Square(queenIndex), ourDefenders | theirPawns);
         if (queenAttacks & adjSq) {
             attackers.set(queenIndex);
         }
+
+        // if ((std::abs(queenRank - kingRank) == std::abs(queenFile - kingFile)) ||
+        //     (queenRank == kingRank) || (queenFile == kingFile)) {
+        //     threatScore += xRayPenaltyQ; // x-ray attack by the queen
+        // }
+
+        // if (manhattanDistance(Square(queenIndex), Square(sqIndex)) <= proximityDistance) {
+        //     threatScore += proximityPenaltyQ; // proximity attack by the queen
+        // }
+
         theirQueens.clear(queenIndex);
     }
 
+    // Check for attacks from opponent's Rooks (proximity, x-ray, attack the adjacent squares)
     Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
     while (theirRooks) {
         int rookIndex = theirRooks.lsb();
+        int rookRank = rookIndex / 8, rookFile = rookIndex % 8;
+
         Bitboard rookAttacks = attacks::rook(Square(rookIndex), ourDefenders | theirPawns);
         if (rookAttacks & adjSq) {
             attackers.set(rookIndex);
         }
+
+        // if ((rookRank == kingRank) || (rookFile == kingFile)) {
+        //     threatScore += xRayPenaltyR; // x-ray attack by the rook
+        // }
+
+        // if (manhattanDistance(Square(rookIndex), Square(sqIndex)) <= proximityDistance) {
+        //     threatScore += proximityPenaltyR; // proximity attack by the rook
+        // }
+
         theirRooks.clear(rookIndex);
     }
 
+    // Check for attacks from opponent's Knights (proximity & attack the adjacent squares)
     Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
     while (theirKnight) {
         int knightIndex = theirKnight.lsb();
+        
         Bitboard knightAttacks = attacks::knight(Square(knightIndex));
         if (knightAttacks & adjSq) {
             attackers.set(knightIndex);
         }
+
+        // if (manhattanDistance(Square(knightIndex), Square(sqIndex)) <= proximityDistance) {
+        //     threatScore += proximityPenaltyN;
+        // }
+
         theirKnight.clear(knightIndex);
     }
 
+    // Check for attacks from opponent's Bishops (proximity, x-ray, attack the adjacent squares)
     Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
     while (theirBishop) {
         int bishopIndex = theirBishop.lsb();
+        int bishopRank = bishopIndex / 8, bishopFile = bishopIndex % 8;
+
         Bitboard bishopAttacks = attacks::bishop(Square(bishopIndex), ourDefenders | theirPawns);
 
         if (bishopAttacks & adjSq) {
             attackers.set(bishopIndex);
         }
+
+        // if ((std::abs(bishopRank - kingRank) == std::abs(bishopFile - kingFile))) {
+        //     threatScore += xRayPenaltyB; // x-ray attack by the bishop
+        // }
+
+        // if (manhattanDistance(Square(bishopIndex), Square(sqIndex)) <= proximityDistance) {
+        //     threatScore += proximityPenaltyB; // proximity attack by the bishop
+        // }
+
         theirBishop.clear(bishopIndex);
     }
 
+    // Scale the adjacent square attacks by the number of attackers
     numAttackers = attackers.count();
-    double attackWeight = 0;
-    double threatScore = 0;
 
     // The more attackers, the higher the penalty
     switch (numAttackers) {
         case 0: attackWeight = 0; break;
         case 1: attackWeight = 0.25; break;
-        case 2: attackWeight = 0.50; break;
+        case 2: attackWeight = 0.65; break;
         case 3: attackWeight = 1.00; break;
         case 4: attackWeight = 1.20; break;
         case 5: attackWeight = 1.50; break;
@@ -1047,11 +1158,11 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
                 int pieceSqIndex = pieces.lsb();
                 if (color == Color::WHITE) {
                     if (pieceSqIndex / 8 > sqIndex / 8 && manhattanDistance(Square(pieceSqIndex), Square(sqIndex)) <= 4) { 
-                        value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
+                        value += pieceProtectionBonus; 
                     }
                 } else if (color == Color::BLACK) {
                     if (pieceSqIndex / 8 < sqIndex / 8 && manhattanDistance(Square(pieceSqIndex), Square(sqIndex)) <= 4) {
-                        value += pieceProtectionBonus; // if the piece is in front of the king with distance <= 2
+                        value += pieceProtectionBonus; 
                     }
                 }
                 pieceProtectionBonus = pieceProtectionBonus / 2;
@@ -1075,7 +1186,7 @@ int evaluate(const Board& board) {
     const int rookAdj[9] = {15, 12, 9, 6, 3, 0, -3, -6, -9};
     const int rookPairPenalty = 10;
     const int blockCentralPawnPenalty = 60;
-    const int centerControlBonus = 7;
+    const int centerControlBonus = 10;
 
     // Initialize totals
     int whiteScore = 0;
