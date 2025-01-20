@@ -143,10 +143,10 @@ int depthReduction(Board& board, Move move, int i, int depth) {
             return depth / 2;
         }
     } else {
-        if (i <= 2) {
+        if (i <= 6) {
             return depth - 1;
         } else {
-            return depth / 3;
+            return std::max(depth - 2, depth / 2);
         }
     }
 
