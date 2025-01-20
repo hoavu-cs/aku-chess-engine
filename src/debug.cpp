@@ -40,7 +40,7 @@ int main() {
     // Board board1 = Board("r4rk1/pp3ppp/2pp1q2/2P1p3/N1PnP3/P4N1P/2P2PP1/R2Q1RK1 b - - 0 14");
     // std::cout << "Eval = " << evaluate(board1) << std::endl;
 
-    Board board = Board("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1");
+    Board board = Board("8/6k1/6p1/8/3b2p1/5p2/2r3P1/4BK2 w - - 0 46");
     // Tactical fen 
     //Board board = Board("2rq1rk1/pp3ppp/2p2n2/3p3P/3P1n2/2N2N2/PPPQ1PP1/1K1R3R b - - 2 16");
     std::vector<std::string> pgnMoves; // Store moves in PGN format

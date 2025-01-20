@@ -82,21 +82,8 @@ void updateKillerMoves(const Move& move, int depth) {
 
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
-    // if (i <= 5) {
-    //     return depth - 1;
-    // }  else if (i <= 10) {
-    //     return std::max(depth - 2, depth / 2);
-    // } else {
-    //     return depth / 2;
-    // }
 
-    // if (i <= 2 || depth <= 2) {
-    //     return depth - 1;
-    // } else {
-    //     return std::min(depth - 1, depth / 3);
-    // }
-
-    if (i <= 2 || depth <= 2) {
+    if (i <= 3 || depth <= 2) {
         return depth - 1;
     } 
 
@@ -174,9 +161,7 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
     return candidates;
 }
 
-int quiescence(Board& board, int depth, int alpha, int beta, int numChecks) {
-
-    const int maxChecks = 4;
+int quiescence(Board& board, int depth, int alpha, int beta) {
 
     if (globalDebug) {
         #pragma  omp critical
@@ -187,11 +172,11 @@ int quiescence(Board& board, int depth, int alpha, int beta, int numChecks) {
         return evaluate(board);
     }
 
-    bool inCheck = board.inCheck();
+    //bool inCheck = board.inCheck();
     bool whiteTurn = board.sideToMove() == Color::WHITE;
 
     // Stand-pat evaluation: Evaluate the static position
-    if (!inCheck) {
+    //if (!inCheck) {
         int standPat = evaluate(board);
             
         if (whiteTurn) {
@@ -209,7 +194,7 @@ int quiescence(Board& board, int depth, int alpha, int beta, int numChecks) {
                 beta = standPat;
             }
         }
-    }
+    //}
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -221,13 +206,10 @@ int quiescence(Board& board, int depth, int alpha, int beta, int numChecks) {
         bool isCheck = board.inCheck();
         board.unmakeMove(move);
 
-        if (!board.isCapture(move) && !isPromotion(move) && !isCheck && !inCheck) {
+        if (!board.isCapture(move) && !isPromotion(move)) {
             continue;
         }
 
-        if (numChecks > maxChecks && isCheck) {
-            continue; // Skip the check moves if we have reached the maximum number of checks
-        }
 
         if (isPromotion(move)) {
             candidateMoves.push_back({move, 5000});
@@ -251,9 +233,9 @@ int quiescence(Board& board, int depth, int alpha, int beta, int numChecks) {
         int score;
 
         if (board.inCheck()) {
-            score = quiescence(board, depth - 1, alpha, beta, numChecks + 1);
+            score = quiescence(board, depth - 1, alpha, beta);
         } else {
-            score = quiescence(board, depth - 1, alpha, beta, numChecks);
+            score = quiescence(board, depth - 1, alpha, beta);
         }
 
         board.unmakeMove(move);
@@ -324,7 +306,7 @@ int alphaBeta(Board& board,
     } 
 
     if (depth <= 0) {
-        int quiescenceEval = quiescence(board, quiescenceDepth, alpha, beta, 0);
+        int quiescenceEval = quiescence(board, quiescenceDepth, alpha, beta);
         
         if (whiteTurn) {
             #pragma omp critical
@@ -373,8 +355,9 @@ int alphaBeta(Board& board,
         board.unmakeMove(move);
 
         if (whiteTurn) {
-            if (eval > alpha && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
+            if (eval > bestEval && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
                 board.makeMove(move);
+                pvChild.clear();
                 eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild);
                 board.unmakeMove(move);
             }
@@ -390,8 +373,9 @@ int alphaBeta(Board& board,
             bestEval = std::max(bestEval, eval);
             alpha = std::max(alpha, eval);
         } else {
-            if (eval < beta && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
+            if (eval < bestEval && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
                 board.makeMove(move);
+                pvChild.clear();
                 eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild);
                 board.unmakeMove(move);
             }
@@ -503,22 +487,21 @@ Move findBestMove(Board& board,
                 std::vector<Move> childPV; 
                 
                 Board localBoard = board;
+                bool newBestFlag = false;
+                int nextDepth = depthReduction(localBoard, move, i, depth);
             
                 localBoard.makeMove(move);
-                int nextDepth = depthReduction(localBoard, move, i, depth);
                 int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV);
                 localBoard.unmakeMove(move);
 
-                bool newBestMoveFlag = false;
                 #pragma omp critical
                 {
                     if ((whiteTurn && eval > currentBestEval) || (!whiteTurn && eval < currentBestEval)) {
-                        newBestMoveFlag = true;
+                        newBestFlag = true;
                     }
-
                 }
 
-                if (newBestMoveFlag && nextDepth < depth - 1) { // Re-search if a new PV node is found
+                if (newBestFlag) {
                     localBoard.makeMove(move);
                     eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV);
                     localBoard.unmakeMove(move);

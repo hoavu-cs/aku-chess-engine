@@ -18,9 +18,7 @@ int quiescence(
     Board& board, 
     int depth, 
     int alpha, 
-    int beta,
-    int numChecks
-);
+    int beta);
 
 int alphaBeta(
     Board& board, 
