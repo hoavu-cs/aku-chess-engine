@@ -87,17 +87,15 @@ void updateKillerMoves(const Move& move, int depth) {
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
 
-    
-    if (i <= 2) {
+    if (i <= 4) {
         return depth - 1;
     }
 
     if (depth <= 2) {
         return depth - 1;
     } else {
-        return std::max(depth - 2, depth / 2);
+        return std::max(depth - 2, 2);
     }
-
 
     // int R = 1 + 0.5 * log(depth) / log(2.0) + 0.75 * log(i) / log(2.0);
     // return depth - R;
@@ -503,7 +501,13 @@ Move findBestMove(Board& board,
                 
                 Board localBoard = board;
                 bool newBestFlag = false;
-                int nextDepth = depthReduction(localBoard, move, i, depth);
+
+                int nextDepth;
+                if (i <= 6) {
+                    nextDepth = depth - 1;
+                } else {
+                    nextDepth = depth - 2;
+                }
             
                 localBoard.makeMove(move);
                 int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV);
