@@ -24,7 +24,7 @@ const int KING_VALUE = 5000;
 const int whiteKnightTableMid[64] = {
     -105, -21, -58, -33, -17, -28, -19,  -23,
      -29, -53, -12,  -3,  -1,  18, -14,  -19,
-     -23,  -9,  12,  10,  19,  17,  25,  -16,
+     -23,  -9,  12,  10,  19,  17,  15,  -16,
      -13,   4,  16,  13,  20,  19,  21,   -8,
       -9,  17,  19,  53,  37,  69,  18,   22,
      -47,  60,  37,  65,  84, 129,  73,   44,
@@ -38,7 +38,7 @@ const int blackKnightTableMid[64] = {
      -47,  60,  37,  65,  84, 129,  73,   44,
       -9,  17,  19,  53,  37,  69,  18,   22,
      -13,   4,  16,  13,  20,  19,  21,   -8,
-     -23,  -9,  12,  10,  19,  17,  25,  -16,
+     -23,  -9,  12,  10,  19,  17,  15,  -16,
      -29, -53, -12,  -3,  -1,  18, -14,  -19,
     -105, -21, -58, -33, -17, -28, -19,  -23,
 };
@@ -366,7 +366,7 @@ const std::unordered_map<int, std::vector<int>> adjSquares = {
 
 // Return true if the game is in the endgame phase 
 bool isEndGame(const Board& board) {
-    const int materialThreshold = 32;
+    const int materialThreshold = 24;
     const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
 
     int totalValue = board.pieces(PieceType::KNIGHT, Color::WHITE).count() * knightValue
@@ -1309,9 +1309,9 @@ int evaluate(const Board& board) {
                         knightValue * board.pieces(PieceType::KNIGHT, Color::BLACK).count();
 
     if (whitePieceValue > blackPieceValue) {
-        whiteScore += 50;
+        whiteScore += 80;
     } else if (blackPieceValue > whitePieceValue) {
-        blackScore += 50;
+        blackScore += 80;
     }
 
     /*--------------------------------------------------------------------------

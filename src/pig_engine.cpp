@@ -122,7 +122,7 @@ void processGo() {
 
     // Default settings
     int depth = 20;
-    int quiescenceDepth = 10;
+    int quiescenceDepth = 12;
     int numThreads = 8;
     int timeLimit = 15000;
   

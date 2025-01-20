@@ -27,7 +27,7 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t transTableMaxSize = 1000000000; 
 const int R = 2; 
-//const int razorMargin = 350; 
+const int razorMargin = 350; 
 //int razorPly = 6; 
 
 int nullDepth = 4; 
@@ -71,6 +71,53 @@ bool isCastling(const Move& move) {
     return (move.typeOf() & Move::CASTLING) != 0;
 }
 
+bool isThreatMove(const Board& board, const Move& move) {
+    
+    Board tempBoard = board;
+    Color color = tempBoard.sideToMove();
+
+    Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
+    Bitboard theirRook = board.pieces(PieceType::ROOK, !color);
+    Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
+    Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
+
+    auto pieceType = tempBoard.at<Piece>(move.from()).type();
+    tempBoard.makeMove(move);
+
+    if (pieceType == PieceType::PAWN) {
+        /* 
+        Consider the attacks of the pawn at the destination square.
+        If it hits an enemy piece, then it is a threat move.
+        */
+        Bitboard pawnAttacks = attacks::pawn(color, move.to());
+        if (pawnAttacks & (theirQueen | theirRook | theirBishop | theirKnight)) {
+            return true;
+        }
+    } else if (pieceType == PieceType::KNIGHT) {
+        Bitboard knightMoves = attacks::knight(move.to());
+        if (knightMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
+            return true;
+        }
+    } else if (pieceType == PieceType::BISHOP) {
+        Bitboard bishopMoves = attacks::bishop(move.to(), tempBoard.occ());
+        if (bishopMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
+            return true;
+        }
+    } else if (pieceType == PieceType::ROOK) {
+        Bitboard rookMoves = attacks::rook(move.to(), tempBoard.occ());
+        if (rookMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
+            return true;
+        } 
+    } else if (pieceType == PieceType::QUEEN) {
+        Bitboard queenMoves = attacks::queen(move.to(), tempBoard.occ());
+        if (queenMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
+            return true;
+        }
+    } 
+
+    return false;
+}
+
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
     #pragma omp critical
@@ -87,15 +134,29 @@ void updateKillerMoves(const Move& move, int depth) {
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
 
-    if (i <= 4) {
-        return depth - 1;
+    if (!isEndGame(board)) {
+        if (i <= 6) {
+            return depth - 1;
+        } else if (i <= 9) {
+            return std::max(depth - 2, depth / 2);
+        } else {
+            return depth / 2;
+        }
+    } else {
+        if (i <= 2) {
+            return depth - 1;
+        } else {
+            return depth / 3;
+        }
     }
 
-    if (depth <= 2) {
-        return depth - 1;
-    } else {
-        return std::max(depth - 2, 2);
-    }
+    // if (i <= 5) {
+    //     return depth - 1;
+    // }
+
+    // if (depth <= 2) {
+    //     return depth - 1;
+    // } 
 
     // int R = 1 + 0.5 * log(depth) / log(2.0) + 0.75 * log(i) / log(2.0);
     // return depth - R;
@@ -188,26 +249,24 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     //bool inCheck = board.inCheck();
     bool whiteTurn = board.sideToMove() == Color::WHITE;
 
-    // Stand-pat evaluation: Evaluate the static position
-    //if (!inCheck) {
-        int standPat = evaluate(board);
-            
-        if (whiteTurn) {
-            if (standPat >= beta) {
-                return beta;
-            }
-            if (standPat > alpha) {
-                alpha = standPat;
-            }
-        } else {
-            if (standPat <= alpha) {
-                return alpha;
-            }
-            if (standPat < beta) {
-                beta = standPat;
-            }
+    int standPat = evaluate(board);
+        
+    if (whiteTurn) {
+        if (standPat >= beta) {
+            return beta;
         }
-    //}
+        if (standPat > alpha) {
+            alpha = standPat;
+        }
+    } else {
+        if (standPat <= alpha) {
+            return alpha;
+        }
+        if (standPat < beta) {
+            beta = standPat;
+        }
+    }
+
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -305,6 +364,7 @@ int alphaBeta(Board& board,
     std::uint64_t hash = board.hash();
     bool found = false;
     int storedEval;
+    bool endGameFlag = isEndGame(board);
 
     #pragma omp critical
     { 
@@ -332,26 +392,42 @@ int alphaBeta(Board& board,
         return quiescenceEval;
     }
 
-    // Null move pruning
-    if (depth >= nullDepth) {
-        if (!board.inCheck()) {
-            board.makeNullMove();
-            std::vector<Move> nullPV;
-            int nullEval = alphaBeta(board, 
-                                    depth - R,  
-                                    alpha, 
-                                    beta, 
-                                    quiescenceDepth,
-                                    nullPV);
-            board.unmakeNullMove();
+    // Null move pruning. Avoid null move pruning in the endgame phase.
+    if (!endGameFlag) {
+        if (depth >= nullDepth) {
+            if (!board.inCheck()) {
+                board.makeNullMove();
+                std::vector<Move> nullPV;
+                int nullEval = alphaBeta(board, 
+                                        depth - R,  
+                                        alpha, 
+                                        beta, 
+                                        quiescenceDepth,
+                                        nullPV);
+                board.unmakeNullMove();
 
-            if (whiteTurn && nullEval >= beta) {
-                return beta;
-            } else if (!whiteTurn && nullEval <= alpha) {
-                return alpha;
+                if (whiteTurn && nullEval >= beta) {
+                    return beta;
+                } else if (!whiteTurn && nullEval <= alpha) {
+                    return alpha;
+                }
             }
         }
     }
+
+    // razoring
+    // if (depth == 2) {
+    //     int standPat = evaluate(board);
+    //     if (whiteTurn) {
+    //         if (standPat + razorMargin <= alpha) {
+    //             return standPat + razorMargin;
+    //         }
+    //     } else {
+    //         if (standPat - razorMargin >= beta) {
+    //             return standPat - razorMargin;
+    //         }
+    //     }
+    // }
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth);
     int bestEval = whiteTurn ? -INF : INF;
@@ -545,13 +621,13 @@ Move findBestMove(Board& board,
                 }
 
                 // Check time limit
-                auto currentTime = std::chrono::high_resolution_clock::now();
-                if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
-                    #pragma omp critical
-                    {
-                        timeLimitExceeded = true;
-                    }
-                }
+                // auto currentTime = std::chrono::high_resolution_clock::now();
+                // if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
+                //     #pragma omp critical
+                //     {
+                //         timeLimitExceeded = true;
+                //     }
+                // }
             }
         }
 

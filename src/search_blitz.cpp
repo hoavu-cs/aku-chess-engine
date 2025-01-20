@@ -27,7 +27,7 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t transTableMaxSize = 1000000000; 
 const int R = 2; 
-//const int razorMargin = 350; 
+const int razorMargin = 350; 
 //int razorPly = 6; 
 
 int nullDepth = 4; 
@@ -87,20 +87,14 @@ void updateKillerMoves(const Move& move, int depth) {
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
 
-    
     if (i <= 2) {
         return depth - 1;
-    }
-
-    if (depth <= 2) {
-        return depth - 1;
-    } else {
+    } else if (i <= 5) {
         return std::max(depth - 2, depth / 2);
+    } else {
+        return depth / 2;
     }
 
-
-    // int R = 1 + 0.5 * log(depth) / log(2.0) + 0.75 * log(i) / log(2.0);
-    // return depth - R;
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -192,23 +186,23 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
 
     // Stand-pat evaluation: Evaluate the static position
     //if (!inCheck) {
-        int standPat = evaluate(board);
-            
-        if (whiteTurn) {
-            if (standPat >= beta) {
-                return beta;
-            }
-            if (standPat > alpha) {
-                alpha = standPat;
-            }
-        } else {
-            if (standPat <= alpha) {
-                return alpha;
-            }
-            if (standPat < beta) {
-                beta = standPat;
-            }
+    int standPat = evaluate(board);
+        
+    if (whiteTurn) {
+        if (standPat >= beta) {
+            return beta;
         }
+        if (standPat > alpha) {
+            alpha = standPat;
+        }
+    } else {
+        if (standPat <= alpha) {
+            return alpha;
+        }
+        if (standPat < beta) {
+            beta = standPat;
+        }
+    }
     //}
 
     Movelist moves;
@@ -351,6 +345,21 @@ int alphaBeta(Board& board,
                 return beta;
             } else if (!whiteTurn && nullEval <= alpha) {
                 return alpha;
+            }
+        }
+    }
+
+    // razoring
+    int ply = globalMaxDepth - depth;
+    if (ply == 4) {
+        int standPat = evaluate(board);
+        if (whiteTurn) {
+            if (standPat + razorMargin <= alpha) {
+                return standPat + razorMargin;
+            }
+        } else {
+            if (standPat - razorMargin >= beta) {
+                return standPat - razorMargin;
             }
         }
     }
@@ -503,7 +512,13 @@ Move findBestMove(Board& board,
                 
                 Board localBoard = board;
                 bool newBestFlag = false;
-                int nextDepth = depthReduction(localBoard, move, i, depth);
+
+                int nextDepth;
+                if (i <= 6) {
+                    nextDepth = depth - 1;
+                } else {
+                    nextDepth = depth - 2;
+                }
             
                 localBoard.makeMove(move);
                 int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV);
@@ -541,13 +556,13 @@ Move findBestMove(Board& board,
                 }
 
                 // Check time limit
-                auto currentTime = std::chrono::high_resolution_clock::now();
-                if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
-                    #pragma omp critical
-                    {
-                        timeLimitExceeded = true;
-                    }
-                }
+                // auto currentTime = std::chrono::high_resolution_clock::now();
+                // if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
+                //     #pragma omp critical
+                //     {
+                //         timeLimitExceeded = true;
+                //     }
+                // }
             }
         }
 
