@@ -25,7 +25,7 @@ const int whiteKnightTableMid[64] = {
     -105, -21, -58, -33, -17, -28, -19,  -23,
      -29, -53, -12,  -3,  -1,  18, -14,  -19,
      -23,  -9,  12,  10,  19,  17,  25,  -16,
-     -13,   4,  16,  13,  28,  19,  21,   -8,
+     -13,   4,  16,  13,  20,  19,  21,   -8,
       -9,  17,  19,  53,  37,  69,  18,   22,
      -47,  60,  37,  65,  84, 129,  73,   44,
      -73, -41,  72,  36,  23,  62,   7,  -17,
@@ -37,7 +37,7 @@ const int blackKnightTableMid[64] = {
      -73, -41,  72,  36,  23,  62,   7,  -17,
      -47,  60,  37,  65,  84, 129,  73,   44,
       -9,  17,  19,  53,  37,  69,  18,   22,
-     -13,   4,  16,  13,  28,  19,  21,   -8,
+     -13,   4,  16,  13,  20,  19,  21,   -8,
      -23,  -9,  12,  10,  19,  17,  25,  -16,
      -29, -53, -12,  -3,  -1,  18, -14,  -19,
     -105, -21, -58, -33, -17, -28, -19,  -23,
@@ -114,8 +114,8 @@ const int blackBishopTableEnd[64] = {
 const int whitePawnTableMid[64] = {
       0,   0,   0,   0,   0,   0,   0,   0,
     -35,  -1, -20, -35, -35,  24,  38, -22,
-    -26,  -4,  -4,  5,  5,   3,  33, -12,
-    -27,  -2,  10,  25,  25,   6,  10, -25,
+    -26,  -4,  3,  0,  0,   3,  33, -12,
+    -27,  -2,  5,  25,  25,   5,  10, -25,
     -14,  13,   6,  21,  23,  12,  17, -23,
      -6,   7,  26,  31,  65,  56,  25, -20,
      98, 134,  61,  95,  68, 126,  34, -11,
@@ -128,8 +128,8 @@ const int blackPawnTableMid[64] = {
      98, 134,  61,  95,  68, 126,  34, -11,
      -6,   7,  26,  31,  65,  56,  25, -20,
     -14,  13,   6,  21,  23,  12,  17, -23,
-    -27,  -2,  10,  25,  25,   6,  10, -25,
-    -26,  -4,  -4,  5,  5,   3,  33, -12,
+    -27,  -2,  5,  25,  25,   5,  10, -25,
+    -26,  -4,  3,  0,  0,   3,  33, -12,
     -35,  -1, -20, -35, -35,  24,  38, -22,
       0,   0,   0,   0,   0,   0,   0,   0,
 };
@@ -249,7 +249,7 @@ const int blackQueenTableEnd[64] = {
 };
 
 const int whiteKingTableMid[64] = {
-    -15,  3,  35, -54,  -5, -28,  35,  14,
+    -15,  35,  25, -54,  -5, -28,  35,  14,
       1,   7,  -8, -64, -43, -16,   9,   8,
     -14, -14, -22, -46, -44, -30, -15, -27,
     -49,  -1, -27, -39, -46, -44, -33, -51,
@@ -267,7 +267,7 @@ const int blackKingTableMid[64] = {
     -49,  -1, -27, -39, -46, -44, -33, -51,
     -14, -14, -22, -46, -44, -30, -15, -27,
       1,   7,  -8, -64, -43, -16,   9,   8,
-    -15,  40,  35, -54, -5, -28,  35,  14,
+    -15,  35,  25, -54, -5, -28,  35,   14,
 };
 
 const int whiteKingTableEnd[64] = {
@@ -595,7 +595,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     int files[8] = {0};
     int value = 0;
-    int advancedPawnBonus = endGameFlag ? 5 : 3;
+    int advancedPawnBonus = endGameFlag ? 4 : 2;
 
     Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
                             | board.pieces(PieceType::KNIGHT, !color) 
@@ -753,6 +753,10 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
         Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
 
         int mobility = bishopMoves.count();
+        if (mobility > 8) {
+            mobility = 8;
+        }
+
         value += mobilityBonus * mobility;
 
         if (isOutpost(board, sqIndex, color)) {
@@ -773,7 +777,7 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     const double mobilityBonus = 2;
     const int* rookTable;
     const int semiOpenFileBonus = 10;
-    const int openFileBonus = 20;
+    const int openFileBonus = 15;
     // const int xRayPenalty = 5;
 
     bool endGameFlag = info.endGameFlag;
@@ -814,6 +818,9 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
         int mobility = rookMoves.count();
+        if (mobility > 8) {
+            mobility = 8;
+        }
         value += mobilityBonus * mobility;
 
         // Penalty for x-ray attacks
@@ -889,12 +896,12 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         value += baseValue; 
         value += queenTable[sqIndex]; 
 
-        Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
-        int mobility = queenMoves.count();
-        if (mobility > 8) {
-            mobility = 8;
-        }
-        value += mobilityBonus * mobility;
+        // Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
+        // int mobility = queenMoves.count();
+        // if (mobility > 8) {
+        //     mobility = 8;
+        // }
+        // value += mobilityBonus * mobility;
 
         // penalty for x-ray attacks
         // while (theirRooks) {
@@ -1104,7 +1111,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const int pawnShieldBonus = 30;
     const int* kingTable;
-    int pieceProtectionBonus = 40;
+    int pieceProtectionBonus = 30;
 
     bool endGameFlag = info.endGameFlag;
 
@@ -1182,9 +1189,6 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
 int evaluate(const Board& board) {
     // Constant
     const int tempoBonus = 10;
-    const int knightAdj[9] = {-20, -15, -12, -8, -4, 0, 4, 8, 12}; 
-    const int rookAdj[9] = {15, 12, 9, 6, 3, 0, -3, -6, -9};
-    const int rookPairPenalty = 10;
     const int blockCentralPawnPenalty = 60;
     const int centerControlBonus = 10;
 
@@ -1255,11 +1259,6 @@ int evaluate(const Board& board) {
     int numWhiteRooks = std::clamp(board.pieces(PieceType::ROOK, Color::WHITE).count(), 0, 8);  
     int numBlackRooks = std::clamp(board.pieces(PieceType::ROOK, Color::BLACK).count(), 0, 8);
 
-    if (numWhiteRooks >= 2) {
-        whiteScore -= rookPairPenalty;
-    } else if (numBlackRooks >= 2) {
-        blackScore -= rookPairPenalty;
-    }
 
     for (const auto& type : allPieceTypes) {
         // Determine base value of the current piece type
@@ -1277,8 +1276,8 @@ int evaluate(const Board& board) {
 
         // Process white pieces
         if (type == PieceType::KNIGHT) {
-            whiteScore += knightValue(board, baseValue + knightAdj[numWhitePawns], Color::WHITE, info);
-            blackScore += knightValue(board, baseValue + knightAdj[numBlackPawns], Color::BLACK, info);
+            whiteScore += knightValue(board, baseValue, Color::WHITE, info);
+            blackScore += knightValue(board, baseValue, Color::BLACK, info);
         } else if (type == PieceType::BISHOP) {
             whiteScore += bishopValue(board, baseValue, Color::WHITE, info);
             blackScore += bishopValue(board, baseValue, Color::BLACK, info);
@@ -1289,8 +1288,8 @@ int evaluate(const Board& board) {
             whiteScore += pawnValue(board, baseValue, Color::WHITE, info);
             blackScore += pawnValue(board, baseValue, Color::BLACK, info);
         } else if (type == PieceType::ROOK) {
-            whiteScore += rookValue(board, baseValue + rookAdj[numWhitePawns], Color::WHITE, info);
-            blackScore += rookValue(board, baseValue + rookAdj[numBlackPawns], Color::BLACK, info);
+            whiteScore += rookValue(board, baseValue, Color::WHITE, info);
+            blackScore += rookValue(board, baseValue, Color::BLACK, info);
         } else if (type == PieceType::QUEEN) {
             whiteScore += queenValue(board, baseValue, Color::WHITE, info);
             blackScore += queenValue(board, baseValue, Color::BLACK, info);
@@ -1319,52 +1318,52 @@ int evaluate(const Board& board) {
         Pattern detection
     --------------------------------------------------------------------------*/
 
-    Bitboard d2 = Bitboard::fromSquare(11);
-    Bitboard e2 = Bitboard::fromSquare(12);
-    Bitboard d3 = Bitboard::fromSquare(19);
-    Bitboard e3 = Bitboard::fromSquare(20);
-    Bitboard d4 = Bitboard::fromSquare(27);
-    Bitboard e4 = Bitboard::fromSquare(28);
+    // Bitboard d2 = Bitboard::fromSquare(11);
+    // Bitboard e2 = Bitboard::fromSquare(12);
+    // Bitboard d3 = Bitboard::fromSquare(19);
+    // Bitboard e3 = Bitboard::fromSquare(20);
+    // Bitboard d4 = Bitboard::fromSquare(27);
+    // Bitboard e4 = Bitboard::fromSquare(28);
 
-    Bitboard d5 = Bitboard::fromSquare(35);
-    Bitboard e5 = Bitboard::fromSquare(36);
-    Bitboard d6 = Bitboard::fromSquare(43);
-    Bitboard e6 = Bitboard::fromSquare(44);
-    Bitboard d7 = Bitboard::fromSquare(51);
-    Bitboard e7 = Bitboard::fromSquare(52);
+    // Bitboard d5 = Bitboard::fromSquare(35);
+    // Bitboard e5 = Bitboard::fromSquare(36);
+    // Bitboard d6 = Bitboard::fromSquare(43);
+    // Bitboard e6 = Bitboard::fromSquare(44);
+    // Bitboard d7 = Bitboard::fromSquare(51);
+    // Bitboard e7 = Bitboard::fromSquare(52);
 
-    Bitboard center = e4 | d4 | e5 | d5;
+    // Bitboard center = e4 | d4 | e5 | d5;
 
-    int whiteCenterControl = (allPieces(board, Color::WHITE) & center).count() * centerControlBonus;
-    int blackCenterControl = (allPieces(board, Color::BLACK) & center).count() * centerControlBonus;
+    // int whiteCenterControl = (allPieces(board, Color::WHITE) & center).count() * centerControlBonus;
+    // int blackCenterControl = (allPieces(board, Color::BLACK) & center).count() * centerControlBonus;
 
-    whiteScore += whiteCenterControl;
-    blackScore += blackCenterControl;
+    // whiteScore += whiteCenterControl;
+    // blackScore += blackCenterControl;
     
-    if (board.occ() && d3) {
-        Piece piece = board.at(Square(11));
-        if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
-            whiteScore -= blockCentralPawnPenalty;
-        }
-    }
-    if (board.occ() && e3) {
-        Piece piece = board.at(Square(12));
-        if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
-            whiteScore -= blockCentralPawnPenalty;
-        }
-    }
-    if (board.occ() && d6) {
-        Piece piece = board.at(Square(51));
-        if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
-            blackScore -= blockCentralPawnPenalty;
-        }
-    }
-    if (board.occ() && e6) {
-        Piece piece = board.at(Square(52));
-        if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
-            blackScore -= blockCentralPawnPenalty;
-        }
-    }
+    // if (board.occ() && d3) {
+    //     Piece piece = board.at(Square(11));
+    //     if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
+    //         whiteScore -= blockCentralPawnPenalty;
+    //     }
+    // }
+    // if (board.occ() && e3) {
+    //     Piece piece = board.at(Square(12));
+    //     if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
+    //         whiteScore -= blockCentralPawnPenalty;
+    //     }
+    // }
+    // if (board.occ() && d6) {
+    //     Piece piece = board.at(Square(51));
+    //     if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
+    //         blackScore -= blockCentralPawnPenalty;
+    //     }
+    // }
+    // if (board.occ() && e6) {
+    //     Piece piece = board.at(Square(52));
+    //     if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
+    //         blackScore -= blockCentralPawnPenalty;
+    //     }
+    // }
 
     return whiteScore - blackScore;
 }

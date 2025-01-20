@@ -67,6 +67,10 @@ bool isPromotion(const Move& move) {
     return (move.typeOf() & Move::PROMOTION) != 0;
 }
 
+bool isCastling(const Move& move) {
+    return (move.typeOf() & Move::CASTLING) != 0;
+}
+
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
     #pragma omp critical
@@ -82,12 +86,21 @@ void updateKillerMoves(const Move& move, int depth) {
 
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
-    if (i <= 4 || depth <= 2) {
-        return depth - 1;
-    } 
 
-    int R = 1 + 0.75 * log(depth) / log(2.0) + 0.75 * log(i) / log(2.0);
-    return depth - R;
+    
+    if (i <= 2) {
+        return depth - 1;
+    }
+
+    if (depth <= 2) {
+        return depth - 1;
+    } else {
+        return std::max(depth - 2, depth / 2);
+    }
+
+
+    // int R = 1 + 0.5 * log(depth) / log(2.0) + 0.75 * log(i) / log(2.0);
+    // return depth - R;
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -123,6 +136,8 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
 
             if (isCheck) {
                 priority = 2000;
+            } else if (isCastling(move)) {
+                priority = 1000;
             } else {
                 // quite move
                 int from = move.from().index(), to = move.to().index();
@@ -135,6 +150,7 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
                 }
             }
         } 
+
         if (!quiet) {
             candidates.push_back({move, priority});
         } else {

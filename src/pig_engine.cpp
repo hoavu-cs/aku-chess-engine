@@ -124,7 +124,7 @@ void processGo() {
     int depth = 20;
     int quiescenceDepth = 10;
     int numThreads = 8;
-    int timeLimit = 30000;
+    int timeLimit = 15000;
   
     // Simply find the best move without considering `t` or other options
     Move bestMove = Move::NO_MOVE;
