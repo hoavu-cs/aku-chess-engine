@@ -63,7 +63,7 @@ int main() {
     int depth = 20;
     int quiescenceDepth = 12;
     int numThreads = 6;
-    int timeLimit = 15000;
+    int timeLimit = 20000;
 
     Move bestMove;
 

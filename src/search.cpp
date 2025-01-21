@@ -185,7 +185,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
         return depth - 1;
     } 
 
-    int R = 1 + 0.5 * log(depth) / log(2.0) + 0.75 * log(i) / log(2.0);
+    int R = 1 + 0.5 * log(depth) / log(2.0) + 0.5 * log(i) / log(2.0);
     return depth - R;
 }
 
@@ -629,7 +629,7 @@ Move findBestMove(Board& board,
                 }
             
                 localBoard.makeMove(move);
-                int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV);
+                int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV);
                 localBoard.unmakeMove(move);
 
                 #pragma omp critical
