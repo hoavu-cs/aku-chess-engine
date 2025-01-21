@@ -25,9 +25,9 @@ std::vector<std::vector<int>> blackHistory (64, std::vector<int>(64, 0));
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t transTableMaxSize = 1000000000; 
+const size_t transTableMaxSize = 5000000000; 
 const int R = 2; 
-const int razorMargin = 350; 
+const int futilityMargin = 350; 
 //int razorPly = 6; 
 
 int nullDepth = 6; 
@@ -161,23 +161,7 @@ void updateKillerMoves(const Move& move, int depth) {
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
 
-    // if (!isEndGame(board)) {
-    //     if (i <= 3 || depth <= 2) {
-    //         return depth - 1;
-    //     } else if (i <= 6) {
-    //         return depth - 2;
-    //     } else {
-    //         return depth / 2;
-    //     }
-    // } else {
-    //     if (i <= 5) {
-    //         return depth - 1;
-    //     } else {
-    //         return depth / 2;
-    //     }
-    // }
-
-    double a = 0.5, b = 0.75;
+    double a = 0.5, b = 0.5;
 
     if (i <= 2) {
         return depth - 1;
@@ -339,16 +323,16 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     for (const auto& [move, priority] : candidateMoves) {
 
         // Delta pruning
-        // const int deltaMargin = 400;
-        // if (whiteTurn) {
-        //     if (standPat + priority + deltaMargin < alpha) {
-        //         continue;
-        //     }
-        // } else {
-        //     if (standPat - priority - deltaMargin > beta) {
-        //         continue;
-        //     }
-        // }
+        const int deltaMargin = 400;
+        if (whiteTurn) {
+            if (standPat + priority + deltaMargin < alpha) {
+                continue;
+            }
+        } else {
+            if (standPat - priority - deltaMargin > beta) {
+                continue;
+            }
+        }
 
         board.makeMove(move);
         int score;
@@ -440,35 +424,38 @@ int alphaBeta(Board& board,
     if (!endGameFlag) {
         if (depth >= nullDepth) {
             if (!board.inCheck()) {
+
                 board.makeNullMove();
                 std::vector<Move> nullPV;
-                int nullEval = alphaBeta(board, 
-                                        depth - R,  
-                                        alpha, 
-                                        beta, 
-                                        quiescenceDepth,
-                                        nullPV);
+                int nullEval;
+
+                if (whiteTurn) {
+                    nullEval = alphaBeta(board, depth - R, beta - 1, beta, quiescenceDepth, nullPV);
+                } else {
+                    nullEval = alphaBeta(board, depth - R, alpha, alpha + 1, quiescenceDepth, nullPV);
+                }
+
                 board.unmakeNullMove();
 
                 if (whiteTurn && nullEval >= beta) {
-                    return beta;
+                    return nullEval;
                 } else if (!whiteTurn && nullEval <= alpha) {
-                    return alpha;
+                    return nullEval;
                 }
             }
         }
     }
 
-    // razoring
-    // if (depth == 2) {
+    // futile pruning
+    // if (depth == 1) {
     //     int standPat = evaluate(board);
     //     if (whiteTurn) {
-    //         if (standPat + razorMargin <= alpha) {
-    //             return standPat + razorMargin;
+    //         if (standPat + futilityMargin <= alpha) {
+    //             return standPat + futilityMargin;
     //         }
     //     } else {
-    //         if (standPat - razorMargin >= beta) {
-    //             return standPat - razorMargin;
+    //         if (standPat - futilityMargin >= beta) {
+    //             return standPat - futilityMargin;
     //         }
     //     }
     // }
@@ -478,17 +465,17 @@ int alphaBeta(Board& board,
 
     for (int i = 0; i < moves.size(); i++) {
         Move move = moves[i].first;
+        std::vector<Move> pvChild;
 
-        // Apply Late Move Reduction (LMR)
-        int nextDepth = depthReduction(board, move, i, depth);
+        int eval;
+        int nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
 
         board.makeMove(move);
-        std::vector<Move> pvChild;
-        int eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, pvChild);
+        eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, pvChild);
         board.unmakeMove(move);
 
         if (whiteTurn) {
-            if (eval > alpha && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
+            if (eval > alpha && nextDepth < depth - 1) { 
                 board.makeMove(move);
                 pvChild.clear();
                 eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild);
@@ -506,7 +493,8 @@ int alphaBeta(Board& board,
             bestEval = std::max(bestEval, eval);
             alpha = std::max(alpha, eval);
         } else {
-            if (eval < beta && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
+
+            if (eval < beta && nextDepth < depth - 1) { 
                 board.makeMove(move);
                 pvChild.clear();
                 eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild);
@@ -592,7 +580,7 @@ Move findBestMove(Board& board,
     }
 
     bool timeLimitExceeded = false;
-    int baseDepth = 4;
+    int baseDepth = 1;
 
     for (int depth = baseDepth; depth <= maxDepth; ++depth) {
         globalMaxDepth = depth;
