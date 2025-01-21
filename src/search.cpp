@@ -30,7 +30,7 @@ const int R = 2;
 const int razorMargin = 350; 
 //int razorPly = 6; 
 
-int nullDepth = 4; 
+int nullDepth = 6; 
 int improvement = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
@@ -177,6 +177,8 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     //     }
     // }
 
+    double a = 0.5, b = 0.75;
+
     if (i <= 2) {
         return depth - 1;
     }
@@ -185,7 +187,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
         return depth - 1;
     } 
 
-    int R = 1 + 0.5 * log(depth) / log(2.0) + 0.5 * log(i) / log(2.0);
+    int R = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
     return depth - R;
 }
 
@@ -621,7 +623,12 @@ Move findBestMove(Board& board,
                 Board localBoard = board;
                 bool newBestFlag = false;
 
-                int nextDepth = depthReduction(localBoard, move, i, depth);
+                int nextDepth;
+                if (i <= 4) {
+                    nextDepth = depth - 1;
+                } else {
+                    nextDepth = depth - 2;
+                }
             
                 localBoard.makeMove(move);
                 int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV);
