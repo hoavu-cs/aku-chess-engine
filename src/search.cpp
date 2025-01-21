@@ -621,12 +621,12 @@ Move findBestMove(Board& board,
                 Board localBoard = board;
                 bool newBestFlag = false;
 
-                int nextDepth;
-                if (i <= 6) {
-                    nextDepth = depth - 1;
-                } else {
-                    nextDepth = depth - 2;
-                }
+                int nextDepth = depthReduction(localBoard, move, i, depth);
+                // if (i <= 6) {
+                //     nextDepth = depth - 1;
+                // } else {
+                //     nextDepth = depth - 2;
+                // }
             
                 localBoard.makeMove(move);
                 int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV);
