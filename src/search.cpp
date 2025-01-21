@@ -71,52 +71,79 @@ bool isCastling(const Move& move) {
     return (move.typeOf() & Move::CASTLING) != 0;
 }
 
-bool isThreatMove(const Board& board, const Move& move) {
+// TODO: Implement the threatMove for ordering the moves
+// bool isThreatMove(const Board& board, const Move& move) {
     
-    Board tempBoard = board;
-    Color color = tempBoard.sideToMove();
+//     Board tempBoard = board;
 
-    Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
-    Bitboard theirRook = board.pieces(PieceType::ROOK, !color);
-    Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
-    Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
+//     Color color = board.sideToMove();
+//     Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
+//     Bitboard theirRook = board.pieces(PieceType::ROOK, !color);
+//     Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
+//     Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
 
-    auto pieceType = tempBoard.at<Piece>(move.from()).type();
-    tempBoard.makeMove(move);
+//     Bitboard theirPieces = theirQueen | theirRook | theirBishop | theirKnight;
+//     Bitboard theirPiecesCopy = theirPieces;
+//     Bitboard attackersBefore;
 
-    if (pieceType == PieceType::PAWN) {
-        /* 
-        Consider the attacks of the pawn at the destination square.
-        If it hits an enemy piece, then it is a threat move.
-        */
-        Bitboard pawnAttacks = attacks::pawn(color, move.to());
-        if (pawnAttacks & (theirQueen | theirRook | theirBishop | theirKnight)) {
-            return true;
-        }
-    } else if (pieceType == PieceType::KNIGHT) {
-        Bitboard knightMoves = attacks::knight(move.to());
-        if (knightMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
-            return true;
-        }
-    } else if (pieceType == PieceType::BISHOP) {
-        Bitboard bishopMoves = attacks::bishop(move.to(), tempBoard.occ());
-        if (bishopMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
-            return true;
-        }
-    } else if (pieceType == PieceType::ROOK) {
-        Bitboard rookMoves = attacks::rook(move.to(), tempBoard.occ());
-        if (rookMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
-            return true;
-        } 
-    } else if (pieceType == PieceType::QUEEN) {
-        Bitboard queenMoves = attacks::queen(move.to(), tempBoard.occ());
-        if (queenMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
-            return true;
-        }
-    } 
+//     while (theirPieces) {
+//         int pieceSqIndex = theirPieces.lsb();
+//         attackersBefore |= attacks::attackers(board, color, Square(pieceSqIndex));
+//         theirPieces.clear(pieceSqIndex);
+//     }
 
-    return false;
-}
+//     tempBoard.makeMove(move);
+//     theirPieces = theirPiecesCopy;
+
+//     Bitboard attackersAfter;
+
+//     while (theirPieces) {
+//         int pieceSqIndex = theirPieces.lsb();
+        
+//         attackersAfter |= attacks::attackers(tempBoard, color, Square(pieceSqIndex));
+//         theirPieces.clear(pieceSqIndex);
+//     }
+
+//     if (attackersAfter.count() > attackersBefore.count()) {
+//         return true;
+//     }
+
+//     // auto pieceType = tempBoard.at<Piece>(move.from()).type();
+//     // tempBoard.makeMove(move);
+
+//     // if (pieceType == PieceType::PAWN) {
+//     //     /* 
+//     //     Consider the attacks of the pawn at the destination square.
+//     //     If it hits an enemy piece, then it is a threat move.
+//     //     */
+//     //     Bitboard pawnAttacks = attacks::pawn(color, move.to());
+//     //     if (pawnAttacks & (theirQueen | theirRook | theirBishop | theirKnight)) {
+//     //         return true;
+//     //     }
+//     // } else if (pieceType == PieceType::KNIGHT) {
+//     //     Bitboard knightMoves = attacks::knight(move.to());
+//     //     if (knightMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
+//     //         return true;
+//     //     }
+//     // } else if (pieceType == PieceType::BISHOP) {
+//     //     Bitboard bishopMoves = attacks::bishop(move.to(), tempBoard.occ());
+//     //     if (bishopMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
+//     //         return true;
+//     //     }
+//     // } else if (pieceType == PieceType::ROOK) {
+//     //     Bitboard rookMoves = attacks::rook(move.to(), tempBoard.occ());
+//     //     if (rookMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
+//     //         return true;
+//     //     } 
+//     // } else if (pieceType == PieceType::QUEEN) {
+//     //     Bitboard queenMoves = attacks::queen(move.to(), tempBoard.occ());
+//     //     if (queenMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
+//     //         return true;
+//     //     }
+//     // } 
+
+//     return false;
+// }
 
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
@@ -134,33 +161,32 @@ void updateKillerMoves(const Move& move, int depth) {
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
 
-    if (!isEndGame(board)) {
-        if (i <= 6) {
-            return depth - 1;
-        } else if (i <= 9) {
-            return std::max(depth - 2, depth / 2);
-        } else {
-            return depth / 2;
-        }
-    } else {
-        if (i <= 6) {
-            return depth - 1;
-        } else {
-            return depth / 2;
-        }
-    }
-
-    // Other possible formula
-    // if (i <= 5) {
-    //     return depth - 1;
+    // if (!isEndGame(board)) {
+    //     if (i <= 3 || depth <= 2) {
+    //         return depth - 1;
+    //     } else if (i <= 6) {
+    //         return depth - 2;
+    //     } else {
+    //         return depth / 2;
+    //     }
+    // } else {
+    //     if (i <= 5) {
+    //         return depth - 1;
+    //     } else {
+    //         return depth / 2;
+    //     }
     // }
 
-    // if (depth <= 2) {
-    //     return depth - 1;
-    // } 
+    if (i <= 2) {
+        return depth - 1;
+    }
 
-    // int R = 1 + 0.5 * log(depth) / log(2.0) + 0.75 * log(i) / log(2.0);
-    // return depth - R;
+    if (depth <= 2) {
+        return depth - 1;
+    } 
+
+    int R = 1 + 0.5 * log(depth) / log(2.0) + 0.75 * log(i) / log(2.0);
+    return depth - R;
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -269,6 +295,7 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     Movelist moves;
     movegen::legalmoves(moves, board);
     std::vector<std::pair<Move, int>> candidateMoves;
+    bool endGameFlag = isEndGame(board);
 
     for (const auto& move : moves) {
 
@@ -280,16 +307,26 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
             continue;
         }
 
-
+        /*--------------------------------------------------------------------------
+            Proritize promotion, advanced captures.
+        --------------------------------------------------------------------------*/
         if (isPromotion(move)) {
+
             candidateMoves.push_back({move, 5000});
             continue;
+
         } else if (board.isCapture(move)) {
+
             auto victim = board.at<Piece>(move.to());
             auto attacker = board.at<Piece>(move.from());
 
             int priority = pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())];
             candidateMoves.push_back({move, priority});
+
+        } else if (isCheck) {
+
+            candidateMoves.push_back({move, 500});
+
         } 
     }
 
@@ -299,14 +336,21 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     
     for (const auto& [move, priority] : candidateMoves) {
 
+        // Delta pruning
+        // const int deltaMargin = 400;
+        // if (whiteTurn) {
+        //     if (standPat + priority + deltaMargin < alpha) {
+        //         continue;
+        //     }
+        // } else {
+        //     if (standPat - priority - deltaMargin > beta) {
+        //         continue;
+        //     }
+        // }
+
         board.makeMove(move);
         int score;
-
-        if (board.inCheck()) {
-            score = quiescence(board, depth - 1, alpha, beta);
-        } else {
-            score = quiescence(board, depth - 1, alpha, beta);
-        }
+        score = quiescence(board, depth - 1, alpha, beta);
 
         board.unmakeMove(move);
 
@@ -442,7 +486,7 @@ int alphaBeta(Board& board,
         board.unmakeMove(move);
 
         if (whiteTurn) {
-            if (eval > bestEval && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
+            if (eval > alpha && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
                 board.makeMove(move);
                 pvChild.clear();
                 eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild);
@@ -460,7 +504,7 @@ int alphaBeta(Board& board,
             bestEval = std::max(bestEval, eval);
             alpha = std::max(alpha, eval);
         } else {
-            if (eval < bestEval && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
+            if (eval < beta && nextDepth < depth - 1) { // Re-search to full depth if a potential PV node is found
                 board.makeMove(move);
                 pvChild.clear();
                 eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild);
@@ -546,8 +590,9 @@ Move findBestMove(Board& board,
     }
 
     bool timeLimitExceeded = false;
+    int baseDepth = 4;
 
-    for (int depth = 1; depth <= maxDepth; ++depth) {
+    for (int depth = baseDepth; depth <= maxDepth; ++depth) {
         globalMaxDepth = depth;
         
         // Track the best move for the current depth
@@ -557,7 +602,7 @@ Move findBestMove(Board& board,
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; // Principal variation
 
-        if (depth == 1) {
+        if (depth == baseDepth) {
             moves = prioritizedMoves(board, depth);
         }
 

@@ -135,9 +135,9 @@ void updateKillerMoves(const Move& move, int depth) {
 int depthReduction(Board& board, Move move, int i, int depth) {
 
     if (!isEndGame(board)) {
-        if (i <= 6) {
+        if (i <= 4) {
             return depth - 1;
-        } else if (i <= 9) {
+        } else if (i <= 7) {
             return std::max(depth - 2, depth / 2);
         } else {
             return depth / 2;
