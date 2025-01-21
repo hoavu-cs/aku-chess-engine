@@ -146,10 +146,11 @@ int depthReduction(Board& board, Move move, int i, int depth) {
         if (i <= 6) {
             return depth - 1;
         } else {
-            return std::max(depth - 2, depth / 2);
+            return depth / 2;
         }
     }
 
+    // Other possible formula
     // if (i <= 5) {
     //     return depth - 1;
     // }
@@ -246,9 +247,7 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
         return evaluate(board);
     }
 
-    //bool inCheck = board.inCheck();
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-
     int standPat = evaluate(board);
         
     if (whiteTurn) {
@@ -266,7 +265,6 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
             beta = standPat;
         }
     }
-
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -619,15 +617,6 @@ Move findBestMove(Board& board,
                         }
                     }
                 }
-
-                // Check time limit
-                // auto currentTime = std::chrono::high_resolution_clock::now();
-                // if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
-                //     #pragma omp critical
-                //     {
-                //         timeLimitExceeded = true;
-                //     }
-                // }
             }
         }
 

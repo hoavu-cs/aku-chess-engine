@@ -595,7 +595,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     int files[8] = {0};
     int value = 0;
-    int advancedPawnBonus = endGameFlag ? 4 : 2;
+    int advancedPawnBonus = endGameFlag ? 5 : 2;
 
     Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
                             | board.pieces(PieceType::KNIGHT, !color) 
@@ -817,38 +817,14 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         }
         
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
+
         int mobility = rookMoves.count();
         if (mobility > 8) {
             mobility = 8;
         }
         value += mobilityBonus * mobility;
 
-        // Penalty for x-ray attacks
-        // Bitboard theirBishops = board.pieces(PieceType::BISHOP, !color);
-        // while (theirBishops) {
-        //     int bishopIndex = theirBishops.lsb();
-        //     int bishopRank = bishopIndex / 8, bishopFile = bishopIndex % 8;
-
-        //     // if ((std::abs(bishopRank - sqIndex / 8) == 0) || (std::abs(bishopFile - sqIndex % 8) == 0)) {
-        //     //     value -= xRayPenalty; // x-ray attack by the bishop
-        //     // }
-
-        //     theirBishops.clear(bishopIndex);
-        // }
-
-        // Bitboard theirQueens = board.pieces(PieceType::QUEEN, !color);
-        // while (theirQueens) {
-        //     int queenIndex = theirQueens.lsb();
-        //     int queenRank = queenIndex / 8, queenFile = queenIndex % 8;
-
-        //     if ((std::abs(queenRank - sqIndex / 8) == 0) || (std::abs(queenFile - sqIndex % 8) == 0)) {
-        //         value -= xRayPenalty; // x-ray attack by the queen
-        //     }
-
-        //     theirQueens.clear(queenIndex);
-        // }
-
-        rooks.clear(sqIndex); // Remove the processed rook
+        rooks.clear(sqIndex);
     }
     
     return value;
@@ -892,40 +868,10 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 
     while (!queens.empty()) {
         int sqIndex = queens.lsb(); 
+
         int queenRank = sqIndex / 8, queenFile = sqIndex % 8;
         value += baseValue; 
         value += queenTable[sqIndex]; 
-
-        // Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
-        // int mobility = queenMoves.count();
-        // if (mobility > 8) {
-        //     mobility = 8;
-        // }
-        // value += mobilityBonus * mobility;
-
-        // penalty for x-ray attacks
-        // while (theirRooks) {
-        //     int rookIndex = theirRooks.lsb();
-        //     int rookRank = rookIndex / 8, rookFile = rookIndex % 8;
-
-        //     if ((rookRank == queenRank) || (rookFile == queenFile)) {
-        //         value -= xRayPenalty; // x-ray attack by the rook
-        //     }
-
-        //     theirRooks.clear(rookIndex);
-        // }
-
-        // while (theirBishops) {
-        //     int bishopIndex = theirBishops.lsb();
-        //     int bishopRank = bishopIndex / 8, bishopFile = bishopIndex % 8;
-
-        //     if ((std::abs(bishopRank - queenRank) == std::abs(bishopFile - queenFile))) {
-        //         value -= xRayPenalty; // x-ray attack by the bishop
-        //     }
-
-        //     theirBishops.clear(bishopIndex);
-        // }
- 
 
         queens.clear(sqIndex); 
     }
@@ -933,16 +879,6 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 }
 
 int kingThreat(const Board& board, Color color) {
-    // const int xRayPenaltyQ = 15;
-    // const int xRayPenaltyR = 10;
-    // const int xRayPenaltyB = 10;
-
-    // const int proximityPenaltyQ = 10;
-    // const int proximityPenaltyR = 7;
-    // const int proximityPenaltyB = 5;
-    // const int proximityPenaltyN = 5;
-    // const int proximityPenaltyP = 3;
-    // const int proximityDistance = 6;
 
     Bitboard king = board.pieces(PieceType::KING, color);
     int sqIndex = king.lsb();
@@ -970,16 +906,17 @@ int kingThreat(const Board& board, Color color) {
             attackers.set(pawnIndex);
         }
 
-        // if (manhattanDistance(Square(pawnIndex), Square(sqIndex)) <= proximityDistance) {
-        //     threatScore += proximityPenaltyP; // proximity attack by the pawn
-        // }
-
         theirPawns.clear(pawnIndex);
     }
 
     theirPawns = board.pieces(PieceType::PAWN, !color);
 
-    // Check for attacks from opponent's Queen (proximity, x-ray, attack the adjacent squares)
+    /*--------------------------------------------------------------
+     Check for attacks from other pieces
+     A piece is a threat if it attacks the adjacent squares to the king 
+     given the presence of our pieces and their pawns
+    --------------------------------------------------------------*/
+
     Bitboard theirQueens = board.pieces(PieceType::QUEEN, !color);
     Bitboard ourDefenders = allPieces(board, color);
 
@@ -992,19 +929,9 @@ int kingThreat(const Board& board, Color color) {
             attackers.set(queenIndex);
         }
 
-        // if ((std::abs(queenRank - kingRank) == std::abs(queenFile - kingFile)) ||
-        //     (queenRank == kingRank) || (queenFile == kingFile)) {
-        //     threatScore += xRayPenaltyQ; // x-ray attack by the queen
-        // }
-
-        // if (manhattanDistance(Square(queenIndex), Square(sqIndex)) <= proximityDistance) {
-        //     threatScore += proximityPenaltyQ; // proximity attack by the queen
-        // }
-
         theirQueens.clear(queenIndex);
     }
 
-    // Check for attacks from opponent's Rooks (proximity, x-ray, attack the adjacent squares)
     Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
     while (theirRooks) {
         int rookIndex = theirRooks.lsb();
@@ -1015,18 +942,9 @@ int kingThreat(const Board& board, Color color) {
             attackers.set(rookIndex);
         }
 
-        // if ((rookRank == kingRank) || (rookFile == kingFile)) {
-        //     threatScore += xRayPenaltyR; // x-ray attack by the rook
-        // }
-
-        // if (manhattanDistance(Square(rookIndex), Square(sqIndex)) <= proximityDistance) {
-        //     threatScore += proximityPenaltyR; // proximity attack by the rook
-        // }
-
         theirRooks.clear(rookIndex);
     }
 
-    // Check for attacks from opponent's Knights (proximity & attack the adjacent squares)
     Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
     while (theirKnight) {
         int knightIndex = theirKnight.lsb();
@@ -1036,14 +954,9 @@ int kingThreat(const Board& board, Color color) {
             attackers.set(knightIndex);
         }
 
-        // if (manhattanDistance(Square(knightIndex), Square(sqIndex)) <= proximityDistance) {
-        //     threatScore += proximityPenaltyN;
-        // }
-
         theirKnight.clear(knightIndex);
     }
 
-    // Check for attacks from opponent's Bishops (proximity, x-ray, attack the adjacent squares)
     Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
     while (theirBishop) {
         int bishopIndex = theirBishop.lsb();
@@ -1054,14 +967,6 @@ int kingThreat(const Board& board, Color color) {
         if (bishopAttacks & adjSq) {
             attackers.set(bishopIndex);
         }
-
-        // if ((std::abs(bishopRank - kingRank) == std::abs(bishopFile - kingFile))) {
-        //     threatScore += xRayPenaltyB; // x-ray attack by the bishop
-        // }
-
-        // if (manhattanDistance(Square(bishopIndex), Square(sqIndex)) <= proximityDistance) {
-        //     threatScore += proximityPenaltyB; // proximity attack by the bishop
-        // }
 
         theirBishop.clear(bishopIndex);
     }
@@ -1201,8 +1106,8 @@ int evaluate(const Board& board) {
     info.endGameFlag = isEndGame(board);
 
     /*--------------------------------------------------------------------------
-        Mop-up phase: if only their king is left without any other pieces.
-        Aim to checkmate.
+    Mop-up phase: if only their king is left without any other pieces.
+    Aim to checkmate.
     --------------------------------------------------------------------------*/
 
     Color theirColor = !board.sideToMove();
@@ -1230,7 +1135,7 @@ int evaluate(const Board& board) {
     }
 
     /*--------------------------------------------------------------------------
-        Standard evaluation phase
+    Standard evaluation phase
     --------------------------------------------------------------------------*/
 
     // Tempo bonus
@@ -1318,52 +1223,52 @@ int evaluate(const Board& board) {
         Pattern detection
     --------------------------------------------------------------------------*/
 
-    // Bitboard d2 = Bitboard::fromSquare(11);
-    // Bitboard e2 = Bitboard::fromSquare(12);
-    // Bitboard d3 = Bitboard::fromSquare(19);
-    // Bitboard e3 = Bitboard::fromSquare(20);
-    // Bitboard d4 = Bitboard::fromSquare(27);
-    // Bitboard e4 = Bitboard::fromSquare(28);
+    Bitboard d2 = Bitboard::fromSquare(11);
+    Bitboard e2 = Bitboard::fromSquare(12);
+    Bitboard d3 = Bitboard::fromSquare(19);
+    Bitboard e3 = Bitboard::fromSquare(20);
+    Bitboard d4 = Bitboard::fromSquare(27);
+    Bitboard e4 = Bitboard::fromSquare(28);
 
-    // Bitboard d5 = Bitboard::fromSquare(35);
-    // Bitboard e5 = Bitboard::fromSquare(36);
-    // Bitboard d6 = Bitboard::fromSquare(43);
-    // Bitboard e6 = Bitboard::fromSquare(44);
-    // Bitboard d7 = Bitboard::fromSquare(51);
-    // Bitboard e7 = Bitboard::fromSquare(52);
+    Bitboard d5 = Bitboard::fromSquare(35);
+    Bitboard e5 = Bitboard::fromSquare(36);
+    Bitboard d6 = Bitboard::fromSquare(43);
+    Bitboard e6 = Bitboard::fromSquare(44);
+    Bitboard d7 = Bitboard::fromSquare(51);
+    Bitboard e7 = Bitboard::fromSquare(52);
 
-    // Bitboard center = e4 | d4 | e5 | d5;
+    Bitboard center = e4 | d4 | e5 | d5;
 
-    // int whiteCenterControl = (allPieces(board, Color::WHITE) & center).count() * centerControlBonus;
-    // int blackCenterControl = (allPieces(board, Color::BLACK) & center).count() * centerControlBonus;
+    int whiteCenterControl = (allPieces(board, Color::WHITE) & center).count() * centerControlBonus;
+    int blackCenterControl = (allPieces(board, Color::BLACK) & center).count() * centerControlBonus;
 
-    // whiteScore += whiteCenterControl;
-    // blackScore += blackCenterControl;
+    whiteScore += whiteCenterControl;
+    blackScore += blackCenterControl;
     
-    // if (board.occ() && d3) {
-    //     Piece piece = board.at(Square(11));
-    //     if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
-    //         whiteScore -= blockCentralPawnPenalty;
-    //     }
-    // }
-    // if (board.occ() && e3) {
-    //     Piece piece = board.at(Square(12));
-    //     if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
-    //         whiteScore -= blockCentralPawnPenalty;
-    //     }
-    // }
-    // if (board.occ() && d6) {
-    //     Piece piece = board.at(Square(51));
-    //     if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
-    //         blackScore -= blockCentralPawnPenalty;
-    //     }
-    // }
-    // if (board.occ() && e6) {
-    //     Piece piece = board.at(Square(52));
-    //     if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
-    //         blackScore -= blockCentralPawnPenalty;
-    //     }
-    // }
+    if (board.occ() && d3) {
+        Piece piece = board.at(Square(11));
+        if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
+            whiteScore -= blockCentralPawnPenalty;
+        }
+    }
+    if (board.occ() && e3) {
+        Piece piece = board.at(Square(12));
+        if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
+            whiteScore -= blockCentralPawnPenalty;
+        }
+    }
+    if (board.occ() && d6) {
+        Piece piece = board.at(Square(51));
+        if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
+            blackScore -= blockCentralPawnPenalty;
+        }
+    }
+    if (board.occ() && e6) {
+        Piece piece = board.at(Square(52));
+        if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
+            blackScore -= blockCentralPawnPenalty;
+        }
+    }
 
     return whiteScore - blackScore;
 }
