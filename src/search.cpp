@@ -25,7 +25,7 @@ std::vector<std::vector<int>> blackHistory (64, std::vector<int>(64, 0));
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t transTableMaxSize = 5000000000; 
+const size_t tableMaxSize = 5000000000; 
 const int R = 2; 
 // const int futilityMargin = 350; 
 //int razorPly = 6; 
@@ -67,18 +67,51 @@ bool isPromotion(const Move& move) {
     return (move.typeOf() & Move::PROMOTION) != 0;
 }
 
-bool isCastling(const Move& move) {
-    return (move.typeOf() & Move::CASTLING) != 0;
-}
+int quietPriority(const Board& board, const Move& move, const Bitboard& theirPieces) {
+    auto type = board.at<Piece>(move.from()).type();
+    Color color = board.at<Piece>(move.from()).color();
+    int threat = 0;
 
-bool isSacrafice(const Board& board, const Move& move) {
-    if (board.isCapture(move)) {
-        auto attacker = board.at<Piece>(move.from());
-        auto victim = board.at<Piece>(move.to());
+    if (type == PieceType::PAWN) {
+        return 0;
+    } else if (type == PieceType::KNIGHT) {
+        Bitboard attacks = attacks::knight(move.to()) & theirPieces;
+        int attackCount = attacks.count();
 
-        return pieceValues[static_cast<int>(attacker.type())] < pieceValues[static_cast<int>(victim.type())];
+        if (attackCount == 1) {
+            threat = 100; 
+        } else if (attackCount >= 2) {
+            threat = 200;
+        } 
+
+        return 400 + threat;
+    } else if (type == PieceType::BISHOP) {
+        Bitboard attacks = attacks::bishop(move.to(), board.occ());
+        int attackCount = attacks.count();
+
+        if (attackCount == 1) {
+            threat = 100; 
+        } else if (attackCount >= 2) {
+            threat = 200;
+        }
+
+        return 400 + threat;
+    } else if (type == PieceType::ROOK) {
+        Bitboard attacks = attacks::rook(move.to(), board.occ());
+        int attackCount = attacks.count();
+
+        if (attackCount == 1) {
+            threat = 100; 
+        } else if (attackCount >= 2) {
+            threat = 200;
+        }
+
+        return 300 + threat;
+    } else if (type == PieceType::QUEEN) {
+        return 200;
+    } else {
+        return 0;
     }
-    return false;
 }
 
 // Update the killer moves
@@ -96,10 +129,9 @@ void updateKillerMoves(const Move& move, int depth) {
 
 // Late move reduction
 int depthReduction(Board& board, Move move, int i, int depth) {
-
     double a = 0.5, b = 0.5;
 
-    if (i <= 2) {
+    if (i <= 5) {
         return depth - 1;
     }
 
@@ -120,6 +152,9 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
     std::vector<std::pair<Move, int>> quietCandidates;
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
+    Color color = board.sideToMove();
+
+    Bitboard theirPieces = board.us(!color);
 
     // Move ordering 1. promotion 2. captures 3. killer moves 4. check moves
     for (const auto& move : moves) {
@@ -144,8 +179,6 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
 
             if (isCheck) {
                 priority = 2000;
-            } else if (isCastling(move)) {
-                priority = 1000;
             } else {
                 // quite move
                 int from = move.from().index(), to = move.to().index();
@@ -155,6 +188,10 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
                     priority = whiteHistory[move.from().index()][move.to().index()];
                 } else {
                     priority = blackHistory[move.from().index()][move.to().index()];
+                }
+
+                if (priority == 0) { // If not a killer move
+                    priority = quietPriority(board, move,theirPieces);
                 }
             }
         } 
@@ -408,13 +445,10 @@ int alphaBeta(Board& board,
 
         int eval;
         int nextDepth;
+
         board.makeMove(move);
-
-        bool isCheck = board.inCheck();
-        bool isSac = isSacrafice(board, move);
-        bool isPromo = isPromotion(move);
-
-        if (isCheck || isPromo || isSac) {
+    
+        if (board.inCheck()) {
             nextDepth = depth - 1;
         } else {
             nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
@@ -468,9 +502,9 @@ int alphaBeta(Board& board,
             if (!board.isCapture(move)) {
                 int fromSq = move.from().index(), toSq = move.to().index();
                 if (whiteTurn) {
-                    whiteHistory[fromSq][toSq] += depth * depth;
+                    whiteHistory[fromSq][toSq] += depth * depth + depth - 1;
                 } else {
-                    blackHistory[fromSq][toSq] += depth * depth;
+                    blackHistory[fromSq][toSq] += depth * depth + depth - 1;
                 }
             }
 
@@ -497,7 +531,6 @@ Move findBestMove(Board& board,
                   int timeLimit = 5000,
                   bool debug = false,
                   bool resetHistory = false) {
-    // Initialize timer
 
     if (resetHistory) {
         whiteHistory = std::vector<std::vector<int>>(64, std::vector<int>(64, 0)); 
@@ -520,10 +553,10 @@ Move findBestMove(Board& board,
     // Clear transposition tables
     #pragma omp critical
     {
-        if (lowerBoundTable.size() > transTableMaxSize) {
+        if (lowerBoundTable.size() > tableMaxSize) {
             lowerBoundTable.clear();
         }
-        if (upperBoundTable.size() > transTableMaxSize) {
+        if (upperBoundTable.size() > tableMaxSize) {
             upperBoundTable.clear();
         }  
     }

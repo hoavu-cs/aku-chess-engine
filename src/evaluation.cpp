@@ -757,7 +757,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
         value += bishopTable[sqIndex];
         Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
 
-        int mobility = std::min(bishopMoves.count(), 8);
+        int mobility = bishopMoves.count();
         value += mobilityBonus * mobility;
 
         if (isOutpost(board, sqIndex, color)) {
@@ -822,7 +822,7 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
 
-        int mobility = std::min(rookMoves.count(), 8);
+        int mobility = rookMoves.count();
         value += mobilityBonus * mobility;
 
         // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
@@ -878,7 +878,7 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         value += queenTable[sqIndex]; 
 
         Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
-        int mobility = std::min(queenMoves.count(), 8);
+        int mobility = std::min(queenMoves.count(), 12);
         value += mobilityBonus * mobility;
 
         // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
@@ -1091,6 +1091,19 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
                 }
                 pieces.clear(pieceSqIndex);
             }
+        }
+
+        Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
+
+        while (theirQueen) {
+            int queenIndex = theirQueen.lsb();
+            int queenRank = queenIndex / 8, queenFile = queenIndex % 8;
+
+            if (manhattanDistance(Square(queenIndex), Square(sqIndex)) <= 4) {
+                value -= 30;
+            }
+
+            theirQueen.clear(queenIndex);
         }
 
         int numAdjOpenFiles = 0;
