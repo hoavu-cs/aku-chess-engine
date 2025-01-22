@@ -131,7 +131,7 @@ void updateKillerMoves(const Move& move, int depth) {
 int depthReduction(Board& board, Move move, int i, int depth) {
     double a = 0.5, b = 0.5;
 
-    if (i <= 5) {
+    if (i <= 6) {
         return depth - 1;
     }
 
