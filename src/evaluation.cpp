@@ -575,7 +575,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     const int isolatedPawnPenaltyAH = 10;
     const int isolatedPawnPenalty = 20;
     const int unSupportedPenalty = 10;
-    const int doubledPawnPenalty = 20;
+    const int doubledPawnPenalty = 30;
    
     const int* pawnTable;
 
@@ -1026,7 +1026,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int pawnShieldBonus = 30;
-    const int openFilePenalty[3] = {10, 30, 50};
+    const int openFilePenalty[3] = {10, 20, 30};
     const int* kingTable;
     int pieceProtectionBonus = 30;
 

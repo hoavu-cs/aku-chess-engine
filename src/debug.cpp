@@ -60,7 +60,7 @@ int main() {
     
     board = Board("2qr2k1/1p2rppp/p2BPn2/5p2/3Q4/5P2/PP4PP/2R1R1K1 b - - 4 24");
     
-    // board = Board("2rq1rk1/1p1b1ppp/p1n1p1n1/3pP1N1/P5Q1/2NB4/1PP2PPP/R3R1K1 b - - 0 14");
+    board = Board("1k1r4/p1q3p1/1pn1pP1r/3p2p1/1PpP4/2P2N1P/PQ3PP1/R3R1K1 b - - 0 22");
 
     // Default settings
     int depth = 20;
