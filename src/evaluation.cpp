@@ -674,6 +674,7 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
     const int* knightTable;
     const int outpostBonus = 30;
     const int mobilityBonus = 2;
+    const int protectionBonus = 3;
     
     bool endGameFlag = info.endGameFlag;
  
@@ -707,6 +708,9 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         int mobility = knightMoves.count();
         value += mobilityBonus * mobility;
 
+        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
+        // value += std::min(protectors.count(), 2) * protectionBonus;
+
         knights.clear(sqIndex);
     }
 
@@ -720,6 +724,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
     const int bishopPairBonus = 30;
     const int mobilityBonus = 2;
     const int outpostBonus = 20;
+    const int protectionBonus = 3;
     const int *bishopTable;
 
     bool endGameFlag = info.endGameFlag;
@@ -752,16 +757,15 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
         value += bishopTable[sqIndex];
         Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
 
-        int mobility = bishopMoves.count();
-        if (mobility > 8) {
-            mobility = 8;
-        }
-
+        int mobility = std::min(bishopMoves.count(), 8);
         value += mobilityBonus * mobility;
 
         if (isOutpost(board, sqIndex, color)) {
             value += outpostBonus;
         }
+
+        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
+        // value += std::min(protectors.count(), 2) * protectionBonus;
 
         bishops.clear(sqIndex);
     }
@@ -778,7 +782,7 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     const int* rookTable;
     const int semiOpenFileBonus = 10;
     const int openFileBonus = 15;
-    // const int xRayPenalty = 5;
+    const int protectionBonus = 5;
 
     bool endGameFlag = info.endGameFlag;
 
@@ -818,11 +822,11 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
 
-        int mobility = rookMoves.count();
-        if (mobility > 8) {
-            mobility = 8;
-        }
+        int mobility = std::min(rookMoves.count(), 8);
         value += mobilityBonus * mobility;
+
+        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
+        // value += std::min(protectors.count(), 2) * protectionBonus;
 
         rooks.clear(sqIndex);
     }
@@ -837,7 +841,7 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const int* queenTable;
     const int mobilityBonus = 2;
-    // const int xRayPenalty = 15;
+    const int protectionBonus = 3;
 
     const int mobilityBonuses = 2;
 
@@ -872,6 +876,13 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         int queenRank = sqIndex / 8, queenFile = sqIndex % 8;
         value += baseValue; 
         value += queenTable[sqIndex]; 
+
+        Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
+        int mobility = std::min(queenMoves.count(), 8);
+        value += mobilityBonus * mobility;
+
+        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
+        // value += std::min(protectors.count(), 2) * protectionBonus;
 
         queens.clear(sqIndex); 
     }
@@ -1015,6 +1026,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int pawnShieldBonus = 30;
+    const int openFilePenalty[3] = {10, 30, 50};
     const int* kingTable;
     int pieceProtectionBonus = 30;
 
@@ -1077,10 +1089,29 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
                         value += pieceProtectionBonus; 
                     }
                 }
-                pieceProtectionBonus = pieceProtectionBonus / 2;
                 pieces.clear(pieceSqIndex);
             }
         }
+
+        int numAdjOpenFiles = 0;
+
+        if (info.openFiles[kingFile] || info.semiOpenFilesWhite[kingFile] || info.semiOpenFilesBlack[kingFile]) {
+            numAdjOpenFiles++;
+        }
+
+        if (kingFile > 0 && (info.openFiles[kingFile - 1] 
+            || info.semiOpenFilesWhite[kingFile - 1] 
+            || info.semiOpenFilesBlack[kingFile - 1])) {
+            numAdjOpenFiles++;
+        }
+
+        if (kingFile < 7 && (info.openFiles[kingFile + 1] 
+            || info.semiOpenFilesWhite[kingFile + 1] 
+            || info.semiOpenFilesBlack[kingFile + 1])) {
+            numAdjOpenFiles++;
+        }
+
+        value -= openFilePenalty[numAdjOpenFiles];
 
         int threatScore = kingThreat(board, color);
         

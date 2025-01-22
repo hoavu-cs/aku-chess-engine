@@ -27,7 +27,7 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t transTableMaxSize = 5000000000; 
 const int R = 2; 
-const int futilityMargin = 350; 
+// const int futilityMargin = 350; 
 //int razorPly = 6; 
 
 int nullDepth = 6; 
@@ -36,7 +36,7 @@ int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
 bool globalDebug = false; // Debug flag
 
-// Basic piece values for move ordering
+// Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {
     0,    // No piece
     100,  // Pawn
@@ -71,79 +71,15 @@ bool isCastling(const Move& move) {
     return (move.typeOf() & Move::CASTLING) != 0;
 }
 
-// TODO: Implement the threatMove for ordering the moves
-// bool isThreatMove(const Board& board, const Move& move) {
-    
-//     Board tempBoard = board;
+bool isSacrafice(const Board& board, const Move& move) {
+    if (board.isCapture(move)) {
+        auto attacker = board.at<Piece>(move.from());
+        auto victim = board.at<Piece>(move.to());
 
-//     Color color = board.sideToMove();
-//     Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
-//     Bitboard theirRook = board.pieces(PieceType::ROOK, !color);
-//     Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
-//     Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
-
-//     Bitboard theirPieces = theirQueen | theirRook | theirBishop | theirKnight;
-//     Bitboard theirPiecesCopy = theirPieces;
-//     Bitboard attackersBefore;
-
-//     while (theirPieces) {
-//         int pieceSqIndex = theirPieces.lsb();
-//         attackersBefore |= attacks::attackers(board, color, Square(pieceSqIndex));
-//         theirPieces.clear(pieceSqIndex);
-//     }
-
-//     tempBoard.makeMove(move);
-//     theirPieces = theirPiecesCopy;
-
-//     Bitboard attackersAfter;
-
-//     while (theirPieces) {
-//         int pieceSqIndex = theirPieces.lsb();
-        
-//         attackersAfter |= attacks::attackers(tempBoard, color, Square(pieceSqIndex));
-//         theirPieces.clear(pieceSqIndex);
-//     }
-
-//     if (attackersAfter.count() > attackersBefore.count()) {
-//         return true;
-//     }
-
-//     // auto pieceType = tempBoard.at<Piece>(move.from()).type();
-//     // tempBoard.makeMove(move);
-
-//     // if (pieceType == PieceType::PAWN) {
-//     //     /* 
-//     //     Consider the attacks of the pawn at the destination square.
-//     //     If it hits an enemy piece, then it is a threat move.
-//     //     */
-//     //     Bitboard pawnAttacks = attacks::pawn(color, move.to());
-//     //     if (pawnAttacks & (theirQueen | theirRook | theirBishop | theirKnight)) {
-//     //         return true;
-//     //     }
-//     // } else if (pieceType == PieceType::KNIGHT) {
-//     //     Bitboard knightMoves = attacks::knight(move.to());
-//     //     if (knightMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
-//     //         return true;
-//     //     }
-//     // } else if (pieceType == PieceType::BISHOP) {
-//     //     Bitboard bishopMoves = attacks::bishop(move.to(), tempBoard.occ());
-//     //     if (bishopMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
-//     //         return true;
-//     //     }
-//     // } else if (pieceType == PieceType::ROOK) {
-//     //     Bitboard rookMoves = attacks::rook(move.to(), tempBoard.occ());
-//     //     if (rookMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
-//     //         return true;
-//     //     } 
-//     // } else if (pieceType == PieceType::QUEEN) {
-//     //     Bitboard queenMoves = attacks::queen(move.to(), tempBoard.occ());
-//     //     if (queenMoves & (theirQueen | theirRook | theirBishop | theirKnight)) {
-//     //         return true;
-//     //     }
-//     // } 
-
-//     return false;
-// }
+        return pieceValues[static_cast<int>(attacker.type())] < pieceValues[static_cast<int>(victim.type())];
+    }
+    return false;
+}
 
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
@@ -446,19 +382,22 @@ int alphaBeta(Board& board,
         }
     }
 
-    // futile pruning
-    // if (depth == 1) {
-    //     int standPat = evaluate(board);
-    //     if (whiteTurn) {
-    //         if (standPat + futilityMargin <= alpha) {
-    //             return standPat + futilityMargin;
-    //         }
-    //     } else {
-    //         if (standPat - futilityMargin >= beta) {
-    //             return standPat - futilityMargin;
-    //         }
-    //     }
-    // }
+    // Razoring
+    const int razorMargin = 350;
+
+    if (depth <= 2 && !board.inCheck()) {
+        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+
+        if (whiteTurn) {
+            if (standPat + razorMargin < alpha) {
+                return alpha;
+            }
+        } else {
+            if (standPat - razorMargin > beta) {
+                return beta;
+            }
+        }
+    }
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth);
     int bestEval = whiteTurn ? -INF : INF;
@@ -468,9 +407,19 @@ int alphaBeta(Board& board,
         std::vector<Move> pvChild;
 
         int eval;
-        int nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
-
+        int nextDepth;
         board.makeMove(move);
+
+        bool isCheck = board.inCheck();
+        bool isSac = isSacrafice(board, move);
+        bool isPromo = isPromotion(move);
+
+        if (isCheck || isPromo || isSac) {
+            nextDepth = depth - 1;
+        } else {
+            nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
+        }
+        
         eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, pvChild);
         board.unmakeMove(move);
 
@@ -580,7 +529,7 @@ Move findBestMove(Board& board,
     }
 
     bool timeLimitExceeded = false;
-    int baseDepth = 1;
+    int baseDepth = 4;
 
     for (int depth = baseDepth; depth <= maxDepth; ++depth) {
         globalMaxDepth = depth;
@@ -612,14 +561,14 @@ Move findBestMove(Board& board,
                 bool newBestFlag = false;
 
                 int nextDepth;
-                if (i <= 4) {
+                if (i <= 6) {
                     nextDepth = depth - 1;
                 } else {
                     nextDepth = depth - 2;
                 }
             
                 localBoard.makeMove(move);
-                int eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV);
+                int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV);
                 localBoard.unmakeMove(move);
 
                 #pragma omp critical
