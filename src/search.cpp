@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <omp.h> // Include OpenMP header
 #include <chrono>
+#include <unordered_set>
 #include <stdlib.h>
 #include <cmath>
 
@@ -25,8 +26,9 @@ std::vector<std::vector<int>> blackHistory (64, std::vector<int>(64, 0));
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t tableMaxSize = 5000000000; 
+const size_t tableMaxSize = 1000000000; 
 const int R = 2; 
+int tableHit = 0;
 // const int futilityMargin = 350; 
 //int razorPly = 6; 
 
@@ -67,48 +69,17 @@ bool isPromotion(const Move& move) {
     return (move.typeOf() & Move::PROMOTION) != 0;
 }
 
-int quietPriority(const Board& board, const Move& move, const Bitboard& theirPieces) {
+int quietPriority(const Board& board, const Move& move) {
     auto type = board.at<Piece>(move.from()).type();
-    Color color = board.at<Piece>(move.from()).color();
-    int threat = 0;
 
-    if (type == PieceType::PAWN) {
-        return 0;
-    } else if (type == PieceType::KNIGHT) {
-        Bitboard attacks = attacks::knight(move.to()) & theirPieces;
-        int attackCount = attacks.count();
-
-        if (attackCount == 1) {
-            threat = 100; 
-        } else if (attackCount >= 2) {
-            threat = 200;
-        } 
-
-        return 400 + threat;
+    if (type == PieceType::KNIGHT) {
+        return 500;
     } else if (type == PieceType::BISHOP) {
-        Bitboard attacks = attacks::bishop(move.to(), board.occ());
-        int attackCount = attacks.count();
-
-        if (attackCount == 1) {
-            threat = 100; 
-        } else if (attackCount >= 2) {
-            threat = 200;
-        }
-
-        return 400 + threat;
+        return 400;
     } else if (type == PieceType::ROOK) {
-        Bitboard attacks = attacks::rook(move.to(), board.occ());
-        int attackCount = attacks.count();
-
-        if (attackCount == 1) {
-            threat = 100; 
-        } else if (attackCount >= 2) {
-            threat = 200;
-        }
-
-        return 300 + threat;
-    } else if (type == PieceType::QUEEN) {
         return 200;
+    } else if (type == PieceType::QUEEN) {
+        return 300;
     } else {
         return 0;
     }
@@ -131,7 +102,7 @@ void updateKillerMoves(const Move& move, int depth) {
 int depthReduction(Board& board, Move move, int i, int depth) {
     double a = 0.5, b = 0.5;
 
-    if (i <= 6) {
+    if (i <= 5) {
         return depth - 1;
     }
 
@@ -154,44 +125,50 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
 
-    Bitboard theirPieces = board.us(!color);
-
-    // Move ordering 1. promotion 2. captures 3. killer moves 4. check moves
+    // Move ordering 1. promotion 2. captures 3. killer moves 4. hash 5. checks 6. quiet moves
     for (const auto& move : moves) {
         int priority = 0;
         bool quiet = false;
+        int moveIndex = move.from().index() * 64 + move.to().index();
 
         if (isPromotion(move)) {
+
             priority = 5000; 
+
         } else if (board.isCapture(move)) { 
+
             // MVV-LVA priority for captures
             auto victim = board.at<Piece>(move.to());
             auto attacker = board.at<Piece>(move.from());
 
             priority = 4000 + pieceValues[static_cast<int>(victim.type())] 
                             - pieceValues[static_cast<int>(attacker.type())];
-        } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end()) {
+
+        } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) 
+                != killerMoves[depth].end()) {
+
             priority = 3000;
+
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
             board.unmakeMove(move);
 
             if (isCheck) {
-                priority = 2000;
+                priority = 1000;
             } else {
-                // quite move
+                // quiet moves
                 int from = move.from().index(), to = move.to().index();
                 quiet = true;
 
                 if (whiteTurn) {
-                    priority = whiteHistory[move.from().index()][move.to().index()];
+                    priority = 1000 + whiteHistory[move.from().index()][move.to().index()];
                 } else {
-                    priority = blackHistory[move.from().index()][move.to().index()];
+                    priority = 1000 + blackHistory[move.from().index()][move.to().index()];
                 }
 
                 if (priority == 0) { // If not a killer move
-                    priority = quietPriority(board, move,theirPieces);
+                    priority = quietPriority(board, move);
                 }
             }
         } 
@@ -199,7 +176,6 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
         if (!quiet) {
             candidates.push_back({move, priority});
         } else {
-            int from = move.from().index(), to = move.to().index();
             quietCandidates.push_back({move, priority});
         }
     }
@@ -314,24 +290,33 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
         board.unmakeMove(move);
 
         if (whiteTurn) {
-            if (score >= beta) {
+            
+            if (score >= beta) { 
                 return beta;
             }
+
             if (score > alpha) {
                 alpha = score;
             }
+
         } else {
+
+            
             if (score <= alpha) {
                 return alpha;
             }
+
             if (score < beta) {
                 beta = score;
             }
+
         }
     }
 
     return whiteTurn ? alpha : beta;
 }
+
+
 
 int alphaBeta(Board& board, 
             int depth, 
@@ -372,6 +357,8 @@ int alphaBeta(Board& board,
         if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
             (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
             found = true;
+
+            if (globalDebug) tableHit++;
         }
     }
 
@@ -384,10 +371,10 @@ int alphaBeta(Board& board,
         
         if (whiteTurn) {
             #pragma omp critical
-            lowerBoundTable[hash] = {quiescenceEval, depth};
+            lowerBoundTable[hash] = {quiescenceEval, 0};
         } else {
             #pragma omp critical
-            upperBoundTable[hash] = {quiescenceEval, depth};
+            upperBoundTable[hash] = {quiescenceEval, 0};
         }
         
         return quiescenceEval;
@@ -562,7 +549,7 @@ Move findBestMove(Board& board,
     }
 
     bool timeLimitExceeded = false;
-    int baseDepth = 4;
+    int baseDepth = 1;
 
     for (int depth = baseDepth; depth <= maxDepth; ++depth) {
         globalMaxDepth = depth;
@@ -594,10 +581,12 @@ Move findBestMove(Board& board,
                 bool newBestFlag = false;
 
                 int nextDepth;
-                if (i <= 6) {
+                if (i <= 5) {
                     nextDepth = depth - 1;
-                } else {
+                } else if (i <= 10) {
                     nextDepth = depth - 2;
+                } else {
+                    nextDepth = depth / 2;
                 }
             
                 localBoard.makeMove(move);
@@ -664,7 +653,8 @@ Move findBestMove(Board& board,
                 std::cout << uci::moveToUci(move) << " ";
             }
 
-            std::cout << std::endl;
+            std::cout << std::endl << " Hash Table Hit Percentage: " 
+                    << static_cast<double>(tableHit) / positionCount * 100 << "%" << std::endl;
         }
 
         moves = newMoves;

@@ -1,6 +1,6 @@
 g++ -std=c++17 -O3 -fopenmp -march=native -o pigengine pig_engine.cpp search.cpp evaluation.cpp 
 g++ -std=c++17 -O3 -fopenmp debug.cpp search.cpp evaluation.cpp -o debug
-g++ -std=c++17 -O3 -fopenmp -march=native -o pigengine_blitz pig_engine_blitz.cpp search_blitz.cpp evaluation.cpp 
+g++ -std=c++17 -O3 -fopenmp -march=native -o pigengine_blitz pig_engine_blitz.cpp search_blitz.cpp evaluation_blitz.cpp 
 
 
 MacOS:
