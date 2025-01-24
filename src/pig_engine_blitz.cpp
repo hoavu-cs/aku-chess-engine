@@ -125,6 +125,11 @@ void processGo() {
     int quiescenceDepth = 8;
     int numThreads = 8;
     int timeLimit = 30000;
+
+    if (board.fullMoveNumber() < 10) {
+        depth = 7;
+        quiescenceDepth = 8;
+    } 
   
     // Simply find the best move without considering `t` or other options
     Move bestMove = Move::NO_MOVE;
