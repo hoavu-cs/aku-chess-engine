@@ -595,7 +595,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     int files[8] = {0};
     int value = 0;
-    int advancedPawnBonus = endGameFlag ? 5 : 2;
+    int advancedPawnBonus = endGameFlag ? 6 : 2;
 
     Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
                             | board.pieces(PieceType::KNIGHT, !color) 

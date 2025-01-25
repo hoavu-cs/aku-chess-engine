@@ -26,7 +26,8 @@ int alphaBeta(
     int alpha, 
     int beta, 
     int quiescenceDepth,
-    std::vector<Move>& pV);
+    std::vector<Move>& pV,
+    bool leftMost);
 
 Move findBestMove(
     Board& board, 

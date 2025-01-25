@@ -23,6 +23,8 @@ std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, 
 std::vector<std::vector<int>> whiteHistory (64, std::vector<int>(64, 0)); 
 std::vector<std::vector<int>> blackHistory (64, std::vector<int>(64, 0));
 
+std::vector<Move> previousPV; // Principal variation from the previous iteration
+
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
@@ -115,7 +117,10 @@ int depthReduction(Board& board, Move move, int i, int depth) {
 }
 
 // Generate a prioritized list of moves based on their tactical value
-std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
+std::vector<std::pair<Move, int>> prioritizedMoves(
+    Board& board, 
+    int depth, std::vector<Move>& previousPV, 
+    bool leftMost) {
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -130,8 +135,16 @@ std::vector<std::pair<Move, int>> prioritizedMoves(Board& board, int depth) {
         int priority = 0;
         bool quiet = false;
         int moveIndex = move.from().index() * 64 + move.to().index();
+        int ply = globalMaxDepth - depth;
 
-        if (isPromotion(move)) {
+        if (previousPV.size() > ply && leftMost) {
+
+            // Prioritize the principal variation from the previous iteration.
+            if (previousPV[ply] == move) {
+                priority = 6000;
+            }
+
+        } else if (isPromotion(move)) {
 
             priority = 5000; 
 
@@ -323,7 +336,8 @@ int alphaBeta(Board& board,
             int alpha, 
             int beta, 
             int quiescenceDepth,
-            std::vector<Move>& PV) {
+            std::vector<Move>& PV,
+            bool leftMost) {
 
     if (globalDebug) {
         #pragma  omp critical
@@ -390,9 +404,9 @@ int alphaBeta(Board& board,
                 int nullEval;
 
                 if (whiteTurn) {
-                    nullEval = alphaBeta(board, depth - R, beta - 1, beta, quiescenceDepth, nullPV);
+                    nullEval = alphaBeta(board, depth - R, beta - 1, beta, quiescenceDepth, nullPV, false);
                 } else {
-                    nullEval = alphaBeta(board, depth - R, alpha, alpha + 1, quiescenceDepth, nullPV);
+                    nullEval = alphaBeta(board, depth - R, alpha, alpha + 1, quiescenceDepth, nullPV, false);
                 }
 
                 board.unmakeNullMove();
@@ -423,7 +437,7 @@ int alphaBeta(Board& board,
         }
     }
 
-    std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth);
+    std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? -INF : INF;
 
     for (int i = 0; i < moves.size(); i++) {
@@ -441,14 +455,19 @@ int alphaBeta(Board& board,
             nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
         }
         
-        eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, pvChild);
+        if (i > 0) {
+            // If not the first move, this is not the leftmost path
+            leftMost = false;
+        }
+
+        eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, pvChild, leftMost);
         board.unmakeMove(move);
 
         if (whiteTurn) {
             if (eval > alpha && nextDepth < depth - 1) { 
                 board.makeMove(move);
                 pvChild.clear();
-                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild);
+                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild, leftMost);
                 board.unmakeMove(move);
             }
 
@@ -467,7 +486,7 @@ int alphaBeta(Board& board,
             if (eval < beta && nextDepth < depth - 1) { 
                 board.makeMove(move);
                 pvChild.clear();
-                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild);
+                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild, leftMost);
                 board.unmakeMove(move);
             }
 
@@ -562,8 +581,10 @@ Move findBestMove(Board& board,
         std::vector<Move> PV; // Principal variation
 
         if (depth == baseDepth) {
-            moves = prioritizedMoves(board, depth);
+            moves = prioritizedMoves(board, depth, previousPV, false);
         }
+
+        bool leftMost = false;
 
         #pragma omp parallel
         {
@@ -572,6 +593,12 @@ Move findBestMove(Board& board,
 
                 if (timeLimitExceeded) {
                     continue; // Skip iteration if time limit is exceeded
+                }
+
+                if (i > baseDepth && i == 0) {
+                    leftMost = true; // First move from the root starts the leftmost path
+                } else {
+                    leftMost = false;
                 }
 
                 Move move = moves[i].first;
@@ -590,7 +617,7 @@ Move findBestMove(Board& board,
                 }
             
                 localBoard.makeMove(move);
-                int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV);
+                int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
                 localBoard.unmakeMove(move);
 
                 #pragma omp critical
@@ -602,7 +629,7 @@ Move findBestMove(Board& board,
 
                 if (newBestFlag) {
                     localBoard.makeMove(move);
-                    eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV);
+                    eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost);
                     localBoard.unmakeMove(move);
                 }
 
@@ -658,6 +685,8 @@ Move findBestMove(Board& board,
         }
 
         moves = newMoves;
+
+        previousPV = PV;
 
         // Check time limit again
         auto currentTime = std::chrono::high_resolution_clock::now();
