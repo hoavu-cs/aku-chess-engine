@@ -788,7 +788,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
 int rookValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
-    const double mobilityBonus = 2;
+    const double mobilityBonus = 3;
     const int* rookTable;
     const int semiOpenFileBonus = 10;
     const int openFileBonus = 15;
@@ -856,7 +856,7 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int* queenTable;
-    const int mobilityBonus = 2;
+    const int mobilityBonus = 3;
     const int protectionBonus = 3;
 
     const int mobilityBonuses = 2;
@@ -1293,7 +1293,7 @@ int evaluate(const Board& board) {
     }
 
     // Safeguard against material deficit without enough compensation
-    const int deficitPenalty = 30;
+    const int deficitPenalty = 35;
     whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
     blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
 

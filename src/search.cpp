@@ -32,7 +32,7 @@ int tableHit = 0;
 // const int futilityMargin = 350; 
 //int razorPly = 6; 
 
-int nullDepth = 6; 
+int nullDepth = 4; 
 int improvement = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
@@ -178,9 +178,9 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
                     priority = 1000 + blackHistory[move.from().index()][move.to().index()];
                 }
 
-                if (priority == 0) {
-                    priority = quietPriority(board, move);
-                }
+                // if (priority == 0) {
+                //     priority = quietPriority(board, move);
+                // }
 
             }
         } 
@@ -355,7 +355,7 @@ int alphaBeta(Board& board,
 
     // Razoring: Skip searching nodes that are likely to be bad.
     const int razorMargin = 350; 
-    if (depth <= 3 && !leftMost && !board.inCheck()) {
+    if (depth <= 3 && !leftMost && !board.inCheck() && !endGameFlag) {
         int standPat = evaluate(board); 
 
         if (whiteTurn) {
