@@ -212,8 +212,10 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
 int quiescence(Board& board, int depth, int alpha, int beta) {
 
     if (globalDebug) {
-        #pragma  omp critical
-        positionCount++;
+        #pragma  omp critical 
+        {
+            positionCount++;
+        }
     }
     
     if (depth == 0) {
@@ -287,7 +289,7 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     for (const auto& [move, priority] : candidateMoves) {
 
         board.makeMove(move);
-        int score;
+        int score = 0;
         score = quiescence(board, depth - 1, alpha, beta);
 
         board.unmakeMove(move);
@@ -328,7 +330,9 @@ int alphaBeta(Board& board,
 
     if (globalDebug) {
         #pragma  omp critical
-        positionCount++;
+        {
+            positionCount++;
+        }
     }
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
@@ -396,10 +400,15 @@ int alphaBeta(Board& board,
         
         if (whiteTurn) {
             #pragma omp critical
-            lowerBoundTable[hash] = {quiescenceEval, 0};
+            {
+                lowerBoundTable[hash] = {quiescenceEval, 0};
+            }
+            
         } else {
-            #pragma omp critical
-            upperBoundTable[hash] = {quiescenceEval, 0};
+            #pragma omp critical 
+            {
+                upperBoundTable[hash] = {quiescenceEval, 0};
+            }
         }
         
         return quiescenceEval;
@@ -432,19 +441,19 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning
-    // const int futilityMargin = 350;
-    // if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
-    //     int standPat = evaluate(board);
-    //     if (whiteTurn) {
-    //         if (standPat + futilityMargin < alpha) {
-    //             return standPat + futilityMargin;
-    //         }
-    //     } else {
-    //         if (standPat - futilityMargin > beta) {
-    //             return standPat - futilityMargin;
-    //         }
-    //     }
-    // }
+    const int futilityMargin = 350;
+    if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
+        int standPat = evaluate(board);
+        if (whiteTurn) {
+            if (standPat + futilityMargin < alpha) {
+                return standPat + futilityMargin;
+            }
+        } else {
+            if (standPat - futilityMargin > beta) {
+                return standPat - futilityMargin;
+            }
+        }
+    }
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? -INF : INF;
@@ -453,10 +462,8 @@ int alphaBeta(Board& board,
         Move move = moves[i].first;
         std::vector<Move> pvChild;
 
-        int eval;
-        int nextDepth;
-    
-        nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
+        int eval = 0;
+        int nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
         
         if (i > 0) {
             // If not the first move, this is not the leftmost path
@@ -523,11 +530,17 @@ int alphaBeta(Board& board,
     }
 
     if (whiteTurn) {
-            #pragma omp critical
-            lowerBoundTable[board.hash()] = {bestEval, depth}; 
+            #pragma omp critical 
+            {
+                lowerBoundTable[board.hash()] = {bestEval, depth}; 
+            }
+            
     } else {
             #pragma omp critical
-            upperBoundTable[board.hash()] = {bestEval, depth}; 
+            {
+                upperBoundTable[board.hash()] = {bestEval, depth}; 
+            }
+            
     }
 
     return bestEval;

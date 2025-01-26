@@ -788,7 +788,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
 int rookValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
-    const double mobilityBonus = 3;
+    const int mobilityBonus = 3;
     const int* rookTable;
     const int semiOpenFileBonus = 10;
     const int openFileBonus = 15;
@@ -916,13 +916,11 @@ int kingThreat(const Board& board, Color color) {
     Bitboard king = board.pieces(PieceType::KING, color);
     int sqIndex = king.lsb();
     int kingRank = sqIndex / 8, kingFile = sqIndex % 8;
-
-    double attackWeight = 0;
-    double threatScore = 0;
+    int threatScore = 0;
 
     // Penalty for being attacked
     Bitboard attackers;
-    int numAttackers;
+    int numAttackers = 0;
 
     // Get the adjacent squares to the king
     Bitboard adjSq;
@@ -1008,16 +1006,17 @@ int kingThreat(const Board& board, Color color) {
     numAttackers = attackers.count();
 
     // The more attackers, the higher the penalty
+    int attackWeight = 0; 
     switch (numAttackers) {
         case 0: attackWeight = 0; break;
-        case 1: attackWeight = 0.25; break;
-        case 2: attackWeight = 0.65; break;
-        case 3: attackWeight = 1.00; break;
-        case 4: attackWeight = 1.20; break;
-        case 5: attackWeight = 1.50; break;
-        case 6: attackWeight = 1.75; break;
-        case 7: attackWeight = 2.00; break;
-        case 8: attackWeight = 2.00; break;
+        case 1: attackWeight = 25; break;  
+        case 2: attackWeight = 65; break;  
+        case 3: attackWeight = 100; break; 
+        case 4: attackWeight = 120; break; 
+        case 5: attackWeight = 150; break; 
+        case 6: attackWeight = 175; break; 
+        case 7: attackWeight = 200; break; 
+        case 8: attackWeight = 200; break; 
         default: break;
     }
 
@@ -1025,8 +1024,9 @@ int kingThreat(const Board& board, Color color) {
         int attackerIndex = attackers.lsb();
         Piece attacker = board.at(Square(attackerIndex));
 
+        // Add scores as integers
         if (attacker.type() == PieceType::PAWN) {
-            threatScore += attackWeight * 15;
+            threatScore += attackWeight * 15; // Scaled integer math
         } else if (attacker.type() == PieceType::KNIGHT) {
             threatScore += attackWeight * 30;
         } else if (attacker.type() == PieceType::BISHOP) {
@@ -1040,7 +1040,8 @@ int kingThreat(const Board& board, Color color) {
         attackers.clear(attackerIndex);
     }
 
-    return threatScore;
+    return threatScore / 100;
+
 }
 
 // Compute the value of the kings on the board
@@ -1048,11 +1049,10 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int pawnShieldBonus = 30;
-    const int openFilePenalty[3] = {10, 20, 30};
     const int* kingTable;
     int pieceProtectionBonus = 30;
     
-    bool endGameFlag;
+    bool endGameFlag = false;
     
     if (color == Color::WHITE) {
         endGameFlag = info.endGameFlagWhite;
@@ -1135,6 +1135,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         }
 
         int numAdjOpenFiles = 0;
+        const int openFilePenalty[4] = {0, 10, 20, 30};
 
         if (info.openFiles[kingFile] || info.semiOpenFilesWhite[kingFile] || info.semiOpenFilesBlack[kingFile]) {
             numAdjOpenFiles++;
@@ -1156,7 +1157,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
 
         int threatScore = kingThreat(board, color);
         
-        value -= static_cast<int>(threatScore);
+        value -= threatScore;
     }
 
     return value;
@@ -1210,7 +1211,6 @@ int evaluate(const Board& board) {
     /*--------------------------------------------------------------------------
     Standard evaluation phase
     --------------------------------------------------------------------------*/
-
     // Tempo bonus
     if (board.sideToMove() == Color::WHITE) {
         whiteScore += tempoBonus;
@@ -1249,24 +1249,40 @@ int evaluate(const Board& board) {
         if (type == PieceType::KNIGHT) {
             whiteScore += knightValue(board, baseValue, Color::WHITE, info);
             blackScore += knightValue(board, baseValue, Color::BLACK, info);
+            if (whiteScore < 0) {
+                std::cout << "K issue" << std::endl;
+            }
         } else if (type == PieceType::BISHOP) {
             whiteScore += bishopValue(board, baseValue, Color::WHITE, info);
             blackScore += bishopValue(board, baseValue, Color::BLACK, info);
+            if (whiteScore < 0) {
+                std::cout << "B issue" << std::endl;
+            }
         } else if (type == PieceType::KING) {
             whiteScore += kingValue(board, baseValue, Color::WHITE, info);
             blackScore += kingValue(board, baseValue, Color::BLACK, info);
+            if (whiteScore < 0) {
+                std::cout << "K issue" << std::endl;
+            }
         }  else if (type == PieceType::PAWN) {
             whiteScore += pawnValue(board, baseValue, Color::WHITE, info);
             blackScore += pawnValue(board, baseValue, Color::BLACK, info);
+            if (whiteScore < 0) {
+                std::cout << "P issue" << std::endl;
+            }
         } else if (type == PieceType::ROOK) {
             whiteScore += rookValue(board, baseValue, Color::WHITE, info);
             blackScore += rookValue(board, baseValue, Color::BLACK, info);
+            if (whiteScore < 0) {
+                std::cout << "R issue" << std::endl;
+            }
         } else if (type == PieceType::QUEEN) {
             whiteScore += queenValue(board, baseValue, Color::WHITE, info);
             blackScore += queenValue(board, baseValue, Color::BLACK, info);
+            if (whiteScore < 0) {
+                std::cout << "Q issue" << std::endl; }
         } 
     }
-
     
     const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9, pawnValue = 1;
 
