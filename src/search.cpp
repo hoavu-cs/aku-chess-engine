@@ -437,11 +437,11 @@ int alphaBeta(Board& board,
         int standPat = evaluate(board);
         if (whiteTurn) {
             if (standPat + futilityMargin < alpha) {
-                return alpha;
+                return -INF;
             }
         } else {
             if (standPat - futilityMargin > beta) {
-                return beta;
+                return INF;
             }
         }
     }
