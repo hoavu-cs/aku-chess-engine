@@ -9,7 +9,8 @@ struct Info {
     std::vector<bool> openFiles;         // 8 elements, each for a file's openness (true or false)
     std::vector<bool> semiOpenFilesWhite; // 8 elements for white's semi-open files
     std::vector<bool> semiOpenFilesBlack; // 8 elements for black's semi-open files
-    bool endGameFlag = false;
+    bool endGameFlagWhite = false;
+    bool endGameFlagBlack = false;
     
     // Constructor to initialize the vectors with 8 elements, all set to false
     Info() 
@@ -35,7 +36,7 @@ Bitboard generateFileMask(int file);
 /**
  * Returns whether the game is in an endgame state.
  */
-bool isEndGame(const Board& board);
+bool isEndGame(const Board& board, Color color);
 
 /**
 * @brief Check if the given square is a passed pawn.

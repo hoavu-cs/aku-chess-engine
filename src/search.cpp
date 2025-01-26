@@ -3,13 +3,11 @@
 #include "evaluation.hpp"
 #include <iostream>
 #include <map>
-#include <tuple> 
 #include <string>
 #include <vector>
 #include <algorithm>
 #include <omp.h> // Include OpenMP header
 #include <chrono>
-#include <unordered_set>
 #include <stdlib.h>
 #include <cmath>
 
@@ -83,7 +81,7 @@ int quietPriority(const Board& board, const Move& move) {
     } else if (type == PieceType::QUEEN) {
         return 300;
     } else {
-        return 0;
+        return 400;
     }
 }
 
@@ -104,11 +102,11 @@ void updateKillerMoves(const Move& move, int depth) {
 int depthReduction(Board& board, Move move, int i, int depth) {
     double a = 0.5, b = 0.5;
 
-    if (i <= 5) {
-        return depth - 1;
-    }
+    Board localBoard = board;
+    localBoard.makeMove(move);
+    bool isCheck = localBoard.inCheck();
 
-    if (depth <= 2) {
+    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
         return depth - 1;
     } 
 
@@ -180,9 +178,10 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
                     priority = 1000 + blackHistory[move.from().index()][move.to().index()];
                 }
 
-                if (priority == 0) { // If not a killer move
+                if (priority == 0) {
                     priority = quietPriority(board, move);
                 }
+
             }
         } 
 
@@ -243,25 +242,19 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     Movelist moves;
     movegen::legalmoves(moves, board);
     std::vector<std::pair<Move, int>> candidateMoves;
-    bool endGameFlag = isEndGame(board);
+    int greatestMaterialGain = 0;
 
     for (const auto& move : moves) {
-
-        board.makeMove(move);
-        bool isCheck = board.inCheck();
-        board.unmakeMove(move);
 
         if (!board.isCapture(move) && !isPromotion(move)) {
             continue;
         }
 
-        /*--------------------------------------------------------------------------
-            Proritize promotion, advanced captures.
-        --------------------------------------------------------------------------*/
+        //  Prioritize promotions & captures
         if (isPromotion(move)) {
 
             candidateMoves.push_back({move, 5000});
-            continue;
+            greatestMaterialGain = pieceValues[5]; // Assume queen promotion
 
         } else if (board.isCapture(move)) {
 
@@ -270,12 +263,21 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
 
             int priority = pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())];
             candidateMoves.push_back({move, priority});
-
-        } else if (isCheck) {
-
-            candidateMoves.push_back({move, 500});
+            greatestMaterialGain = std::max(greatestMaterialGain, pieceValues[static_cast<int>(attacker.type())]);
 
         } 
+    }
+
+    // Delta pruning. Assume we can't raise alpha or lower beta with the best capture. Prune.
+    const int deltaMargin = 200;
+    if (whiteTurn) {
+        if (standPat + greatestMaterialGain + deltaMargin < alpha) {
+            return alpha;
+        }
+    } else {
+        if (standPat - greatestMaterialGain - deltaMargin > beta) {
+            return beta;
+        }
     }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
@@ -283,18 +285,6 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     });
     
     for (const auto& [move, priority] : candidateMoves) {
-
-        // Delta pruning
-        const int deltaMargin = 400;
-        if (whiteTurn) {
-            if (standPat + priority + deltaMargin < alpha) {
-                continue;
-            }
-        } else {
-            if (standPat - priority - deltaMargin > beta) {
-                continue;
-            }
-        }
 
         board.makeMove(move);
         int score;
@@ -313,7 +303,6 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
             }
 
         } else {
-
             
             if (score <= alpha) {
                 return alpha;
@@ -329,8 +318,6 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     return whiteTurn ? alpha : beta;
 }
 
-
-
 int alphaBeta(Board& board, 
             int depth, 
             int alpha, 
@@ -345,10 +332,16 @@ int alphaBeta(Board& board,
     }
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
+    bool endGameFlag;
+
+    if (whiteTurn) {
+        endGameFlag = isEndGame(board, Color::WHITE);
+    } else {
+        endGameFlag = isEndGame(board, Color::BLACK);
+    }
 
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
-
     if (gameOverResult.first != GameResultReason::NONE) {
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
             if (whiteTurn) {
@@ -360,11 +353,27 @@ int alphaBeta(Board& board,
         return 0;
     }
 
+    // Razoring: Skip searching nodes that are likely to be bad.
+    const int razorMargin = 350; 
+    if (depth <= 3 && !leftMost && !board.inCheck()) {
+        int standPat = evaluate(board); 
+
+        if (whiteTurn) {
+            if (standPat + razorMargin < alpha) {
+                return quiescence(board, quiescenceDepth, alpha, beta);
+            }
+        } else {
+            if (standPat - razorMargin > beta) {
+                return quiescence(board, quiescenceDepth, alpha, beta);
+            }
+        }
+    }
+
     // Probe the transposition table
     std::uint64_t hash = board.hash();
     bool found = false;
     int storedEval;
-    bool endGameFlag = isEndGame(board);
+    
 
     #pragma omp critical
     { 
@@ -420,18 +429,17 @@ int alphaBeta(Board& board,
         }
     }
 
-    // Razoring
-    const int razorMargin = 350;
-
-    if (depth <= 2 && !board.inCheck()) {
+    // Futility pruning
+    const int futilityMargin = 350;
+    if (depth == 1 && !board.inCheck()) {
         int standPat = quiescence(board, quiescenceDepth, alpha, beta);
 
         if (whiteTurn) {
-            if (standPat + razorMargin < alpha) {
+            if (standPat + futilityMargin < alpha) {
                 return alpha;
             }
         } else {
-            if (standPat - razorMargin > beta) {
+            if (standPat - futilityMargin > beta) {
                 return beta;
             }
         }
@@ -446,20 +454,15 @@ int alphaBeta(Board& board,
 
         int eval;
         int nextDepth;
-
-        board.makeMove(move);
     
-        if (board.inCheck()) {
-            nextDepth = depth - 1;
-        } else {
-            nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
-        }
+        nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
         
         if (i > 0) {
             // If not the first move, this is not the leftmost path
             leftMost = false;
         }
 
+        board.makeMove(move);
         eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, pvChild, leftMost);
         board.unmakeMove(move);
 
@@ -607,14 +610,7 @@ Move findBestMove(Board& board,
                 Board localBoard = board;
                 bool newBestFlag = false;
 
-                int nextDepth;
-                if (i <= 5) {
-                    nextDepth = depth - 1;
-                } else if (i <= 10) {
-                    nextDepth = depth - 2;
-                } else {
-                    nextDepth = depth / 2;
-                }
+                int nextDepth = depthReduction(localBoard, move, i, depth);
             
                 localBoard.makeMove(move);
                 int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
@@ -685,7 +681,6 @@ Move findBestMove(Board& board,
         }
 
         moves = newMoves;
-
         previousPV = PV;
 
         // Check time limit again

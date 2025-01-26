@@ -22,7 +22,7 @@ const int KING_VALUE = 5000;
 
 // Knight piece-square tables
 const int whiteKnightTableMid[64] = {
-    -105, -21, -58, -33, -17, -28, -19,  -23,
+    -105, -30, -58, -33, -17, -28, -30,  -23,
      -29, -53, -12,  -3,  -1,  18, -14,  -19,
      -23,  -9,  12,  10,  19,  17,  15,  -16,
      -13,   4,  16,  13,  20,  19,  21,   -8,
@@ -40,7 +40,7 @@ const int blackKnightTableMid[64] = {
      -13,   4,  16,  13,  20,  19,  21,   -8,
      -23,  -9,  12,  10,  19,  17,  15,  -16,
      -29, -53, -12,  -3,  -1,  18, -14,  -19,
-    -105, -21, -58, -33, -17, -28, -19,  -23,
+    -105, -30, -58, -33, -17, -28, -30,  -23,
 };
 
 const int whiteKnightTableEnd[64] = {
@@ -364,19 +364,15 @@ const std::unordered_map<int, std::vector<int>> adjSquares = {
     Helper Functions
 ------------------------------------------------------------------------*/
 
-// Return true if the game is in the endgame phase 
-bool isEndGame(const Board& board) {
-    const int materialThreshold = 24;
+// Return true if the game is in the endgame phase for the given color.
+bool isEndGame(const Board& board, Color color) {
+    const int materialThreshold = 13;
     const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
 
-    int totalValue = board.pieces(PieceType::KNIGHT, Color::WHITE).count() * knightValue
-                  + board.pieces(PieceType::BISHOP, Color::WHITE).count() * bishopValue
-                  + board.pieces(PieceType::ROOK, Color::WHITE).count() * rookValue
-                  + board.pieces(PieceType::QUEEN, Color::WHITE).count() * queenValue
-                  + board.pieces(PieceType::KNIGHT, Color::BLACK).count() * knightValue
-                  + board.pieces(PieceType::BISHOP, Color::BLACK).count() * bishopValue
-                  + board.pieces(PieceType::ROOK, Color::BLACK).count() * rookValue
-                  + board.pieces(PieceType::QUEEN, Color::BLACK).count() * queenValue;
+    int totalValue = board.pieces(PieceType::KNIGHT, color).count() * knightValue
+                  + board.pieces(PieceType::BISHOP, color).count() * bishopValue
+                  + board.pieces(PieceType::ROOK, color).count() * rookValue
+                  + board.pieces(PieceType::QUEEN, color).count() * queenValue;
 
     if (totalValue <= materialThreshold) {
         return true;
@@ -385,11 +381,7 @@ bool isEndGame(const Board& board) {
     }
 }
 
-/*------------------------------------------------------------------------
-    Utility Functions
-------------------------------------------------------------------------*/
-
-// Function to visualize a bitboard for debugging
+// Function to visualize a bitboard for debugging.
 void bitBoardVisualize(const Bitboard& board) {
     std::uint64_t boardInt = board.getBits();
 
@@ -406,7 +398,7 @@ void bitBoardVisualize(const Bitboard& board) {
     std::cout << std::endl;
 }
 
-// Generate a bitboard mask for the specified file
+// Generate a bitboard mask for the specified file.
 Bitboard generateFileMask(int file) {
     constexpr Bitboard fileMasks[] = {
         0x0101010101010101ULL, // File A
@@ -564,8 +556,14 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     std::uint64_t ourPawnsBits = ourPawns.getBits();
     std::uint64_t theirPawnsBits = theirPawns.getBits();
-    bool endGameFlag = info.endGameFlag;
 
+    bool endGameFlag;
+
+    if (color == Color::WHITE) {
+        endGameFlag = info.endGameFlagWhite;
+    } else {
+        endGameFlag = info.endGameFlagBlack;
+    }
 
     // constants
     const int passedPawnBonus = 35;
@@ -595,7 +593,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     int files[8] = {0};
     int value = 0;
-    int advancedPawnBonus = endGameFlag ? 6 : 2;
+    int advancedPawnBonus = endGameFlag ? 5 : 2;
 
     Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
                             | board.pieces(PieceType::KNIGHT, !color) 
@@ -644,7 +642,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
                 } else if (color == Color::BLACK && info.semiOpenFilesWhite[file]) {
                     value -= unSupportedPenalty;
                 } else  {
-                    value -= (unSupportedPenalty - 5); // Penalize less if the pawn is not on a semi-open file
+                    value -= (unSupportedPenalty - 10); // Penalize less if the pawn is not on a semi-open file
                 }
         }
 
@@ -676,7 +674,13 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
     const int mobilityBonus = 2;
     const int protectionBonus = 3;
     
-    bool endGameFlag = info.endGameFlag;
+    bool endGameFlag;
+
+    if (color == Color::WHITE) {
+        endGameFlag = info.endGameFlagWhite;
+    } else {
+        endGameFlag = info.endGameFlagBlack;
+    }
  
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -722,12 +726,18 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int bishopPairBonus = 30;
-    const int mobilityBonus = 2;
+    const int mobilityBonus = 3;
     const int outpostBonus = 20;
     const int protectionBonus = 3;
     const int *bishopTable;
 
-    bool endGameFlag = info.endGameFlag;
+    bool endGameFlag;
+
+    if (color == Color::WHITE) {
+        endGameFlag = info.endGameFlagWhite;
+    } else {
+        endGameFlag = info.endGameFlagBlack;
+    }
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -784,7 +794,13 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     const int openFileBonus = 15;
     const int protectionBonus = 5;
 
-    bool endGameFlag = info.endGameFlag;
+    bool endGameFlag;
+
+    if (color == Color::WHITE) {
+        endGameFlag = info.endGameFlagWhite;
+    } else {
+        endGameFlag = info.endGameFlagBlack;
+    }
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -845,7 +861,13 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 
     const int mobilityBonuses = 2;
 
-    bool endGameFlag = info.endGameFlag;
+    bool endGameFlag;
+
+    if (color == Color::WHITE) {
+        endGameFlag = info.endGameFlagWhite;
+    } else {
+        endGameFlag = info.endGameFlagBlack;
+    }
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -1029,8 +1051,14 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
     const int openFilePenalty[3] = {10, 20, 30};
     const int* kingTable;
     int pieceProtectionBonus = 30;
-
-    bool endGameFlag = info.endGameFlag;
+    
+    bool endGameFlag;
+    
+    if (color == Color::WHITE) {
+        endGameFlag = info.endGameFlagWhite;
+    } else {
+        endGameFlag = info.endGameFlagBlack;
+    }
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -1139,7 +1167,7 @@ int evaluate(const Board& board) {
     // Constant
     const int tempoBonus = 10;
     const int blockCentralPawnPenalty = 60;
-    const int centerControlBonus = 10;
+    const int centerControlBonus = 15;
 
     // Initialize totals
     int whiteScore = 0;
@@ -1147,7 +1175,8 @@ int evaluate(const Board& board) {
 
     // Mop-up phase: if only their king is left
     Info info;
-    info.endGameFlag = isEndGame(board);
+    info.endGameFlagWhite = isEndGame(board, Color::WHITE);
+    info.endGameFlagBlack = isEndGame(board, Color::BLACK);
 
     /*--------------------------------------------------------------------------
     Mop-up phase: if only their king is left without any other pieces.
@@ -1202,12 +1231,6 @@ int evaluate(const Board& board) {
     const PieceType allPieceTypes[] = {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, 
                                            PieceType::ROOK, PieceType::QUEEN, PieceType::KING};
 
-    int numWhitePawns = std::clamp(board.pieces(PieceType::PAWN, Color::WHITE).count(), 0, 8);
-    int numBlackPawns = std::clamp(board.pieces(PieceType::PAWN, Color::BLACK).count(), 0, 8);
-
-    int numWhiteRooks = std::clamp(board.pieces(PieceType::ROOK, Color::WHITE).count(), 0, 8);  
-    int numBlackRooks = std::clamp(board.pieces(PieceType::ROOK, Color::BLACK).count(), 0, 8);
-
 
     for (const auto& type : allPieceTypes) {
         // Determine base value of the current piece type
@@ -1223,7 +1246,6 @@ int evaluate(const Board& board) {
             default: break;
         }
 
-        // Process white pieces
         if (type == PieceType::KNIGHT) {
             whiteScore += knightValue(board, baseValue, Color::WHITE, info);
             blackScore += knightValue(board, baseValue, Color::BLACK, info);
@@ -1245,8 +1267,9 @@ int evaluate(const Board& board) {
         } 
     }
 
-    // Avoid trading pieces for pawns in middle game
-    const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
+    
+    const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9, pawnValue = 1;
+
     int whitePieceValue = queenValue * board.pieces(PieceType::QUEEN, Color::WHITE).count() + 
                         rookValue * board.pieces(PieceType::ROOK, Color::WHITE).count() + 
                         bishopValue * board.pieces(PieceType::BISHOP, Color::WHITE).count() + 
@@ -1256,11 +1279,28 @@ int evaluate(const Board& board) {
                         rookValue * board.pieces(PieceType::ROOK, Color::BLACK).count() + 
                         bishopValue * board.pieces(PieceType::BISHOP, Color::BLACK).count() + 
                         knightValue * board.pieces(PieceType::KNIGHT, Color::BLACK).count();
+    
+    int totalPieceValue = whitePieceValue + blackPieceValue;
+    const int pieceDeficitPenalty = 80;
 
-    if (whitePieceValue > blackPieceValue) {
-        whiteScore += 80;
-    } else if (blackPieceValue > whitePieceValue) {
-        blackScore += 80;
+    if (totalPieceValue > 24) { 
+        // Safeguard: Assume there are enough material, avoid trading pieces for pawns
+        if (whitePieceValue > blackPieceValue) {
+            whiteScore += pieceDeficitPenalty;
+        } else if (blackPieceValue > whitePieceValue) {
+            blackScore += pieceDeficitPenalty;
+        }
+    }
+
+    // Safeguard against material deficit without enough compensation
+    const int deficitPenalty = 30;
+    whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
+    blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
+
+    if (whitePieceValue < blackPieceValue) {
+        whiteScore -= deficitPenalty;
+    } else if (blackPieceValue < whitePieceValue) {
+        blackScore -= deficitPenalty;
     }
 
     /*--------------------------------------------------------------------------

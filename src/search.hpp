@@ -32,7 +32,7 @@ int alphaBeta(
 Move findBestMove(
     Board& board, 
     int numThreads, 
-    int depth, 
+    int maxDepth, 
     int quiescenceDepth,
     int timeLimit,
     bool debug,

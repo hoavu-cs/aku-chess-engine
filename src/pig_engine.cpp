@@ -122,9 +122,9 @@ void processGo() {
 
     // Default settings
     int depth = 20;
-    int quiescenceDepth = 12;
+    int quiescenceDepth = 10;
     int numThreads = 6;
-    int timeLimit = 20000;
+    int timeLimit = 30000;
   
     // Simply find the best move without considering `t` or other options
     Move bestMove = Move::NO_MOVE;
