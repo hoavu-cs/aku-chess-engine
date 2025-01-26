@@ -579,12 +579,13 @@ int alphaBeta(Board& board,
 
 
 Move findBestMove(Board& board, 
-                  int numThreads = 4, 
-                  int maxDepth = 6, 
-                  int quiescenceDepth = 10, 
-                  int timeLimit = 5000,
-                  bool debug = false,
-                  bool resetHistory = false) {
+                int numThreads = 4, 
+                int maxDepth = 8, 
+                int quiescenceDepth = 10, 
+                int timeLimit = 5000,
+                bool debug = false,
+                bool resetHistory = false, 
+                bool quiet = false) {
 
     if (resetHistory) {
         whiteHistory = std::vector<std::vector<int>>(64, std::vector<int>(64, 0)); 
@@ -727,9 +728,21 @@ Move findBestMove(Board& board,
 
         moves = newMoves;
         previousPV = PV;
-
-        // Check time limit again
         auto currentTime = std::chrono::high_resolution_clock::now();
+
+        std::string depthStr = "depth " + std::to_string(depth);
+        std::string scoreStr = "score cp " + std::to_string(bestEval);
+
+        std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count());
+
+        std::string pvStr = "pv ";
+        for (const auto& move : PV) {
+            pvStr += uci::moveToUci(move) + " ";
+        }
+
+        std::string analysis = "info " + depthStr + " " + scoreStr + " " + timeStr + " " + pvStr;
+        std::cout << analysis << std::endl;
+        
         if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
             break; 
         }

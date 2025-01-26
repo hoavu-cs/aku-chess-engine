@@ -128,7 +128,7 @@ void processGo() {
   
     // Simply find the best move without considering `t` or other options
     Move bestMove = Move::NO_MOVE;
-    bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, false, resetHistory);
+    bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, false, resetHistory, false);
     resetHistory = false;
 
     if (bestMove != Move::NO_MOVE) {

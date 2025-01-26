@@ -118,17 +118,56 @@ void processPosition(const std::string& command) {
 /**
  * Processes the "go" command and finds the best move.
  */
-void processGo() {
+void processGo(const std::vector<std::string>& tokens) {
 
     // Default settings
     int depth = 20;
     int quiescenceDepth = 10;
     int numThreads = 6;
-    int timeLimit = 15000;
+    int timeLimit = 15000; // Default to 15 seconds
+    bool quiet = false;
   
     // Simply find the best move without considering `t` or other options
     Move bestMove = Move::NO_MOVE;
-    bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, false, resetHistory);
+
+    /*--------------------------------------------------------------
+    Time control:
+    Option 1: movetime <x>
+    Option 2: wtime <x> btime <x> winc <x> binc <x> movestogo <x>
+    ---------------------------------------------------------------*/
+
+    int wtime = 0, btime = 0, winc = 0, binc = 0, movestogo = 0, movetime = 0;
+    for (size_t i = 1; i < tokens.size(); ++i) {
+        if (tokens[i] == "wtime" && i + 1 < tokens.size()) {
+            wtime = std::stoi(tokens[i + 1]); // Remaining time for White
+        } else if (tokens[i] == "btime" && i + 1 < tokens.size()) {
+            btime = std::stoi(tokens[i + 1]); // Remaining time for Black
+        } else if (tokens[i] == "winc" && i + 1 < tokens.size()) {
+            winc = std::stoi(tokens[i + 1]); // Increment for White
+        } else if (tokens[i] == "binc" && i + 1 < tokens.size()) {
+            binc = std::stoi(tokens[i + 1]); // Increment for Black
+        } else if (tokens[i] == "movestogo" && i + 1 < tokens.size()) {
+            movestogo = std::stoi(tokens[i + 1]); // Moves remaining
+        } else if (tokens[i] == "movetime" && i + 1 < tokens.size()) {
+            movetime = std::stoi(tokens[i + 1]); // Time per move
+        }
+    }
+
+
+    if (movetime > 0) {
+        timeLimit = movetime * 0.8;
+    } else {
+        // Determine the time limit based on the current player's time and increment
+        if (board.sideToMove() == Color::WHITE && wtime > 0) {
+            int baseTime = wtime / (movestogo > 0 ? movestogo : 40); 
+            timeLimit = static_cast<int>(baseTime * 0.8) + winc;
+        } else if (board.sideToMove() == Color::BLACK && btime > 0) {
+            int baseTime = btime / (movestogo > 0 ? movestogo : 40); 
+            timeLimit = static_cast<int>(baseTime * 0.8) + binc;
+        }
+    }
+
+    bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, false, resetHistory, quiet);
     resetHistory = false;
 
     if (bestMove != Move::NO_MOVE) {
@@ -164,16 +203,19 @@ void uciLoop() {
         } else if (line.find("position") == 0) {
             processPosition(line);
         } else if (line.find("go") == 0) {
-            processGo();
+            std::vector<std::string> tokens;
+            std::istringstream iss(line);
+            std::string token;
+            while (iss >> token) {
+                tokens.push_back(token);
+            }
+            processGo(tokens);
         } else if (line == "quit") {
             break;
         }
     }
 }
 
-/**
- * Entry point of the engine.
- */
 int main() {
     uciLoop();
     return 0;

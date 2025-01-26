@@ -1285,7 +1285,7 @@ int evaluate(const Board& board) {
     const int pieceDeficitPenalty = 80;
 
     if (totalPieceValue > 24) { 
-        // Safeguard: Assume there are enough material, avoid trading pieces for pawns
+        // Safeguard: Assume there are enough material, avoid trading pieces for pawns.
         if (whitePieceValue > blackPieceValue) {
             whiteScore += pieceDeficitPenalty;
         } else if (blackPieceValue > whitePieceValue) {
@@ -1293,8 +1293,8 @@ int evaluate(const Board& board) {
         }
     }
 
-    // Safeguard against material deficit without enough compensation
-    const int deficitPenalty = 50;
+    // Safeguard against material deficit without enough compensation.
+    const int deficitPenalty = 100;
     whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
     blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
 
