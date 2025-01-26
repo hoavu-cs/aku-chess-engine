@@ -432,19 +432,19 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning
-    const int futilityMargin = 350;
-    if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
-        int standPat = evaluate(board);
-        if (whiteTurn) {
-            if (standPat + futilityMargin < alpha) {
-                return -INF;
-            }
-        } else {
-            if (standPat - futilityMargin > beta) {
-                return INF;
-            }
-        }
-    }
+    // const int futilityMargin = 350;
+    // if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
+    //     int standPat = evaluate(board);
+    //     if (whiteTurn) {
+    //         if (standPat + futilityMargin < alpha) {
+    //             return alpha;
+    //         }
+    //     } else {
+    //         if (standPat - futilityMargin > beta) {
+    //             return beta;
+    //         }
+    //     }
+    // }
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? -INF : INF;
