@@ -572,7 +572,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     const int isolatedPawnPenaltyAH = 10;
     const int isolatedPawnPenalty = 20;
-    const int unSupportedPenalty = 10;
+    const int unSupportedPenalty = 15;
     const int doubledPawnPenalty = 30;
    
     const int* pawnTable;
@@ -642,7 +642,10 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
                 } else if (color == Color::BLACK && info.semiOpenFilesWhite[file]) {
                     value -= unSupportedPenalty;
                 } else  {
-                    value -= (unSupportedPenalty - 10); // Penalize less if the pawn is not on a semi-open file
+                    if (file != 3 && file != 4) {
+                        // Penalize less if the pawn is not on a semi-open file and not in the center
+                        value -= (unSupportedPenalty - 10); 
+                    }
                 }
         }
 
@@ -680,7 +683,7 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         endGameFlag = info.endGameFlagBlack;
     }
 
-    int mobilityBonus = endGameFlag ? 4 : 4;  // Bonus for mobility
+    int mobilityBonus = endGameFlag ? 2 : 2;  // Bonus for mobility
  
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -794,7 +797,7 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         endGameFlag = info.endGameFlagBlack;
     }
 
-    int mobilityBonus = endGameFlag ? 4 : 2;
+    int mobilityBonus = endGameFlag ? 3 : 2;
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -853,7 +856,7 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         endGameFlag = info.endGameFlagBlack;
     }
 
-    int mobilityBonus = endGameFlag ? 2 : 1;
+    int mobilityBonus = endGameFlag ? 3 : 2;
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -1291,7 +1294,7 @@ int evaluate(const Board& board) {
     }
 
     // Safeguard against material deficit without enough compensation
-    const int deficitPenalty = 40;
+    const int deficitPenalty = 50;
     whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
     blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
 

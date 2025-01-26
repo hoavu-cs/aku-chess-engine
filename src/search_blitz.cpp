@@ -69,6 +69,67 @@ bool isPromotion(const Move& move) {
     return (move.typeOf() & Move::PROMOTION) != 0;
 }
 
+// Return the priority of a quiet move based on some heuristics
+int quietPriority(const Board& board, const Move& move) {
+    auto type = board.at<Piece>(move.from()).type();
+    Color color = board.sideToMove();
+
+    Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
+    Bitboard theirRook = board.pieces(PieceType::ROOK, !color);
+    Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
+    Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
+
+    if (type == PieceType::KNIGHT) {
+        Bitboard theirQRB = theirQueen | theirRook | theirBishop;
+        Bitboard attack = attacks::knight(move.to());
+
+        if ((attack & theirQRB).count() == 1) {
+            return 500; // Simply attacking a piece of higher value
+        } else if ((attack & theirQRB).count() > 1) { 
+            return 750; // Higher priority for a potential fork
+        }
+
+    } else if (type == PieceType::BISHOP) {
+        Bitboard theirQR = theirQueen | theirRook;
+        Bitboard attack = attacks::bishop(move.to(), board.occ());
+
+        if ((attack & theirQR).count() > 0) {
+            return 500;
+        }
+
+    } else if (type == PieceType::ROOK) {
+        Bitboard theirQ = theirQueen;
+        Bitboard theirBK = theirQ | theirBishop | theirKnight;
+        Bitboard attack = attacks::rook(move.to(), board.occ());
+
+        if ((attack & theirQ).count() > 0) {
+            return 300; // Attacking the queen
+        } else if ((attack & theirBK).count() > 0) {
+            return 350; // Potential skewer
+        }
+
+    } else if (type == PieceType::QUEEN) {
+        
+        Bitboard theirQRKB = theirRook | theirKnight | theirBishop;
+        Bitboard attack = attacks::queen(move.to(), board.occ());
+
+        // If the queen attacks two or more pieces, give it a higher priority
+        if ((attack & theirQRKB).count() >= 2) {
+            return 300;
+        }
+
+    } else {
+
+        Bitboard theirQRKB = theirQueen | theirRook | theirKnight | theirBishop;
+        Bitboard attack = attacks::pawn(color, move.to());
+
+        if ((attack & theirQRKB).count() > 0) {
+            return 500;
+        }
+    }
+
+    return 0;
+}
 
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
@@ -91,7 +152,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
 
-    if (i <= 3 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
+    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
         return depth - 1;
     } 
 
@@ -163,9 +224,9 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
                     priority = 1000 + blackHistory[move.from().index()][move.to().index()];
                 }
 
-                // if (priority == 0) {
-                //     priority = quietPriority(board, move);
-                // }
+                if (priority == 0) {
+                    priority = quietPriority(board, move);
+                }
 
             }
         } 
@@ -256,16 +317,16 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     }
 
     // Delta pruning. Assume we can't raise alpha or lower beta with the best capture. Prune.
-    const int deltaMargin = 200;
-    if (whiteTurn) {
-        if (standPat + greatestMaterialGain + deltaMargin < alpha) {
-            return alpha;
-        }
-    } else {
-        if (standPat - greatestMaterialGain - deltaMargin > beta) {
-            return beta;
-        }
-    }
+    // const int deltaMargin = 350;
+    // if (whiteTurn) {
+    //     if (standPat + greatestMaterialGain + deltaMargin < alpha) {
+    //         return alpha;
+    //     }
+    // } else {
+    //     if (standPat - greatestMaterialGain - deltaMargin > beta) {
+    //         return beta;
+    //     }
+    // }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
@@ -321,6 +382,7 @@ int alphaBeta(Board& board,
     }
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
+    Color color = board.sideToMove();
     bool endGameFlag;
 
     if (whiteTurn) {
@@ -408,8 +470,9 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning
-    const int futilityMargin = 350;
-    if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
+    int futilityMargin = 400;
+    if (depth ==1 && !board.inCheck() && !endGameFlag && !leftMost) {
+
         int standPat = evaluate(board);
         if (whiteTurn) {
             if (standPat + futilityMargin < alpha) {
@@ -421,6 +484,7 @@ int alphaBeta(Board& board,
             }
         }
     }
+
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? -INF : INF;

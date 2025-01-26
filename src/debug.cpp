@@ -62,6 +62,8 @@ int main() {
     
     // board = Board("5rk1/pp4pp/2b1p3/2Pp2q1/P6n/2N1RP2/1PP2P1P/R2Q1K2 b - - 4 18");
 
+    board = Board("1rbqk2r/1p2b1pp/2p1p3/1B3p2/1n3Q2/3P1N2/PPP2PPP/R1B2RK1 b k - 1 16");
+
     // Default settings
     int depth = 20;
     int quiescenceDepth = 10;
