@@ -1,1318 +1,694 @@
+#include "search.hpp"
 #include "chess.hpp"
 #include "evaluation.hpp"
-#include <tuple>
-#include <unordered_map>
-#include <cstdint>
+#include <iostream>
 #include <map>
-#include <omp.h> 
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <omp.h> // Include OpenMP header
+#include <chrono>
+#include <stdlib.h>
+#include <cmath>
 
-using namespace chess; 
+using namespace chess;
 
-/*--------------------------------------------------------------------------
-    Tables, Constants, and Global Variables
-------------------------------------------------------------------------*/
+// Constants and global variables
+std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
+std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
 
-// Constants for the evaluation function
-const int PAWN_VALUE = 100;
-const int KNIGHT_VALUE = 320;
-const int BISHOP_VALUE = 330;
-const int ROOK_VALUE = 500;
-const int QUEEN_VALUE = 900;
-const int KING_VALUE = 5000;
+// History heuristic tables
+std::vector<std::vector<int>> whiteHistory (64, std::vector<int>(64, 0)); 
+std::vector<std::vector<int>> blackHistory (64, std::vector<int>(64, 0));
 
-// Knight piece-square tables
-const int whiteKnightTableMid[64] = {
-    -105, -21, -58, -33, -17, -28, -19,  -23,
-     -29, -53, -12,  -3,  -1,  18, -14,  -19,
-     -23,  -9,  12,  10,  19,  17,  15,  -16,
-     -13,   4,  16,  13,  20,  19,  21,   -8,
-      -9,  17,  19,  53,  37,  69,  18,   22,
-     -47,  60,  37,  65,  84, 129,  73,   44,
-     -73, -41,  72,  36,  23,  62,   7,  -17,
-    -167, -89, -34, -49,  61, -97, -15, -107,
+std::vector<Move> previousPV; // Principal variation from the previous iteration
+
+std::vector<std::vector<Move>> killerMoves(100); // Killer moves
+uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
+
+const size_t tableMaxSize = 1000000000; 
+const int R = 2; 
+int tableHit = 0;
+// const int futilityMargin = 350; 
+//int razorPly = 6; 
+
+int nullDepth = 4; 
+int improvement = 0;
+int globalMaxDepth = 0; // Maximum depth of current search
+int globalQuiescenceDepth = 0; // Quiescence depth
+bool globalDebug = false; // Debug flag
+
+// Basic piece values for move ordering, detection of sacrafices, etc.
+const int pieceValues[] = {
+    0,    // No piece
+    100,  // Pawn
+    320,  // Knight
+    330,  // Bishop
+    500,  // Rook
+    900,  // Queen
+    20000 // King
 };
 
-const int blackKnightTableMid[64] = {
-    -167, -89, -34, -49,  61, -97, -15, -107,
-     -73, -41,  72,  36,  23,  62,   7,  -17,
-     -47,  60,  37,  65,  84, 129,  73,   44,
-      -9,  17,  19,  53,  37,  69,  18,   22,
-     -13,   4,  16,  13,  20,  19,  21,   -8,
-     -23,  -9,  12,  10,  19,  17,  15,  -16,
-     -29, -53, -12,  -3,  -1,  18, -14,  -19,
-    -105, -21, -58, -33, -17, -28, -19,  -23,
-};
+// Transposition table lookup
+bool transTableLookUp(std::map<std::uint64_t, std::pair<int, int>>& table, 
+                            std::uint64_t hash, 
+                            int depth, 
+                            int& eval) {
+    auto it = table.find(hash);
+    bool found = it != table.end() && it->second.second >= depth;
 
-const int whiteKnightTableEnd[64] = {
-     -29, -51, -23, -15, -22, -18, -50,  -64,
-     -42, -20, -10,  -5,  -2, -20, -23,  -44,
-     -23,  -3,  -1,  15,  10,  -3, -20,  -22,
-     -18,  -6,  16,  25,  16,  17,   4,  -18,
-     -17,   3,  22,  22,  22,  11,   8,  -18,
-     -24, -20,  10,   9,  -1,  -9, -19,  -41,
-     -25,  -8, -25,  -2,  -9, -25, -24,  -52,
-     -58, -38, -13, -28, -31, -27, -63,  -99,
-};
-
-const int blackKnightTableEnd[64] = {
-     -58, -38, -13, -28, -31, -27, -63,  -99,
-     -25,  -8, -25,  -2,  -9, -25, -24,  -52,
-     -24, -20,  10,   9,  -1,  -9, -19,  -41,
-     -17,   3,  22,  22,  22,  11,   8,  -18,
-     -18,  -6,  16,  25,  16,  17,   4,  -18,
-     -23,  -3,  -1,  15,  10,  -3, -20,  -22,
-     -42, -20, -10,  -5,  -2, -20, -23,  -44,
-     -29, -51, -23, -15, -22, -18, -50,  -64,
-};
-
-// Bishop piece-square tablesint 
-const int whiteBishopTableMid[64] = {
-    -33,  -3, -14, -21, -13, -12, -39, -21,
-      4,  25,  16,   0,   7,  21,  33,   1,
-      0,  15,  15,  15,  14,  27,  18,  10,
-     -6,  13,  20,  26,  34,  20,  10,   4,
-     -4,   5,  19,  50,  37,  37,   7,  -2,
-    -16,  37,  43,  40,  35,  50,  37,  -2,
-    -26,  16, -18, -13,  30,  59,  18, -47,
-    -29,   4, -82, -37, -25, -42,   7,  -8,
-};
-
-const int blackBishopTableMid[64] = {
-    -29,   4, -82, -37, -25, -42,   7,  -8,
-    -26,  16, -18, -13,  30,  59,  18, -47,
-    -16,  37,  43,  40,  35,  50,  37,  -2,
-     -4,   5,  19,  50,  37,  37,   7,  -2,
-     -6,  13,  20,  26,  34,  20,  10,   4,
-      0,  15,  15,  15,  14,  27,  18,  10,
-      4,  25,  16,   0,   7,  21,  33,   1,
-    -33,  -3, -14, -21, -13, -12, -39, -21,
-};
-
-const int whiteBishopTableEnd[64] = {
-    -23,  -9, -23,  -5,  -9, -16,  -5, -17,
-    -14, -18,  -7,  -1,   4,  -9, -15, -27,
-    -12,  -3,   8,  10,  13,   3,  -7, -15,
-     -6,   3,  13,  19,   7,  10,  -3,  -9,
-     -3,   9,  12,   9,  14,  10,   3,   2,
-      2,  -8,   0,  -1,  -2,   6,   0,   4,
-     -8,  -4,   7, -12,  -3, -13,  -4, -14,
-    -14, -21, -11,  -8,  -7,  -9, -17, -24,
-};
-
-const int blackBishopTableEnd[64] = {
-    -14, -21, -11,  -8, -7,  -9, -17, -24,
-     -8,  -4,   7, -12, -3, -13,  -4, -14,
-      2,  -8,   0,  -1, -2,   6,   0,   4,
-     -3,   9,  12,   9, 14,  10,   3,   2,
-     -6,   3,  13,  19,  7,  10,  -3,  -9,
-    -12,  -3,   8,  10, 13,   3,  -7, -15,
-    -14, -18,  -7,  -1,  4,  -9, -15, -27,
-    -23,  -9, -23,  -5, -9, -16,  -5, -17,
-};
-
-// Pawn piece-square tables for White in the middle game
-const int whitePawnTableMid[64] = {
-      0,   0,   0,   0,   0,   0,   0,   0,
-    -35,  -1, -20, -35, -35,  24,  38, -22,
-    -26,  -4,  3,  0,  0,   3,  33, -12,
-    -27,  -2,  5,  25,  25,   5,  10, -25,
-    -14,  13,   6,  21,  23,  12,  17, -23,
-     -6,   7,  26,  31,  65,  56,  25, -20,
-     98, 134,  61,  95,  68, 126,  34, -11,
-      0,   0,   0,   0,   0,   0,   0,   0,
-};
-
-// Pawn piece-square tables for Black in the middle game
-const int blackPawnTableMid[64] = {
-     0,   0,   0,   0,   0,   0,   0,   0,
-     98, 134,  61,  95,  68, 126,  34, -11,
-     -6,   7,  26,  31,  65,  56,  25, -20,
-    -14,  13,   6,  21,  23,  12,  17, -23,
-    -27,  -2,  5,  25,  25,   5,  10, -25,
-    -26,  -4,  3,  0,  0,   3,  33, -12,
-    -35,  -1, -20, -35, -35,  24,  38, -22,
-      0,   0,   0,   0,   0,   0,   0,   0,
-};
-
-const int whitePawnTableEnd[64] = {
-      0,   0,   0,   0,   0,   0,   0,   0,
-     13,   8,   8,  10,  13,   0,   2,  -7,
-      4,   7,  -6,   1,   0,  -5,  -1,  -8,
-     13,   9,  -3,  -7,  -7,  -8,   3,  -1,
-     32,  24,  13,   5,  -2,   4,  17,  17,
-     94, 100,  85,  67,  56,  53,  82,  84,
-    178, 173, 158, 134, 147, 132, 165, 187,
-      0,   0,   0,   0,   0,   0,   0,   0,
-};
-
-const int blackPawnTableEnd[64] = {
-      0,   0,   0,   0,   0,   0,   0,   0,
-    178, 173, 158, 134, 147, 132, 165, 187,
-     94, 100,  85,  67,  56,  53,  82,  84,
-     32,  24,  13,   5,  -2,   4,  17,  17,
-     13,   9,  -3,  -7,  -7,  -8,   3,  -1,
-      4,   7,  -6,   1,   0,  -5,  -1,  -8,
-     13,   8,   8,  10,  13,   0,   2,  -7,
-      0,   0,   0,   0,   0,   0,   0,   0,
-};
-
-
-// Rook piece-square tables
-const int whiteRookTableMid[64] = {
-    -19, -13,   1,  17,  16,   7, -37, -26,
-    -44, -16, -20,  -9,  -1,  11,  -6, -71,
-    -45, -25, -16, -17,   3,   0,  -5, -33,
-    -36, -26, -12,  -1,   9,  -7,   6, -23,
-    -24, -11,   7,  26,  24,  35,  -8, -20,
-     -5,  19,  26,  36,  17,  45,  61,  16,
-     27,  32,  58,  62,  80,  67,  26,  44,
-     32,  42,  32,  51,  63,   9,  31,  43,
-};
-
-const int blackRookTableMid[64] = {
-     32,  42,  32,  51, 63,  9,  31,  43,
-     27,  32,  58,  62, 80, 67,  26,  44,
-     -5,  19,  26,  36, 17, 45,  61,  16,
-    -24, -11,   7,  26, 24, 35,  -8, -20,
-    -36, -26, -12,  -1,  9, -7,   6, -23,
-    -45, -25, -16, -17,  3,  0,  -5, -33,
-    -44, -16, -20,  -9, -1, 11,  -6, -71,
-    -19, -13,   1,  17, 16,  7, -37, -26,
-};
-
-const int whiteRookTableEnd[64] = {
-     -9,   2,   3,  -1,  -5, -13,   4, -20,
-     -6,  -6,   0,   2,  -9,  -9, -11,  -3,
-     -4,   0,  -5,  -1,  -7, -12,  -8, -16,
-      3,   5,   8,   4,  -5,  -6,  -8, -11,
-      4,   3,  13,   1,   2,   1,  -1,   2,
-      7,   7,   7,   5,   4,  -3,  -5,  -3,
-     11,  13,  13,  11,  -3,   3,   8,   3,
-     13,  10,  18,  15,  12,  12,   8,   5,
-};
-
-const int blackRookTableEnd[64] = {
-    13, 10, 18, 15, 12,  12,   8,   5,
-    11, 13, 13, 11, -3,   3,   8,   3,
-     7,  7,  7,  5,  4,  -3,  -5,  -3,
-     4,  3, 13,  1,  2,   1,  -1,   2,
-     3,  5,  8,  4, -5,  -6,  -8, -11,
-    -4,  0, -5, -1, -7, -12,  -8, -16,
-    -6, -6,  0,  2, -9,  -9, -11,  -3,
-    -9,  2,  3, -1, -5, -13,   4, -20,
-};
-
-// Queen piece-square tables
-const int whiteQueenTableMid[64] = {
-     -1, -18,  -9,  10, -15, -25, -31, -50,
-    -35,  -8,  11,   2,   8,  15,  -3,   1,
-    -14,   2, -11,  -2,  -5,   2,  14,   5,
-     -9, -26,  -9, -10,  -2,  -4,   3,  -3,
-    -27, -27, -16, -16,  -1,  17,  -2,   1,
-    -13, -17,   7,   8,  29,  56,  47,  57,
-    -24, -39,  -5,   1, -16,  57,  28,  54,
-    -28,   0,  29,  12,  59,  44,  43,  45,
-};
-
-const int blackQueenTableMid[64] = {
-    -28,   0,  29,  12,  59,  44,  43,  45,
-    -24, -39,  -5,   1, -16,  57,  28,  54,
-    -13, -17,   7,   8,  29,  56,  47,  57,
-    -27, -27, -16, -16,  -1,  17,  -2,   1,
-     -9, -26,  -9, -10,  -2,  -4,   3,  -3,
-    -14,   2, -11,  -2,  -5,   2,  14,   5,
-    -35,  -8,  11,   2,   8,  15,  -3,   1,
-     -1, -18,  -9,  10, -15, -25, -31, -50,
-};
-
-const int whiteQueenTableEnd[64] = {
-    -33, -28, -22, -43,  -5, -32, -20, -41,
-    -22, -23, -30, -16, -16, -23, -36, -32,
-    -16, -27,  15,   6,   9,  17,  10,   5,
-    -18,  28,  19,  47,  31,  34,  39,  23,
-      3,  22,  24,  45,  57,  40,  57,  36,
-    -20,   6,   9,  49,  47,  35,  19,   9,
-    -17,  20,  32,  41,  58,  25,  30,   0,
-     -9,  22,  22,  27,  27,  19,  10,  20,
-};
-
-
-const int blackQueenTableEnd[64] = {
-     -9,  22,  22,  27,  27,  19,  10,  20,
-    -17,  20,  32,  41,  58,  25,  30,   0,
-    -20,   6,   9,  49,  47,  35,  19,   9,
-      3,  22,  24,  45,  57,  40,  57,  36,
-    -18,  28,  19,  47,  31,  34,  39,  23,
-    -16, -27,  15,   6,   9,  17,  10,   5,
-    -22, -23, -30, -16, -16, -23, -36, -32,
-    -33, -28, -22, -43,  -5, -32, -20, -41,
-};
-
-const int whiteKingTableMid[64] = {
-    -15,  35,  25, -54,  -5, -28,  35,  14,
-      1,   7,  -8, -64, -43, -16,   9,   8,
-    -14, -14, -22, -46, -44, -30, -15, -27,
-    -49,  -1, -27, -39, -46, -44, -33, -51,
-    -17, -20, -12, -27, -30, -25, -14, -36,
-     -9,  24,   2, -16, -20,   6,  22, -22,
-     29,  -1, -20,  -7,  -8,  -4, -38, -29,
-    -65,  23,  16, -15, -56, -34,   2,  13,
-};
-
-const int blackKingTableMid[64] = {
-    -65,  23,  16, -15, -56, -34,   2,  13,
-     29,  -1, -20,  -7,  -8,  -4, -38, -29,
-     -9,  24,   2, -16, -20,   6,  22, -22,
-    -17, -20, -12, -27, -30, -25, -14, -36,
-    -49,  -1, -27, -39, -46, -44, -33, -51,
-    -14, -14, -22, -46, -44, -30, -15, -27,
-      1,   7,  -8, -64, -43, -16,   9,   8,
-    -15,  35,  25, -54, -5, -28,  35,   14,
-};
-
-const int whiteKingTableEnd[64] = {
-    -53, -34, -21, -11, -28, -14, -24, -43,
-    -27, -11,   4,  13,  14,   4,  -5, -17,
-    -19,  -3,  11,  21,  23,  16,   7,  -9,
-    -18,  -4,  21,  24,  27,  23,   9, -11,
-     -8,  22,  24,  27,  26,  33,  26,   3,
-     10,  17,  23,  15,  20,  45,  44,  13,
-    -12,  17,  14,  17,  17,  38,  23,  11,
-    -74, -35, -18, -18, -11,  15,   4, -17,
-};
-
-const int blackKingTableEnd[64] = {
-    -74, -35, -18, -18, -11,  15,   4, -17,
-    -12,  17,  14,  17,  17,  38,  23,  11,
-     10,  17,  23,  15,  20,  45,  44,  13,
-     -8,  22,  24,  27,  26,  33,  26,   3,
-    -18,  -4,  21,  24,  27,  23,   9, -11,
-    -19,  -3,  11,  21,  23,  16,   7,  -9,
-    -27, -11,   4,  13,  14,   4,  -5, -17,
-    -53, -34, -21, -11, -28, -14, -24, -43
-};
-
-const std::unordered_map<int, std::vector<int>> adjSquares = {
-    {0, {1, 8, 9}}, 
-    {1, {0, 2, 8, 9, 10}}, 
-    {2, {1, 3, 9, 10, 11}}, 
-    {3, {2, 4, 10, 11, 12}}, 
-    {4, {3, 5, 11, 12, 13}}, 
-    {5, {4, 6, 12, 13, 14}}, 
-    {6, {5, 7, 13, 14, 15}}, 
-    {7, {6, 14, 15}}, 
-    {8, {0, 1, 9, 16, 17}}, 
-    {9, {0, 1, 2, 8, 10, 16, 17, 18}}, 
-    {10, {1, 2, 3, 9, 11, 17, 18, 19}}, 
-    {11, {2, 3, 4, 10, 12, 18, 19, 20}}, 
-    {12, {3, 4, 5, 11, 13, 19, 20, 21}}, 
-    {13, {4, 5, 6, 12, 14, 20, 21, 22}}, 
-    {14, {5, 6, 7, 13, 15, 21, 22, 23}}, 
-    {15, {6, 7, 14, 22, 23}}, 
-    {16, {8, 9, 17, 24, 25}}, 
-    {17, {8, 9, 10, 16, 18, 24, 25, 26}}, 
-    {18, {9, 10, 11, 17, 19, 25, 26, 27}}, 
-    {19, {10, 11, 12, 18, 20, 26, 27, 28}}, 
-    {20, {11, 12, 13, 19, 21, 27, 28, 29}}, 
-    {21, {12, 13, 14, 20, 22, 28, 29, 30}}, 
-    {22, {13, 14, 15, 21, 23, 29, 30, 31}}, 
-    {23, {14, 15, 22, 30, 31}}, 
-    {24, {16, 17, 25, 32, 33}}, 
-    {25, {16, 17, 18, 24, 26, 32, 33, 34}}, 
-    {26, {17, 18, 19, 25, 27, 33, 34, 35}}, 
-    {27, {18, 19, 20, 26, 28, 34, 35, 36}}, 
-    {28, {19, 20, 21, 27, 29, 35, 36, 37}}, 
-    {29, {20, 21, 22, 28, 30, 36, 37, 38}}, 
-    {30, {21, 22, 23, 29, 31, 37, 38, 39}}, 
-    {31, {22, 23, 30, 38, 39}}, 
-    {32, {24, 25, 33, 40, 41}}, 
-    {33, {24, 25, 26, 32, 34, 40, 41, 42}}, 
-    {34, {25, 26, 27, 33, 35, 41, 42, 43}}, 
-    {35, {26, 27, 28, 34, 36, 42, 43, 44}}, 
-    {36, {27, 28, 29, 35, 37, 43, 44, 45}}, 
-    {37, {28, 29, 30, 36, 38, 44, 45, 46}}, 
-    {38, {29, 30, 31, 37, 39, 45, 46, 47}}, 
-    {39, {30, 31, 38, 46, 47}}, 
-    {40, {32, 33, 41, 48, 49}}, 
-    {41, {32, 33, 34, 40, 42, 48, 49, 50}}, 
-    {42, {33, 34, 35, 41, 43, 49, 50, 51}}, 
-    {43, {34, 35, 36, 42, 44, 50, 51, 52}}, 
-    {44, {35, 36, 37, 43, 45, 51, 52, 53}}, 
-    {45, {36, 37, 38, 44, 46, 52, 53, 54}}, 
-    {46, {37, 38, 39, 45, 47, 53, 54, 55}}, 
-    {47, {38, 39, 46, 54, 55}}, 
-    {48, {40, 41, 49, 56, 57}}, 
-    {49, {40, 41, 42, 48, 50, 56, 57, 58}}, 
-    {50, {41, 42, 43, 49, 51, 57, 58, 59}}, 
-    {51, {42, 43, 44, 50, 52, 58, 59, 60}}, 
-    {52, {43, 44, 45, 51, 53, 59, 60, 61}}, 
-    {53, {44, 45, 46, 52, 54, 60, 61, 62}}, 
-    {54, {45, 46, 47, 53, 55, 61, 62, 63}}, 
-    {55, {46, 47, 54, 62, 63}}, 
-    {56, {48, 49, 57}}, 
-    {57, {48, 49, 50, 56, 58}}, 
-    {58, {49, 50, 51, 57, 59}}, 
-    {59, {50, 51, 52, 58, 60}}, 
-    {60, {51, 52, 53, 59, 61}}, 
-    {61, {52, 53, 54, 60, 62}}, 
-    {62, {53, 54, 55, 61, 63}}, 
-    {63, {54, 55, 62}}
-};
-
-
-/*------------------------------------------------------------------------
-    Helper Functions
-------------------------------------------------------------------------*/
-
-// Return true if the game is in the endgame phase 
-bool isEndGame(const Board& board) {
-    const int materialThreshold = 24;
-    const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
-
-    int totalValue = board.pieces(PieceType::KNIGHT, Color::WHITE).count() * knightValue
-                  + board.pieces(PieceType::BISHOP, Color::WHITE).count() * bishopValue
-                  + board.pieces(PieceType::ROOK, Color::WHITE).count() * rookValue
-                  + board.pieces(PieceType::QUEEN, Color::WHITE).count() * queenValue
-                  + board.pieces(PieceType::KNIGHT, Color::BLACK).count() * knightValue
-                  + board.pieces(PieceType::BISHOP, Color::BLACK).count() * bishopValue
-                  + board.pieces(PieceType::ROOK, Color::BLACK).count() * rookValue
-                  + board.pieces(PieceType::QUEEN, Color::BLACK).count() * queenValue;
-
-    if (totalValue <= materialThreshold) {
+    if (found) {
+        eval = it->second.first;
         return true;
     } else {
         return false;
     }
 }
 
-/*------------------------------------------------------------------------
-    Utility Functions
-------------------------------------------------------------------------*/
-
-// Function to visualize a bitboard for debugging
-void bitBoardVisualize(const Bitboard& board) {
-    std::uint64_t boardInt = board.getBits();
-
-    for (int i = 0; i < 64; i++) {
-        if (i % 8 == 0) {
-            std::cout << std::endl;
-        }
-        if (boardInt & (1ULL << i)) {
-            std::cout << "1 ";
-        } else {
-            std::cout << "0 ";
-        }
-    }
-    std::cout << std::endl;
+bool isPromotion(const Move& move) {
+    return (move.typeOf() & Move::PROMOTION) != 0;
 }
 
-// Generate a bitboard mask for the specified file
-Bitboard generateFileMask(int file) {
-    constexpr Bitboard fileMasks[] = {
-        0x0101010101010101ULL, // File A
-        0x0202020202020202ULL, // File B
-        0x0404040404040404ULL, // File C
-        0x0808080808080808ULL, // File D
-        0x1010101010101010ULL, // File E
-        0x2020202020202020ULL, // File F
-        0x4040404040404040ULL, // File G
-        0x8080808080808080ULL  // File H
-    };
+int quietPriority(const Board& board, const Move& move) {
+    auto type = board.at<Piece>(move.from()).type();
 
-    if (file >= 0 && file < 8) {
-        return Bitboard(fileMasks[file]);
-    }
-    
-    return Bitboard(0ULL);
-}
-
-// Check if the given square is a passed pawn
-bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
-    int file = sqIndex % 8;
-    int rank = sqIndex / 8;
-
-    Bitboard theirPawnsCopy = theirPawns;
-
-    while (theirPawnsCopy) {
-        int sqIndex2 = theirPawnsCopy.lsb();  
-        int file2 = sqIndex2 % 8;
-        int rank2 = sqIndex2 / 8;
-
-        if (std::abs(file - file2) <= 1 && rank2 > rank && color == Color::WHITE) {
-            return false; 
-        }
-
-        if (std::abs(file - file2) <= 1 && rank2 < rank && color == Color::BLACK) {
-            return false; 
-        }
-
-        theirPawnsCopy.clear(sqIndex2);
-    }
-
-    return true;  
-}
-
-// Function to compute the Manhattan distance between two squares
-int manhattanDistance(const Square& sq1, const Square& sq2) {
-    return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
-}
-
-// Check if a square is an outpost
-bool isOutpost(const Board& board, int sqIndex, Color color) {
-    int file = sqIndex % 8, rank = sqIndex / 8;
-    bool isWhite = color == Color::WHITE;
-
-    // Outposts must be in the opponent's half of the board
-    if ((isWhite && rank < 4) || (!isWhite && rank > 3)) {
-        return false;
-    }
-
-    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
-    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-
-    // Check for support from our pawns
-    int frontRank = (isWhite) ? rank - 1 : rank + 1;
-    Bitboard supportMask = (file > 0 ? (1ULL << (frontRank * 8 + file - 1)) : 0) |
-                           (file < 7 ? (1ULL << (frontRank * 8 + file + 1)) : 0);
-
-    if (!(ourPawns & supportMask)) {
-        return false; 
-    }
-
-    // Check for potential attack from opponent pawns
-    for (int r = rank + 1; r < 8 && isWhite; ++r) {
-        if (file > 0 && (theirPawns & (1ULL << (r * 8 + file - 1)))) {
-            return false; 
-        }
-        if (file < 7 && (theirPawns & (1ULL << (r * 8 + file + 1)))) {
-            return false; 
-        }
-    }
-    for (int r = rank - 1; r >= 0 && !isWhite; --r) {
-        if (file > 0 && (theirPawns & (1ULL << (r * 8 + file - 1)))) {
-            return false; 
-        }
-        if (file < 7 && (theirPawns & (1ULL << (r * 8 + file + 1)))) {
-            return false; 
-        }
-    }
-
-    return true;
-}
-
-Bitboard allPieces(const Board& board, Color color) {
-    // Return a bitboard with all pieces of the given color except kings
-    return board.pieces(PieceType::PAWN, color) | board.pieces(PieceType::KNIGHT, color) 
-           | board.pieces(PieceType::BISHOP, color) | board.pieces(PieceType::ROOK, color) 
-           | board.pieces(PieceType::QUEEN, color) | board.pieces(PieceType::KING, color);
-}
-
-bool isOpenFile(const Board& board, int file) {
-    // Get bitboards for white and black pawns
-    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
-    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
-    Bitboard mask = generateFileMask(File(file));
-
-    return !(whitePawns & mask) && !(blackPawns & mask);
-}
-
-bool isSemiOpenFile(const Board& board, int file, Color color) {
-    Bitboard ownPawns = board.pieces(PieceType::PAWN, color);
-    Bitboard mask = generateFileMask(File(file));
-    return !(ownPawns & mask);
-}
-
-bool isProtectedByPawn(int sqIndex, const Board& board, Color color) {
-    // Get the file and rank of the square
-    int file = sqIndex % 8;
-    int rank = sqIndex / 8;
-
-    if (color == Color::WHITE) {
-        if (file > 0 && board.at(Square((rank - 1) * 8 + (file - 1))) == PieceType::PAWN
-            && board.at(Square((rank - 1) * 8 + (file - 1))).color() == Color::WHITE) {
-            return true; 
-        }
-        if (file < 7 && board.at(Square((rank - 1) * 8 + (file + 1))) == PieceType::PAWN
-            && board.at(Square((rank - 1) * 8 + (file + 1))).color() == Color::WHITE) {
-            return true;
-        }
-    }
-    else {
-        if (file > 0 && board.at(Square((rank + 1) * 8 + (file - 1))) == PieceType::PAWN
-            && board.at(Square((rank + 1) * 8 + (file - 1))).color() == Color::BLACK) {
-            return true; 
-        }
-        if (file < 7 && board.at(Square((rank + 1) * 8 + (file + 1))) == PieceType::PAWN
-            && board.at(Square((rank + 1) * 8 + (file + 1))).color() == Color::BLACK) {
-            return true;
-        }
-    }
-
-    return false; // No protecting pawn found
-}
-
-
-/*------------------------------------------------------------------------
- Main Functions 
-------------------------------------------------------------------------*/
-
-// Compute the value of the pawns on the board
-int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
-
-    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
-    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-
-    std::uint64_t ourPawnsBits = ourPawns.getBits();
-    std::uint64_t theirPawnsBits = theirPawns.getBits();
-    bool endGameFlag = info.endGameFlag;
-
-
-    // constants
-    const int passedPawnBonus = 35;
-    const int protectedPassedPawnBonus = 45;
-    const int centerBonus = 10;
-
-    const int isolatedPawnPenaltyAH = 10;
-    const int isolatedPawnPenalty = 20;
-    const int unSupportedPenalty = 10;
-    const int doubledPawnPenalty = 30;
-   
-    const int* pawnTable;
-
-    if (color == Color::WHITE) {
-        if (endGameFlag) {
-            pawnTable = whitePawnTableEnd;
-        } else {
-            pawnTable = whitePawnTableMid;
-        }
+    if (type == PieceType::KNIGHT) {
+        return 500;
+    } else if (type == PieceType::BISHOP) {
+        return 400;
+    } else if (type == PieceType::ROOK) {
+        return 200;
+    } else if (type == PieceType::QUEEN) {
+        return 300;
     } else {
-        if (endGameFlag) {
-            pawnTable = blackPawnTableEnd;
-        } else {
-            pawnTable = blackPawnTableMid;
-        }
+        return 400;
     }
-
-    int files[8] = {0};
-    int value = 0;
-    int advancedPawnBonus = endGameFlag ? 6 : 3;
-
-    Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
-                            | board.pieces(PieceType::KNIGHT, !color) 
-                            | board.pieces(PieceType::ROOK, !color) 
-                            | board.pieces(PieceType::QUEEN, !color); 
-                            
-    Bitboard ourPawnsCopy = ourPawns;
-    while (!ourPawns.empty()) {
-        int sqIndex = ourPawns.lsb(); 
-        int file = sqIndex % 8; // Get the file of the pawn
-        files[file]++; // Increment the count of pawns on the file
-        ourPawns.clear(sqIndex);
-    }
-    ourPawns = ourPawnsCopy;
-
-    while (!ourPawns.empty()) {
-        int sqIndex = ourPawns.lsb(); 
-
-        value += baseValue; 
-        value += pawnTable[sqIndex]; 
-
-        int file = sqIndex % 8;
-        int rank = sqIndex / 8;
-
-        if (file == 3 || file == 4) {
-            value += centerBonus;
-        }
-
-        if ((file == 0 && files[1] == 0) || (file == 7 && files[6] == 0)) {
-            value -= isolatedPawnPenaltyAH;
-        } else if (file > 0 && file < 7 && files[file - 1] == 0  && files[file + 1] == 0) {
-            value -= isolatedPawnPenalty;
-        }
-
-        if (isPassedPawn(sqIndex, color, theirPawns)) {
-            if (isProtectedByPawn(sqIndex, board, color)) {
-                value += protectedPassedPawnBonus;
-            } else {            
-                value += passedPawnBonus;
-            }
-        }  
-        
-        if (!isProtectedByPawn(sqIndex, board, color)) {
-                if (color == Color::WHITE && info.semiOpenFilesBlack[file]) {
-                    value -= unSupportedPenalty;
-                } else if (color == Color::BLACK && info.semiOpenFilesWhite[file]) {
-                    value -= unSupportedPenalty;
-                } else  {
-                    value -= (unSupportedPenalty - 5); // Penalize less if the pawn is not on a semi-open file
-                }
-        }
-
-        if (color == Color::WHITE) {
-            value += (rank - 1) * advancedPawnBonus;
-        } else {
-            value += (6 - rank) * advancedPawnBonus;
-        }
-
-        ourPawns.clear(sqIndex);
-    }
-    
-    // Add penalty for doubled pawns
-    for (int i = 0; i < 8; i++) {
-        if (files[i] > 1) {
-            value -= (files[i] - 1) * doubledPawnPenalty;
-        }
-    }
-
-    return value;
 }
 
-// Compute the value of the knights on the board
-int knightValue(const Board& board, int baseValue, Color color, Info& info) {
+// Update the killer moves
+void updateKillerMoves(const Move& move, int depth) {
+    #pragma omp critical
+    {
+        if (killerMoves[depth].size() < 2) {
+            killerMoves[depth].push_back(move);
+        } else {
+            killerMoves[depth][1] = killerMoves[depth][0];
+            killerMoves[depth][0] = move;
+        }
+    }
+}
 
-    // Constants
-    const int* knightTable;
-    const int outpostBonus = 30;
-    const int mobilityBonus = 2;
-    const int protectionBonus = 3;
-    
-    bool endGameFlag = info.endGameFlag;
- 
-    if (color == Color::WHITE) {
-        if (endGameFlag) {
-            knightTable = whiteKnightTableEnd;
-        } else {
-            knightTable = whiteKnightTableMid;
-        }
-    } else {
-        if (endGameFlag) {
-            knightTable = blackKnightTableEnd;
-        } else {
-            knightTable = blackKnightTableMid;
-        }
+// Late move reduction
+int depthReduction(Board& board, Move move, int i, int depth) {
+    double a = 0.5, b = 0.5;
+
+    Board localBoard = board;
+    localBoard.makeMove(move);
+    bool isCheck = localBoard.inCheck();
+
+    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
+        return depth - 1;
     } 
 
-    Bitboard knights = board.pieces(PieceType::KNIGHT, color);
-    int value = 0;
-
-    while (!knights.empty()) {
-        value += baseValue;
-        int sqIndex = knights.lsb();
-        value += knightTable[sqIndex];
-
-        if (isOutpost(board, sqIndex, color)) {
-            value += outpostBonus;
-        }
-
-        Bitboard knightMoves = attacks::knight(Square(sqIndex));
-        int mobility = knightMoves.count();
-        value += mobilityBonus * mobility;
-
-        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
-        // value += std::min(protectors.count(), 2) * protectionBonus;
-
-        knights.clear(sqIndex);
-    }
-
-    return value;
+    int R = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
+    return depth - R;
 }
 
-// Compute the value of the bishops on the board
-int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
-
-    // Constants
-    const int bishopPairBonus = 30;
-    const int mobilityBonus = 3;
-    const int outpostBonus = 20;
-    const int protectionBonus = 3;
-    const int *bishopTable;
-
-    bool endGameFlag = info.endGameFlag;
-
-    if (color == Color::WHITE) {
-        if (endGameFlag) {
-            bishopTable = whiteBishopTableEnd;
-        } else {
-            bishopTable = whiteBishopTableMid;
-        }
-    } else {
-        if (endGameFlag) {
-            bishopTable = blackBishopTableEnd;
-        } else {
-            bishopTable = blackBishopTableMid;
-        }
-    }
-
-    Bitboard bishops = board.pieces(PieceType::BISHOP, color);
-    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
-    int value = 0;
-    
-    if (bishops.count() >= 2) {
-        value += bishopPairBonus;
-    }
- 
-    while (!bishops.empty()) {
-        value += baseValue;
-        int sqIndex = bishops.lsb();
-        value += bishopTable[sqIndex];
-        Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
-
-        int mobility = bishopMoves.count();
-        value += mobilityBonus * mobility;
-
-        if (isOutpost(board, sqIndex, color)) {
-            value += outpostBonus;
-        }
-
-        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
-        // value += std::min(protectors.count(), 2) * protectionBonus;
-
-        bishops.clear(sqIndex);
-    }
-
-    return value;
-}
-
-
-// Compute the total value of the rooks on the board
-int rookValue(const Board& board, int baseValue, Color color, Info& info) {
-
-    // Constants
-    const double mobilityBonus = 3;
-    const int* rookTable;
-    const int semiOpenFileBonus = 10;
-    const int openFileBonus = 15;
-    const int protectionBonus = 5;
-
-    bool endGameFlag = info.endGameFlag;
-
-    if (color == Color::WHITE) {
-        if (endGameFlag) {
-            rookTable = whiteRookTableEnd;
-        } else {
-            rookTable = whiteRookTableMid;
-        }
-    } else {
-        if (endGameFlag) {
-            rookTable = blackRookTableEnd;
-        } else {
-            rookTable = blackRookTableMid;
-        }
-    }
-
-    Bitboard rooks = board.pieces(PieceType::ROOK, color);
-    int value = 0;
-
-    while (!rooks.empty()) {
-        int sqIndex = rooks.lsb(); 
-        int file = sqIndex % 8; 
-
-        value += baseValue; // Add the base value of the rook
-        value += rookTable[sqIndex]; // Add the value from the piece-square table
-
-        if (info.openFiles[file]) {
-            value += openFileBonus;
-        } else {
-            if (info.semiOpenFilesWhite[file] && color == Color::WHITE) {
-                value += semiOpenFileBonus;
-            } else if (info.semiOpenFilesBlack[file] && color == Color::BLACK) {
-                value += semiOpenFileBonus;
-            }
-        }
-        
-        Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
-
-        int mobility = rookMoves.count();
-        value += mobilityBonus * mobility;
-
-        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
-        // value += std::min(protectors.count(), 2) * protectionBonus;
-
-        rooks.clear(sqIndex);
-    }
-    
-    return value;
-}
-
-
-// Compute the total value of the queens on the board
-int queenValue(const Board& board, int baseValue, Color color, Info& info) {
-
-    // Constants
-    const int* queenTable;
-    const int mobilityBonus = 2;
-    const int protectionBonus = 3;
-
-    const int mobilityBonuses = 2;
-
-    bool endGameFlag = info.endGameFlag;
-
-    if (color == Color::WHITE) {
-        if (endGameFlag) {
-            queenTable = whiteQueenTableEnd;
-        } else {
-            queenTable = whiteQueenTableMid;
-        }
-    } else {
-        if (endGameFlag) {
-            queenTable = blackQueenTableEnd;
-        } else {
-            queenTable = blackQueenTableMid;
-        }
-    }
-    
-    Bitboard queens = board.pieces(PieceType::QUEEN, color);
-    Bitboard theirKing = board.pieces(PieceType::KING, !color);
-
-    Square theirKingSQ = Square(theirKing.lsb()); // Get the square of the their king
-    int value = 0;
-
-    Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
-    Bitboard theirBishops = board.pieces(PieceType::BISHOP, !color);
-
-    while (!queens.empty()) {
-        int sqIndex = queens.lsb(); 
-
-        int queenRank = sqIndex / 8, queenFile = sqIndex % 8;
-        value += baseValue; 
-        value += queenTable[sqIndex]; 
-
-        Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
-        int mobility = std::min(queenMoves.count(), 14);
-        value += mobilityBonus * mobility;
-
-        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
-        // value += std::min(protectors.count(), 2) * protectionBonus;
-
-        queens.clear(sqIndex); 
-    }
-    return value;
-}
-
-int kingThreat(const Board& board, Color color) {
-
-    Bitboard king = board.pieces(PieceType::KING, color);
-    int sqIndex = king.lsb();
-    int kingRank = sqIndex / 8, kingFile = sqIndex % 8;
-
-    double attackWeight = 0;
-    double threatScore = 0;
-
-    // Penalty for being attacked
-    Bitboard attackers;
-    int numAttackers;
-
-    // Get the adjacent squares to the king
-    Bitboard adjSq;
-    for (const auto& adjSqIndex : adjSquares.at(sqIndex)) {
-        adjSq = adjSq | Bitboard::fromSquare(adjSqIndex);
-    }
-
-    // A pawn is a threat if it is within Manhattan distance of 4
-    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-    while (theirPawns) {
-        int pawnIndex = theirPawns.lsb();
-
-        if (manhattanDistance(Square(pawnIndex), Square(sqIndex)) <= 4) {
-            attackers.set(pawnIndex);
-        }
-
-        theirPawns.clear(pawnIndex);
-    }
-
-    theirPawns = board.pieces(PieceType::PAWN, !color);
-
-    /*--------------------------------------------------------------
-     Check for attacks from other pieces
-     A piece is a threat if it attacks the adjacent squares to the king 
-     given the presence of our pieces and their pawns
-    --------------------------------------------------------------*/
-
-    Bitboard theirQueens = board.pieces(PieceType::QUEEN, !color);
-    Bitboard ourDefenders = allPieces(board, color);
-
-    while (theirQueens) {
-        int queenIndex = theirQueens.lsb();
-        int queenRank = queenIndex / 8, queenFile = queenIndex % 8; 
-
-        Bitboard queenAttacks = attacks::queen(Square(queenIndex), ourDefenders | theirPawns);
-        if (queenAttacks & adjSq) {
-            attackers.set(queenIndex);
-        }
-
-        theirQueens.clear(queenIndex);
-    }
-
-    Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
-    while (theirRooks) {
-        int rookIndex = theirRooks.lsb();
-        int rookRank = rookIndex / 8, rookFile = rookIndex % 8;
-
-        Bitboard rookAttacks = attacks::rook(Square(rookIndex), ourDefenders | theirPawns);
-        if (rookAttacks & adjSq) {
-            attackers.set(rookIndex);
-        }
-
-        theirRooks.clear(rookIndex);
-    }
-
-    Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
-    while (theirKnight) {
-        int knightIndex = theirKnight.lsb();
-        
-        Bitboard knightAttacks = attacks::knight(Square(knightIndex));
-        if (knightAttacks & adjSq) {
-            attackers.set(knightIndex);
-        }
-
-        theirKnight.clear(knightIndex);
-    }
-
-    Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
-    while (theirBishop) {
-        int bishopIndex = theirBishop.lsb();
-        int bishopRank = bishopIndex / 8, bishopFile = bishopIndex % 8;
-
-        Bitboard bishopAttacks = attacks::bishop(Square(bishopIndex), ourDefenders | theirPawns);
-
-        if (bishopAttacks & adjSq) {
-            attackers.set(bishopIndex);
-        }
-
-        theirBishop.clear(bishopIndex);
-    }
-
-    // Scale the adjacent square attacks by the number of attackers
-    numAttackers = attackers.count();
-
-    // The more attackers, the higher the penalty
-    switch (numAttackers) {
-        case 0: attackWeight = 0; break;
-        case 1: attackWeight = 0.25; break;
-        case 2: attackWeight = 0.65; break;
-        case 3: attackWeight = 1.00; break;
-        case 4: attackWeight = 1.20; break;
-        case 5: attackWeight = 1.50; break;
-        case 6: attackWeight = 1.75; break;
-        case 7: attackWeight = 2.00; break;
-        case 8: attackWeight = 2.00; break;
-        default: break;
-    }
-
-    while (attackers) {
-        int attackerIndex = attackers.lsb();
-        Piece attacker = board.at(Square(attackerIndex));
-
-        if (attacker.type() == PieceType::PAWN) {
-            threatScore += attackWeight * 15;
-        } else if (attacker.type() == PieceType::KNIGHT) {
-            threatScore += attackWeight * 30;
-        } else if (attacker.type() == PieceType::BISHOP) {
-            threatScore += attackWeight * 30;
-        } else if (attacker.type() == PieceType::ROOK) {
-            threatScore += attackWeight * 50;
-        } else if (attacker.type() == PieceType::QUEEN) {
-            threatScore += attackWeight * 100;
-        }
-
-        attackers.clear(attackerIndex);
-    }
-
-    return threatScore;
-}
-
-// Compute the value of the kings on the board
-int kingValue(const Board& board, int baseValue, Color color, Info& info) {
-
-    // Constants
-    const int pawnShieldBonus = 30;
-    const int openFilePenalty[3] = {10, 20, 30};
-    const int* kingTable;
-    int pieceProtectionBonus = 30;
-
-    bool endGameFlag = info.endGameFlag;
-
-    if (color == Color::WHITE) {
-        if (endGameFlag) {
-            kingTable = whiteKingTableEnd;
-        } else {
-            kingTable = whiteKingTableMid;
-        }
-    } else {
-        if (endGameFlag) {
-            kingTable = blackKingTableEnd;
-        } else {
-            kingTable = blackKingTableMid;
-        }
-    }
-
-    Bitboard king = board.pieces(PieceType::KING, color);
-    const PieceType allPieceTypes[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
-    
-    int value = baseValue;
-    int sqIndex = king.lsb();
-    int kingRank = sqIndex / 8, kingFile = sqIndex % 8;
-    
-
-    value += kingTable[sqIndex];    
-
-    if (!endGameFlag) {
-        // King protection by pawns
-        Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
-        while (!ourPawns.empty()) {
-            int pawnIndex = ourPawns.lsb();
-            int pawnRank = pawnIndex / 8, pawnFile = pawnIndex % 8;
-            // if the pawn is in front of the king and on an adjacent file, add shield bonus
-            if (color == Color::WHITE 
-                        && pawnRank == kingRank + 1 && std::abs(pawnFile - kingFile) <= 1) {
-                value += pawnShieldBonus;
-            } else if (color == Color::BLACK 
-                        && pawnRank == kingRank - 1 && std::abs(pawnFile - kingFile) <= 1) {
-                value += pawnShieldBonus; 
+// Generate a prioritized list of moves based on their tactical value
+std::vector<std::pair<Move, int>> prioritizedMoves(
+    Board& board, 
+    int depth, std::vector<Move>& previousPV, 
+    bool leftMost) {
+
+    Movelist moves;
+    movegen::legalmoves(moves, board);
+    std::vector<std::pair<Move, int>> candidates;
+    std::vector<std::pair<Move, int>> quietCandidates;
+
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    Color color = board.sideToMove();
+
+    // Move ordering 1. promotion 2. captures 3. killer moves 4. hash 5. checks 6. quiet moves
+    for (const auto& move : moves) {
+        int priority = 0;
+        bool quiet = false;
+        int moveIndex = move.from().index() * 64 + move.to().index();
+        int ply = globalMaxDepth - depth;
+
+        if (previousPV.size() > ply && leftMost) {
+
+            // Prioritize the principal variation from the previous iteration.
+            if (previousPV[ply] == move) {
+                priority = 6000;
             }
 
-            ourPawns.clear(pawnIndex);
-        }
-        
-        // King protection by pieces
-        for (const auto& type : allPieceTypes) {
-            Bitboard pieces = board.pieces(type, color);
-            int numProtector = 0;
-            while (!pieces.empty()) {
-                int pieceSqIndex = pieces.lsb();
-                if (color == Color::WHITE) {
-                    if (pieceSqIndex / 8 > sqIndex / 8 && manhattanDistance(Square(pieceSqIndex), Square(sqIndex)) <= 4) { 
-                        value += pieceProtectionBonus; 
-                    }
-                } else if (color == Color::BLACK) {
-                    if (pieceSqIndex / 8 < sqIndex / 8 && manhattanDistance(Square(pieceSqIndex), Square(sqIndex)) <= 4) {
-                        value += pieceProtectionBonus; 
-                    }
+        } else if (isPromotion(move)) {
+
+            priority = 5000; 
+
+        } else if (board.isCapture(move)) { 
+
+            // MVV-LVA priority for captures
+            auto victim = board.at<Piece>(move.to());
+            auto attacker = board.at<Piece>(move.from());
+
+            priority = 4000 + pieceValues[static_cast<int>(victim.type())] 
+                            - pieceValues[static_cast<int>(attacker.type())];
+
+        } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) 
+                != killerMoves[depth].end()) {
+
+            priority = 3000;
+
+        } else {
+            board.makeMove(move);
+            bool isCheck = board.inCheck();
+            board.unmakeMove(move);
+
+            if (isCheck) {
+                priority = 1000;
+            } else {
+                // quiet moves
+                int from = move.from().index(), to = move.to().index();
+                quiet = true;
+
+                if (whiteTurn) {
+                    priority = 1000 + whiteHistory[move.from().index()][move.to().index()];
+                } else {
+                    priority = 1000 + blackHistory[move.from().index()][move.to().index()];
                 }
-                pieces.clear(pieceSqIndex);
+
+                // if (priority == 0) {
+                //     priority = quietPriority(board, move);
+                // }
+
             }
+        } 
+
+        if (!quiet) {
+            candidates.push_back({move, priority});
+        } else {
+            quietCandidates.push_back({move, priority});
         }
-
-        Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
-
-        while (theirQueen) {
-            int queenIndex = theirQueen.lsb();
-            int queenRank = queenIndex / 8, queenFile = queenIndex % 8;
-
-            if (manhattanDistance(Square(queenIndex), Square(sqIndex)) <= 4) {
-                value -= 30;
-            }
-
-            theirQueen.clear(queenIndex);
-        }
-
-        int numAdjOpenFiles = 0;
-
-        if (info.openFiles[kingFile] || info.semiOpenFilesWhite[kingFile] || info.semiOpenFilesBlack[kingFile]) {
-            numAdjOpenFiles++;
-        }
-
-        if (kingFile > 0 && (info.openFiles[kingFile - 1] 
-            || info.semiOpenFilesWhite[kingFile - 1] 
-            || info.semiOpenFilesBlack[kingFile - 1])) {
-            numAdjOpenFiles++;
-        }
-
-        if (kingFile < 7 && (info.openFiles[kingFile + 1] 
-            || info.semiOpenFilesWhite[kingFile + 1] 
-            || info.semiOpenFilesBlack[kingFile + 1])) {
-            numAdjOpenFiles++;
-        }
-
-        value -= openFilePenalty[numAdjOpenFiles];
-
-        int threatScore = kingThreat(board, color);
-        
-        value -= static_cast<int>(threatScore);
     }
 
-    return value;
+    // Sort capture, promotion, checks by priority
+    std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
+
+    // Sort the quiet moves by priority
+    std::sort(quietCandidates.begin(), quietCandidates.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
+
+    for (const auto& move : quietCandidates) {
+        candidates.push_back(move);
+    }
+
+    return candidates;
 }
 
-// Function to evaluate the board position
-int evaluate(const Board& board) {
-    // Constant
-    const int tempoBonus = 10;
-    const int blockCentralPawnPenalty = 60;
-    const int centerControlBonus = 10;
+int quiescence(Board& board, int depth, int alpha, int beta) {
 
-    // Initialize totals
-    int whiteScore = 0;
-    int blackScore = 0;
-
-    // Mop-up phase: if only their king is left
-    Info info;
-    info.endGameFlag = isEndGame(board);
-
-    /*--------------------------------------------------------------------------
-    Mop-up phase: if only their king is left without any other pieces.
-    Aim to checkmate.
-    --------------------------------------------------------------------------*/
-
-    Color theirColor = !board.sideToMove();
-    Bitboard theirPieces = board.pieces(PieceType::PAWN, theirColor) | board.pieces(PieceType::KNIGHT, theirColor) | 
-                           board.pieces(PieceType::BISHOP, theirColor) | board.pieces(PieceType::ROOK, theirColor) | 
-                           board.pieces(PieceType::QUEEN, theirColor);
-
-    Bitboard ourPieces =  board.pieces(PieceType::ROOK, board.sideToMove()) | board.pieces(PieceType::QUEEN, board.sideToMove());
-
-    if (theirPieces.count() == 0 && ourPieces.count() > 0) {
-        Square ourKing = Square(board.pieces(PieceType::KING, board.sideToMove()).lsb());
-        Square theirKing = Square(board.pieces(PieceType::KING, theirColor).lsb());
-        Square E4 = Square(28);
-
-        int kingDist = manhattanDistance(ourKing, theirKing);
-        int distToCenter = manhattanDistance(theirKing, E4);
-        int ourMaterial = 900 * board.pieces(PieceType::QUEEN, board.sideToMove()).count() + 
-                          500 * board.pieces(PieceType::ROOK, board.sideToMove()).count() + 
-                          300 * board.pieces(PieceType::BISHOP, board.sideToMove()).count() + 
-                          300 * board.pieces(PieceType::KNIGHT, board.sideToMove()).count() + 
-                          100 * board.pieces(PieceType::PAWN, board.sideToMove()).count(); // avoid throwing away pieces
-        int score = 5000 +  distToCenter + (14 - kingDist);
-
-        return board.sideToMove() == Color::WHITE ? score : -score;
+    if (globalDebug) {
+        #pragma  omp critical
+        positionCount++;
+    }
+    
+    if (depth == 0) {
+        return evaluate(board);
     }
 
-    /*--------------------------------------------------------------------------
-    Standard evaluation phase
-    --------------------------------------------------------------------------*/
-
-    // Tempo bonus
-    if (board.sideToMove() == Color::WHITE) {
-        whiteScore += tempoBonus;
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    int standPat = evaluate(board);
+        
+    if (whiteTurn) {
+        if (standPat >= beta) {
+            return beta;
+        }
+        if (standPat > alpha) {
+            alpha = standPat;
+        }
     } else {
-        blackScore += tempoBonus;
-    }
-
-    // Compute open files and semi-open files
-    for (int i = 0; i < 8; i++) {
-        info.openFiles[i] = isOpenFile(board, i);
-        if (!info.openFiles[i]) {
-            info.semiOpenFilesWhite[i] = isSemiOpenFile(board, i, Color::WHITE);
-            info.semiOpenFilesBlack[i] = isSemiOpenFile(board, i, Color::BLACK);
+        if (standPat <= alpha) {
+            return alpha;
+        }
+        if (standPat < beta) {
+            beta = standPat;
         }
     }
 
-    // Traverse each piece type
-    const PieceType allPieceTypes[] = {PieceType::PAWN, PieceType::KNIGHT, PieceType::BISHOP, 
-                                           PieceType::ROOK, PieceType::QUEEN, PieceType::KING};
+    Movelist moves;
+    movegen::legalmoves(moves, board);
+    std::vector<std::pair<Move, int>> candidateMoves;
+    int greatestMaterialGain = 0;
 
-    int numWhitePawns = std::clamp(board.pieces(PieceType::PAWN, Color::WHITE).count(), 0, 8);
-    int numBlackPawns = std::clamp(board.pieces(PieceType::PAWN, Color::BLACK).count(), 0, 8);
+    for (const auto& move : moves) {
 
-    int numWhiteRooks = std::clamp(board.pieces(PieceType::ROOK, Color::WHITE).count(), 0, 8);  
-    int numBlackRooks = std::clamp(board.pieces(PieceType::ROOK, Color::BLACK).count(), 0, 8);
-
-
-    for (const auto& type : allPieceTypes) {
-        // Determine base value of the current piece type
-        int baseValue = 0;
-
-        switch (type.internal()) {
-            case PieceType::PAWN: baseValue = PAWN_VALUE; break;
-            case PieceType::KNIGHT: baseValue = KNIGHT_VALUE; break;
-            case PieceType::BISHOP: baseValue = BISHOP_VALUE; break;
-            case PieceType::ROOK: baseValue = ROOK_VALUE; break;
-            case PieceType::QUEEN: baseValue = QUEEN_VALUE; break;
-            case PieceType::KING: baseValue = KING_VALUE; break;
-            default: break;
+        if (!board.isCapture(move) && !isPromotion(move)) {
+            continue;
         }
 
-        // Process white pieces
-        if (type == PieceType::KNIGHT) {
-            whiteScore += knightValue(board, baseValue, Color::WHITE, info);
-            blackScore += knightValue(board, baseValue, Color::BLACK, info);
-        } else if (type == PieceType::BISHOP) {
-            whiteScore += bishopValue(board, baseValue, Color::WHITE, info);
-            blackScore += bishopValue(board, baseValue, Color::BLACK, info);
-        } else if (type == PieceType::KING) {
-            whiteScore += kingValue(board, baseValue, Color::WHITE, info);
-            blackScore += kingValue(board, baseValue, Color::BLACK, info);
-        }  else if (type == PieceType::PAWN) {
-            whiteScore += pawnValue(board, baseValue, Color::WHITE, info);
-            blackScore += pawnValue(board, baseValue, Color::BLACK, info);
-        } else if (type == PieceType::ROOK) {
-            whiteScore += rookValue(board, baseValue, Color::WHITE, info);
-            blackScore += rookValue(board, baseValue, Color::BLACK, info);
-        } else if (type == PieceType::QUEEN) {
-            whiteScore += queenValue(board, baseValue, Color::WHITE, info);
-            blackScore += queenValue(board, baseValue, Color::BLACK, info);
+        //  Prioritize promotions & captures
+        if (isPromotion(move)) {
+
+            candidateMoves.push_back({move, 5000});
+            greatestMaterialGain = pieceValues[5]; // Assume queen promotion
+
+        } else if (board.isCapture(move)) {
+
+            auto victim = board.at<Piece>(move.to());
+            auto attacker = board.at<Piece>(move.from());
+
+            int priority = pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())];
+            candidateMoves.push_back({move, priority});
+            greatestMaterialGain = std::max(greatestMaterialGain, pieceValues[static_cast<int>(attacker.type())]);
+
         } 
     }
 
-    // Avoid trading pieces for pawns in middle game
-    const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
-    int whitePieceValue = queenValue * board.pieces(PieceType::QUEEN, Color::WHITE).count() + 
-                        rookValue * board.pieces(PieceType::ROOK, Color::WHITE).count() + 
-                        bishopValue * board.pieces(PieceType::BISHOP, Color::WHITE).count() + 
-                        knightValue * board.pieces(PieceType::KNIGHT, Color::WHITE).count();
-
-    int blackPieceValue = queenValue * board.pieces(PieceType::QUEEN, Color::BLACK).count() + 
-                        rookValue * board.pieces(PieceType::ROOK, Color::BLACK).count() + 
-                        bishopValue * board.pieces(PieceType::BISHOP, Color::BLACK).count() + 
-                        knightValue * board.pieces(PieceType::KNIGHT, Color::BLACK).count();
-
-    if (whitePieceValue > blackPieceValue) {
-        whiteScore += 80;
-    } else if (blackPieceValue > whitePieceValue) {
-        blackScore += 80;
+    // Delta pruning. Assume we can't raise alpha or lower beta with the best capture. Prune.
+    const int deltaMargin = 200;
+    if (whiteTurn) {
+        if (standPat + greatestMaterialGain + deltaMargin < alpha) {
+            return alpha;
+        }
+    } else {
+        if (standPat - greatestMaterialGain - deltaMargin > beta) {
+            return beta;
+        }
     }
 
-    /*--------------------------------------------------------------------------
-        Pattern detection
-    --------------------------------------------------------------------------*/
-
-    Bitboard d2 = Bitboard::fromSquare(11);
-    Bitboard e2 = Bitboard::fromSquare(12);
-    Bitboard d3 = Bitboard::fromSquare(19);
-    Bitboard e3 = Bitboard::fromSquare(20);
-    Bitboard d4 = Bitboard::fromSquare(27);
-    Bitboard e4 = Bitboard::fromSquare(28);
-
-    Bitboard d5 = Bitboard::fromSquare(35);
-    Bitboard e5 = Bitboard::fromSquare(36);
-    Bitboard d6 = Bitboard::fromSquare(43);
-    Bitboard e6 = Bitboard::fromSquare(44);
-    Bitboard d7 = Bitboard::fromSquare(51);
-    Bitboard e7 = Bitboard::fromSquare(52);
-
-    Bitboard center = e4 | d4 | e5 | d5;
-
-    int whiteCenterControl = (allPieces(board, Color::WHITE) & center).count() * centerControlBonus;
-    int blackCenterControl = (allPieces(board, Color::BLACK) & center).count() * centerControlBonus;
-
-    whiteScore += whiteCenterControl;
-    blackScore += blackCenterControl;
+    std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
     
-    if (board.occ() && d3) {
-        Piece piece = board.at(Square(11));
-        if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
-            whiteScore -= blockCentralPawnPenalty;
-        }
-    }
-    if (board.occ() && e3) {
-        Piece piece = board.at(Square(12));
-        if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
-            whiteScore -= blockCentralPawnPenalty;
-        }
-    }
-    if (board.occ() && d6) {
-        Piece piece = board.at(Square(51));
-        if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
-            blackScore -= blockCentralPawnPenalty;
-        }
-    }
-    if (board.occ() && e6) {
-        Piece piece = board.at(Square(52));
-        if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
-            blackScore -= blockCentralPawnPenalty;
+    for (const auto& [move, priority] : candidateMoves) {
+
+        board.makeMove(move);
+        int score;
+        score = quiescence(board, depth - 1, alpha, beta);
+
+        board.unmakeMove(move);
+
+        if (whiteTurn) {
+            
+            if (score >= beta) { 
+                return beta;
+            }
+
+            if (score > alpha) {
+                alpha = score;
+            }
+
+        } else {
+            
+            if (score <= alpha) {
+                return alpha;
+            }
+
+            if (score < beta) {
+                beta = score;
+            }
+
         }
     }
 
-    return whiteScore - blackScore;
+    return whiteTurn ? alpha : beta;
+}
+
+int alphaBeta(Board& board, 
+            int depth, 
+            int alpha, 
+            int beta, 
+            int quiescenceDepth,
+            std::vector<Move>& PV,
+            bool leftMost) {
+
+    if (globalDebug) {
+        #pragma  omp critical
+        positionCount++;
+    }
+
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    bool endGameFlag;
+
+    if (whiteTurn) {
+        endGameFlag = isEndGame(board, Color::WHITE);
+    } else {
+        endGameFlag = isEndGame(board, Color::BLACK);
+    }
+
+    // Check if the game is over
+    auto gameOverResult = board.isGameOver();
+    if (gameOverResult.first != GameResultReason::NONE) {
+        if (gameOverResult.first == GameResultReason::CHECKMATE) {
+            if (whiteTurn) {
+                return -INF/2 + (1000 - depth); // Get the fastest checkmate possible
+            } else {
+                return INF/2 - (1000 - depth); 
+            }
+        }
+        return 0;
+    }
+
+    // Razoring: Skip searching nodes that are likely to be bad.
+    const int razorMargin = 350; 
+    if (depth <= 3 && !leftMost && !board.inCheck() && !endGameFlag) {
+        int standPat = evaluate(board); 
+
+        if (whiteTurn) {
+            if (standPat + razorMargin < alpha) {
+                return quiescence(board, quiescenceDepth, alpha, beta);
+            }
+        } else {
+            if (standPat - razorMargin > beta) {
+                return quiescence(board, quiescenceDepth, alpha, beta);
+            }
+        }
+    }
+
+    // Probe the transposition table
+    std::uint64_t hash = board.hash();
+    bool found = false;
+    int storedEval;
+    
+
+    #pragma omp critical
+    { 
+        if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
+            (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
+            found = true;
+
+            if (globalDebug) tableHit++;
+        }
+    }
+
+    if (found) {
+        return storedEval;
+    } 
+
+    if (depth <= 0) {
+        int quiescenceEval = quiescence(board, quiescenceDepth, alpha, beta);
+        
+        if (whiteTurn) {
+            #pragma omp critical
+            lowerBoundTable[hash] = {quiescenceEval, 0};
+        } else {
+            #pragma omp critical
+            upperBoundTable[hash] = {quiescenceEval, 0};
+        }
+        
+        return quiescenceEval;
+    }
+
+    // Null move pruning. Avoid null move pruning in the endgame phase.
+    if (!endGameFlag) {
+        if (depth >= nullDepth) {
+            if (!board.inCheck()) {
+
+                board.makeNullMove();
+                std::vector<Move> nullPV;
+                int nullEval;
+
+                if (whiteTurn) {
+                    nullEval = alphaBeta(board, depth - R, beta - 1, beta, quiescenceDepth, nullPV, false);
+                } else {
+                    nullEval = alphaBeta(board, depth - R, alpha, alpha + 1, quiescenceDepth, nullPV, false);
+                }
+
+                board.unmakeNullMove();
+
+                if (whiteTurn && nullEval >= beta) {
+                    return nullEval;
+                } else if (!whiteTurn && nullEval <= alpha) {
+                    return nullEval;
+                }
+            }
+        }
+    }
+
+    // Futility pruning
+    const int futilityMargin = 350;
+    if (depth == 1 && !board.inCheck()) {
+        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+
+        if (whiteTurn) {
+            if (standPat + futilityMargin < alpha) {
+                return alpha;
+            }
+        } else {
+            if (standPat - futilityMargin > beta) {
+                return beta;
+            }
+        }
+    }
+
+    std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
+    int bestEval = whiteTurn ? -INF : INF;
+
+    for (int i = 0; i < moves.size(); i++) {
+        Move move = moves[i].first;
+        std::vector<Move> pvChild;
+
+        int eval;
+        int nextDepth;
+    
+        nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
+        
+        if (i > 0) {
+            // If not the first move, this is not the leftmost path
+            leftMost = false;
+        }
+
+        board.makeMove(move);
+        eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, pvChild, leftMost);
+        board.unmakeMove(move);
+
+        if (whiteTurn) {
+            if (eval > alpha && nextDepth < depth - 1) { 
+                board.makeMove(move);
+                pvChild.clear();
+                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild, leftMost);
+                board.unmakeMove(move);
+            }
+
+            if (eval > alpha) {
+                PV.clear();
+                PV.push_back(move);
+                for (auto& move : pvChild) {
+                    PV.push_back(move);
+                }
+            }
+
+            bestEval = std::max(bestEval, eval);
+            alpha = std::max(alpha, eval);
+        } else {
+
+            if (eval < beta && nextDepth < depth - 1) { 
+                board.makeMove(move);
+                pvChild.clear();
+                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild, leftMost);
+                board.unmakeMove(move);
+            }
+
+            if (eval < beta) {
+                PV.clear();
+                PV.push_back(move);
+                for (auto& move : pvChild) {
+                    PV.push_back(move);
+                }
+            }
+
+            bestEval = std::min(bestEval, eval);
+            beta = std::min(beta, eval);
+        }
+
+        if (beta <= alpha) {
+            updateKillerMoves(move, depth);
+
+            if (!board.isCapture(move)) {
+                int fromSq = move.from().index(), toSq = move.to().index();
+                if (whiteTurn) {
+                    whiteHistory[fromSq][toSq] += depth * depth + depth - 1;
+                } else {
+                    blackHistory[fromSq][toSq] += depth * depth + depth - 1;
+                }
+            }
+
+            break;
+        }
+    }
+
+    if (whiteTurn) {
+            #pragma omp critical
+            lowerBoundTable[board.hash()] = {bestEval, depth}; 
+    } else {
+            #pragma omp critical
+            upperBoundTable[board.hash()] = {bestEval, depth}; 
+    }
+
+    return bestEval;
+}
+
+
+Move findBestMove(Board& board, 
+                  int numThreads = 4, 
+                  int maxDepth = 6, 
+                  int quiescenceDepth = 10, 
+                  int timeLimit = 5000,
+                  bool debug = false,
+                  bool resetHistory = false) {
+
+    if (resetHistory) {
+        whiteHistory = std::vector<std::vector<int>>(64, std::vector<int>(64, 0)); 
+        blackHistory = std::vector<std::vector<int>>(64, std::vector<int>(64, 0));
+    }
+
+    auto startTime = std::chrono::high_resolution_clock::now();
+
+    Move bestMove = Move(); 
+    int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
+
+    std::vector<std::pair<Move, int>> moves;
+    std::vector<Move> globalPV (maxDepth);
+
+    globalDebug = debug;
+    globalQuiescenceDepth = quiescenceDepth;
+    omp_set_num_threads(numThreads);
+
+    // Clear transposition tables
+    #pragma omp critical
+    {
+        if (lowerBoundTable.size() > tableMaxSize) {
+            lowerBoundTable.clear();
+        }
+        if (upperBoundTable.size() > tableMaxSize) {
+            upperBoundTable.clear();
+        }  
+    }
+
+    bool timeLimitExceeded = false;
+    int baseDepth = 1;
+
+    for (int depth = baseDepth; depth <= maxDepth; ++depth) {
+        globalMaxDepth = depth;
+        
+        // Track the best move for the current depth
+        Move currentBestMove = Move();
+        int currentBestEval = whiteTurn ? -INF : INF;
+
+        std::vector<std::pair<Move, int>> newMoves;
+        std::vector<Move> PV; // Principal variation
+
+        if (depth == baseDepth) {
+            moves = prioritizedMoves(board, depth, previousPV, false);
+        }
+
+        bool leftMost = false;
+
+        #pragma omp parallel
+        {
+            #pragma omp for
+            for (int i = 0; i < moves.size(); i++) {
+
+                if (timeLimitExceeded) {
+                    continue; // Skip iteration if time limit is exceeded
+                }
+
+                if (i > baseDepth && i == 0) {
+                    leftMost = true; // First move from the root starts the leftmost path
+                } else {
+                    leftMost = false;
+                }
+
+                Move move = moves[i].first;
+                std::vector<Move> childPV; 
+                
+                Board localBoard = board;
+                bool newBestFlag = false;
+
+                int nextDepth = depthReduction(localBoard, move, i, depth);
+            
+                localBoard.makeMove(move);
+                int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
+                localBoard.unmakeMove(move);
+
+                #pragma omp critical
+                {
+                    if ((whiteTurn && eval > currentBestEval) || (!whiteTurn && eval < currentBestEval)) {
+                        newBestFlag = true;
+                    }
+                }
+
+                if (newBestFlag) {
+                    localBoard.makeMove(move);
+                    eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost);
+                    localBoard.unmakeMove(move);
+                }
+
+                #pragma omp critical
+                newMoves.push_back({move, eval});
+
+                #pragma omp critical
+                {
+                    if ((whiteTurn && eval > currentBestEval) || 
+                        (!whiteTurn && eval < currentBestEval)) {
+                        currentBestEval = eval;
+                        currentBestMove = move;
+
+                        PV.clear();
+                        PV.push_back(move);
+                        for (auto& move : childPV) {
+                            PV.push_back(move);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update the global best move and evaluation after this depth
+        bestMove = currentBestMove;
+        bestEval = currentBestEval;
+
+        if (whiteTurn) {
+            std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
+                return a.second > b.second;
+            });
+        } else {
+            std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
+                return a.second < b.second;
+            });
+        }
+
+        if (debug) {
+            std::cout << "---------------------------------" << std::endl;
+            for (int j = 0; j < std::min<int>(5, newMoves.size()); j++) {
+                std::cout << "Depth: " << depth 
+                        << " Move: " << uci::moveToUci(newMoves[j].first) 
+                        << " Eval: " << newMoves[j].second << std::endl;
+            }
+            std::cout << "PV: ";
+            
+            for (const auto& move : PV) {
+                std::cout << uci::moveToUci(move) << " ";
+            }
+
+            std::cout << std::endl << " Hash Table Hit Percentage: " 
+                    << static_cast<double>(tableHit) / positionCount * 100 << "%" << std::endl;
+        }
+
+        moves = newMoves;
+        previousPV = PV;
+
+        // Check time limit again
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
+            break; 
+        }
+    }
+
+    return bestMove; 
 }

@@ -69,21 +69,21 @@ bool isPromotion(const Move& move) {
     return (move.typeOf() & Move::PROMOTION) != 0;
 }
 
-int quietPriority(const Board& board, const Move& move) {
-    auto type = board.at<Piece>(move.from()).type();
+// int quietPriority(const Board& board, const Move& move) {
+//     auto type = board.at<Piece>(move.from()).type();
 
-    if (type == PieceType::KNIGHT) {
-        return 500;
-    } else if (type == PieceType::BISHOP) {
-        return 400;
-    } else if (type == PieceType::ROOK) {
-        return 200;
-    } else if (type == PieceType::QUEEN) {
-        return 300;
-    } else {
-        return 400;
-    }
-}
+//     if (type == PieceType::KNIGHT) {
+//         return 500;
+//     } else if (type == PieceType::BISHOP) {
+//         return 400;
+//     } else if (type == PieceType::ROOK) {
+//         return 200;
+//     } else if (type == PieceType::QUEEN) {
+//         return 300;
+//     } else {
+//         return 400;
+//     }
+// }
 
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
@@ -354,20 +354,22 @@ int alphaBeta(Board& board,
     }
 
     // Razoring: Skip searching nodes that are likely to be bad.
-    const int razorMargin = 350; 
-    if (depth <= 3 && !leftMost && !board.inCheck() && !endGameFlag) {
-        int standPat = evaluate(board); 
+    // const int razorMargin = 350; 
+    // if (depth <= 3 && !leftMost && !board.inCheck() && !endGameFlag) {
+    //     int standPat = evaluate(board); 
+    //     int eval = 0;
 
-        if (whiteTurn) {
-            if (standPat + razorMargin < alpha) {
-                return quiescence(board, quiescenceDepth, alpha, beta);
-            }
-        } else {
-            if (standPat - razorMargin > beta) {
-                return quiescence(board, quiescenceDepth, alpha, beta);
-            }
-        }
-    }
+    //     if (whiteTurn) {
+    //         if (standPat + razorMargin < alpha) {
+    //             eval = quiescence(board, quiescenceDepth, alpha, beta);
+    //         }
+
+    //     } else {
+    //         if (standPat - razorMargin > beta) {
+    //             eval = quiescence(board, quiescenceDepth, alpha, beta);
+    //         }
+    //     }
+    // }
 
     // Probe the transposition table
     std::uint64_t hash = board.hash();
@@ -405,7 +407,7 @@ int alphaBeta(Board& board,
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
     if (!endGameFlag) {
-        if (depth >= nullDepth) {
+        if (depth >= nullDepth && !leftMost) {
             if (!board.inCheck()) {
 
                 board.makeNullMove();
@@ -431,9 +433,8 @@ int alphaBeta(Board& board,
 
     // Futility pruning
     const int futilityMargin = 350;
-    if (depth == 1 && !board.inCheck()) {
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-
+    if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
+        int standPat = evaluate(board);
         if (whiteTurn) {
             if (standPat + futilityMargin < alpha) {
                 return alpha;

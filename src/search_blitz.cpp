@@ -3,13 +3,11 @@
 #include "evaluation.hpp"
 #include <iostream>
 #include <map>
-#include <tuple> 
 #include <string>
 #include <vector>
 #include <algorithm>
 #include <omp.h> // Include OpenMP header
 #include <chrono>
-#include <unordered_set>
 #include <stdlib.h>
 #include <cmath>
 
@@ -34,7 +32,7 @@ int tableHit = 0;
 // const int futilityMargin = 350; 
 //int razorPly = 6; 
 
-int nullDepth = 6; 
+int nullDepth = 4; 
 int improvement = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
@@ -83,7 +81,7 @@ int quietPriority(const Board& board, const Move& move) {
     } else if (type == PieceType::QUEEN) {
         return 300;
     } else {
-        return 0;
+        return 400;
     }
 }
 
@@ -179,6 +177,10 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
                 } else {
                     priority = 1000 + blackHistory[move.from().index()][move.to().index()];
                 }
+
+                // if (priority == 0) {
+                //     priority = quietPriority(board, move);
+                // }
 
             }
         } 
@@ -316,8 +318,6 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     return whiteTurn ? alpha : beta;
 }
 
-
-
 int alphaBeta(Board& board, 
             int depth, 
             int alpha, 
@@ -351,6 +351,22 @@ int alphaBeta(Board& board,
             }
         }
         return 0;
+    }
+
+    // Razoring: Skip searching nodes that are likely to be bad.
+    const int razorMargin = 350; 
+    if (depth <= 3 && !leftMost && !board.inCheck() && !endGameFlag) {
+        int standPat = evaluate(board); 
+
+        if (whiteTurn) {
+            if (standPat + razorMargin < alpha) {
+                return quiescence(board, quiescenceDepth, alpha, beta);
+            }
+        } else {
+            if (standPat - razorMargin > beta) {
+                return quiescence(board, quiescenceDepth, alpha, beta);
+            }
+        }
     }
 
     // Probe the transposition table

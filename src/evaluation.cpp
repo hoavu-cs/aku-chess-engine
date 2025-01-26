@@ -1293,7 +1293,7 @@ int evaluate(const Board& board) {
     }
 
     // Safeguard against material deficit without enough compensation
-    const int deficitPenalty = 35;
+    const int deficitPenalty = 40;
     whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
     blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
 
