@@ -671,9 +671,7 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const int* knightTable;
     const int outpostBonus = 30;
-    const int mobilityBonus = 2;
-    const int protectionBonus = 3;
-    
+     
     bool endGameFlag;
 
     if (color == Color::WHITE) {
@@ -681,6 +679,8 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
     } else {
         endGameFlag = info.endGameFlagBlack;
     }
+
+    int mobilityBonus = endGameFlag ? 3 : 3;  // Bonus for mobility
  
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -712,9 +712,6 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         int mobility = knightMoves.count();
         value += mobilityBonus * mobility;
 
-        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
-        // value += std::min(protectors.count(), 2) * protectionBonus;
-
         knights.clear(sqIndex);
     }
 
@@ -726,7 +723,6 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int bishopPairBonus = 30;
-    const int mobilityBonus = 3;
     const int outpostBonus = 20;
     const int protectionBonus = 3;
     const int *bishopTable;
@@ -738,6 +734,8 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
     } else {
         endGameFlag = info.endGameFlagBlack;
     }
+
+    int mobilityBonus = endGameFlag ? 3 : 3;  // Bonus for mobility
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -774,9 +772,6 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
             value += outpostBonus;
         }
 
-        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
-        // value += std::min(protectors.count(), 2) * protectionBonus;
-
         bishops.clear(sqIndex);
     }
 
@@ -788,12 +783,9 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
 int rookValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
-    const int mobilityBonus = 3;
     const int* rookTable;
     const int semiOpenFileBonus = 10;
     const int openFileBonus = 15;
-    const int protectionBonus = 5;
-
     bool endGameFlag;
 
     if (color == Color::WHITE) {
@@ -801,6 +793,8 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     } else {
         endGameFlag = info.endGameFlagBlack;
     }
+
+    int mobilityBonus = endGameFlag ? 3 : 2;
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -837,13 +831,8 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         }
         
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
-
         int mobility = rookMoves.count();
         value += mobilityBonus * mobility;
-
-        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
-        // value += std::min(protectors.count(), 2) * protectionBonus;
-
         rooks.clear(sqIndex);
     }
     
@@ -855,12 +844,7 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
 int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
-    const int* queenTable;
-    const int mobilityBonus = 3;
-    const int protectionBonus = 3;
-
-    const int mobilityBonuses = 2;
-
+    const int* queenTable;    
     bool endGameFlag;
 
     if (color == Color::WHITE) {
@@ -868,6 +852,8 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
     } else {
         endGameFlag = info.endGameFlagBlack;
     }
+
+    int mobilityBonus = endGameFlag ? 2 : 1;
 
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -902,10 +888,6 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
         int mobility = std::min(queenMoves.count(), 12);
         value += mobilityBonus * mobility;
-
-        // Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
-        // value += std::min(protectors.count(), 2) * protectionBonus;
-
         queens.clear(sqIndex); 
     }
     return value;
@@ -1309,7 +1291,7 @@ int evaluate(const Board& board) {
     }
 
     // Safeguard against material deficit without enough compensation
-    const int deficitPenalty = 40;
+    const int deficitPenalty = 70;
     whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
     blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
 

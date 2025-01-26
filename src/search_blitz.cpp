@@ -69,21 +69,6 @@ bool isPromotion(const Move& move) {
     return (move.typeOf() & Move::PROMOTION) != 0;
 }
 
-int quietPriority(const Board& board, const Move& move) {
-    auto type = board.at<Piece>(move.from()).type();
-
-    if (type == PieceType::KNIGHT) {
-        return 500;
-    } else if (type == PieceType::BISHOP) {
-        return 400;
-    } else if (type == PieceType::ROOK) {
-        return 200;
-    } else if (type == PieceType::QUEEN) {
-        return 300;
-    } else {
-        return 400;
-    }
-}
 
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
@@ -106,7 +91,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
 
-    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
+    if (i <= 3 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
         return depth - 1;
     } 
 
@@ -212,8 +197,10 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
 int quiescence(Board& board, int depth, int alpha, int beta) {
 
     if (globalDebug) {
-        #pragma  omp critical
-        positionCount++;
+        #pragma  omp critical 
+        {
+            positionCount++;
+        }
     }
     
     if (depth == 0) {
@@ -287,7 +274,7 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     for (const auto& [move, priority] : candidateMoves) {
 
         board.makeMove(move);
-        int score;
+        int score = 0;
         score = quiescence(board, depth - 1, alpha, beta);
 
         board.unmakeMove(move);
@@ -328,7 +315,9 @@ int alphaBeta(Board& board,
 
     if (globalDebug) {
         #pragma  omp critical
-        positionCount++;
+        {
+            positionCount++;
+        }
     }
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
@@ -351,22 +340,6 @@ int alphaBeta(Board& board,
             }
         }
         return 0;
-    }
-
-    // Razoring: Skip searching nodes that are likely to be bad.
-    const int razorMargin = 350; 
-    if (depth <= 3 && !leftMost && !board.inCheck() && !endGameFlag) {
-        int standPat = evaluate(board); 
-
-        if (whiteTurn) {
-            if (standPat + razorMargin < alpha) {
-                return quiescence(board, quiescenceDepth, alpha, beta);
-            }
-        } else {
-            if (standPat - razorMargin > beta) {
-                return quiescence(board, quiescenceDepth, alpha, beta);
-            }
-        }
     }
 
     // Probe the transposition table
@@ -394,10 +367,15 @@ int alphaBeta(Board& board,
         
         if (whiteTurn) {
             #pragma omp critical
-            lowerBoundTable[hash] = {quiescenceEval, 0};
+            {
+                lowerBoundTable[hash] = {quiescenceEval, 0};
+            }
+            
         } else {
-            #pragma omp critical
-            upperBoundTable[hash] = {quiescenceEval, 0};
+            #pragma omp critical 
+            {
+                upperBoundTable[hash] = {quiescenceEval, 0};
+            }
         }
         
         return quiescenceEval;
@@ -405,7 +383,7 @@ int alphaBeta(Board& board,
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
     if (!endGameFlag) {
-        if (depth >= nullDepth) {
+        if (depth >= nullDepth && !leftMost) {
             if (!board.inCheck()) {
 
                 board.makeNullMove();
@@ -431,16 +409,15 @@ int alphaBeta(Board& board,
 
     // Futility pruning
     const int futilityMargin = 350;
-    if (depth == 1 && !board.inCheck()) {
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-
+    if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
+        int standPat = evaluate(board);
         if (whiteTurn) {
             if (standPat + futilityMargin < alpha) {
-                return alpha;
+                return standPat + futilityMargin;
             }
         } else {
             if (standPat - futilityMargin > beta) {
-                return beta;
+                return standPat - futilityMargin;
             }
         }
     }
@@ -452,10 +429,8 @@ int alphaBeta(Board& board,
         Move move = moves[i].first;
         std::vector<Move> pvChild;
 
-        int eval;
-        int nextDepth;
-    
-        nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
+        int eval = 0;
+        int nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
         
         if (i > 0) {
             // If not the first move, this is not the leftmost path
@@ -522,11 +497,17 @@ int alphaBeta(Board& board,
     }
 
     if (whiteTurn) {
-            #pragma omp critical
-            lowerBoundTable[board.hash()] = {bestEval, depth}; 
+            #pragma omp critical 
+            {
+                lowerBoundTable[board.hash()] = {bestEval, depth}; 
+            }
+            
     } else {
             #pragma omp critical
-            upperBoundTable[board.hash()] = {bestEval, depth}; 
+            {
+                upperBoundTable[board.hash()] = {bestEval, depth}; 
+            }
+            
     }
 
     return bestEval;

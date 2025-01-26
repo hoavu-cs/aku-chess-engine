@@ -357,24 +357,6 @@ int alphaBeta(Board& board,
         return 0;
     }
 
-    // Razoring: Skip searching nodes that are likely to be bad.
-    // const int razorMargin = 350; 
-    // if (depth <= 3 && !leftMost && !board.inCheck() && !endGameFlag) {
-    //     int standPat = evaluate(board); 
-    //     int eval = 0;
-
-    //     if (whiteTurn) {
-    //         if (standPat + razorMargin < alpha) {
-    //             eval = quiescence(board, quiescenceDepth, alpha, beta);
-    //         }
-
-    //     } else {
-    //         if (standPat - razorMargin > beta) {
-    //             eval = quiescence(board, quiescenceDepth, alpha, beta);
-    //         }
-    //     }
-    // }
-
     // Probe the transposition table
     std::uint64_t hash = board.hash();
     bool found = false;
@@ -441,19 +423,19 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning
-    const int futilityMargin = 350;
-    if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
-        int standPat = evaluate(board);
-        if (whiteTurn) {
-            if (standPat + futilityMargin < alpha) {
-                return standPat + futilityMargin;
-            }
-        } else {
-            if (standPat - futilityMargin > beta) {
-                return standPat - futilityMargin;
-            }
-        }
-    }
+    // const int futilityMargin = 350;
+    // if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
+    //     int standPat = evaluate(board);
+    //     if (whiteTurn) {
+    //         if (standPat + futilityMargin < alpha) {
+    //             return standPat + futilityMargin;
+    //         }
+    //     } else {
+    //         if (standPat - futilityMargin > beta) {
+    //             return standPat - futilityMargin;
+    //         }
+    //     }
+    // }
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? -INF : INF;
