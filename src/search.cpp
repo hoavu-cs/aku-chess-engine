@@ -317,16 +317,16 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     }
 
     // Delta pruning. Assume we can't raise alpha or lower beta with the best capture. Prune.
-    // const int deltaMargin = 350;
-    // if (whiteTurn) {
-    //     if (standPat + greatestMaterialGain + deltaMargin < alpha) {
-    //         return alpha;
-    //     }
-    // } else {
-    //     if (standPat - greatestMaterialGain - deltaMargin > beta) {
-    //         return beta;
-    //     }
-    // }
+    const int deltaMargin = 350;
+    if (whiteTurn) {
+        if (standPat + greatestMaterialGain + deltaMargin < alpha) {
+            return alpha;
+        }
+    } else {
+        if (standPat - greatestMaterialGain - deltaMargin > beta) {
+            return beta;
+        }
+    }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
