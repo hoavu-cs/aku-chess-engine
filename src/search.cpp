@@ -145,13 +145,11 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
         // search the first 6 moves, tactical moves, and frontier nodes at full depth
         return depth - 1;
-    } else if (depth <= 6) {
-        return depth - 2;
-    } else if (depth <= 8) {
-        return depth - 3;
-    } else {
-        return 5;
-    }
+    } 
+    
+    double a = 0.5, b = 0.5;
+    int R = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
+    return depth - R;
 }
 
 // Generate a prioritized list of moves based on their tactical value
