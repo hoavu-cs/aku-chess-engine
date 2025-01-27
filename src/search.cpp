@@ -480,19 +480,20 @@ int alphaBeta(Board& board,
             // Try a null window search with a reduced depth
             board.makeMove(move);  
             bool reject = true;
-            int R = 2;
+            // int R = 2;
 
-            if (depth > 6) {
-                R = 3;
-            } else if (depth > 8) {
-                R = 4;
-            }
+            // if (depth > 6) {
+            //     R = 3;
+            // } else if (depth > 8) {
+            //     R = 4;
+            // }
+            int nullWindowDepth = std::min(5, depth - 2);
 
             if (whiteTurn) {
-                eval = alphaBeta(board, depth - R, alpha, alpha + 1, quiescenceDepth, childPV, leftMost);
+                eval = alphaBeta(board, nullWindowDepth, alpha, alpha + 1, quiescenceDepth, childPV, leftMost);
                 if (eval > alpha) reject = false; // being able to raise alpha as white
             } else if (!whiteTurn) {
-                eval = alphaBeta(board, depth - R, beta - 1, beta, quiescenceDepth, childPV, leftMost);
+                eval = alphaBeta(board, nullWindowDepth, beta - 1, beta, quiescenceDepth, childPV, leftMost);
                 if (eval < beta) reject = false; // being able to lower beta as black
             }
 
@@ -644,19 +645,13 @@ Move findBestMove(Board& board,
                 localBoard.makeMove(move);  
                 int nullWindowEval = 0;
                 bool reject = true;
-                int R = 2;
-
-                if (depth > 6) {
-                    R = 3;
-                } else if (depth > 8) {
-                    R = 4;
-                }
-
+                int nullWindowDepth = std::min(5, depth - 2);
+                
                 if (whiteTurn) {
-                    nullWindowEval = alphaBeta(board, depth - R, -INF, INF, quiescenceDepth, childPV, leftMost);
+                    nullWindowEval = alphaBeta(board, nullWindowDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
                     if (nullWindowEval > currentBestEval) reject = false; // being able to raise alpha as white
                 } else if (!whiteTurn) {
-                    nullWindowEval = alphaBeta(board, depth - R, -INF, INF, quiescenceDepth, childPV, leftMost);
+                    nullWindowEval = alphaBeta(board, nullWindowDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
                     if (nullWindowEval < currentBestEval) reject = false; // being able to lower beta as black
                 }
 
