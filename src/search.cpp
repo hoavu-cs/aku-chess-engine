@@ -446,13 +446,28 @@ int alphaBeta(Board& board,
         }
     }
 
+    // Razoring
+    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
+        int razorMargin = 600;
+        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+        if (whiteTurn) {
+            if (standPat + razorMargin < alpha) {
+                return standPat + razorMargin;
+            }
+        } else {
+            if (standPat - razorMargin > beta) {
+                return standPat - razorMargin;
+            }
+        }
+    }
+
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? -INF : INF;
 
     for (int i = 0; i < moves.size(); i++) {
         Move move = moves[i].first;
-        std::vector<Move> pvChild;
+        std::vector<Move> childPV;
 
         int eval = 0;
         int nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
@@ -461,8 +476,8 @@ int alphaBeta(Board& board,
             leftMost = false;
         }
 
-        // PVS search on a narrow window
-        if (i > 0) {
+        if (i > 1) {
+            // Try a null window search with a reduced depth
             board.makeMove(move);  
             bool reject = true;
             int R = 2;
@@ -473,37 +488,37 @@ int alphaBeta(Board& board,
                 R = 4;
             }
 
-            if (whiteTurn && i > 0) {
-                eval = alphaBeta(board, depth - R, alpha, alpha + 1, quiescenceDepth, pvChild, leftMost);
+            if (whiteTurn) {
+                eval = alphaBeta(board, depth - R, alpha, alpha + 1, quiescenceDepth, childPV, leftMost);
                 if (eval > alpha) reject = false; // being able to raise alpha as white
-            } else if (!whiteTurn && i > 0) {
-                eval = alphaBeta(board, depth - R, beta - 1, beta, quiescenceDepth, pvChild, leftMost);
+            } else if (!whiteTurn) {
+                eval = alphaBeta(board, depth - R, beta - 1, beta, quiescenceDepth, childPV, leftMost);
                 if (eval < beta) reject = false; // being able to lower beta as black
             }
 
             board.unmakeMove(move);
 
             if (reject) {
-                continue;
+                continue; // IF the move fails to raise alpha or lower beta, skip it
             }
         }
 
         board.makeMove(move);
-        eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, pvChild, leftMost);
+        eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost);
         board.unmakeMove(move);
 
         if (whiteTurn) {
             if (eval > alpha && nextDepth < depth - 1) { 
                 board.makeMove(move);
-                pvChild.clear();
-                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild, leftMost);
+                childPV.clear();
+                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost);
                 board.unmakeMove(move);
             }
 
             if (eval > alpha) {
                 PV.clear();
                 PV.push_back(move);
-                for (auto& move : pvChild) {
+                for (auto& move : childPV) {
                     PV.push_back(move);
                 }
             }
@@ -514,15 +529,15 @@ int alphaBeta(Board& board,
 
             if (eval < beta && nextDepth < depth - 1) { 
                 board.makeMove(move);
-                pvChild.clear();
-                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, pvChild, leftMost);
+                childPV.clear();
+                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost);
                 board.unmakeMove(move);
             }
 
             if (eval < beta) {
                 PV.clear();
                 PV.push_back(move);
-                for (auto& move : pvChild) {
+                for (auto& move : childPV) {
                     PV.push_back(move);
                 }
             }
@@ -603,67 +618,93 @@ Move findBestMove(Board& board,
             moves = prioritizedMoves(board, depth, previousPV, false);
         }
 
-        bool leftMost = false;
+        bool leftMost;
 
-        #pragma omp parallel
-        {
-            #pragma omp for
-            for (int i = 0; i < moves.size(); i++) {
+        #pragma omp for
+        for (int i = 0; i < moves.size(); i++) {
 
-                if (timeLimitExceeded) {
-                    continue; // Skip iteration if time limit is exceeded
-                }
+            if (timeLimitExceeded) {
+                continue; // Skip iteration if time limit is exceeded
+            }
 
-                if (i > baseDepth && i == 0) {
-                    leftMost = true; // First move from the root starts the leftmost path
-                } else {
-                    leftMost = false;
-                }
+            if (i == 0) {
+                leftMost = true; // First move from the root starts the leftmost path
+            } else {
+                leftMost = false;
+            }
 
-                Move move = moves[i].first;
-                std::vector<Move> childPV; 
-                
-                Board localBoard = board;
-                bool newBestFlag = false;  
-
-                int nextDepth = depthReduction(localBoard, move, i, depth);
+            Move move = moves[i].first;
+            std::vector<Move> childPV; 
             
-                localBoard.makeMove(move);
-                int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
+            Board localBoard = board;
+            bool newBestFlag = false;  
+
+            if (i > 5 && depth > 4) {
+                // Try a null window search with a reduced depth
+                localBoard.makeMove(move);  
+                int nullWindowEval = 0;
+                bool reject = true;
+                int R = 2;
+
+                if (depth > 6) {
+                    R = 3;
+                } else if (depth > 8) {
+                    R = 4;
+                }
+
+                if (whiteTurn) {
+                    nullWindowEval = alphaBeta(board, depth - R, -INF, INF, quiescenceDepth, childPV, leftMost);
+                    if (nullWindowEval > currentBestEval) reject = false; // being able to raise alpha as white
+                } else if (!whiteTurn) {
+                    nullWindowEval = alphaBeta(board, depth - R, -INF, INF, quiescenceDepth, childPV, leftMost);
+                    if (nullWindowEval < currentBestEval) reject = false; // being able to lower beta as black
+                }
+
                 localBoard.unmakeMove(move);
 
-                #pragma omp critical
-                {
-                    if ((whiteTurn && eval > currentBestEval) || (!whiteTurn && eval < currentBestEval)) {
-                        newBestFlag = true;
-                    }
+                if (reject) {
+                    continue; // IF the move fails to raise alpha or lower beta, skip it
                 }
+            }
 
-                if (newBestFlag) {
-                    localBoard.makeMove(move);
-                    eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost);
-                    localBoard.unmakeMove(move);
+            int nextDepth = depthReduction(localBoard, move, i, depth);
+        
+            localBoard.makeMove(move);
+            int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
+            localBoard.unmakeMove(move);
+
+            #pragma omp critical
+            {
+                if ((whiteTurn && eval > currentBestEval) || (!whiteTurn && eval < currentBestEval)) {
+                    newBestFlag = true;
                 }
+            }
 
-                #pragma omp critical
-                newMoves.push_back({move, eval});
+            if (newBestFlag) {
+                localBoard.makeMove(move);
+                eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost);
+                localBoard.unmakeMove(move);
+            }
 
-                #pragma omp critical
-                {
-                    if ((whiteTurn && eval > currentBestEval) || 
-                        (!whiteTurn && eval < currentBestEval)) {
-                        currentBestEval = eval;
-                        currentBestMove = move;
+            #pragma omp critical
+            newMoves.push_back({move, eval});
 
-                        PV.clear();
+            #pragma omp critical
+            {
+                if ((whiteTurn && eval > currentBestEval) || 
+                    (!whiteTurn && eval < currentBestEval)) {
+                    currentBestEval = eval;
+                    currentBestMove = move;
+
+                    PV.clear();
+                    PV.push_back(move);
+                    for (auto& move : childPV) {
                         PV.push_back(move);
-                        for (auto& move : childPV) {
-                            PV.push_back(move);
-                        }
                     }
                 }
             }
         }
+        
 
         // Update the global best move and evaluation after this depth
         bestMove = currentBestMove;
