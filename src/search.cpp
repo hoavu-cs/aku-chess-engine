@@ -447,19 +447,19 @@ int alphaBeta(Board& board,
     }
 
     // Razoring
-    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
-        int razorMargin = 600;
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-        if (whiteTurn) {
-            if (standPat + razorMargin < alpha) {
-                return standPat + razorMargin;
-            }
-        } else {
-            if (standPat - razorMargin > beta) {
-                return standPat - razorMargin;
-            }
-        }
-    }
+    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
+    //     int razorMargin = 600;
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+    //     if (whiteTurn) {
+    //         if (standPat + razorMargin < alpha) {
+    //             return standPat + razorMargin;
+    //         }
+    //     } else {
+    //         if (standPat - razorMargin > beta) {
+    //             return standPat - razorMargin;
+    //         }
+    //     }
+    // }
 
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
@@ -639,7 +639,7 @@ Move findBestMove(Board& board,
             Board localBoard = board;
             bool newBestFlag = false;  
 
-            if (i > 5 && depth > 4) {
+            if (i > 2 && depth > 4) {
                 // Try a null window search with a reduced depth
                 localBoard.makeMove(move);  
                 int nullWindowEval = 0;
