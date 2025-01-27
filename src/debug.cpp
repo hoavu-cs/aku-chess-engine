@@ -62,11 +62,13 @@ int main() {
     
     // board = Board("5rk1/pp4pp/2b1p3/2Pp2q1/P6n/2N1RP2/1PP2P1P/R2Q1K2 b - - 4 18");
 
-    board = Board("1rbqk2r/1p2b1pp/2p1p3/1B3p2/1n3Q2/3P1N2/PPP2PPP/R1B2RK1 b k - 1 16");
+    // board = Board("1rbqk2r/1p2b1pp/2p1p3/1B3p2/1n3Q2/3P1N2/PPP2PPP/R1B2RK1 b k - 1 16");
+    
+    // board = Board("1r2k2r/1pq1bppp/p3p3/2p1n3/3pNB2/1Q1P4/PPP2PPP/4RR1K b k - 5 16");
 
     // Default settings
     int depth = 20;
-    int quiescenceDepth = 10;
+    int quiescenceDepth = 8;
     int numThreads = 6;
     int timeLimit = 30000;
 
@@ -79,7 +81,7 @@ int main() {
         // Start timer
         auto start = std::chrono::high_resolution_clock::now();
 
-        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, true, resetHistory, true);
+        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, true);
         resetHistory = false;
 
         // End timer

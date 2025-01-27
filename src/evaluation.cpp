@@ -768,7 +768,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
         value += bishopTable[sqIndex];
         Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
 
-        int mobility = bishopMoves.count();
+        int mobility = std::min(bishopMoves.count(), 12);
         value += mobilityBonus * mobility;
 
         if (isOutpost(board, sqIndex, color)) {
@@ -834,7 +834,7 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         }
         
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
-        int mobility = rookMoves.count();
+        int mobility = std::min(rookMoves.count(), 12);
         value += mobilityBonus * mobility;
         rooks.clear(sqIndex);
     }
