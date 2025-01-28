@@ -480,13 +480,6 @@ int alphaBeta(Board& board,
             // Try a null window search with a reduced depth
             board.makeMove(move);  
             bool reject = true;
-            // int R = 2;
-
-            // if (depth > 6) {
-            //     R = 3;
-            // } else if (depth > 8) {
-            //     R = 4;
-            // }
             int nullWindowDepth = std::min(5, depth - 2);
 
             if (whiteTurn) {

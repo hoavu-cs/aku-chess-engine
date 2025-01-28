@@ -156,6 +156,17 @@ const int blackPawnTableEnd[64] = {
       0,   0,   0,   0,   0,   0,   0,   0,
 };
 
+const int weakPawnTable[64] = {
+	 0,   0,   0,   0,   0,   0,   0,   0,
+   -10, -12, -14, -16, -16, -14, -12, -10,
+   -10, -12, -14, -16, -16, -14, -12, -10,
+   -10, -12, -14, -16, -16, -14, -12, -10,
+   -10, -12, -14, -16, -16, -14, -12, -10,
+   -10, -12, -14, -16, -16, -14, -12, -10,
+   -10, -12, -14, -16, -16, -14, -12, -10,
+	 0,   0,   0,   0,   0,   0,   0,   0
+};
+
 
 // Rook piece-square tables
 const int whiteRookTableMid[64] = {
@@ -768,7 +779,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
         value += bishopTable[sqIndex];
         Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
 
-        int mobility = bishopMoves.count();
+        int mobility = std::min(bishopMoves.count(), 12);
         value += mobilityBonus * mobility;
 
         if (isOutpost(board, sqIndex, color)) {
@@ -834,7 +845,7 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         }
         
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
-        int mobility = rookMoves.count();
+        int mobility = std::min(rookMoves.count(), 12);
         value += mobilityBonus * mobility;
         rooks.clear(sqIndex);
     }
@@ -1285,7 +1296,7 @@ int evaluate(const Board& board) {
     const int pieceDeficitPenalty = 80;
 
     if (totalPieceValue > 24) { 
-        // Safeguard: Assume there are enough material, avoid trading pieces for pawns
+        // Safeguard: Assume there are enough material, avoid trading pieces for pawns.
         if (whitePieceValue > blackPieceValue) {
             whiteScore += pieceDeficitPenalty;
         } else if (blackPieceValue > whitePieceValue) {
@@ -1293,8 +1304,8 @@ int evaluate(const Board& board) {
         }
     }
 
-    // Safeguard against material deficit without enough compensation
-    const int deficitPenalty = 50;
+    // Safeguard against material deficit without enough compensation.
+    const int deficitPenalty = 100;
     whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
     blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
 
