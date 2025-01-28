@@ -694,7 +694,7 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         endGameFlag = info.endGameFlagBlack;
     }
 
-    int mobilityBonus = endGameFlag ? 2 : 2;  // Bonus for mobility
+    int mobilityBonus = endGameFlag ? 4 : 4;  // Bonus for mobility
  
     if (color == Color::WHITE) {
         if (endGameFlag) {

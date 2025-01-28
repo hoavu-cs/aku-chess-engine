@@ -23,7 +23,8 @@ std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t tableMaxSize = 1000000000; 
-const int R = 2; 
+const int R = 2;
+const int k = 3; 
 int tableHit = 0;
 
 int nullDepth = 4; 
@@ -476,7 +477,7 @@ int alphaBeta(Board& board,
             leftMost = false;
         }
 
-        if (i > 1) {
+        if (i > k) {
             // Try a null window search with a reduced depth
             board.makeMove(move);  
             bool reject = true;
@@ -633,7 +634,7 @@ Move findBestMove(Board& board,
             Board localBoard = board;
             bool newBestFlag = false;  
 
-            if (i > 3 && depth > 4) {
+            if (i > k && depth > 4) {
                 // Try a null window search with a reduced depth
                 localBoard.makeMove(move);  
                 int nullWindowEval = 0;
