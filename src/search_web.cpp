@@ -1,3 +1,10 @@
+/*------------------------------------------------------------------------------
+ *  This web version optimizes the search algorithm for the web interface.
+ Since the search is likely to be slower than the native version, we will
+ remove things such as razoring and futility pruning. 
+ *----------------------------------------------------------------------------*/
+
+
 #include "search.hpp"
 #include "chess.hpp"
 #include "evaluation.hpp"
@@ -24,13 +31,14 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t tableMaxSize = 1000000000; 
 const int R = 2;
-const int k = 1; 
+const int k = 3; 
 int tableHit = 0;
 
 int nullDepth = 4; 
 int improvement = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
+bool globalDebug = false; // Debug flag
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {
@@ -148,8 +156,8 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     } 
     
     double a = 0.5, b = 0.5;
-    int reduction = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
-    return depth - reduction;
+    int R = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
+    return depth - R;
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -377,7 +385,7 @@ int alphaBeta(Board& board,
             (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
             found = true;
 
-            tableHit++;
+            if (globalDebug) tableHit++;
         }
     }
 
@@ -431,35 +439,35 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning
-    int futilityMargin = 350;
-    if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
+    // int futilityMargin = 350;
+    // if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
         
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-        if (whiteTurn) {
-            if (standPat + futilityMargin < alpha) {
-                return standPat + futilityMargin;
-            }
-        } else {
-            if (standPat - futilityMargin > beta) {
-                return standPat - futilityMargin;
-            }
-        }
-    }
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+    //     if (whiteTurn) {
+    //         if (standPat + futilityMargin < alpha) {
+    //             return standPat + futilityMargin;
+    //         }
+    //     } else {
+    //         if (standPat - futilityMargin > beta) {
+    //             return standPat - futilityMargin;
+    //         }
+    //     }
+    // }
 
     // Razoring
-    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
-        int razorMargin = 800;
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-        if (whiteTurn) {
-            if (standPat + razorMargin < alpha) {
-                return standPat + razorMargin;
-            }
-        } else {
-            if (standPat - razorMargin > beta) {
-                return standPat - razorMargin;
-            }
-        }
-    }
+    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
+    //     int razorMargin = 600;
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+    //     if (whiteTurn) {
+    //         if (standPat + razorMargin < alpha) {
+    //             return standPat + razorMargin;
+    //         }
+    //     } else {
+    //         if (standPat - razorMargin > beta) {
+    //             return standPat - razorMargin;
+    //         }
+    //     }
+    // }
 
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);

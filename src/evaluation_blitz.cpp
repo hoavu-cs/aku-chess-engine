@@ -20,6 +20,10 @@ const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
+// Pawn hash table
+std::unordered_map<std::uint64_t, std::pair<std::uint64_t, int>> whitePawnHashTable;
+std::unordered_map<std::uint64_t, std::pair<std::uint64_t, int>> blackPawnHashTable;
+
 // Knight piece-square tables
 const int whiteKnightTableMid[64] = {
     -105, -30, -58, -33, -17, -28, -30,  -23,
@@ -156,7 +160,7 @@ const int blackPawnTableEnd[64] = {
       0,   0,   0,   0,   0,   0,   0,   0,
 };
 
-const int weakPawnTable[64] = {
+int weakPawnPenaltyTable[64] = {
 	 0,   0,   0,   0,   0,   0,   0,   0,
    -10, -12, -14, -16, -16, -14, -12, -10,
    -10, -12, -14, -16, -16, -14, -12, -10,
@@ -554,6 +558,27 @@ bool isProtectedByPawn(int sqIndex, const Board& board, Color color) {
     return false; // No protecting pawn found
 }
 
+// check if a squared is opposed by an enemy pawn
+bool isOpposed(int sqIndex, const Board& board, Color color) {
+    int file = sqIndex % 8;
+    int rank = sqIndex / 8;
+
+    if (color == Color::WHITE) {
+        if (board.at(Square((rank + 1) * 8 + file)) == PieceType::PAWN
+            && board.at(Square((rank + 1) * 8 + file)).color() == Color::BLACK) {
+            return true;
+        }
+    }
+    else {
+        if (board.at(Square((rank - 1) * 8 + file)) == PieceType::PAWN
+            && board.at(Square((rank - 1) * 8 + file)).color() == Color::WHITE) {
+            return true;
+        }
+    }
+
+    return false; // No opposing pawn found
+}
+
 
 /*------------------------------------------------------------------------
  Main Functions 
@@ -564,6 +589,38 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+
+    bool found = false;
+    int hashValue;
+
+
+    #pragma omp critical
+    {
+        uint64_t ourPawnsBits = ourPawns.getBits();
+        uint64_t theirPawnsBits = theirPawns.getBits();
+
+        // We check if ourPawnsBits is in the hash table. 
+        // If it is, pull the (hash value, B) pair from the hash table.
+        // If B matches theirPawnsBits, return the hash value.
+        
+        if (color == Color::WHITE) {
+            if (whitePawnHashTable.find(ourPawnsBits) != whitePawnHashTable.end()) {
+                hashValue = whitePawnHashTable[ourPawnsBits].first;
+                std::uint64_t B = whitePawnHashTable[ourPawnsBits].second;
+                if (B == theirPawnsBits) found = true;
+            }
+        } else {
+            if (blackPawnHashTable.find(ourPawnsBits) != blackPawnHashTable.end()) {
+                hashValue = blackPawnHashTable[ourPawnsBits].first;
+                std::uint64_t B = blackPawnHashTable[ourPawnsBits].second;
+                if (B == theirPawnsBits) found = true;
+            }
+        }
+    }
+
+    if (found) {
+        return hashValue;
+    }
 
     std::uint64_t ourPawnsBits = ourPawns.getBits();
     std::uint64_t theirPawnsBits = theirPawns.getBits();
@@ -585,6 +642,8 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     const int isolatedPawnPenalty = 20;
     const int unSupportedPenalty = 15;
     const int doubledPawnPenalty = 30;
+
+    const int opposedPawnPenalty = 30;
    
     const int* pawnTable;
 
@@ -648,16 +707,13 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
         }  
         
         if (!isProtectedByPawn(sqIndex, board, color)) {
-                if (color == Color::WHITE && info.semiOpenFilesBlack[file]) {
-                    value -= unSupportedPenalty;
-                } else if (color == Color::BLACK && info.semiOpenFilesWhite[file]) {
-                    value -= unSupportedPenalty;
-                } else  {
-                    if (file != 3 && file != 4) {
-                        // Penalize less if the pawn is not on a semi-open file and not in the center
-                        value -= (unSupportedPenalty - 10); 
-                    }
-                }
+            if (color == Color::WHITE && info.semiOpenFilesBlack[file]) {
+                value -= unSupportedPenalty;
+            } else if (color == Color::BLACK && info.semiOpenFilesWhite[file]) {
+                value -= unSupportedPenalty;
+            } else  {
+                value -= (unSupportedPenalty - 10); 
+            }
         }
 
         if (color == Color::WHITE) {
@@ -666,6 +722,26 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
             value += (6 - rank) * advancedPawnBonus;
         }
 
+        // Add penalty for opposed pawns. More for endgame
+        if (color == Color::WHITE && isOpposed(sqIndex, board, color)) {
+            if (rank < 4) {
+                value -=  opposedPawnPenalty;
+            } 
+
+            if (endGameFlag) {
+                value -=  opposedPawnPenalty;
+            }
+        } else if (color == Color::BLACK && isOpposed(sqIndex, board, color)) {
+            if (rank > 3) {
+                value -=  opposedPawnPenalty;
+            } 
+
+            if (endGameFlag) {
+                value -=  opposedPawnPenalty;
+            }
+        }
+
+
         ourPawns.clear(sqIndex);
     }
     
@@ -673,6 +749,15 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     for (int i = 0; i < 8; i++) {
         if (files[i] > 1) {
             value -= (files[i] - 1) * doubledPawnPenalty;
+        }
+    }
+
+    #pragma omp critical
+    {
+        if (color == Color::WHITE) {
+            whitePawnHashTable[ourPawnsBits] = std::make_pair(value, theirPawnsBits);
+        } else {
+            blackPawnHashTable[ourPawnsBits] = std::make_pair(value, theirPawnsBits);
         }
     }
 
@@ -694,7 +779,7 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         endGameFlag = info.endGameFlagBlack;
     }
 
-    int mobilityBonus = endGameFlag ? 2 : 2;  // Bonus for mobility
+    int mobilityBonus = endGameFlag ? 4 : 4;  // Bonus for mobility
  
     if (color == Color::WHITE) {
         if (endGameFlag) {
@@ -1170,10 +1255,7 @@ int evaluate(const Board& board) {
     int whiteScore = 0;
     int blackScore = 0;
 
-    // Mop-up phase: if only their king is left
-    Info info;
-    info.endGameFlagWhite = isEndGame(board, Color::WHITE);
-    info.endGameFlagBlack = isEndGame(board, Color::BLACK);
+
 
     /*--------------------------------------------------------------------------
     Mop-up phase: if only their king is left without any other pieces.
@@ -1207,6 +1289,10 @@ int evaluate(const Board& board) {
     /*--------------------------------------------------------------------------
     Standard evaluation phase
     --------------------------------------------------------------------------*/
+    Info info;
+    info.endGameFlagWhite = isEndGame(board, Color::WHITE);
+    info.endGameFlagBlack = isEndGame(board, Color::BLACK);
+
     // Tempo bonus
     if (board.sideToMove() == Color::WHITE) {
         whiteScore += tempoBonus;
