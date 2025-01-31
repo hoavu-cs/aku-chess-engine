@@ -151,8 +151,8 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
 
-    if (i <= 10 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
-        // search the first 6 moves, tactical moves, and frontier nodes at full depth
+    if (i <= 7 || depth <= 4 || board.isCapture(move) || isPromotion(move) || isCheck) {
+        // search the first few moves at full depth and don't reduce depth for captures, promotions, or checks
         return depth - 1;
     } else {
         return depth - 2;
@@ -444,7 +444,7 @@ int alphaBeta(Board& board,
         }
     }
 
-    // Futility pruning
+    // // Futility pruning
     // int futilityMargin = 350;
     // if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
         
@@ -460,7 +460,7 @@ int alphaBeta(Board& board,
     //     }
     // }
 
-    // Razoring
+    // // Razoring
     // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
     //     int razorMargin = 800;
     //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
@@ -628,6 +628,8 @@ Move findBestMove(Board& board,
 
         bool leftMost;
 
+        auto iterationStartTime = std::chrono::high_resolution_clock::now();
+
         #pragma omp for schedule(static)
         for (int i = 0; i < moves.size(); i++) {
 
@@ -773,12 +775,16 @@ Move findBestMove(Board& board,
         std::string scoreStr = "score cp " + std::to_string(bestEval);
         std::string nodeStr = "nodes " + std::to_string(positionCount);
 
-        std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count());
+        auto iterationEndTime = std::chrono::high_resolution_clock::now();
+        std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
 
         std::string pvStr = "pv ";
         for (const auto& move : PV) {
             pvStr += uci::moveToUci(move) + " ";
         }
+
+        // 
+        // auto iterationTime = std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count();
 
         std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
         std::cout << analysis << std::endl;
