@@ -19,21 +19,20 @@ std::unordered_map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash 
 
 // Time management
 std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
-bool timeLimitExceeded = false;
-int globalTimeLimit = 0; 
-
 std::vector<Move> previousPV; // Principal variation from the previous iteration
 
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t tableMaxSize = 1000000000; 
-const int R = 2;
+const int R = 3;
 const int k = 0; 
+const int maxNullWindowDepth = 6;
+const int nullWindowDepth = 4;
+
 int tableHit = 0;
 
-int nullDepth = 4; 
-int improvement = 0;
+int nullDepth = 6; 
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
 
@@ -147,20 +146,23 @@ We don't reduce depth if the move is a capture, promotion, or check or near the 
 It seems to work well for the most part.
 --------------------------------------------------------------- */
 int depthReduction(Board& board, Move move, int i, int depth) {
+
+    return depth - 1;
+
     Board localBoard = board;
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
 
-    if (i <= 7 || depth <= 4 || board.isCapture(move) || isPromotion(move) || isCheck) {
+    if (i <= 10 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
         // search the first few moves at full depth and don't reduce depth for captures, promotions, or checks
         return depth - 1;
     } else {
         return depth - 2;
     }
     
-    // double a = 0.5, b = 0.5;
-    // int reduction = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
-    // return depth - reduction;
+    double a = 0.5, b = 0.5;
+    int reduction = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
+    return depth - reduction;
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -343,13 +345,6 @@ int alphaBeta(Board& board,
             std::vector<Move>& PV,
             bool leftMost) {
 
-    // Quit if time is up
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() > globalTimeLimit) {
-        timeLimitExceeded = true;
-        return evaluate(board);
-    }
-
     #pragma  omp critical
     {
         positionCount++;
@@ -444,40 +439,40 @@ int alphaBeta(Board& board,
         }
     }
 
-    // // Futility pruning
-    // int futilityMargin = 350;
-    // if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
+    // Futility pruning
+    int futilityMargin = 350;
+    if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
         
-    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-    //     if (whiteTurn) {
-    //         if (standPat + futilityMargin < alpha) {
-    //             return standPat + futilityMargin;
-    //         }
-    //     } else {
-    //         if (standPat - futilityMargin > beta) {
-    //             return standPat - futilityMargin;
-    //         }
-    //     }
-    // }
+        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+        if (whiteTurn) {
+            if (standPat + futilityMargin < alpha) {
+                return standPat + futilityMargin;
+            }
+        } else {
+            if (standPat - futilityMargin > beta) {
+                return standPat - futilityMargin;
+            }
+        }
+    }
 
-    // // Razoring
-    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
-    //     int razorMargin = 800;
-    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-    //     if (whiteTurn) {
-    //         if (standPat + razorMargin < alpha) {
-    //             return standPat + razorMargin;
-    //         }
-    //     } else {
-    //         if (standPat - razorMargin > beta) {
-    //             return standPat - razorMargin;
-    //         }
-    //     }
-    // }
+    // Razoring
+    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
+        int razorMargin = 600;
+        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+        if (whiteTurn) {
+            if (standPat + razorMargin < alpha) {
+                return standPat + razorMargin;
+            }
+        } else {
+            if (standPat - razorMargin > beta) {
+                return standPat - razorMargin;
+            }
+        }
+    }
 
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
-    int bestEval = whiteTurn ? -INF : INF;
+    int bestEval = whiteTurn ? alpha - 1 : beta + 1;
 
     for (int i = 0; i < moves.size(); i++) {
         Move move = moves[i].first;
@@ -490,11 +485,11 @@ int alphaBeta(Board& board,
             leftMost = false;
         }
 
-        if (i > k) {
+        if (i > 0) {
             // Try a null window search with a reduced depth
             board.makeMove(move);  
             bool reject = true;
-            int nullWindowDepth = std::min(5, depth - 2);
+            int nullWindowDepth = nextDepth - 2;
 
             if (whiteTurn) {
                 eval = alphaBeta(board, nullWindowDepth, alpha, alpha + 1, quiescenceDepth, childPV, leftMost);
@@ -585,9 +580,8 @@ Move findBestMove(Board& board,
                 int timeLimit = 15000,
                 bool quiet = false) {
 
-    globalTimeLimit = timeLimit;
     startTime = std::chrono::high_resolution_clock::now();
-    timeLimitExceeded = false;
+    bool timeLimitExceeded = false;
 
     Move bestMove = Move(); 
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
@@ -610,8 +604,9 @@ Move findBestMove(Board& board,
             upperBoundTable.clear();
         }  
     }
-
-    int baseDepth = 1;
+    
+    const int baseDepth = 1;
+    int apsiration = evaluate(board);
 
     for (int depth = baseDepth; depth <= maxDepth; ++depth) {
         globalMaxDepth = depth;
@@ -633,15 +628,6 @@ Move findBestMove(Board& board,
         #pragma omp for schedule(static)
         for (int i = 0; i < moves.size(); i++) {
 
-            auto currentTime = std::chrono::high_resolution_clock::now();
-            if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() > globalTimeLimit) {
-                timeLimitExceeded = true;
-            }
-
-            if (timeLimitExceeded) {
-                continue; // Skip iteration if time limit is exceeded
-            }
-
             if (i == 0) {
                 leftMost = true; // First move from the root starts the leftmost path
             } else {
@@ -653,34 +639,32 @@ Move findBestMove(Board& board,
             
             Board localBoard = board;
             bool newBestFlag = false;  
+            int nextDepth = depthReduction(localBoard, move, i, depth);
 
-            if (i > k && depth > 4) {
-                // Try a null window search with a reduced depth
-                localBoard.makeMove(move);  
-                int nullWindowEval = 0;
-                bool reject = true;
-                int nullWindowDepth = std::min(5, depth - 2);
-                
-                if (whiteTurn) {
-                    nullWindowEval = alphaBeta(board, nullWindowDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
-                    if (nullWindowEval > currentBestEval) reject = false; // being able to raise alpha as white
-                } else if (!whiteTurn) {
-                    nullWindowEval = alphaBeta(board, nullWindowDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
-                    if (nullWindowEval < currentBestEval) reject = false; // being able to lower beta as black
-                }
+            // Aspiration window
+            int aspirationOption = 150;
+            int eval = whiteTurn ? -INF : INF;
 
+            // Aspiration window search except for the first move
+            while (true) {
+
+                localBoard.makeMove(move);
+                eval = alphaBeta(localBoard, 
+                                nextDepth, 
+                                apsiration - aspirationOption, 
+                                apsiration + aspirationOption, 
+                                quiescenceDepth, 
+                                childPV, 
+                                leftMost);
                 localBoard.unmakeMove(move);
 
-                if (reject) {
-                    continue; // IF the move fails to raise alpha or lower beta, skip it
+                if (eval >= apsiration + aspirationOption || eval <= apsiration - aspirationOption) {
+                    aspirationOption = aspirationOption * 2;
+                } else {
+                    break;
                 }
             }
 
-            int nextDepth = depthReduction(localBoard, move, i, depth);
-        
-            localBoard.makeMove(move);
-            int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
-            localBoard.unmakeMove(move);
 
             if (timeLimitExceeded) {
                 continue; // Do not proceed to update PV if the time limit is exceeded
@@ -746,30 +730,8 @@ Move findBestMove(Board& board,
             }
         }
 
-        // if (debug) {
-        //     std::cout << "---------------------------------" << std::endl;
-        //     for (int j = 0; j < std::min<int>(5, newMoves.size()); j++) {
-        //         std::cout << "Depth: " << depth 
-        //                 << " Move: " << uci::moveToUci(newMoves[j].first) 
-        //                 << " Eval: " << newMoves[j].second << std::endl;
-        //     }
-        //     std::cout << "PV: ";
-            
-        //     for (const auto& move : PV) {
-        //         std::cout << uci::moveToUci(move) << " ";
-        //     }
-
-        //     std::cout << std::endl << " Hash Table Hit Percentage: " 
-        //             << static_cast<double>(tableHit) / positionCount * 100 << "%" << std::endl;
-        // }
-
-        if (timeLimitExceeded) {
-            break; // Break out of the loop if the time limit is exceeded. Ignore the current depth.
-        }
-
         moves = newMoves;
         previousPV = PV;
-        auto currentTime = std::chrono::high_resolution_clock::now();
 
         std::string depthStr = "depth " + std::to_string(depth);
         std::string scoreStr = "score cp " + std::to_string(bestEval);
@@ -783,13 +745,17 @@ Move findBestMove(Board& board,
             pvStr += uci::moveToUci(move) + " ";
         }
 
-        // 
-        // auto iterationTime = std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count();
-
         std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
         std::cout << analysis << std::endl;
-        
 
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() > timeLimit) {
+            timeLimitExceeded = true;
+        }
+
+        if (timeLimitExceeded) {
+            break; // Break out of the loop if the time limit is exceeded. 
+        }
     }
 
     return bestMove; 

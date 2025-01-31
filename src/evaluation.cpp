@@ -662,6 +662,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     const int unSupportedPenalty = 15;
     const int doubledPawnPenalty = 30;
     const int awkwardPenalty = 30;
+    const int passedPawnAdvancedBonus = 10;
    
     const int* pawnTable;
 
@@ -722,10 +723,17 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
         // Add bonus for passed pawns, especially if they are protected
         if (isPassedPawn(sqIndex, color, theirPawns)) {
+
             if (isProtectedByPawn(sqIndex, board, color)) {
                 value += protectedPassedPawnBonus;
             } else {            
                 value += passedPawnBonus;
+            }
+
+            if (color == Color::WHITE) {
+                value += passedPawnAdvancedBonus * rank;
+            } else {
+                value += passedPawnAdvancedBonus * (6 - rank);
             }
         }  
         
@@ -747,17 +755,6 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
             value += (6 - rank) * advancedPawnBonus;
         }
 
-        // Add penalty for awkward pawns: opposed & unadvanced, isolated, or unsupported
-        if (color == Color::WHITE && isOpposed(sqIndex, board, color)) {
-            if (rank < 4 || !isProtectedByPawn(sqIndex, board, color) || isolated) {
-                value -= awkwardPenalty;
-            }
-
-        } else if (color == Color::BLACK && isOpposed(sqIndex, board, color)) {
-            if (rank > 3 || !isProtectedByPawn(sqIndex, board, color) || isolated) {
-                value -= awkwardPenalty;
-            }
-        }
 
         ourPawns.clear(sqIndex);
     }
