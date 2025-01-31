@@ -21,8 +21,13 @@ const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
 // Pawn hash table
-std::unordered_map<std::uint64_t, std::pair<std::uint64_t, int>> whitePawnHashTable;
-std::unordered_map<std::uint64_t, std::pair<std::uint64_t, int>> blackPawnHashTable;
+std::unordered_map<std::uint64_t, int> whitePawnHashTable;
+std::unordered_map<std::uint64_t, int> blackPawnHashTable;
+
+std::unordered_map<std::uint64_t, int> whiteKingHashTable;
+std::unordered_map<std::uint64_t, int> blackKingHashTable;
+
+const int maxHashTableSize = 1000000000;
 
 // Knight piece-square tables
 const int whiteKnightTableMid[64] = {
@@ -584,42 +589,56 @@ bool isOpposed(int sqIndex, const Board& board, Color color) {
  Main Functions 
 ------------------------------------------------------------------------*/
 
-// Compute the value of the pawns on the board
+
+/*------------------------------------------------------------------------
+Compute the value of the pawns on the board. This is an expensive function
+so we use a hash table to store the pawn structure values for each side 
+along with the evaluation value.
+
+This reduces the amount of computation by at least a half based on experiments.
+------------------------------------------------------------------------*/
 int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
 
     bool found = false;
-    int hashValue;
+    int storedValue = 0;
 
 
     #pragma omp critical
     {
-        uint64_t ourPawnsBits = ourPawns.getBits();
-        uint64_t theirPawnsBits = theirPawns.getBits();
-
-        // We check if ourPawnsBits is in the hash table. 
-        // If it is, pull the (hash value, B) pair from the hash table.
-        // If B matches theirPawnsBits, return the hash value.
-        
+        // uint64_t ourPawnsBits = ourPawns.getBits();
+        // uint64_t theirPawnsBits = theirPawns.getBits();
+        // if (color == Color::WHITE) {
+        //     if (whitePawnHashTable.find(ourPawnsBits) != whitePawnHashTable.end()) {
+        //         hashValue = whitePawnHashTable[ourPawnsBits].first;
+        //         std::uint64_t B = whitePawnHashTable[ourPawnsBits].second;
+        //         if (B == theirPawnsBits) found = true;
+        //     }
+        // } else {
+        //     if (blackPawnHashTable.find(ourPawnsBits) != blackPawnHashTable.end()) {
+        //         hashValue = blackPawnHashTable[ourPawnsBits].first;
+        //         std::uint64_t B = blackPawnHashTable[ourPawnsBits].second;
+        //         if (B == theirPawnsBits) found = true;
+        //     }
+        // }
+        std::uint64_t hash = board.hash();
         if (color == Color::WHITE) {
-            if (whitePawnHashTable.find(ourPawnsBits) != whitePawnHashTable.end()) {
-                hashValue = whitePawnHashTable[ourPawnsBits].first;
-                std::uint64_t B = whitePawnHashTable[ourPawnsBits].second;
-                if (B == theirPawnsBits) found = true;
+            if (whitePawnHashTable.find(hash) != whitePawnHashTable.end()) {
+                storedValue = whitePawnHashTable[hash];
+                found = true;
             }
         } else {
-            if (blackPawnHashTable.find(ourPawnsBits) != blackPawnHashTable.end()) {
-                hashValue = blackPawnHashTable[ourPawnsBits].first;
-                std::uint64_t B = blackPawnHashTable[ourPawnsBits].second;
-                if (B == theirPawnsBits) found = true;
+            if (blackPawnHashTable.find(hash) != blackPawnHashTable.end()) {
+                storedValue = blackPawnHashTable[hash];
+                found = true;
             }
         }
     }
 
     if (found) {
-        return hashValue;
+        return storedValue;
     }
 
     std::uint64_t ourPawnsBits = ourPawns.getBits();
@@ -642,8 +661,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     const int isolatedPawnPenalty = 20;
     const int unSupportedPenalty = 15;
     const int doubledPawnPenalty = 30;
-
-    const int opposedPawnPenalty = 30;
+    const int awkwardPenalty = 30;
    
     const int* pawnTable;
 
@@ -681,6 +699,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     while (!ourPawns.empty()) {
         int sqIndex = ourPawns.lsb(); 
+        bool isolated = false;
 
         value += baseValue; 
         value += pawnTable[sqIndex]; 
@@ -692,12 +711,16 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
             value += centerBonus;
         }
 
+        // If the pawn is isolated, add a penalty
         if ((file == 0 && files[1] == 0) || (file == 7 && files[6] == 0)) {
+            isolated = true;
             value -= isolatedPawnPenaltyAH;
         } else if (file > 0 && file < 7 && files[file - 1] == 0  && files[file + 1] == 0) {
+            isolated = true;
             value -= isolatedPawnPenalty;
         }
 
+        // Add bonus for passed pawns, especially if they are protected
         if (isPassedPawn(sqIndex, color, theirPawns)) {
             if (isProtectedByPawn(sqIndex, board, color)) {
                 value += protectedPassedPawnBonus;
@@ -706,6 +729,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
             }
         }  
         
+        // Add penalty for unsupported pawns, more if they are on semi-open files or open files
         if (!isProtectedByPawn(sqIndex, board, color)) {
             if (color == Color::WHITE && info.semiOpenFilesBlack[file]) {
                 value -= unSupportedPenalty;
@@ -716,31 +740,24 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
             }
         }
 
+        // Bonus for advanced pawns, more if we are in the endgame
         if (color == Color::WHITE) {
             value += (rank - 1) * advancedPawnBonus;
         } else {
             value += (6 - rank) * advancedPawnBonus;
         }
 
-        // Add penalty for opposed pawns. More for endgame
+        // Add penalty for awkward pawns: opposed & unadvanced, isolated, or unsupported
         if (color == Color::WHITE && isOpposed(sqIndex, board, color)) {
-            if (rank < 4) {
-                value -=  opposedPawnPenalty;
-            } 
-
-            if (endGameFlag) {
-                value -=  opposedPawnPenalty;
+            if (rank < 4 || !isProtectedByPawn(sqIndex, board, color) || isolated) {
+                value -= awkwardPenalty;
             }
-        } else if (color == Color::BLACK && isOpposed(sqIndex, board, color)) {
-            if (rank > 3) {
-                value -=  opposedPawnPenalty;
-            } 
 
-            if (endGameFlag) {
-                value -=  opposedPawnPenalty;
+        } else if (color == Color::BLACK && isOpposed(sqIndex, board, color)) {
+            if (rank > 3 || !isProtectedByPawn(sqIndex, board, color) || isolated) {
+                value -= awkwardPenalty;
             }
         }
-
 
         ourPawns.clear(sqIndex);
     }
@@ -752,12 +769,13 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
         }
     }
 
+    // Update the hash table
     #pragma omp critical
     {
         if (color == Color::WHITE) {
-            whitePawnHashTable[ourPawnsBits] = std::make_pair(value, theirPawnsBits);
+            whitePawnHashTable[ourPawnsBits] = value;
         } else {
-            blackPawnHashTable[ourPawnsBits] = std::make_pair(value, theirPawnsBits);
+            blackPawnHashTable[ourPawnsBits] = value;
         }
     }
 
@@ -1125,13 +1143,40 @@ int kingThreat(const Board& board, Color color) {
 
 }
 
-// Compute the value of the kings on the board
+/*------------------------------------------------------------------------
+Compute the value of the king on the board. This is an expensive function
+since it involves a lot of computation checking for threats to the king.
+------------------------------------------------------------------------*/
 int kingValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int pawnShieldBonus = 30;
     const int* kingTable;
     int pieceProtectionBonus = 30;
+
+    bool found = false;
+    std::uint64_t hash = board.hash();
+    int storedValue = 0;
+
+    // Check if the value is stored in the hash table
+    #pragma omp critical
+    {
+        if (color == Color::WHITE) {
+            if (whiteKingHashTable.find(hash) != whiteKingHashTable.end()) {
+                storedValue = whiteKingHashTable[hash];
+                found = true;
+            }
+        } else {
+            if (blackKingHashTable.find(hash) != blackKingHashTable.end()) {
+                storedValue = blackKingHashTable[hash];
+                found = true;
+            }
+        }
+    }
+
+    if (found) {
+        return storedValue;
+    }
     
     bool endGameFlag = false;
     
@@ -1241,6 +1286,16 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         value -= threatScore;
     }
 
+    // Update the hash table
+    #pragma omp critical
+    {
+        if (color == Color::WHITE) {
+            whiteKingHashTable[hash] = value;
+        } else {
+            blackKingHashTable[hash] = value;
+        }
+    }
+
     return value;
 }
 
@@ -1254,8 +1309,6 @@ int evaluate(const Board& board) {
     // Initialize totals
     int whiteScore = 0;
     int blackScore = 0;
-
-
 
     /*--------------------------------------------------------------------------
     Mop-up phase: if only their king is left without any other pieces.
@@ -1449,6 +1502,26 @@ int evaluate(const Board& board) {
         Piece piece = board.at(Square(52));
         if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
             blackScore -= blockCentralPawnPenalty;
+        }
+    }
+
+    #pragma omp critical
+    {
+        // clear tables if they are too large
+        if (whitePawnHashTable.size() > maxHashTableSize) {
+            whitePawnHashTable.clear();
+        }
+
+        if (blackPawnHashTable.size() > maxHashTableSize) {
+            blackPawnHashTable.clear();
+        }
+
+        if (whiteKingHashTable.size() > maxHashTableSize) {
+            whiteKingHashTable.clear();
+        }
+
+        if (blackKingHashTable.size() > maxHashTableSize) {
+            blackKingHashTable.clear();
         }
     }
 

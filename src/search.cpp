@@ -2,7 +2,7 @@
 #include "chess.hpp"
 #include "evaluation.hpp"
 #include <iostream>
-#include <map>
+#include <unordered_map>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -14,8 +14,13 @@
 using namespace chess;
 
 // Constants and global variables
-std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
-std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
+std::unordered_map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
+std::unordered_map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
+
+// Time management
+std::chrono::time_point<std::chrono::high_resolution_clock> startTime;
+bool timeLimitExceeded = false;
+int globalTimeLimit = 0; 
 
 std::vector<Move> previousPV; // Principal variation from the previous iteration
 
@@ -24,7 +29,7 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t tableMaxSize = 1000000000; 
 const int R = 2;
-const int k = 1; 
+const int k = 0; 
 int tableHit = 0;
 
 int nullDepth = 4; 
@@ -44,7 +49,7 @@ const int pieceValues[] = {
 };
 
 // Transposition table lookup
-bool transTableLookUp(std::map<std::uint64_t, std::pair<int, int>>& table, 
+bool transTableLookUp(std::unordered_map<std::uint64_t, std::pair<int, int>>& table, 
                             std::uint64_t hash, 
                             int depth, 
                             int& eval) {
@@ -136,20 +141,26 @@ void updateKillerMoves(const Move& move, int depth) {
     }
 }
 
-// Late move reduction
+/*---------------------------------------------------------------
+Late move reduction. I'm using a simple formula for now.
+We don't reduce depth if the move is a capture, promotion, or check or near the frontier nodes.
+It seems to work well for the most part.
+--------------------------------------------------------------- */
 int depthReduction(Board& board, Move move, int i, int depth) {
     Board localBoard = board;
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
 
-    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
+    if (i <= 10 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
         // search the first 6 moves, tactical moves, and frontier nodes at full depth
         return depth - 1;
-    } 
+    } else {
+        return depth - 2;
+    }
     
-    double a = 0.5, b = 0.5;
-    int reduction = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
-    return depth - reduction;
+    // double a = 0.5, b = 0.5;
+    // int reduction = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
+    // return depth - reduction;
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -235,13 +246,10 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
 }
 
 int quiescence(Board& board, int depth, int alpha, int beta) {
-
-
     #pragma  omp critical 
     {
         positionCount++;
     }
-    
     
     if (depth <= 0) {
         return evaluate(board);
@@ -335,6 +343,12 @@ int alphaBeta(Board& board,
             std::vector<Move>& PV,
             bool leftMost) {
 
+    // Quit if time is up
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() > globalTimeLimit) {
+        timeLimitExceeded = true;
+        return evaluate(board);
+    }
 
     #pragma  omp critical
     {
@@ -431,35 +445,35 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning
-    int futilityMargin = 350;
-    if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
+    // int futilityMargin = 350;
+    // if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
         
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-        if (whiteTurn) {
-            if (standPat + futilityMargin < alpha) {
-                return standPat + futilityMargin;
-            }
-        } else {
-            if (standPat - futilityMargin > beta) {
-                return standPat - futilityMargin;
-            }
-        }
-    }
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+    //     if (whiteTurn) {
+    //         if (standPat + futilityMargin < alpha) {
+    //             return standPat + futilityMargin;
+    //         }
+    //     } else {
+    //         if (standPat - futilityMargin > beta) {
+    //             return standPat - futilityMargin;
+    //         }
+    //     }
+    // }
 
     // Razoring
-    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
-        int razorMargin = 800;
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-        if (whiteTurn) {
-            if (standPat + razorMargin < alpha) {
-                return standPat + razorMargin;
-            }
-        } else {
-            if (standPat - razorMargin > beta) {
-                return standPat - razorMargin;
-            }
-        }
-    }
+    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
+    //     int razorMargin = 800;
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+    //     if (whiteTurn) {
+    //         if (standPat + razorMargin < alpha) {
+    //             return standPat + razorMargin;
+    //         }
+    //     } else {
+    //         if (standPat - razorMargin > beta) {
+    //             return standPat - razorMargin;
+    //         }
+    //     }
+    // }
 
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
@@ -568,10 +582,12 @@ Move findBestMove(Board& board,
                 int numThreads = 4, 
                 int maxDepth = 8, 
                 int quiescenceDepth = 10, 
-                int timeLimit = 5000,
+                int timeLimit = 15000,
                 bool quiet = false) {
 
-    auto startTime = std::chrono::high_resolution_clock::now();
+    globalTimeLimit = timeLimit;
+    startTime = std::chrono::high_resolution_clock::now();
+    timeLimitExceeded = false;
 
     Move bestMove = Move(); 
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
@@ -595,7 +611,6 @@ Move findBestMove(Board& board,
         }  
     }
 
-    bool timeLimitExceeded = false;
     int baseDepth = 1;
 
     for (int depth = baseDepth; depth <= maxDepth; ++depth) {
@@ -604,7 +619,6 @@ Move findBestMove(Board& board,
         // Track the best move for the current depth
         Move currentBestMove = Move();
         int currentBestEval = whiteTurn ? -INF : INF;
-
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; // Principal variation
 
@@ -614,8 +628,13 @@ Move findBestMove(Board& board,
 
         bool leftMost;
 
-        #pragma omp for
+        #pragma omp for schedule(static)
         for (int i = 0; i < moves.size(); i++) {
+
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() > globalTimeLimit) {
+                timeLimitExceeded = true;
+            }
 
             if (timeLimitExceeded) {
                 continue; // Skip iteration if time limit is exceeded
@@ -661,6 +680,10 @@ Move findBestMove(Board& board,
             int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
             localBoard.unmakeMove(move);
 
+            if (timeLimitExceeded) {
+                continue; // Do not proceed to update PV if the time limit is exceeded
+            }
+
             #pragma omp critical
             {
                 if ((whiteTurn && eval > currentBestEval) || (!whiteTurn && eval < currentBestEval)) {
@@ -693,8 +716,11 @@ Move findBestMove(Board& board,
             }
         }
         
+        if (timeLimitExceeded) {
+            break; // Break out of the loop if the time limit is exceeded
+        }
 
-        // Update the global best move and evaluation after this depth
+        // Update the global best move and evaluation after this depth if the time limit is not exceeded
         bestMove = currentBestMove;
         bestEval = currentBestEval;
 
@@ -735,6 +761,10 @@ Move findBestMove(Board& board,
         //             << static_cast<double>(tableHit) / positionCount * 100 << "%" << std::endl;
         // }
 
+        if (timeLimitExceeded) {
+            break; // Break out of the loop if the time limit is exceeded. Ignore the current depth.
+        }
+
         moves = newMoves;
         previousPV = PV;
         auto currentTime = std::chrono::high_resolution_clock::now();
@@ -753,9 +783,7 @@ Move findBestMove(Board& board,
         std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
         std::cout << analysis << std::endl;
         
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
-            break; 
-        }
+
     }
 
     return bestMove; 

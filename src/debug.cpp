@@ -66,11 +66,13 @@ int main() {
     
     // board = Board("1r2k2r/1pq1bppp/p3p3/2p1n3/3pNB2/1Q1P4/PPP2PPP/4RR1K b k - 5 16");
 
+    board = Board("3qkb1r/1r3p2/2pnp1p1/3p4/3B1Qp1/2NP4/PPP2P1P/R4RK1 b k - 2 18");
+
     // Default settings
-    int depth = 20;
+    int depth = 30;
     int quiescenceDepth = 8;
     int numThreads = 6;
-    int timeLimit = 30000;
+    int timeLimit = 15000;
 
     Move bestMove;
 
@@ -78,16 +80,9 @@ int main() {
     bool resetHistory = true;
 
     for (int i = 0; i < moveCount; i++) {
-        // Start timer
-        auto start = std::chrono::high_resolution_clock::now();
 
         Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, true);
         resetHistory = false;
-
-        // End timer
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> duration = end - start;
-        std::cout << "(Time taken: " << duration.count() << "s" << "; NPS: " << positionCount / duration.count() << ")"<< std::endl;
 
         if (bestMove == Move::NO_MOVE) {
             auto gameResult = board.isGameOver();
