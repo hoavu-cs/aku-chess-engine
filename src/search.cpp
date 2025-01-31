@@ -157,7 +157,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
         // search the first few moves at full depth and don't reduce depth for captures, promotions, or checks
         return depth - 1;
     } else {
-        return depth / 3;
+        return depth - 2;
     }
 }
 
