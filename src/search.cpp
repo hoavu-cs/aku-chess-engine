@@ -153,16 +153,12 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
 
-    if (i <= 10 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
+    if (i <= 15 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
         // search the first few moves at full depth and don't reduce depth for captures, promotions, or checks
         return depth - 1;
     } else {
-        return depth - 2;
+        return depth / 3;
     }
-    
-    double a = 0.5, b = 0.5;
-    int reduction = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
-    return depth - reduction;
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -439,36 +435,36 @@ int alphaBeta(Board& board,
         }
     }
 
-    // Futility pruning
-    int futilityMargin = 350;
-    if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
+    // // Futility pruning
+    // int futilityMargin = 350;
+    // if (depth == 1 && !board.inCheck() && !endGameFlag && !leftMost) {
         
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-        if (whiteTurn) {
-            if (standPat + futilityMargin < alpha) {
-                return standPat + futilityMargin;
-            }
-        } else {
-            if (standPat - futilityMargin > beta) {
-                return standPat - futilityMargin;
-            }
-        }
-    }
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+    //     if (whiteTurn) {
+    //         if (standPat + futilityMargin < alpha) {
+    //             return standPat + futilityMargin;
+    //         }
+    //     } else {
+    //         if (standPat - futilityMargin > beta) {
+    //             return standPat - futilityMargin;
+    //         }
+    //     }
+    // }
 
-    // Razoring
-    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
-        int razorMargin = 600;
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-        if (whiteTurn) {
-            if (standPat + razorMargin < alpha) {
-                return standPat + razorMargin;
-            }
-        } else {
-            if (standPat - razorMargin > beta) {
-                return standPat - razorMargin;
-            }
-        }
-    }
+    // // Razoring
+    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
+    //     int razorMargin = 600;
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+    //     if (whiteTurn) {
+    //         if (standPat + razorMargin < alpha) {
+    //             return standPat + razorMargin;
+    //         }
+    //     } else {
+    //         if (standPat - razorMargin > beta) {
+    //             return standPat - razorMargin;
+    //         }
+    //     }
+    // }
 
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
@@ -478,7 +474,7 @@ int alphaBeta(Board& board,
         Move move = moves[i].first;
         std::vector<Move> childPV;
 
-        int eval = 0;
+        int eval = whiteTurn ? -INF : INF;
         int nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
         
         if (i > 0) {
@@ -489,7 +485,7 @@ int alphaBeta(Board& board,
             // Try a null window search with a reduced depth
             board.makeMove(move);  
             bool reject = true;
-            int nullWindowDepth = nextDepth - 2;
+            int nullWindowDepth = std::min(nextDepth - 3, 6);
 
             if (whiteTurn) {
                 eval = alphaBeta(board, nullWindowDepth, alpha, alpha + 1, quiescenceDepth, childPV, leftMost);
