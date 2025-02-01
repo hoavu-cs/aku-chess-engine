@@ -148,7 +148,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 3 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
+    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
         return depth - 1;
     } else {
         return depth / 3;
@@ -324,12 +324,6 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
         }         
     }
 
-    if (whiteTurn && standPat + greatestMaterialGain + deltaMargin < alpha) {
-        return alpha;
-    } else if (!whiteTurn && standPat - greatestMaterialGain - deltaMargin > beta) {
-        return beta;
-    }
-
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
@@ -404,7 +398,6 @@ int alphaBeta(Board& board,
     bool found = false;
     int storedEval;
     
-
     #pragma omp critical
     { 
         if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
@@ -448,7 +441,7 @@ int alphaBeta(Board& board,
                 board.makeNullMove();
                 std::vector<Move> nullPV;
                 int nullEval;
-                int reduction = 3 + depth / 3;
+                int reduction = 3 + depth / 4;
 
                 if (whiteTurn) {
                     nullEval = alphaBeta(board, depth - reduction, beta - 1, beta, quiescenceDepth, nullPV, false);
@@ -490,26 +483,6 @@ int alphaBeta(Board& board,
         Move move = moves[i].first;
         std::vector<Move> childPV;
 
-        // Futility pruning
-        int futilityMargins[3] = {0, 350, 550};
-        bool isCapture = board.isCapture(move);
-        
-        // if (depth <= 2 && !board.inCheck() && !endGameFlag && !leftMost && !isCapture) {
-        //     // Suppose we are not in check, end game, or PV node, and the move is not a capture.
-        //     // Prune the move if the stand pat value is below the futility margin.
-        //     int futilityMargin = futilityMargins[depth];
-            
-        //     int staticEval = evaluate(board);
-        //     if (whiteTurn) {
-        //         if (staticEval + futilityMargin < alpha) {
-        //             continue;
-        //         }
-        //     } else {
-        //         if (staticEval - futilityMargin > beta) {
-        //             continue;
-        //         }
-        //     }
-        // }
 
         int eval = 0;
         int nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
@@ -527,21 +500,6 @@ int alphaBeta(Board& board,
             eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost);
         }
         board.unmakeMove(move);
-
-        if (whiteTurn && eval < alpha) {
-            fullSearchNeeded = nextDepth < depth - 1; // Full search needed if white raised alpha in reduced search
-        } else if (!whiteTurn && eval > beta) {
-            fullSearchNeeded = nextDepth < depth - 1; // Full search needed if black lowered beta in reduced search
-        }
-    
-        //std::cout << "Full search needed: " << fullSearchNeeded << std::endl;
-
-        // if (fullSearchNeeded) { 
-        //     board.makeMove(move);
-        //     childPV.clear();
-        //     eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost);
-        //     board.unmakeMove(move);
-        // }
 
         if (whiteTurn) {
             if (eval > alpha) {
@@ -623,8 +581,9 @@ Move findBestMove(Board& board,
     
     const int baseDepth = 1;
     int apsiration = evaluate(board);
+    int depth = baseDepth;
 
-    for (int depth = baseDepth; depth <= maxDepth; ++depth) {
+    while (depth <= maxDepth) {
         globalMaxDepth = depth;
         positionCount = 0;
         
@@ -772,6 +731,11 @@ Move findBestMove(Board& board,
 
         if (timeLimitExceeded) {
             break; // Break out of the loop if the time limit is exceeded. 
+        }
+
+        if (PV.size() == depth) {
+            // Increase depth if the PV is full. If not, we have a cutoff at some LMR. Redo the search.  
+            depth++; 
         }
     }
 
