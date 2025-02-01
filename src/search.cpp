@@ -148,7 +148,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 2 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
+    if (i <= 2 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove) {
         return depth - 1;
     } else {
         return depth / 3;
