@@ -9,6 +9,7 @@ struct Info {
     std::vector<bool> openFiles;         // 8 elements, each for a file's openness (true or false)
     std::vector<bool> semiOpenFilesWhite; // 8 elements for white's semi-open files
     std::vector<bool> semiOpenFilesBlack; // 8 elements for black's semi-open files
+    int gamePhase;
     bool endGameFlagWhite = false;
     bool endGameFlagBlack = false;
     

@@ -30,6 +30,8 @@ const size_t tableMaxSize = 1000000000;
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
+int k = 6; // top k moves in LMR
+bool mopUp = false; // Mop up flag
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {
@@ -148,7 +150,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 2 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove) {
+    if (i <= k || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
         return depth - 1;
     } else {
         return depth / 3;
@@ -563,6 +565,12 @@ Move findBestMove(Board& board,
     std::vector<Move> globalPV (maxDepth);
 
 
+    if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
+        mopUp = true;
+        k = INF;
+    }
+
+
     globalQuiescenceDepth = quiescenceDepth;
     omp_set_num_threads(numThreads);
 
@@ -596,7 +604,6 @@ Move findBestMove(Board& board,
         }
 
         bool leftMost;
-
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
         #pragma omp for schedule(static)
@@ -734,6 +741,10 @@ Move findBestMove(Board& board,
         if (PV.size() == depth) {
             // Increase depth if the PV is full. If not, we have a cutoff at some LMR. Redo the search.  
             depth++; 
+
+            if (std::abs(bestEval - INF / 2)  < 2000) {
+                break; // Break out of the loop if checkmate is imminent
+            }
         }
     }
 
