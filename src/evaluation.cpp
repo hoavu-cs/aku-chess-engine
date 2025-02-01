@@ -601,45 +601,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-
-    bool found = false;
     int storedValue = 0;
-
-
-    #pragma omp critical
-    {
-        // uint64_t ourPawnsBits = ourPawns.getBits();
-        // uint64_t theirPawnsBits = theirPawns.getBits();
-        // if (color == Color::WHITE) {
-        //     if (whitePawnHashTable.find(ourPawnsBits) != whitePawnHashTable.end()) {
-        //         hashValue = whitePawnHashTable[ourPawnsBits].first;
-        //         std::uint64_t B = whitePawnHashTable[ourPawnsBits].second;
-        //         if (B == theirPawnsBits) found = true;
-        //     }
-        // } else {
-        //     if (blackPawnHashTable.find(ourPawnsBits) != blackPawnHashTable.end()) {
-        //         hashValue = blackPawnHashTable[ourPawnsBits].first;
-        //         std::uint64_t B = blackPawnHashTable[ourPawnsBits].second;
-        //         if (B == theirPawnsBits) found = true;
-        //     }
-        // }
-        std::uint64_t hash = board.hash();
-        if (color == Color::WHITE) {
-            if (whitePawnHashTable.find(hash) != whitePawnHashTable.end()) {
-                storedValue = whitePawnHashTable[hash];
-                found = true;
-            }
-        } else {
-            if (blackPawnHashTable.find(hash) != blackPawnHashTable.end()) {
-                storedValue = blackPawnHashTable[hash];
-                found = true;
-            }
-        }
-    }
-
-    if (found) {
-        return storedValue;
-    }
 
     std::uint64_t ourPawnsBits = ourPawns.getBits();
     std::uint64_t theirPawnsBits = theirPawns.getBits();
@@ -763,16 +725,6 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     for (int i = 0; i < 8; i++) {
         if (files[i] > 1) {
             value -= (files[i] - 1) * doubledPawnPenalty;
-        }
-    }
-
-    // Update the hash table
-    #pragma omp critical
-    {
-        if (color == Color::WHITE) {
-            whitePawnHashTable[ourPawnsBits] = value;
-        } else {
-            blackPawnHashTable[ourPawnsBits] = value;
         }
     }
 
@@ -1154,26 +1106,6 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
     bool found = false;
     std::uint64_t hash = board.hash();
     int storedValue = 0;
-
-    // Check if the value is stored in the hash table
-    #pragma omp critical
-    {
-        if (color == Color::WHITE) {
-            if (whiteKingHashTable.find(hash) != whiteKingHashTable.end()) {
-                storedValue = whiteKingHashTable[hash];
-                found = true;
-            }
-        } else {
-            if (blackKingHashTable.find(hash) != blackKingHashTable.end()) {
-                storedValue = blackKingHashTable[hash];
-                found = true;
-            }
-        }
-    }
-
-    if (found) {
-        return storedValue;
-    }
     
     bool endGameFlag = false;
     
@@ -1283,15 +1215,6 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         value -= threatScore;
     }
 
-    // Update the hash table
-    #pragma omp critical
-    {
-        if (color == Color::WHITE) {
-            whiteKingHashTable[hash] = value;
-        } else {
-            blackKingHashTable[hash] = value;
-        }
-    }
 
     return value;
 }
@@ -1499,26 +1422,6 @@ int evaluate(const Board& board) {
         Piece piece = board.at(Square(52));
         if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
             blackScore -= blockCentralPawnPenalty;
-        }
-    }
-
-    #pragma omp critical
-    {
-        // clear tables if they are too large
-        if (whitePawnHashTable.size() > maxHashTableSize) {
-            whitePawnHashTable.clear();
-        }
-
-        if (blackPawnHashTable.size() > maxHashTableSize) {
-            blackPawnHashTable.clear();
-        }
-
-        if (whiteKingHashTable.size() > maxHashTableSize) {
-            whiteKingHashTable.clear();
-        }
-
-        if (blackKingHashTable.size() > maxHashTableSize) {
-            blackKingHashTable.clear();
         }
     }
 

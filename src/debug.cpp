@@ -66,23 +66,21 @@ int main() {
     
     // board = Board("1r2k2r/1pq1bppp/p3p3/2p1n3/3pNB2/1Q1P4/PPP2PPP/4RR1K b k - 5 16");
 
-    // board = Board("r3k3/3q1p2/2p1p1p1/pn1p1r2/Q7/3PB1N1/PbP2P1P/5RRK b q - 1 25");
+    board = Board("rnbqkbnr/pppp1ppp/4p3/8/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2");
 
     // Default settings
     int depth = 30;
-    int quiescenceDepth = 8;
+    int quiescenceDepth = 10;
     int numThreads = 6;
     int timeLimit = 15000;
 
     Move bestMove;
 
     int moveCount = 40;
-    bool resetHistory = true;
 
     for (int i = 0; i < moveCount; i++) {
 
         Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, true);
-        resetHistory = false;
 
         if (bestMove == Move::NO_MOVE) {
             auto gameResult = board.isGameOver();
