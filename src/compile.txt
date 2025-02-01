@@ -1,7 +1,7 @@
 g++ -std=c++17 -O3 -fopenmp -march=native -o donbot donbot.cpp search.cpp evaluation.cpp 
 g++ -std=c++17 -O3 -fopenmp -march=native -o donbot_web donbot_web.cpp search.cpp evaluation.cpp 
 g++ -std=c++17 -O3 -fopenmp debug.cpp search.cpp evaluation.cpp -o debug
-g++ -std=c++17 -O3 -fopenmp -march=native -o donbot_blitz donbot_blitz.cpp search.cpp evaluation_blitz.cpp 
+g++ -std=c++17 -O3 -fopenmp -march=native -o donbot_blitz donbot_blitz.cpp search.cpp evaluation.cpp 
 
 
 MacOS:
