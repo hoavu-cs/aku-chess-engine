@@ -32,7 +32,6 @@
 #include <chrono>
 
 using namespace chess;
-auto startTime = std::chrono::high_resolution_clock::now();
 
 // Engine Metadata
 const std::string ENGINE_NAME = "PIG ENGINE";
@@ -120,10 +119,10 @@ void processPosition(const std::string& command) {
 void processGo(const std::vector<std::string>& tokens) {
 
     // Default settings
-    int depth = 9;
-    int quiescenceDepth = 10;
+    int depth = 30;
+    int quiescenceDepth = 8;
     int numThreads = 6;
-    int timeLimit = 15000; // Default to 15 seconds
+    int timeLimit = 3000; // Default to 15 seconds
     bool quiet = false;
   
     // Simply find the best move without considering `t` or other options

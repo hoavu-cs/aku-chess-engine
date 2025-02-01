@@ -148,7 +148,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
+    if (i <= 2 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
         return depth - 1;
     } else {
         return depth / 3;
@@ -300,8 +300,6 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     const int deltaMargin = 200;
 
     for (const auto& move : moves) {
-        
-
         if (!board.isCapture(move) && !isPromotion(move)) {
             continue;
         }
@@ -441,7 +439,7 @@ int alphaBeta(Board& board,
                 board.makeNullMove();
                 std::vector<Move> nullPV;
                 int nullEval;
-                int reduction = 3 + depth / 4;
+                int reduction = 3;
 
                 if (whiteTurn) {
                     nullEval = alphaBeta(board, depth - reduction, beta - 1, beta, quiescenceDepth, nullPV, false);
