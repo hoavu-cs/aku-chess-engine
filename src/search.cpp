@@ -30,7 +30,7 @@ const size_t tableMaxSize = 1000000000;
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 6; // top k moves in LMR
+int k = 5; // top k moves in LMR
 bool mopUp = false; // Mop up flag
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
@@ -119,6 +119,11 @@ int quietPriority(const Board& board, const Move& move) {
         threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
 
         theirKnight.clear(sqIndex);
+    }
+
+    // Pawn push
+    if (type == PieceType::PAWN) {
+        threat += 2;
     }
 
     return threat;

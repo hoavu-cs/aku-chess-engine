@@ -14,7 +14,7 @@ using namespace chess;
 
 // Constants for the evaluation function
 const int PAWN_VALUE = 100;
-const int KNIGHT_VALUE = 320;
+const int KNIGHT_VALUE = 320; 
 const int BISHOP_VALUE = 330;
 const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
@@ -540,6 +540,9 @@ bool isProtectedByPawn(int sqIndex, const Board& board, Color color) {
     int rank = sqIndex / 8;
 
     if (color == Color::WHITE) {
+        if (rank == 0) {
+            return false;
+        }
         if (file > 0 && board.at(Square((rank - 1) * 8 + (file - 1))) == PieceType::PAWN
             && board.at(Square((rank - 1) * 8 + (file - 1))).color() == Color::WHITE) {
             return true; 
@@ -550,6 +553,9 @@ bool isProtectedByPawn(int sqIndex, const Board& board, Color color) {
         }
     }
     else {
+        if (rank == 7) {
+            return false;
+        }
         if (file > 0 && board.at(Square((rank + 1) * 8 + (file - 1))) == PieceType::PAWN
             && board.at(Square((rank + 1) * 8 + (file - 1))).color() == Color::BLACK) {
             return true; 
@@ -609,14 +615,6 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     double midGameWeight = info.gamePhase;
     double endGameWeight = 24 - midGameWeight;
 
-    bool endGameFlag;
-
-    if (color == Color::WHITE) {
-        endGameFlag = info.endGameFlagWhite;
-    } else {
-        endGameFlag = info.endGameFlagBlack;
-    }
-
     // constants
     const int passedPawnBonus = 35;
     const int protectedPassedPawnBonus = 45;
@@ -631,7 +629,10 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     int files[8] = {0};
     int value = 0;
-    int advancedPawnBonus = endGameFlag ? 5 : 2;
+
+    // Interpolate the pawn advancement bonus based on the game phase
+    // When gamephase = 24, the bonus is 0. When gamephase = 0, the bonus is 6.
+    int advancedPawnBonus = static_cast<int>(- (1.0 / 6.0) * info.gamePhase + 6.0);
 
     Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
                             | board.pieces(PieceType::KNIGHT, !color) 
@@ -731,18 +732,10 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int outpostBonus = 30;
-     
-    bool endGameFlag;
     double midGameWeight = info.gamePhase;
     double endGameWeight = 24 - midGameWeight;
 
-    if (color == Color::WHITE) {
-        endGameFlag = info.endGameFlagWhite;
-    } else {
-        endGameFlag = info.endGameFlagBlack;
-    }
-
-    int mobilityBonus = endGameFlag ? 4 : 4;  // Bonus for mobility
+    const int mobilityBonus = 4;
 
     Bitboard knights = board.pieces(PieceType::KNIGHT, color);
     int value = 0;
@@ -765,10 +758,22 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
             value += outpostBonus;
         }
 
+        // Compute the mobility of the knight. 
+        // We count the number of legal moves that don't land onto a pawn attack or blocked by our own pieces.
+        int mobility = 0;
         Bitboard knightMoves = attacks::knight(Square(sqIndex));
-        int mobility = knightMoves.count();
-        value += mobilityBonus * mobility;
 
+        while (!knightMoves.empty()) {
+            int sqIndexMove = knightMoves.lsb();
+            Bitboard blocked = board.us(color) & Bitboard::fromSquare(sqIndexMove);
+            
+            if (!isProtectedByPawn(sqIndexMove, board, !color) && !blocked) {
+                mobility++;
+            }
+
+            knightMoves.clear(sqIndexMove);
+        }
+        value +=  mobilityBonus * mobility;
         knights.clear(sqIndex);
     }
 
@@ -782,20 +787,11 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
     const int bishopPairBonus = 30;
     const int outpostBonus = 20;
     const int protectionBonus = 3;
-    //const int *bishopTable;
 
     double midGameWeight = info.gamePhase;
     double endGameWeight = 24 - midGameWeight;
 
-    bool endGameFlag;
-
-    if (color == Color::WHITE) {
-        endGameFlag = info.endGameFlagWhite;
-    } else {
-        endGameFlag = info.endGameFlagBlack;
-    }
-
-    int mobilityBonus = endGameFlag ? 3 : 3;  // Bonus for mobility
+    int mobilityBonus = 3;
 
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
@@ -840,18 +836,11 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const int semiOpenFileBonus = 10;
     const int openFileBonus = 15;
-    bool endGameFlag;
-
     double midGameWeight = info.gamePhase;
     double endGameWeight = 24 - midGameWeight;
 
-    if (color == Color::WHITE) {
-        endGameFlag = info.endGameFlagWhite;
-    } else {
-        endGameFlag = info.endGameFlagBlack;
-    }
-
-    int mobilityBonus = endGameFlag ? 3 : 2;
+    // Give a bigger bonus for mobility near the endgame
+    int mobilityBonus = info.gamePhase < 12 ? 3 : 2;
 
     Bitboard rooks = board.pieces(PieceType::ROOK, color);
     int value = 0;
@@ -871,8 +860,6 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
                 (midGameWeight * blackRookTableMid[sqIndex] + endGameWeight * blackRookTableEnd[sqIndex]) / 24
                 );
         }
-
-        //value += rookTable[sqIndex]; // Add the value from the piece-square table
 
         if (info.openFiles[file]) {
             value += openFileBonus;
@@ -899,17 +886,11 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int* queenTable;    
-    bool endGameFlag;
     double midGameWeight = info.gamePhase;
     double endGameWeight = 24 - midGameWeight;
 
-    if (color == Color::WHITE) {
-        endGameFlag = info.endGameFlagWhite;
-    } else {
-        endGameFlag = info.endGameFlagBlack;
-    }
-
-    int mobilityBonus = endGameFlag ? 3 : 2;
+    // Give a bigger bonus for mobility near the endgame
+    int mobilityBonus = info.gamePhase < 12 ? 3 : 2;
     
     Bitboard queens = board.pieces(PieceType::QUEEN, color);
     Bitboard theirKing = board.pieces(PieceType::KING, !color);
@@ -1094,13 +1075,13 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
     double midGameWeight = info.gamePhase;
     double endGameWeight = 24 - midGameWeight;
     
-    bool endGameFlag = false;
+    bool endGameFlag = info.gamePhase < 10;
     
-    if (color == Color::WHITE) {
-        endGameFlag = info.endGameFlagWhite;
-    } else {
-        endGameFlag = info.endGameFlagBlack;
-    }
+    // if (color == Color::WHITE) {
+    //     endGameFlag = info.endGameFlagWhite;
+    // } else {
+    //     endGameFlag = info.endGameFlagBlack;
+    // }
 
 
     Bitboard king = board.pieces(PieceType::KING, color);
@@ -1244,8 +1225,8 @@ int evaluate(const Board& board) {
     Standard evaluation phase
     --------------------------------------------------------------------------*/
     Info info;
-    info.endGameFlagWhite = isEndGame(board, Color::WHITE);
-    info.endGameFlagBlack = isEndGame(board, Color::BLACK);
+    // info.endGameFlagWhite = isEndGame(board, Color::WHITE);
+    // info.endGameFlagBlack = isEndGame(board, Color::BLACK);
 
     // Tempo bonus
     if (board.sideToMove() == Color::WHITE) {
@@ -1325,6 +1306,11 @@ int evaluate(const Board& board) {
         } 
     }
     
+    /*-------------------------------------------------------------------------
+        Add a penalty for piece-material deficit. At the beginning, the deficit is 24 * 2 = 48.
+        As the game progresses, the penalty decreases. 
+        This is useful to avoid trading pieces for pawns early on.
+    -------------------------------------------------------------------------*/
     const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9, pawnValue = 1;
 
     int whitePieceValue = queenValue * board.pieces(PieceType::QUEEN, Color::WHITE).count() + 
@@ -1338,19 +1324,16 @@ int evaluate(const Board& board) {
                         knightValue * board.pieces(PieceType::KNIGHT, Color::BLACK).count();
     
     int totalPieceValue = whitePieceValue + blackPieceValue;
-    const int pieceDeficitPenalty = 30;
+    int pieceDeficitPenalty = info.gamePhase * 8;
 
-    if (totalPieceValue > 24) { 
-        // Safeguard: Assume there are enough material, avoid trading pieces for pawns.
-        if (whitePieceValue > blackPieceValue) {
-            whiteScore += pieceDeficitPenalty;
-        } else if (blackPieceValue > whitePieceValue) {
-            blackScore += pieceDeficitPenalty;
-        }
+    if (whitePieceValue > blackPieceValue) {
+        whiteScore += pieceDeficitPenalty;
+    } else if (blackPieceValue > whitePieceValue) {
+        blackScore += pieceDeficitPenalty;
     }
 
     // Safeguard against material deficit without enough compensation.
-    const int deficitPenalty = 100;
+    const int deficitPenalty = 75;
     whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
     blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
 
@@ -1412,9 +1395,9 @@ int evaluate(const Board& board) {
     }
 
     /*--------------------------------------------------------------------------
-    End game heuristics:allPieceTypes
-    NNK vs K, NK v K, BK v K cannot checkmate.
-    KR vs KB is drawish.
+        End game special heuristics to avoid illusory material advantage.
+        NNK vs K, NK v K, BK v K cannot checkmate. 
+        KR vs KB is drawish.
     *--------------------------------------------------------------------------*/
     int whitePawnCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
     int blackPawnCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
@@ -1432,7 +1415,7 @@ int evaluate(const Board& board) {
         && whiteRookCount == 0 
         && whiteQueenCount == 0 
         &&  whitePawnCount == 0) {
-        whiteScore = 0; // Cannot checkmate
+        whiteScore = 0; 
     }
 
     if (blackKnightCount <= 2 
@@ -1440,7 +1423,7 @@ int evaluate(const Board& board) {
         && blackRookCount == 0 
         && blackQueenCount == 0
         && blackPawnCount == 0) {
-        blackScore = 0; // Cannot checkmate
+        blackScore = 0; 
     }
 
     if (whiteBishopCount == 1 
@@ -1448,7 +1431,7 @@ int evaluate(const Board& board) {
         && whiteRookCount == 0 
         && whiteQueenCount == 0 
         && whitePawnCount == 0) {
-        whiteScore = 0; // Cannot checkmate
+        whiteScore = 0; 
     }
 
     if (blackBishopCount == 1 
@@ -1456,7 +1439,7 @@ int evaluate(const Board& board) {
         && blackRookCount == 0 
         && blackQueenCount == 0 
         && blackPawnCount == 0) {
-        blackScore = 0; // Cannot checkmate
+        blackScore = 0; 
     }
 
     return whiteScore - blackScore;
