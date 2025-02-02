@@ -159,7 +159,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 3 || depth <= 4 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
+    if (i <= 7 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -596,6 +596,7 @@ Move findBestMove(Board& board,
     const int baseDepth = 1;
     int apsiration = evaluate(board);
     int depth = baseDepth;
+    int evals[1000];
 
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
@@ -712,6 +713,7 @@ Move findBestMove(Board& board,
 
         moves = newMoves;
         previousPV = PV;
+        evals[depth] = bestEval;
 
         std::string depthStr = "depth " + std::to_string(depth);
         std::string scoreStr = "score cp " + std::to_string(bestEval);
@@ -733,8 +735,14 @@ Move findBestMove(Board& board,
             timeLimitExceeded = true;
         }
 
-        if (timeLimitExceeded && PV.size() == depth) {
-            break; // Break out of the loop if the time limit is exceeded. 
+        bool stableEval = true;
+        if (depth >= 2 && std::abs(evals[depth] - evals[depth - 2]) > 100) {
+            // A position is unstable if the evaluation changes by more than 100 from 2 plies ago
+            stableEval = false; 
+        }
+
+        if (timeLimitExceeded && PV.size() == depth && stableEval) {
+            break; // Break out of the loop if the time limit is exceeded and the evaluation is stable.
         }
 
         if (PV.size() == depth) {

@@ -704,7 +704,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     int value = 0;
 
     // Interpolate the pawn advancement bonus based on the game phase
-    int advancedPawnBonus = static_cast<int>(8.0 - info.gamePhase / 3);
+    int advancedPawnBonus = static_cast<int>(- (1.0 / 6.0) * info.gamePhase + 6.0);;
 
     Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
                             | board.pieces(PieceType::KNIGHT, !color) 
