@@ -736,8 +736,8 @@ Move findBestMove(Board& board,
         }
 
         bool stableEval = true;
-        if (depth >= 2 && std::abs(evals[depth] - evals[depth - 2]) > 100) {
-            // A position is unstable if the evaluation changes by more than 100 from 2 plies ago
+        if (depth >= 2 && std::abs(evals[depth] - evals[depth - 2]) > 50) {
+            // A position is unstable if the evaluation changes by more than 50cp from 2 plies ago
             stableEval = false; 
         }
 
