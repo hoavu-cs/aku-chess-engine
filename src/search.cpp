@@ -142,13 +142,12 @@ void updateKillerMoves(const Move& move, int depth) {
     }
 }
 
-/*---------------------------------------------------------------
+/*--------------------------------------------------------------------------------------------
 Late move reduction. I'm using a simple formula for now.
 We don't reduce depth if the move is a capture, promotion, or check or near the frontier nodes.
 It seems to work well for the most part.
---------------------------------------------------------------- */
+--------------------------------------------------------------------------------------------*/
 int depthReduction(Board& board, Move move, int i, int depth) {
-
 
     Board localBoard = board;
     localBoard.makeMove(move);
@@ -304,7 +303,6 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     movegen::legalmoves(moves, board);
     std::vector<std::pair<Move, int>> candidateMoves;
     int greatestMaterialGain = 0;
-    const int deltaMargin = 200;
 
     for (const auto& move : moves) {
         if (!board.isCapture(move) && !isPromotion(move)) {
@@ -739,7 +737,7 @@ Move findBestMove(Board& board,
             timeLimitExceeded = true;
         }
 
-        if (timeLimitExceeded) {
+        if (timeLimitExceeded && PV.size() == depth) {
             break; // Break out of the loop if the time limit is exceeded. 
         }
 
