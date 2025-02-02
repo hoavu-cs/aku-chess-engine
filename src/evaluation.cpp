@@ -384,6 +384,79 @@ const std::unordered_map<int, std::vector<int>> adjSquares = {
     Helper Functions
 ------------------------------------------------------------------------*/
 
+
+//End game special heuristics to avoid illusory material advantage.
+bool knownDraw(const Board& board) {
+
+    // Two kings are a draw
+    if (board.us(Color::WHITE).count() == 1 && board.them(Color::BLACK).count() == 1) {
+        return true;
+    }
+
+    int whitePawnCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
+    int whiteKnightCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
+    int whiteBishopCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
+    int whiteRookCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
+    int whiteQueenCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
+
+    int blackPawnCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
+    int blackKnightCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
+    int blackBishopCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
+    int blackRookCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
+    int blackQueenCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
+
+    // If there are pawns on the board, it is not a draw
+    if (whitePawnCount > 0 || blackPawnCount > 0) {
+        return false;
+    }
+
+    // Cannot checkmate with 2 knights or a knight 
+    if (whitePawnCount == 0 && whiteKnightCount <= 2 && whiteBishopCount == 0 && whiteRookCount == 0 && whiteQueenCount == 0 &&
+        blackPawnCount == 0 && blackKnightCount <= 0 && blackBishopCount == 0 && blackRookCount == 0 && blackQueenCount == 0) {
+        return true;
+    }
+
+    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 0 && whiteRookCount == 0 && whiteQueenCount == 0 &&
+        blackPawnCount == 0 && blackKnightCount <= 2 && blackBishopCount == 0 && blackRookCount == 0 && blackQueenCount == 0) {
+        return true;
+    }
+
+    // Cannot checkmate with one bishop
+    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 1 && whiteRookCount == 0 && whiteQueenCount == 0 &&
+        blackPawnCount == 0 && blackKnightCount == 0 && blackBishopCount == 0 && blackRookCount == 0 && blackQueenCount == 0) {
+        return true;
+    }
+
+    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 0 && whiteRookCount == 0 && whiteQueenCount == 0 &&
+        blackPawnCount == 0 && blackKnightCount == 0 && blackBishopCount == 1 && blackRookCount == 0 && blackQueenCount == 0) {
+        return true;
+    }
+
+    // A RK vs RB or a QK vs QB endgame is drawish
+    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 0 && whiteRookCount == 1 && whiteQueenCount == 0 &&
+        blackPawnCount == 0 && blackKnightCount == 1 && blackBishopCount == 0 && blackRookCount == 0 && blackQueenCount == 0) {
+        return true;
+    }
+
+    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 0 && whiteRookCount == 1 && whiteQueenCount == 0 &&
+        blackPawnCount == 0 && blackKnightCount == 0 && blackBishopCount == 1 && blackRookCount == 0 && blackQueenCount == 0) {
+        return true;
+    }
+
+    if (whitePawnCount == 0 && whiteKnightCount == 1 && whiteBishopCount == 0 && whiteRookCount == 0 && whiteQueenCount == 0 &&
+        blackPawnCount == 0 && blackKnightCount == 0 && blackBishopCount == 0 && blackRookCount == 1 && blackQueenCount == 0) {
+        return true;
+    }
+
+    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 1 && whiteRookCount == 0 && whiteQueenCount == 0 &&
+        blackPawnCount == 0 && blackKnightCount == 0 && blackBishopCount == 0 && blackRookCount == 1 && blackQueenCount == 0) {
+        return true;
+    }
+
+    return false;
+
+}
+
 // Return true if the game is in the endgame phase for the given color.
 bool isEndGame(const Board& board, Color color) {
     const int materialThreshold = 13;
@@ -760,17 +833,16 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
 
         // Compute the mobility of the knight. 
         // We count the number of legal moves that don't land onto a pawn attack or blocked by our own pieces.
-        int mobility = 0;
         Bitboard knightMoves = attacks::knight(Square(sqIndex));
-
+        int mobility = 0;
         while (!knightMoves.empty()) {
+            
             int sqIndexMove = knightMoves.lsb();
             Bitboard blocked = board.us(color) & Bitboard::fromSquare(sqIndexMove);
             
             if (!isProtectedByPawn(sqIndexMove, board, !color) && !blocked) {
                 mobility++;
             }
-
             knightMoves.clear(sqIndexMove);
         }
         value +=  mobilityBonus * mobility;
@@ -1076,13 +1148,6 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
     double endGameWeight = 24 - midGameWeight;
     
     bool endGameFlag = info.gamePhase < 10;
-    
-    // if (color == Color::WHITE) {
-    //     endGameFlag = info.endGameFlagWhite;
-    // } else {
-    //     endGameFlag = info.endGameFlagBlack;
-    // }
-
 
     Bitboard king = board.pieces(PieceType::KING, color);
     const PieceType allPieceTypes[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
@@ -1175,6 +1240,13 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         int threatScore = kingThreat(board, color);
         
         value -= threatScore;
+    } else {
+        // Encourage staying close to the other king in the endgame
+        Bitboard theirKing = board.pieces(PieceType::KING, !color);
+        int theirKingIndex = theirKing.lsb();
+
+        int dist = manhattanDistance(Square(sqIndex), Square(theirKingIndex)); 
+        value -= 5 * dist;
     }
 
 
@@ -1192,6 +1264,10 @@ int evaluate(const Board& board) {
     int whiteScore = 0;
     int blackScore = 0;
 
+    if (knownDraw(board)) {
+        return 0;
+    }
+
     /*--------------------------------------------------------------------------
     Mop-up phase: if only their king is left without any other pieces.
     Aim to checkmate.
@@ -1203,7 +1279,6 @@ int evaluate(const Board& board) {
                            board.pieces(PieceType::QUEEN, theirColor);
 
     Bitboard ourPieces =  board.pieces(PieceType::ROOK, board.sideToMove()) | board.pieces(PieceType::QUEEN, board.sideToMove());
-
     if (theirPieces.count() == 0 && ourPieces.count() > 0) {
         Square ourKing = Square(board.pieces(PieceType::KING, board.sideToMove()).lsb());
         Square theirKing = Square(board.pieces(PieceType::KING, theirColor).lsb());
@@ -1392,54 +1467,6 @@ int evaluate(const Board& board) {
         if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
             blackScore -= blockCentralPawnPenalty;
         }
-    }
-
-    /*--------------------------------------------------------------------------
-        End game special heuristics to avoid illusory material advantage.
-        NNK vs K, NK v K, BK v K cannot checkmate. 
-        KR vs KB is drawish.
-    *--------------------------------------------------------------------------*/
-    int whitePawnCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
-    int blackPawnCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
-    int whiteKnightCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
-    int blackKnightCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
-    int whiteBishopCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
-    int blackBishopCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
-    int whiteRookCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
-    int blackRookCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
-    int whiteQueenCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
-    int blackQueenCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
-
-    if (whiteKnightCount <= 2 
-        && whiteBishopCount == 0 
-        && whiteRookCount == 0 
-        && whiteQueenCount == 0 
-        &&  whitePawnCount == 0) {
-        whiteScore = 0; 
-    }
-
-    if (blackKnightCount <= 2 
-        && blackBishopCount == 0 
-        && blackRookCount == 0 
-        && blackQueenCount == 0
-        && blackPawnCount == 0) {
-        blackScore = 0; 
-    }
-
-    if (whiteBishopCount == 1 
-        && whiteKnightCount == 0 
-        && whiteRookCount == 0 
-        && whiteQueenCount == 0 
-        && whitePawnCount == 0) {
-        whiteScore = 0; 
-    }
-
-    if (blackBishopCount == 1 
-        && blackKnightCount == 0 
-        && blackRookCount == 0 
-        && blackQueenCount == 0 
-        && blackPawnCount == 0) {
-        blackScore = 0; 
     }
 
     return whiteScore - blackScore;
