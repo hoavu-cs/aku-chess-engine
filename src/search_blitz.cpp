@@ -2,7 +2,7 @@
 #include "chess.hpp"
 #include "evaluation.hpp"
 #include <iostream>
-#include <map>
+#include <unordered_map>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -14,24 +14,24 @@
 using namespace chess;
 
 // Constants and global variables
-std::map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
-std::map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
+std::unordered_map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
+std::unordered_map<std::uint64_t, Move> whiteHashMove;
 
+std::unordered_map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
+std::unordered_map<std::uint64_t, Move> blackHashMove;
+
+// Time management
 std::vector<Move> previousPV; // Principal variation from the previous iteration
 
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t tableMaxSize = 100000000; 
-const int R = 2; 
+const size_t tableMaxSize = 1000000000; 
 int tableHit = 0;
-const int k = 1;
-
-int nullDepth = 4; 
-int improvement = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
-bool globalDebug = false; // Debug flag
+int k = 2; // top k moves in LMR
+bool mopUp = false; // Mop up flag
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {
@@ -45,7 +45,7 @@ const int pieceValues[] = {
 };
 
 // Transposition table lookup
-bool transTableLookUp(std::map<std::uint64_t, std::pair<int, int>>& table, 
+bool transTableLookUp(std::unordered_map<std::uint64_t, std::pair<int, int>>& table, 
                             std::uint64_t hash, 
                             int depth, 
                             int& eval) {
@@ -121,6 +121,16 @@ int quietPriority(const Board& board, const Move& move) {
         theirKnight.clear(sqIndex);
     }
 
+    int gamePhase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
+                     board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
+                     board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
+                     board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
+
+    // Pawn push is prioritized in endgame
+    if (type == PieceType::PAWN && gamePhase <= 12) {
+        threat += 4;
+    }
+
     return threat;
 }
 
@@ -137,20 +147,24 @@ void updateKillerMoves(const Move& move, int depth) {
     }
 }
 
-// Late move reduction
+/*--------------------------------------------------------------------------------------------
+Late move reduction. I'm using a simple formula for now.
+We don't reduce depth if the move is a capture, promotion, or check or near the frontier nodes.
+It seems to work well for the most part.
+--------------------------------------------------------------------------------------------*/
 int depthReduction(Board& board, Move move, int i, int depth) {
+
     Board localBoard = board;
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
+    bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck) {
-        // search the first 6 moves, tactical moves, and frontier nodes at full depth
+    if (i <= k || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
         return depth - 1;
-    } 
-    
-    double a = 0.5, b = 0.5;
-    int R = 1 + a * log(depth) / log(2.0) + b * log(i) / log(2.0);
-    return depth - R;
+    } else {
+        return depth / 2;
+    }
+
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -166,6 +180,7 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
+    std::uint64_t hash = board.hash();
 
     // Move ordering 1. promotion 2. captures 3. killer moves 4. hash 5. checks 6. quiet moves
     for (const auto& move : moves) {
@@ -173,8 +188,33 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
         bool quiet = false;
         int moveIndex = move.from().index() * 64 + move.to().index();
         int ply = globalMaxDepth - depth;
+        bool hashMove = false;
 
-        // Previous PV, killer moves, history heuristic, captures, promotions, checks, quiet moves
+        // Previous hash moves, PV, killer moves, history heuristic, captures, promotions, checks, quiet moves
+        #pragma omp critial 
+        {
+            if (whiteTurn) {
+                if (whiteHashMove.find(hash) != whiteHashMove.end() && whiteHashMove[hash] == move) {
+                    priority = 9000;
+                    candidates.push_back({move, priority});
+                    hashMove = true;
+                }
+
+            } else {
+  
+                if (blackHashMove.find(hash) != blackHashMove.end() && blackHashMove[hash] == move) {
+                    priority = 9000;
+                    candidates.push_back({move, priority});
+                    hashMove = true;
+                }
+            }
+        }
+
+        if (hashMove) {
+            continue;
+        }
+
+
         if (previousPV.size() > ply && leftMost) {
             // Previous PV
             if (previousPV[ply] == move) {
@@ -236,13 +276,10 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
 }
 
 int quiescence(Board& board, int depth, int alpha, int beta) {
-
-
     #pragma  omp critical 
     {
         positionCount++;
     }
-    
     
     if (depth <= 0) {
         return evaluate(board);
@@ -273,7 +310,6 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     int greatestMaterialGain = 0;
 
     for (const auto& move : moves) {
-
         if (!board.isCapture(move) && !isPromotion(move)) {
             continue;
         }
@@ -293,7 +329,7 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
             candidateMoves.push_back({move, priority});
             greatestMaterialGain = std::max(greatestMaterialGain, pieceValues[static_cast<int>(attacker.type())]);
 
-        } 
+        }         
     }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
@@ -336,7 +372,6 @@ int alphaBeta(Board& board,
             std::vector<Move>& PV,
             bool leftMost) {
 
-
     #pragma  omp critical
     {
         positionCount++;
@@ -371,14 +406,13 @@ int alphaBeta(Board& board,
     bool found = false;
     int storedEval;
     
-
     #pragma omp critical
     { 
         if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
             (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
             found = true;
 
-            if (globalDebug) tableHit++;
+            tableHit++;
         }
     }
 
@@ -407,36 +441,56 @@ int alphaBeta(Board& board,
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
     if (!endGameFlag) {
+        const int nullDepth = 4; // Only apply null move pruning at depths >= 4
+
         if (depth >= nullDepth && !leftMost) {
             if (!board.inCheck()) {
 
                 board.makeNullMove();
                 std::vector<Move> nullPV;
                 int nullEval;
+                int reduction = 3;
 
                 if (whiteTurn) {
-                    nullEval = alphaBeta(board, depth - R, beta - 1, beta, quiescenceDepth, nullPV, false);
+                    nullEval = alphaBeta(board, depth - reduction, beta - 1, beta, quiescenceDepth, nullPV, false);
                 } else {
-                    nullEval = alphaBeta(board, depth - R, alpha, alpha + 1, quiescenceDepth, nullPV, false);
+                    nullEval = alphaBeta(board, depth - reduction, alpha, alpha + 1, quiescenceDepth, nullPV, false);
                 }
 
                 board.unmakeNullMove();
 
-                if (whiteTurn && nullEval >= beta) {
-                    return nullEval;
-                } else if (!whiteTurn && nullEval <= alpha) {
-                    return nullEval;
+                if (whiteTurn && nullEval >= beta) { // opponent failed to lower beta as black
+                    return beta;
+                } else if (!whiteTurn && nullEval <= alpha) { // opponent failed to raise alpha as white
+                    return alpha;
                 }
             }
         }
     }
 
+    // Razoring
+    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
+    //     int razorMargin = 600;
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+    //     if (whiteTurn) {
+    //         if (standPat + razorMargin < alpha) {
+    //             return standPat + razorMargin;
+    //         }
+    //     } else {
+    //         if (standPat - razorMargin > beta) {
+    //             return standPat - razorMargin;
+    //         }
+    //     }
+    // }
+
+
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
-    int bestEval = whiteTurn ? -INF : INF;
+    int bestEval = whiteTurn ? alpha - 1 : beta + 1;
 
     for (int i = 0; i < moves.size(); i++) {
         Move move = moves[i].first;
         std::vector<Move> childPV;
+
 
         int eval = 0;
         int nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
@@ -445,39 +499,17 @@ int alphaBeta(Board& board,
             leftMost = false;
         }
 
-        if (i > k) {
-            // Try a null window search with a reduced depth
-            board.makeMove(move);  
-            bool reject = true;
-            int nullWindowDepth = std::min(5, depth - 2);
-
-            if (whiteTurn) {
-                eval = alphaBeta(board, nullWindowDepth, alpha, alpha + 1, quiescenceDepth, childPV, leftMost);
-                if (eval > alpha) reject = false; // being able to raise alpha as white
-            } else if (!whiteTurn) {
-                eval = alphaBeta(board, nullWindowDepth, beta - 1, beta, quiescenceDepth, childPV, leftMost);
-                if (eval < beta) reject = false; // being able to lower beta as black
-            }
-
-            board.unmakeMove(move);
-
-            if (reject) {
-                continue; // IF the move fails to raise alpha or lower beta, skip it
-            }
-        }
+        bool fullSearchNeeded = true;
 
         board.makeMove(move);
-        eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost);
+        if (whiteTurn) {
+            eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost);
+        } else {
+            eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost);
+        }
         board.unmakeMove(move);
 
         if (whiteTurn) {
-            if (eval > alpha && nextDepth < depth - 1) { 
-                board.makeMove(move);
-                childPV.clear();
-                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost);
-                board.unmakeMove(move);
-            }
-
             if (eval > alpha) {
                 PV.clear();
                 PV.push_back(move);
@@ -489,14 +521,6 @@ int alphaBeta(Board& board,
             bestEval = std::max(bestEval, eval);
             alpha = std::max(alpha, eval);
         } else {
-
-            if (eval < beta && nextDepth < depth - 1) { 
-                board.makeMove(move);
-                childPV.clear();
-                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost);
-                board.unmakeMove(move);
-            }
-
             if (eval < beta) {
                 PV.clear();
                 PV.push_back(move);
@@ -515,18 +539,16 @@ int alphaBeta(Board& board,
         }
     }
 
-    if (whiteTurn) {
-            #pragma omp critical 
-            {
-                lowerBoundTable[board.hash()] = {bestEval, depth}; 
-            }
-            
-    } else {
-            #pragma omp critical
-            {
-                upperBoundTable[board.hash()] = {bestEval, depth}; 
-            }
-            
+    #pragma omp critical
+    {
+        // Update hash tables
+        if (whiteTurn && PV.size() > 0) {
+            lowerBoundTable[board.hash()] = {bestEval, depth}; 
+            whiteHashMove[board.hash()] = PV[0];
+        } else if (PV.size() > 0) {
+            upperBoundTable[board.hash()] = {bestEval, depth}; 
+            blackHashMove[board.hash()] = PV[0];
+        }
     }
 
     return bestEval;
@@ -537,10 +559,11 @@ Move findBestMove(Board& board,
                 int numThreads = 4, 
                 int maxDepth = 8, 
                 int quiescenceDepth = 10, 
-                int timeLimit = 5000,
+                int timeLimit = 15000,
                 bool quiet = false) {
 
     auto startTime = std::chrono::high_resolution_clock::now();
+    bool timeLimitExceeded = false;
 
     Move bestMove = Move(); 
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
@@ -548,6 +571,12 @@ Move findBestMove(Board& board,
 
     std::vector<std::pair<Move, int>> moves;
     std::vector<Move> globalPV (maxDepth);
+
+
+    if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
+        mopUp = true;
+        k = INF;
+    }
 
 
     globalQuiescenceDepth = quiescenceDepth;
@@ -563,17 +592,18 @@ Move findBestMove(Board& board,
             upperBoundTable.clear();
         }  
     }
+    
+    const int baseDepth = 1;
+    int apsiration = evaluate(board);
+    int depth = baseDepth;
 
-    bool timeLimitExceeded = false;
-    int baseDepth = 1;
-
-    for (int depth = baseDepth; depth <= maxDepth; ++depth) {
+    while (depth <= maxDepth) {
         globalMaxDepth = depth;
+        positionCount = 0;
         
         // Track the best move for the current depth
         Move currentBestMove = Move();
         int currentBestEval = whiteTurn ? -INF : INF;
-
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; // Principal variation
 
@@ -582,13 +612,10 @@ Move findBestMove(Board& board,
         }
 
         bool leftMost;
+        auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
-        #pragma omp for
+        #pragma omp for schedule(static)
         for (int i = 0; i < moves.size(); i++) {
-
-            if (timeLimitExceeded) {
-                continue; // Skip iteration if time limit is exceeded
-            }
 
             if (i == 0) {
                 leftMost = true; // First move from the root starts the leftmost path
@@ -601,34 +628,36 @@ Move findBestMove(Board& board,
             
             Board localBoard = board;
             bool newBestFlag = false;  
+            int nextDepth = depthReduction(localBoard, move, i, depth);
 
-            if (i > k && depth > 4) {
-                // Try a null window search with a reduced depth
-                localBoard.makeMove(move);  
-                int nullWindowEval = 0;
-                bool reject = true;
-                int nullWindowDepth = std::min(5, depth - 2);
-                
-                if (whiteTurn) {
-                    nullWindowEval = alphaBeta(board, nullWindowDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
-                    if (nullWindowEval > currentBestEval) reject = false; // being able to raise alpha as white
-                } else if (!whiteTurn) {
-                    nullWindowEval = alphaBeta(board, nullWindowDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
-                    if (nullWindowEval < currentBestEval) reject = false; // being able to lower beta as black
-                }
+            // Aspiration window
+            int aspirationOption = 150;
+            int eval = whiteTurn ? -INF : INF;
 
+            // Aspiration window search except for the first move
+            while (true) {
+
+                localBoard.makeMove(move);
+                eval = alphaBeta(localBoard, 
+                                nextDepth, 
+                                apsiration - aspirationOption, 
+                                apsiration + aspirationOption, 
+                                quiescenceDepth, 
+                                childPV, 
+                                leftMost);
                 localBoard.unmakeMove(move);
 
-                if (reject) {
-                    continue; // IF the move fails to raise alpha or lower beta, skip it
+                if (eval >= apsiration + aspirationOption || eval <= apsiration - aspirationOption) {
+                    aspirationOption = aspirationOption * 2;
+                } else {
+                    break;
                 }
             }
 
-            int nextDepth = depthReduction(localBoard, move, i, depth);
-        
-            localBoard.makeMove(move);
-            int eval = alphaBeta(localBoard, nextDepth, -INF, INF, quiescenceDepth, childPV, leftMost);
-            localBoard.unmakeMove(move);
+
+            if (timeLimitExceeded) {
+                continue; // Do not proceed to update PV if the time limit is exceeded
+            }
 
             #pragma omp critical
             {
@@ -662,8 +691,11 @@ Move findBestMove(Board& board,
             }
         }
         
+        if (timeLimitExceeded) {
+            break; // Break out of the loop if the time limit is exceeded
+        }
 
-        // Update the global best move and evaluation after this depth
+        // Update the global best move and evaluation after this depth if the time limit is not exceeded
         bestMove = currentBestMove;
         bestEval = currentBestEval;
 
@@ -689,13 +721,13 @@ Move findBestMove(Board& board,
 
         moves = newMoves;
         previousPV = PV;
-        auto currentTime = std::chrono::high_resolution_clock::now();
 
         std::string depthStr = "depth " + std::to_string(depth);
         std::string scoreStr = "score cp " + std::to_string(bestEval);
         std::string nodeStr = "nodes " + std::to_string(positionCount);
 
-        std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count());
+        auto iterationEndTime = std::chrono::high_resolution_clock::now();
+        std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
 
         std::string pvStr = "pv ";
         for (const auto& move : PV) {
@@ -704,9 +736,23 @@ Move findBestMove(Board& board,
 
         std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
         std::cout << analysis << std::endl;
-        
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() >= timeLimit) {
-            break; 
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() > timeLimit) {
+            timeLimitExceeded = true;
+        }
+
+        if (timeLimitExceeded && PV.size() == depth) {
+            break; // Break out of the loop if the time limit is exceeded. 
+        }
+
+        if (PV.size() == depth) {
+            // Increase depth if the PV is full. If not, we have a cutoff at some LMR. Redo the search.  
+            depth++; 
+
+            if (std::abs(bestEval - INF / 2)  < 2000) {
+                break; // Break out of the loop if checkmate is imminent
+            }
         }
     }
 

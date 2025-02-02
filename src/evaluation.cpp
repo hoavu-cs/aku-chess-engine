@@ -704,8 +704,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     int value = 0;
 
     // Interpolate the pawn advancement bonus based on the game phase
-    // When gamephase = 24, the bonus is 0. When gamephase = 0, the bonus is 6.
-    int advancedPawnBonus = static_cast<int>(- (1.0 / 6.0) * info.gamePhase + 6.0);
+    int advancedPawnBonus = static_cast<int>(8.0 - info.gamePhase / 3);
 
     Bitboard theirPieces = board.pieces(PieceType::BISHOP, !color) 
                             | board.pieces(PieceType::KNIGHT, !color) 
@@ -808,13 +807,16 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
     double midGameWeight = info.gamePhase;
     double endGameWeight = 24 - midGameWeight;
 
+    int knightAdjust[9] = {-20, -16, -12, -8, -4,  0,  4,  8, 12}; // Adjust the value of the knight based on the number of pawns
     const int mobilityBonus = 4;
 
+    int ourPawnCount = board.pieces(PieceType::PAWN, color).count();
     Bitboard knights = board.pieces(PieceType::KNIGHT, color);
+    
     int value = 0;
 
     while (!knights.empty()) {
-        value += baseValue;
+        value += baseValue + knightAdjust[ourPawnCount];
         int sqIndex = knights.lsb();
         
         if (color == Color::WHITE) {
@@ -849,6 +851,8 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         knights.clear(sqIndex);
     }
 
+    
+
     return value;
 }
 
@@ -863,6 +867,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
     double midGameWeight = info.gamePhase;
     double endGameWeight = 24 - midGameWeight;
 
+    int rookAdjust[9] = {15, 12, 9, 6, 3, 0, -3, -6, -9};
     int mobilityBonus = 3;
 
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
@@ -910,18 +915,20 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     const int openFileBonus = 15;
     double midGameWeight = info.gamePhase;
     double endGameWeight = 24 - midGameWeight;
+    int rookAdjust[9] = {15, 12, 9, 6, 3, 0, -3, -6, -9};
 
     // Give a bigger bonus for mobility near the endgame
     int mobilityBonus = info.gamePhase < 12 ? 3 : 2;
 
     Bitboard rooks = board.pieces(PieceType::ROOK, color);
+    int ourPawnCount = board.pieces(PieceType::PAWN, color).count();
     int value = 0;
 
     while (!rooks.empty()) {
         int sqIndex = rooks.lsb(); 
         int file = sqIndex % 8; 
 
-        value += baseValue; // Add the base value of the rook
+        value += baseValue + rookAdjust[ourPawnCount];
 
         if (color == Color::WHITE) {
             value += static_cast<int>(
@@ -1314,6 +1321,10 @@ int evaluate(const Board& board) {
                      board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
                      board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
                      board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
+
+    if (info.gamePhase > 24) {
+        info.gamePhase = 24;
+    }
 
     // Compute open files and semi-open files
     for (int i = 0; i < 8; i++) {

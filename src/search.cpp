@@ -30,7 +30,7 @@ const size_t tableMaxSize = 1000000000;
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 5; // top k moves in LMR
+int k = 2; // top k moves in LMR
 bool mopUp = false; // Mop up flag
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
@@ -121,9 +121,14 @@ int quietPriority(const Board& board, const Move& move) {
         theirKnight.clear(sqIndex);
     }
 
-    // Pawn push
-    if (type == PieceType::PAWN) {
-        threat += 2;
+    int gamePhase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
+                     board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
+                     board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
+                     board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
+
+    // Pawn push is prioritized in endgame
+    if (type == PieceType::PAWN && gamePhase <= 12) {
+        threat += 5;
     }
 
     return threat;
@@ -154,10 +159,10 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= k || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
+    if (i <= 3 || depth <= 4 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
         return depth - 1;
     } else {
-        return depth / 3;
+        return depth / 2;
     }
 
 }
@@ -649,11 +654,6 @@ Move findBestMove(Board& board,
                 }
             }
 
-
-            if (timeLimitExceeded) {
-                continue; // Do not proceed to update PV if the time limit is exceeded
-            }
-
             #pragma omp critical
             {
                 if ((whiteTurn && eval > currentBestEval) || (!whiteTurn && eval < currentBestEval)) {
@@ -686,10 +686,6 @@ Move findBestMove(Board& board,
             }
         }
         
-        if (timeLimitExceeded) {
-            break; // Break out of the loop if the time limit is exceeded
-        }
-
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
         bestMove = currentBestMove;
         bestEval = currentBestEval;
