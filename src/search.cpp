@@ -757,7 +757,7 @@ Move findBestMove(Board& board,
 
             double avgEvalDiff = sumEvalDiff / (double)N;
 
-            if (avgEvalDiff > 50 || candidateMove[depth] != candidateMove[depth - 1]) {
+            if (avgEvalDiff > 50) {
                 stableEval = false; 
             }
         }
