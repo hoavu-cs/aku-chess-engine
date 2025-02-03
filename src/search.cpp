@@ -33,6 +33,8 @@ int globalQuiescenceDepth = 0; // Quiescence depth
 int k = 2; // top k moves in LMR
 bool mopUp = false; // Mop up flag
 
+const int ENGINE_DEPTH = 16; // Maximum search depth for the current engine version
+
 // Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {
     0,    // No piece
@@ -159,7 +161,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 7 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
+    if (i <= 2 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -597,6 +599,7 @@ Move findBestMove(Board& board,
     int apsiration = evaluate(board);
     int depth = baseDepth;
     int evals[1000];
+    Move candidateMove[1000];
 
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
@@ -714,6 +717,7 @@ Move findBestMove(Board& board,
         moves = newMoves;
         previousPV = PV;
         evals[depth] = bestEval;
+        candidateMove[depth] = bestMove;
 
         std::string depthStr = "depth " + std::to_string(depth);
         std::string scoreStr = "score cp " + std::to_string(bestEval);
@@ -736,18 +740,43 @@ Move findBestMove(Board& board,
         }
 
         bool stableEval = true;
-        if (depth >= 2 && std::abs(evals[depth] - evals[depth - 2]) > 50) {
-            // A position is unstable if the evaluation changes by more than 50cp from 2 plies ago
-            stableEval = false; 
+        // if (depth >= 2 && depth <= ENGINE_DEPTH &&
+        //     (std::abs(evals[depth] - evals[depth - 2]) > 75 || candidateMove[depth] != candidateMove[depth - 1])) {
+
+        //     stableEval = false; 
+        // }
+
+        // A position is unstable if the average evaluation changes by more than 50cp from 4 plies ago
+        if (depth >= 4 && depth <= ENGINE_DEPTH) {  // Ensure we have at least 4 plies to compare
+            const int N = 4;  // Consider last 4 plies
+            int sumEvalDiff = 0;
+
+            for (int i = depth - 1; i >= depth - N; i--) {  // Look at last 4 plies inclusively
+                sumEvalDiff += std::abs(evals[i] - evals[i - 1]);
+            }
+
+            double avgEvalDiff = sumEvalDiff / (double)N;
+
+            if (avgEvalDiff > 50 || candidateMove[depth] != candidateMove[depth - 1]) {
+                stableEval = false; 
+            }
         }
+
+
 
         if (timeLimitExceeded && PV.size() == depth && stableEval) {
             break; // Break out of the loop if the time limit is exceeded and the evaluation is stable.
         }
 
+
         if (PV.size() == depth) {
             // Increase depth if the PV is full. If not, we have a cutoff at some LMR. Redo the search.  
             depth++; 
+
+            if (depth > ENGINE_DEPTH) {
+                // Break out of the loop if the maximum allowed depth is reached
+                break;
+            }
 
             if (std::abs(bestEval - INF / 2)  < 2000) {
                 break; // Break out of the loop if checkmate is imminent

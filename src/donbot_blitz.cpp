@@ -119,7 +119,7 @@ void processPosition(const std::string& command) {
 void processGo(const std::vector<std::string>& tokens) {
 
     // Default settings
-    int depth = 30;
+    int depth = 9;
     int quiescenceDepth = 8;
     int numThreads = 6;
     int timeLimit = 3000; // Default to 15 seconds

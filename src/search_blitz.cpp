@@ -30,7 +30,7 @@ const size_t tableMaxSize = 1000000000;
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 2; // top k moves in LMR
+int k = 4; // top k moves in LMR
 bool mopUp = false; // Mop up flag
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
@@ -128,7 +128,7 @@ int quietPriority(const Board& board, const Move& move) {
 
     // Pawn push is prioritized in endgame
     if (type == PieceType::PAWN && gamePhase <= 12) {
-        threat += 4;
+        threat += 5;
     }
 
     return threat;
@@ -159,7 +159,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= k || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
+    if (i <= 2 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -596,6 +596,7 @@ Move findBestMove(Board& board,
     const int baseDepth = 1;
     int apsiration = evaluate(board);
     int depth = baseDepth;
+    int evals[1000];
 
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
@@ -654,11 +655,6 @@ Move findBestMove(Board& board,
                 }
             }
 
-
-            if (timeLimitExceeded) {
-                continue; // Do not proceed to update PV if the time limit is exceeded
-            }
-
             #pragma omp critical
             {
                 if ((whiteTurn && eval > currentBestEval) || (!whiteTurn && eval < currentBestEval)) {
@@ -691,10 +687,6 @@ Move findBestMove(Board& board,
             }
         }
         
-        if (timeLimitExceeded) {
-            break; // Break out of the loop if the time limit is exceeded
-        }
-
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
         bestMove = currentBestMove;
         bestEval = currentBestEval;
@@ -721,6 +713,7 @@ Move findBestMove(Board& board,
 
         moves = newMoves;
         previousPV = PV;
+        evals[depth] = bestEval;
 
         std::string depthStr = "depth " + std::to_string(depth);
         std::string scoreStr = "score cp " + std::to_string(bestEval);
@@ -742,8 +735,14 @@ Move findBestMove(Board& board,
             timeLimitExceeded = true;
         }
 
-        if (timeLimitExceeded && PV.size() == depth) {
-            break; // Break out of the loop if the time limit is exceeded. 
+        bool stableEval = true;
+        if (depth >= 2 && std::abs(evals[depth] - evals[depth - 2]) > 50) {
+            // A position is unstable if the evaluation changes by more than 50cp from 2 plies ago
+            stableEval = false; 
+        }
+
+        if (timeLimitExceeded && PV.size() == depth && stableEval) {
+            break; // Break out of the loop if the time limit is exceeded and the evaluation is stable.
         }
 
         if (PV.size() == depth) {
