@@ -1154,7 +1154,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
     double midGameWeight = info.gamePhase;
     double endGameWeight = 24 - midGameWeight;
     
-    bool endGameFlag = info.gamePhase < 10;
+    bool endGameFlag = info.gamePhase < 12;
 
     Bitboard king = board.pieces(PieceType::KING, color);
     const PieceType allPieceTypes[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
@@ -1224,7 +1224,7 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         }
 
         int numAdjOpenFiles = 0;
-        const int openFilePenalty[4] = {0, 10, 20, 30};
+        const int openFilePenalty[4] = {0, 20, 35, 60};
 
         if (info.openFiles[kingFile] || info.semiOpenFilesWhite[kingFile] || info.semiOpenFilesBlack[kingFile]) {
             numAdjOpenFiles++;

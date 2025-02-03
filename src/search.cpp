@@ -33,7 +33,7 @@ int globalQuiescenceDepth = 0; // Quiescence depth
 int k = 2; // top k moves in LMR
 bool mopUp = false; // Mop up flag
 
-const int ENGINE_DEPTH = 16; // Maximum search depth for the current engine version
+const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {
@@ -161,7 +161,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 2 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
+    if (i <= 4 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
