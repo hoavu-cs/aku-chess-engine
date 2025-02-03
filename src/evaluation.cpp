@@ -685,8 +685,8 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     std::uint64_t ourPawnsBits = ourPawns.getBits();
     std::uint64_t theirPawnsBits = theirPawns.getBits();
 
-    double midGameWeight = info.gamePhase;
-    double endGameWeight = 24 - midGameWeight;
+    double midGameWeight = info.gamePhase / 24.0;
+    double endGameWeight = 1.0 - midGameWeight;
 
     // constants
     const int passedPawnBonus = 35;
@@ -726,13 +726,9 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
         value += baseValue; 
         if (color == Color::WHITE) {
-            value += static_cast<int>(
-                (midGameWeight * whitePawnTableMid[sqIndex] + endGameWeight * whitePawnTableEnd[sqIndex]) / 24
-                );
+            value += static_cast<int>(midGameWeight * whitePawnTableMid[sqIndex] + endGameWeight * whitePawnTableEnd[sqIndex]);
         } else {
-            value += static_cast<int>(
-                (midGameWeight * blackPawnTableMid[sqIndex] + endGameWeight * blackPawnTableEnd[sqIndex]) / 24
-                );
+            value += static_cast<int>(midGameWeight * blackPawnTableMid[sqIndex] + endGameWeight * blackPawnTableEnd[sqIndex]);
         }
 
         int file = sqIndex % 8;
@@ -804,8 +800,8 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int outpostBonus = 30;
-    double midGameWeight = info.gamePhase;
-    double endGameWeight = 24 - midGameWeight;
+    double midGameWeight = info.gamePhase / 24.0;
+    double endGameWeight = 1.0 - midGameWeight;
 
     int knightAdjust[9] = {-20, -16, -12, -8, -4,  0,  4,  8, 12}; // Adjust the value of the knight based on the number of pawns
     const int mobilityBonus = 4;
@@ -820,13 +816,9 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         int sqIndex = knights.lsb();
         
         if (color == Color::WHITE) {
-            value += static_cast<int>(
-                (midGameWeight * whiteKnightTableMid[sqIndex] + endGameWeight * whiteKnightTableEnd[sqIndex]) / 24
-                );
+            value += static_cast<int>(midGameWeight * whiteKnightTableMid[sqIndex] + endGameWeight * whiteKnightTableEnd[sqIndex]);
         } else {
-            value += static_cast<int>(
-                (midGameWeight * blackKnightTableMid[sqIndex] + endGameWeight * blackKnightTableEnd[sqIndex]) / 24
-                );
+            value += static_cast<int>(midGameWeight * blackKnightTableMid[sqIndex] + endGameWeight * blackKnightTableEnd[sqIndex]);
         }
 
         if (isOutpost(board, sqIndex, color)) {
@@ -851,8 +843,6 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         knights.clear(sqIndex);
     }
 
-    
-
     return value;
 }
 
@@ -864,8 +854,8 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
     const int outpostBonus = 20;
     const int protectionBonus = 3;
 
-    double midGameWeight = info.gamePhase;
-    double endGameWeight = 24 - midGameWeight;
+    double midGameWeight = info.gamePhase / 24.0;
+    double endGameWeight = 1.0 - midGameWeight;
 
     int rookAdjust[9] = {15, 12, 9, 6, 3, 0, -3, -6, -9};
     int mobilityBonus = 3;
@@ -882,13 +872,9 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
         value += baseValue;
         int sqIndex = bishops.lsb();
         if (color == Color::WHITE) {
-            value += static_cast<int>(
-                (midGameWeight * whiteBishopTableMid[sqIndex] + endGameWeight * whiteBishopTableEnd[sqIndex]) / 24
-                );
+            value += static_cast<int>(midGameWeight * whiteBishopTableMid[sqIndex] + endGameWeight * whiteBishopTableEnd[sqIndex]);
         } else {
-            value += static_cast<int>(
-                (midGameWeight * blackBishopTableMid[sqIndex] + endGameWeight * blackBishopTableEnd[sqIndex]) / 24
-                );
+            value += static_cast<int>(midGameWeight * blackBishopTableMid[sqIndex] + endGameWeight * blackBishopTableEnd[sqIndex]);
         }
 
         Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
@@ -913,8 +899,10 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const int semiOpenFileBonus = 10;
     const int openFileBonus = 15;
-    double midGameWeight = info.gamePhase;
-    double endGameWeight = 24 - midGameWeight;
+    const int cutOffKingBonus = 10;
+
+    double midGameWeight = info.gamePhase / 24.0;
+    double endGameWeight = 1.0 - midGameWeight;
     int rookAdjust[9] = {15, 12, 9, 6, 3, 0, -3, -6, -9};
 
     // Give a bigger bonus for mobility near the endgame
@@ -931,13 +919,9 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         value += baseValue + rookAdjust[ourPawnCount];
 
         if (color == Color::WHITE) {
-            value += static_cast<int>(
-                (midGameWeight * whiteRookTableMid[sqIndex] + endGameWeight * whiteRookTableEnd[sqIndex]) / 24
-                );
+            value += static_cast<int>(midGameWeight * whiteRookTableMid[sqIndex] + endGameWeight * whiteRookTableEnd[sqIndex]);
         } else {
-            value += static_cast<int>(
-                (midGameWeight * blackRookTableMid[sqIndex] + endGameWeight * blackRookTableEnd[sqIndex]) / 24
-                );
+            value += static_cast<int>(midGameWeight * blackRookTableMid[sqIndex] + endGameWeight * blackRookTableEnd[sqIndex]);
         }
 
         if (info.openFiles[file]) {
@@ -965,8 +949,8 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
     const int* queenTable;    
-    double midGameWeight = info.gamePhase;
-    double endGameWeight = 24 - midGameWeight;
+    double midGameWeight = info.gamePhase / 24.0;
+    double endGameWeight = 1.0 - midGameWeight;
 
     // Give a bigger bonus for mobility near the endgame
     int mobilityBonus = info.gamePhase < 12 ? 3 : 2;
@@ -986,13 +970,9 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         int queenRank = sqIndex / 8, queenFile = sqIndex % 8;
         value += baseValue; 
         if (color == Color::WHITE) {
-            value += static_cast<int>(
-                (midGameWeight * whiteQueenTableMid[sqIndex] + endGameWeight * whiteQueenTableEnd[sqIndex]) / 24
-                );
+            value += static_cast<int>(midGameWeight * whiteQueenTableMid[sqIndex] + endGameWeight * whiteQueenTableEnd[sqIndex]);
         } else {
-            value += static_cast<int>(
-                (midGameWeight * blackQueenTableMid[sqIndex] + endGameWeight * blackQueenTableEnd[sqIndex]) / 24
-                );
+            value += static_cast<int>(midGameWeight * blackQueenTableMid[sqIndex] + endGameWeight * blackQueenTableEnd[sqIndex]);
         }
 
         Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
@@ -1151,8 +1131,8 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
     std::uint64_t hash = board.hash();
     int storedValue = 0;
 
-    double midGameWeight = info.gamePhase;
-    double endGameWeight = 24 - midGameWeight;
+    double midGameWeight = info.gamePhase / 24.0;
+    double endGameWeight = 1.0 - midGameWeight;
     
     bool endGameFlag = info.gamePhase < 12;
 
@@ -1164,13 +1144,9 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
     int kingRank = sqIndex / 8, kingFile = sqIndex % 8;
     
     if (color == Color::WHITE) {
-        value += static_cast<int>(
-            (midGameWeight * whiteKingTableMid[sqIndex] + endGameWeight * whiteKingTableEnd[sqIndex]) / 24
-            );
+        value += static_cast<int>(midGameWeight * whiteKingTableMid[sqIndex] + endGameWeight * whiteKingTableEnd[sqIndex]);
     } else {
-        value += static_cast<int>(
-            (midGameWeight * blackKingTableMid[sqIndex] + endGameWeight * blackKingTableEnd[sqIndex]) / 24
-            );
+        value += static_cast<int>(midGameWeight * blackKingTableMid[sqIndex] + endGameWeight * blackKingTableEnd[sqIndex]);
     }
 
     if (!endGameFlag) {
@@ -1248,12 +1224,16 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         
         value -= threatScore;
     } else {
+        // Endgame heuristics
         // Encourage staying close to the other king in the endgame
         Bitboard theirKing = board.pieces(PieceType::KING, !color);
         int theirKingIndex = theirKing.lsb();
 
         int dist = manhattanDistance(Square(sqIndex), Square(theirKingIndex)); 
         value -= 5 * dist;
+
+        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+        Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     }
 
 
