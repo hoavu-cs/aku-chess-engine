@@ -735,7 +735,10 @@ Move findBestMove(Board& board,
         std::cout << analysis << std::endl;
 
         auto currentTime = std::chrono::high_resolution_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count() > timeLimit) {
+        bool spendTooMuchTime = false;
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
+
+        if (duration > timeLimit) {
             timeLimitExceeded = true;
         }
 
@@ -762,8 +765,6 @@ Move findBestMove(Board& board,
             }
         }
 
-
-
         if (timeLimitExceeded && PV.size() == depth && stableEval) {
             break; // Break out of the loop if the time limit is exceeded and the evaluation is stable.
         }
@@ -781,6 +782,12 @@ Move findBestMove(Board& board,
             if (std::abs(bestEval - INF / 2)  < 2000) {
                 break; // Break out of the loop if checkmate is imminent
             }
+        }
+
+        // Final safeguard: quit if we spend too much time. This also helps if we reach a draw or checkmate in
+        // in which PV.size() < depth.
+        if (duration > 3 * timeLimit) {
+            break;
         }
     }
 
