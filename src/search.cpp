@@ -122,6 +122,16 @@ int quietPriority(const Board& board, const Move& move) {
 
         theirKnight.clear(sqIndex);
     }
+    
+    while (theirPawn) {
+        int sqIndex = theirPawn.lsb();
+        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+
+        threat += attackerAfter.count() > attackerBefore.count() ? 5 : 0;
+
+        theirPawn.clear(sqIndex);
+    }
 
     int gamePhase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
                      board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
@@ -129,9 +139,9 @@ int quietPriority(const Board& board, const Move& move) {
                      board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
 
     // Pawn push and king move is prioritized in endgame
-    if (type == PieceType::PAWN  && gamePhase <= 12) {
-        threat += 5;
-    }
+    // if (type == PieceType::PAWN  && gamePhase <= 12) {
+    //     threat += 5;
+    // }
 
     return threat;
 }
@@ -161,7 +171,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 4 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
+    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -745,7 +755,7 @@ Move findBestMove(Board& board,
 
         bool stableEval = true;
         // A position is unstable if the average evaluation changes by more than 50cp from 4 plies ago
-        if (depth >= 4 && depth <= ENGINE_DEPTH) {  // Ensure we have at least 4 plies to compare
+        if (depth >= 4 && depth <= ENGINE_DEPTH) {  
             const int N = 4;  // Consider last 4 plies
             int sumEvalDiff = 0;
 
@@ -764,25 +774,15 @@ Move findBestMove(Board& board,
             break; // Break out of the loop if the time limit is exceeded and the evaluation is stable.
         }
 
-
-        if (PV.size() == depth) {
+        if (static_cast<int>(PV.size()) == depth) {
             // Increase depth if the PV is full. If not, we have a cutoff at some LMR. Redo the search.  
             depth++; 
-
+            
             if (depth > ENGINE_DEPTH) {
                 // Break out of the loop if the maximum allowed depth is reached
                 break;
             }
         }
-
-        // Check for PV.size < depth because of checkmate, stalemate, or repetition
-        // Board localBoard = board;
-        // for (int j = 0; j < PV.size(); j++) {
-        //     localBoard.makeMove(PV[j]);
-        // }
-        // if (localBoard.isGameOver().first != GameResultReason::NONE) {
-        //     break;
-        // }
 
         // Final safeguard: quit if we spend too much time. 
         if (duration > 3 * timeLimit) {

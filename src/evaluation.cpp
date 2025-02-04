@@ -511,6 +511,10 @@ Bitboard generateFileMask(int file) {
     return Bitboard(0ULL);
 }
 
+// Check if a pawn is
+
+
+
 // Check if the given square is a passed pawn
 bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
     int file = sqIndex % 8;
@@ -540,6 +544,11 @@ bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
 // Function to compute the Manhattan distance between two squares
 int manhattanDistance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
+}
+
+// Min distance between a square and a set of squares
+int minDistance(const Square& sq, const Square& sq2) {
+    return std::min(std::abs(sq.file() - sq2.file()), std::abs(sq.rank() - sq2.rank()));
 }
 
 // Check if a square is an outpost
@@ -708,7 +717,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     const int isolatedPawnPenaltyAH = 10;
     const int isolatedPawnPenalty = 20;
-    const int unSupportedPenalty = 15;
+    const int unSupportedPenalty = 25;
     const int doubledPawnPenalty = 30;
     const int awkwardPenalty = 30;
     const int passedPawnAdvancedBonus = 10;
@@ -783,7 +792,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
             } else if (color == Color::BLACK && info.semiOpenFilesWhite[file]) {
                 value -= unSupportedPenalty;
             } else  {
-                value -= (unSupportedPenalty - 10); 
+                value -= (unSupportedPenalty - 15); 
             }
         }
 
@@ -1043,10 +1052,13 @@ int kingThreat(const Board& board, Color color) {
 
     while (theirQueens) {
         int queenIndex = theirQueens.lsb();
-        int queenRank = queenIndex / 8, queenFile = queenIndex % 8; 
 
         Bitboard queenAttacks = attacks::queen(Square(queenIndex), ourDefenders | theirPawns);
-        if (queenAttacks & adjSq) {
+
+        bool beingClose = (minDistance(Square(queenIndex), Square(sqIndex)) <= 2);
+        bool attackingAdj = (queenAttacks & adjSq).count() > 0;
+
+        if (beingClose || attackingAdj) {
             attackers.set(queenIndex);
         }
 
@@ -1056,10 +1068,13 @@ int kingThreat(const Board& board, Color color) {
     Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
     while (theirRooks) {
         int rookIndex = theirRooks.lsb();
-        int rookRank = rookIndex / 8, rookFile = rookIndex % 8;
 
         Bitboard rookAttacks = attacks::rook(Square(rookIndex), ourDefenders | theirPawns);
-        if (rookAttacks & adjSq) {
+
+        bool beingClose = (minDistance(Square(rookIndex), Square(sqIndex)) <= 1);
+        bool attackingAdj = (rookAttacks & adjSq).count() > 0;
+
+        if (beingClose || attackingAdj) {
             attackers.set(rookIndex);
         }
 
@@ -1069,9 +1084,12 @@ int kingThreat(const Board& board, Color color) {
     Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
     while (theirKnight) {
         int knightIndex = theirKnight.lsb();
-        
         Bitboard knightAttacks = attacks::knight(Square(knightIndex));
-        if (knightAttacks & adjSq) {
+
+        bool beingClose = (manhattanDistance(Square(knightIndex), Square(sqIndex)) <= 5);
+        bool attackingAdj = (knightAttacks & adjSq).count() > 0;
+
+        if (beingClose || attackingAdj) {
             attackers.set(knightIndex);
         }
 
@@ -1081,11 +1099,12 @@ int kingThreat(const Board& board, Color color) {
     Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
     while (theirBishop) {
         int bishopIndex = theirBishop.lsb();
-        int bishopRank = bishopIndex / 8, bishopFile = bishopIndex % 8;
-
         Bitboard bishopAttacks = attacks::bishop(Square(bishopIndex), ourDefenders | theirPawns);
 
-        if (bishopAttacks & adjSq) {
+        bool beingClose = (minDistance(Square(bishopIndex), Square(sqIndex)) <= 2);
+        bool attackingAdj = (bishopAttacks & adjSq).count() > 0;
+
+        if (beingClose || attackingAdj) {
             attackers.set(bishopIndex);
         }
 
@@ -1248,10 +1267,38 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         int theirKingIndex = theirKing.lsb();
 
         int dist = manhattanDistance(Square(sqIndex), Square(theirKingIndex)); 
-        value -= 5 * dist;
+        value -= 6 * dist;
 
         Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
         Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
+
+        // Encourage the king to stay close to our own pawns & their pawns, more so if they are passed pawns
+        while (ourPawns) {
+            int pawnSqIndex = ourPawns.lsb();
+            dist = manhattanDistance(Square(sqIndex), Square(pawnSqIndex));
+            
+            if (isPassedPawn(pawnSqIndex, color, theirPawns)) {
+                value -= 6 * dist; // Stronger penalty for staying away from passed pawns
+            } else {
+                value -= 3 * dist;
+            }
+            
+            ourPawns.clear(pawnSqIndex); // Correctly clear the bit in ourPawns
+        }
+
+        while (theirPawns) {
+            int pawnSqIndex = theirPawns.lsb();
+            dist = manhattanDistance(Square(sqIndex), Square(pawnSqIndex));
+            
+            if (isPassedPawn(pawnSqIndex, !color, ourPawns)) {
+                value -= 6 * dist; // Stronger penalty for staying away from passed pawns
+            } else {
+                value -= 3 * dist;
+            }
+            
+            theirPawns.clear(pawnSqIndex); // Correctly clear the bit in theirPawns
+        }
+
     }
 
 
@@ -1426,7 +1473,7 @@ int evaluate(const Board& board) {
     }
 
     // Safeguard against material deficit without enough compensation.
-    const int deficitPenalty = 75;
+    const int deficitPenalty = 90;
     whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
     blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
 
