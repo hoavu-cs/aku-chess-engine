@@ -161,7 +161,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 4 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
+    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -470,6 +470,8 @@ int alphaBeta(Board& board,
         }
     }
 
+    //
+
     // Razoring
     // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
     //     int razorMargin = 600;
@@ -484,7 +486,6 @@ int alphaBeta(Board& board,
     //         }
     //     }
     // }
-
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? alpha - 1 : beta + 1;
@@ -778,14 +779,18 @@ Move findBestMove(Board& board,
                 // Break out of the loop if the maximum allowed depth is reached
                 break;
             }
-
-            if (std::abs(bestEval - INF / 2)  < 2000) {
-                break; // Break out of the loop if checkmate is imminent
-            }
         }
 
-        // Final safeguard: quit if we spend too much time. This also helps if we reach a draw or checkmate in
-        // in which PV.size() < depth.
+        // Check for PV.size < depth because of checkmate, stalemate, or repetition
+        Board localBoard = board;
+        for (int j = 0; j < PV.size(); j++) {
+            localBoard.makeMove(PV[j]);
+        }
+        if (localBoard.isGameOver().first != GameResultReason::NONE) {
+            break;
+        }
+
+        // Final safeguard: quit if we spend too much time. 
         if (duration > 3 * timeLimit) {
             break;
         }
