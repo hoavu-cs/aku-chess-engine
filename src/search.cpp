@@ -744,7 +744,6 @@ Move findBestMove(Board& board,
         }
 
         bool stableEval = true;
-
         // A position is unstable if the average evaluation changes by more than 50cp from 4 plies ago
         if (depth >= 4 && depth <= ENGINE_DEPTH) {  // Ensure we have at least 4 plies to compare
             const int N = 4;  // Consider last 4 plies
@@ -766,9 +765,8 @@ Move findBestMove(Board& board,
         }
 
 
-        if (PV.size() >= depth - 2) {
-            // Increase depth if the PV is nearly full.
-            // Hopefully this will work better than re-searching until PV is full.  
+        if (PV.size() == depth) {
+            // Increase depth if the PV is full. If not, we have a cutoff at some LMR. Redo the search.  
             depth++; 
 
             if (depth > ENGINE_DEPTH) {
