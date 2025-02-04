@@ -128,8 +128,8 @@ int quietPriority(const Board& board, const Move& move) {
                      board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
                      board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
 
-    // Pawn push is prioritized in endgame
-    if (type == PieceType::PAWN && gamePhase <= 12) {
+    // Pawn push and king move is prioritized in endgame
+    if ((type == PieceType::PAWN || type == PieceType::KING) && gamePhase <= 12) {
         threat += 5;
     }
 
