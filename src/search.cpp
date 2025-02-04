@@ -129,7 +129,7 @@ int quietPriority(const Board& board, const Move& move) {
                      board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
 
     // Pawn push and king move is prioritized in endgame
-    if ((type == PieceType::PAWN || type == PieceType::KING) && gamePhase <= 12) {
+    if (type == PieceType::PAWN  && gamePhase <= 12) {
         threat += 5;
     }
 
@@ -161,7 +161,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 3 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
+    if (i <= 4 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || isPawnMove || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
