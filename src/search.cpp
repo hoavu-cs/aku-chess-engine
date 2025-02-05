@@ -68,7 +68,7 @@ bool isPromotion(const Move& move) {
 }
 
 // Return the priority of a quiet move based on some heuristics
-int quietPriority(const Board& board, const Move& move) {
+int threatScore(const Board& board, const Move& move) {
     auto type = board.at<Piece>(move.from()).type();
     Color color = board.sideToMove();
 
@@ -128,15 +128,15 @@ int quietPriority(const Board& board, const Move& move) {
         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
 
-        threat += attackerAfter.count() > attackerBefore.count() ? 5 : 0;
+        threat += attackerAfter.count() > attackerBefore.count() ? 4 : 0;
 
         theirPawn.clear(sqIndex);
     }
 
-    int gamePhase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
-                     board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
-                     board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
-                     board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
+    // int gamePhase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
+    //                  board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
+    //                  board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
+    //                  board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
 
     // Pawn push and king move is prioritized in endgame
     // if (type == PieceType::PAWN  && gamePhase <= 12) {
@@ -170,8 +170,9 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
+    //bool isThreat = threatScore(board, move) > 0;
 
-    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
+    if (i <= 4 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -258,9 +259,11 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
 
             if (isCheck) {
                 priority = 3000;
-            } else {
-                priority = quietPriority(board, move);
-            }
+            } 
+            
+            // else {
+            //     priority = quietPriority(board, move);
+            // }
         } 
 
         if (!quiet) {
@@ -626,17 +629,12 @@ Move findBestMove(Board& board,
             moves = prioritizedMoves(board, depth, previousPV, false);
         }
 
-        bool leftMost;
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
         #pragma omp for schedule(static)
         for (int i = 0; i < moves.size(); i++) {
 
-            if (i == 0) {
-                leftMost = true; // First move from the root starts the leftmost path
-            } else {
-                leftMost = false;
-            }
+            bool leftMost = (i == 0);
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
@@ -644,30 +642,17 @@ Move findBestMove(Board& board,
             Board localBoard = board;
             bool newBestFlag = false;  
             int nextDepth = depthReduction(localBoard, move, i, depth);
-
-            // Aspiration window
-            int aspirationOption = 150;
             int eval = whiteTurn ? -INF : INF;
 
-            // Aspiration window search except for the first move
-            while (true) {
-
-                localBoard.makeMove(move);
-                eval = alphaBeta(localBoard, 
-                                nextDepth, 
-                                apsiration - aspirationOption, 
-                                apsiration + aspirationOption, 
-                                quiescenceDepth, 
-                                childPV, 
-                                leftMost);
-                localBoard.unmakeMove(move);
-
-                if (eval >= apsiration + aspirationOption || eval <= apsiration - aspirationOption) {
-                    aspirationOption = aspirationOption * 2;
-                } else {
-                    break;
-                }
-            }
+            localBoard.makeMove(move);
+            eval = alphaBeta(localBoard, 
+                            nextDepth, 
+                           -INF, 
+                            INF, 
+                            quiescenceDepth, 
+                            childPV, 
+                            leftMost);
+            localBoard.unmakeMove(move);
 
             #pragma omp critical
             {
@@ -727,8 +712,6 @@ Move findBestMove(Board& board,
 
         moves = newMoves;
         previousPV = PV;
-        evals[depth] = bestEval;
-        candidateMove[depth] = bestMove;
 
         std::string depthStr = "depth " + std::to_string(depth);
         std::string scoreStr = "score cp " + std::to_string(bestEval);
@@ -753,29 +736,29 @@ Move findBestMove(Board& board,
             timeLimitExceeded = true;
         }
 
-        bool stableEval = true;
+        bool complete = PV.size() == depth;
+
+        // If the PV is full, store the best move and evaluation for the current depth
+        if (complete) {
+            evals[depth] = bestEval;
+            candidateMove[depth] = bestMove; 
+        }
+
         // A position is unstable if the average evaluation changes by more than 50cp from 4 plies ago
-        if (depth >= 4 && depth <= ENGINE_DEPTH) {  
-            const int N = 4;  // Consider last 4 plies
-            int sumEvalDiff = 0;
-
-            for (int i = depth - 1; i >= depth - N; i--) {  // Look at last 4 plies inclusively
-                sumEvalDiff += std::abs(evals[i] - evals[i - 1]);
-            }
-
-            double avgEvalDiff = sumEvalDiff / (double)N;
-
-            if (avgEvalDiff > 50) {
+        bool stableEval = true;
+        if (complete && depth >= 4 && depth <= ENGINE_DEPTH) {  
+            if (std::abs(evals[depth] - evals[depth - 4]) > 50) {
                 stableEval = false; 
             }
         }
 
-        if (timeLimitExceeded && PV.size() == depth && stableEval) {
-            break; // Break out of the loop if the time limit is exceeded and the evaluation is stable.
+        // Break out of the loop if the time limit is exceeded and the evaluation is stable.
+        if (timeLimitExceeded && complete && stableEval) {
+            break;
         }
 
-        if (static_cast<int>(PV.size()) == depth) {
-            // Increase depth if the PV is full. If not, we have a cutoff at some LMR. Redo the search.  
+        // If the current depth is completed, but we still have time or the evaluation is unstable, go deeper
+        if (complete) {
             depth++; 
             
             if (depth > ENGINE_DEPTH) {
@@ -784,8 +767,12 @@ Move findBestMove(Board& board,
             }
         }
 
-        // Final safeguard: quit if we spend too much time. 
-        if (duration > 3 * timeLimit) {
+        // Final safeguard: quit if we spend too much time and haven't completed the current depth, return the best
+        // move from the previous depth.
+        if (duration > 3 * timeLimit && depth > 1) {
+            if (PV.size() < depth) {
+                bestMove = candidateMove[depth - 1];
+            }
             break;
         }
     }

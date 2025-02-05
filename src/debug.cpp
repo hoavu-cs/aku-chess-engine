@@ -66,11 +66,9 @@ int main() {
     
     // board = Board("1r2k2r/1pq1bppp/p3p3/2p1n3/3pNB2/1Q1P4/PPP2PPP/4RR1K b k - 5 16");
 
-    // board = Board("Q7/P4rk1/3q1np1/8/3p1b1p/1P1P3P/2P1R1P1/5R1K b - - 0 37");
-
+    board = Board("Q7/P4rk1/3q1np1/8/3p1b1p/1P1P3P/2P1R1P1/5R1K b - - 0 37");
     // board = Board("1Q5r/3Rkppp/p3b1qn/8/5P2/P4P2/1PP2K1P/R1B5 b - - 0 24");
-
-    board = Board("5rk1/p5pp/1pQp2q1/2p1p1b1/P2pP3/1R1P1r1P/1PP2PP1/5R1K w - - 0 21");
+    // board = Board("4knQ1/p2q1pR1/2p1pP2/3pP3/Pr1r4/R7/1PK4P/2B5 b - - 0 24");
 
     // Default settings
     int depth = 30;

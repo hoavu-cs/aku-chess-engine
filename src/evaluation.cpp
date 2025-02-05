@@ -1048,14 +1048,15 @@ int kingThreat(const Board& board, Color color) {
     --------------------------------------------------------------*/
 
     Bitboard theirQueens = board.pieces(PieceType::QUEEN, !color);
-    Bitboard ourDefenders = allPieces(board, color);
+    Bitboard ourDefenders = board.us(color);
 
     while (theirQueens) {
+        // Count the queen as a threat if it is close or attacking an adjacent square
         int queenIndex = theirQueens.lsb();
 
         Bitboard queenAttacks = attacks::queen(Square(queenIndex), ourDefenders | theirPawns);
 
-        bool beingClose = (minDistance(Square(queenIndex), Square(sqIndex)) <= 2);
+        bool beingClose = (manhattanDistance(Square(queenIndex), Square(sqIndex)) <= 6);
         bool attackingAdj = (queenAttacks & adjSq).count() > 0;
 
         if (beingClose || attackingAdj) {
@@ -1067,14 +1068,13 @@ int kingThreat(const Board& board, Color color) {
 
     Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
     while (theirRooks) {
+        // Count the rook as a threat if it is attacking an adjacent square 
         int rookIndex = theirRooks.lsb();
-
+        
         Bitboard rookAttacks = attacks::rook(Square(rookIndex), ourDefenders | theirPawns);
-
-        bool beingClose = (minDistance(Square(rookIndex), Square(sqIndex)) <= 1);
         bool attackingAdj = (rookAttacks & adjSq).count() > 0;
 
-        if (beingClose || attackingAdj) {
+        if (attackingAdj) {
             attackers.set(rookIndex);
         }
 
@@ -1083,6 +1083,7 @@ int kingThreat(const Board& board, Color color) {
 
     Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
     while (theirKnight) {
+        // Count the knight as a threat if it is close 
         int knightIndex = theirKnight.lsb();
         Bitboard knightAttacks = attacks::knight(Square(knightIndex));
 
@@ -1098,10 +1099,11 @@ int kingThreat(const Board& board, Color color) {
 
     Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
     while (theirBishop) {
+        // Count the bishop as a threat if it is close or attacking an adjacent square
         int bishopIndex = theirBishop.lsb();
         Bitboard bishopAttacks = attacks::bishop(Square(bishopIndex), ourDefenders | theirPawns);
 
-        bool beingClose = (minDistance(Square(bishopIndex), Square(sqIndex)) <= 2);
+        bool beingClose = (manhattanDistance(Square(bishopIndex), Square(sqIndex)) <= 4);
         bool attackingAdj = (bishopAttacks & adjSq).count() > 0;
 
         if (beingClose || attackingAdj) {
@@ -1159,20 +1161,9 @@ since it involves a lot of computation checking for threats to the king.
 ------------------------------------------------------------------------*/
 int kingValue(const Board& board, int baseValue, Color color, Info& info) {
 
-    // Constants
-    const int pawnShieldBonus = 30;
-    const int* kingTable;
-    int pieceProtectionBonus = 30;
-
-    bool found = false;
-    std::uint64_t hash = board.hash();
-    int storedValue = 0;
-
     double midGameWeight = info.gamePhase / 24.0;
     double endGameWeight = 1.0 - midGameWeight;
     
-    bool endGameFlag = info.gamePhase < 12;
-
     Bitboard king = board.pieces(PieceType::KING, color);
     const PieceType allPieceTypes[] = {PieceType::KNIGHT, PieceType::BISHOP, PieceType::ROOK, PieceType::QUEEN};
     
@@ -1186,121 +1177,111 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
         value += static_cast<int>(midGameWeight * blackKingTableMid[sqIndex] + endGameWeight * blackKingTableEnd[sqIndex]);
     }
 
-    if (!endGameFlag) {
-        // King protection by pawns
-        Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
-        while (!ourPawns.empty()) {
-            int pawnIndex = ourPawns.lsb();
-            int pawnRank = pawnIndex / 8, pawnFile = pawnIndex % 8;
-            // if the pawn is in front of the king and on an adjacent file, add shield bonus
-            if (color == Color::WHITE 
-                        && pawnRank == kingRank + 1 && std::abs(pawnFile - kingFile) <= 1) {
-                value += pawnShieldBonus;
-            } else if (color == Color::BLACK 
-                        && pawnRank == kingRank - 1 && std::abs(pawnFile - kingFile) <= 1) {
-                value += pawnShieldBonus; 
-            }
+    int threatScore = kingThreat(board, color) * midGameWeight; // Scale the threat score by the game phase (heavy toward midgame)
+    int originalThreatScore =  kingThreat(board, color);
+    value -= threatScore;
 
-            ourPawns.clear(pawnIndex);
+    // King protection by pawns, scale the bonus by the game phase (heavy toward midgame)
+    int pawnShieldBonus = 30 * midGameWeight;
+    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
+    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+
+    while (!ourPawns.empty()) {
+        int pawnIndex = ourPawns.lsb();
+        int pawnRank = pawnIndex / 8, pawnFile = pawnIndex % 8;
+        // if the pawn is in front of the king and on an adjacent file, add shield bonus
+        if (color == Color::WHITE 
+                    && pawnRank == kingRank + 1 && std::abs(pawnFile - kingFile) <= 1) {
+            value += pawnShieldBonus;
+        } else if (color == Color::BLACK 
+                    && pawnRank == kingRank - 1 && std::abs(pawnFile - kingFile) <= 1) {
+            value += pawnShieldBonus; 
         }
+
+        ourPawns.clear(pawnIndex);
+    }
+    
+    // King protection by pieces, scale the bonus by the game phase (heavy toward midgame)
+    int pieceProtectionBonus = 30 * midGameWeight;
+    for (const auto& type : allPieceTypes) {
+        Bitboard pieces = board.pieces(type, color);
         
-        // King protection by pieces
-        for (const auto& type : allPieceTypes) {
-            Bitboard pieces = board.pieces(type, color);
-            int numProtector = 0;
-            while (!pieces.empty()) {
-                int pieceSqIndex = pieces.lsb();
-                if (color == Color::WHITE) {
-                    if (pieceSqIndex / 8 > sqIndex / 8 && manhattanDistance(Square(pieceSqIndex), Square(sqIndex)) <= 4) { 
-                        value += pieceProtectionBonus; 
-                    }
-                } else if (color == Color::BLACK) {
-                    if (pieceSqIndex / 8 < sqIndex / 8 && manhattanDistance(Square(pieceSqIndex), Square(sqIndex)) <= 4) {
-                        value += pieceProtectionBonus; 
-                    }
+        while (!pieces.empty()) {
+            int pieceSqIndex = pieces.lsb();
+            if (color == Color::WHITE) {
+                if (pieceSqIndex / 8 > sqIndex / 8 && manhattanDistance(Square(pieceSqIndex), Square(sqIndex)) <= 4) { 
+                    value += pieceProtectionBonus; 
                 }
-                pieces.clear(pieceSqIndex);
+            } else if (color == Color::BLACK) {
+                if (pieceSqIndex / 8 < sqIndex / 8 && manhattanDistance(Square(pieceSqIndex), Square(sqIndex)) <= 4) {
+                    value += pieceProtectionBonus; 
+                }
             }
+            pieces.clear(pieceSqIndex);
         }
-
-        Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
-
-        while (theirQueen) {
-            int queenIndex = theirQueen.lsb();
-            int queenRank = queenIndex / 8, queenFile = queenIndex % 8;
-
-            if (manhattanDistance(Square(queenIndex), Square(sqIndex)) <= 4) {
-                value -= 30;
-            }
-
-            theirQueen.clear(queenIndex);
-        }
-
-        int numAdjOpenFiles = 0;
-        const int openFilePenalty[4] = {0, 20, 35, 60};
-
-        if (info.openFiles[kingFile] || info.semiOpenFilesWhite[kingFile] || info.semiOpenFilesBlack[kingFile]) {
-            numAdjOpenFiles++;
-        }
-
-        if (kingFile > 0 && (info.openFiles[kingFile - 1] 
-            || info.semiOpenFilesWhite[kingFile - 1] 
-            || info.semiOpenFilesBlack[kingFile - 1])) {
-            numAdjOpenFiles++;
-        }
-
-        if (kingFile < 7 && (info.openFiles[kingFile + 1] 
-            || info.semiOpenFilesWhite[kingFile + 1] 
-            || info.semiOpenFilesBlack[kingFile + 1])) {
-            numAdjOpenFiles++;
-        }
-
-        value -= openFilePenalty[numAdjOpenFiles];
-
-        int threatScore = kingThreat(board, color);
-        
-        value -= threatScore;
-    } else {
-        // Endgame heuristics
-        // Encourage staying close to the other king in the endgame
-        Bitboard theirKing = board.pieces(PieceType::KING, !color);
-        int theirKingIndex = theirKing.lsb();
-
-        int dist = manhattanDistance(Square(sqIndex), Square(theirKingIndex)); 
-        value -= 6 * dist;
-
-        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-        Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
-
-        // Encourage the king to stay close to our own pawns & their pawns, more so if they are passed pawns
-        while (ourPawns) {
-            int pawnSqIndex = ourPawns.lsb();
-            dist = manhattanDistance(Square(sqIndex), Square(pawnSqIndex));
-            
-            if (isPassedPawn(pawnSqIndex, color, theirPawns)) {
-                value -= 6 * dist; // Stronger penalty for staying away from passed pawns
-            } else {
-                value -= 3 * dist;
-            }
-            
-            ourPawns.clear(pawnSqIndex); // Correctly clear the bit in ourPawns
-        }
-
-        while (theirPawns) {
-            int pawnSqIndex = theirPawns.lsb();
-            dist = manhattanDistance(Square(sqIndex), Square(pawnSqIndex));
-            
-            if (isPassedPawn(pawnSqIndex, !color, ourPawns)) {
-                value -= 6 * dist; // Stronger penalty for staying away from passed pawns
-            } else {
-                value -= 3 * dist;
-            }
-            
-            theirPawns.clear(pawnSqIndex); // Correctly clear the bit in theirPawns
-        }
-
     }
 
+    // Penalty for being on or next to an open file (heavy toward midgame)
+    int numAdjOpenFiles = 0;
+    const int openFilePenalty[4] = {0, 20, 35, 60};
+
+    if (info.openFiles[kingFile] || info.semiOpenFilesWhite[kingFile] || info.semiOpenFilesBlack[kingFile]) {
+        numAdjOpenFiles++;
+    }
+
+    if (kingFile > 0 && (info.openFiles[kingFile - 1] 
+        || info.semiOpenFilesWhite[kingFile - 1] 
+        || info.semiOpenFilesBlack[kingFile - 1])) {
+        numAdjOpenFiles++;
+    }
+
+    if (kingFile < 7 && (info.openFiles[kingFile + 1] 
+        || info.semiOpenFilesWhite[kingFile + 1] 
+        || info.semiOpenFilesBlack[kingFile + 1])) {
+        numAdjOpenFiles++;
+    }
+
+    value -= openFilePenalty[numAdjOpenFiles] * midGameWeight;
+
+    int kingDistancePenalty = 6;
+    int pawnDistancePenalty = 3;
+    int passedPawnDistancePenalty = 6;
+
+    Bitboard theirKing = board.pieces(PieceType::KING, !color);
+    int theirKingIndex = theirKing.lsb();
+
+    int dist = manhattanDistance(Square(sqIndex), Square(theirKingIndex)); 
+    value -= kingDistancePenalty * dist * endGameWeight; // Stronger penalty for being far away from the opponent king in the endgame
+
+    ourPawns = board.pieces(PieceType::PAWN, color);
+    theirPawns = board.pieces(PieceType::PAWN, !color);
+
+    // Encourage the king to stay close to our own pawns & their pawns, more so if they are passed pawns
+    while (ourPawns) {
+        int pawnSqIndex = ourPawns.lsb();
+        dist = manhattanDistance(Square(sqIndex), Square(pawnSqIndex));
+        
+        if (isPassedPawn(pawnSqIndex, color, theirPawns)) {
+            value -= passedPawnDistancePenalty * dist * endGameWeight;
+        } else {
+            value -= pawnDistancePenalty * dist * endGameWeight;
+        }
+        
+        ourPawns.clear(pawnSqIndex); 
+    }
+
+    while (theirPawns) {
+        int pawnSqIndex = theirPawns.lsb();
+        dist = manhattanDistance(Square(sqIndex), Square(pawnSqIndex));
+        
+        if (isPassedPawn(pawnSqIndex, !color, ourPawns)) {
+            value -= passedPawnDistancePenalty * dist * endGameWeight;
+        } else {
+            value -= pawnDistancePenalty * dist * endGameWeight;
+        }
+        
+        theirPawns.clear(pawnSqIndex); 
+    }
 
     return value;
 }
