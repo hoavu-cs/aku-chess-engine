@@ -717,7 +717,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     const int isolatedPawnPenaltyAH = 10;
     const int isolatedPawnPenalty = 20;
-    const int unSupportedPenalty = 25;
+    const int unSupportedPenalty = 15;
     const int doubledPawnPenalty = 30;
     const int awkwardPenalty = 30;
     const int passedPawnAdvancedBonus = 10;
@@ -792,7 +792,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
             } else if (color == Color::BLACK && info.semiOpenFilesWhite[file]) {
                 value -= unSupportedPenalty;
             } else  {
-                value -= (unSupportedPenalty - 15); 
+                value -= (unSupportedPenalty - 10); 
             }
         }
 
