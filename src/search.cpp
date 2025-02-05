@@ -10,6 +10,7 @@
 #include <chrono>
 #include <stdlib.h>
 #include <cmath>
+#include <unordered_set>
 
 using namespace chess;
 
@@ -172,7 +173,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
     //bool isThreat = threatScore(board, move) > 0;
 
-    if (i <= 4 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
+    if (i <= 3 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -502,6 +503,7 @@ int alphaBeta(Board& board,
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? alpha - 1 : beta + 1;
+    
 
     for (int i = 0; i < moves.size(); i++) {
         Move move = moves[i].first;
@@ -618,6 +620,7 @@ Move findBestMove(Board& board,
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
         positionCount = 0;
+        std::unordered_set<std::string> consoleMessages;
         
         // Track the best move for the current depth
         Move currentBestMove = Move();
@@ -660,10 +663,10 @@ Move findBestMove(Board& board,
                     newBestFlag = true;
                 }
             }
-
+            // If we find a new best move, search it with full depth if needed
             if (newBestFlag && nextDepth < depth - 1) {
                 localBoard.makeMove(move);
-                eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost);
+                eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, true);
                 localBoard.unmakeMove(move);
             }
 
@@ -724,9 +727,13 @@ Move findBestMove(Board& board,
         for (const auto& move : PV) {
             pvStr += uci::moveToUci(move) + " ";
         }
-
+        
         std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
-        std::cout << analysis << std::endl;
+        if (consoleMessages.find(analysis) == consoleMessages.end()) {
+            std::cout << analysis << std::endl;
+            consoleMessages.insert(analysis);
+        }
+        
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         bool spendTooMuchTime = false;
@@ -736,13 +743,14 @@ Move findBestMove(Board& board,
             timeLimitExceeded = true;
         }
 
-        bool complete = static_cast<int>(PV.size()) > depth - 2;
+        bool complete = static_cast<int>(PV.size()) >= depth;
 
         // If the PV is full, store the best move and evaluation for the current depth
-        if (complete) {
-            evals[depth] = bestEval;
-            candidateMove[depth] = bestMove; 
-        }
+        // if (complete) {
+        //     evals[depth] = bestEval;
+        //     candidateMove[depth] = bestMove; 
+        // }
+        complete = true;
 
         // A position is unstable if the average evaluation changes by more than 50cp from 4 plies ago
         bool stableEval = true;
