@@ -27,7 +27,20 @@ std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackP
 std::unordered_map<std::uint64_t, int> whiteKingHashTable;
 std::unordered_map<std::uint64_t, int> blackKingHashTable;
 
-const int maxHashTableSize = 100000000;
+const int PAWN_TABLE_MAX_SIZE = 1000000;  // Limit pawn hash table to 1M entries
+
+void enforcePawnTableSize(std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>>& table) {
+    #pragma omp critical
+    {
+        if (table.size() > PAWN_TABLE_MAX_SIZE) {
+            std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> emptyMap;
+            std::swap(table, emptyMap);  // Forces memory deallocation
+            std::cout << "Cleared pawn hash table" << std::endl;
+        }
+    }
+}
+
+
 
 // Knight piece-square tables
 const int whiteKnightTableMid[64] = {
@@ -698,6 +711,8 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     // Select the appropriate pawn hash table based on color
     auto& pawnHashTable = (color == Color::WHITE) ? whitePawnHashTable : blackPawnHashTable;
 
+    enforcePawnTableSize(pawnHashTable);
+
     // Check if the pawn structure value is already stored
     auto itOuter = pawnHashTable.find(ourPawnsBits);
     if (itOuter != pawnHashTable.end()) {
@@ -1302,12 +1317,12 @@ int evaluate(const Board& board) {
     }
     
     // Clear the hash tables if full
-    if (whitePawnHashTable.size() > maxHashTableSize) {
-        whitePawnHashTable.clear();
-    }
-    if (blackPawnHashTable.size() > maxHashTableSize) {
-        blackPawnHashTable.clear();
-    }
+    // if (whitePawnHashTable.size() > maxHashTableSize) {
+    //     whitePawnHashTable.clear();
+    // }
+    // if (blackPawnHashTable.size() > maxHashTableSize) {
+    //     blackPawnHashTable.clear();
+    // }
 
 
     /*--------------------------------------------------------------------------

@@ -27,7 +27,7 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t tableMaxSize = 100000000; 
+const size_t TABLE_MAX_SIZE = 1000000; 
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
@@ -46,6 +46,20 @@ const int pieceValues[] = {
     900,  // Queen
     20000 // King
 };
+
+// Enforce the size of the transposition table
+void enforceTableSize(std::unordered_map<std::uint64_t, std::pair<int, int>>& table) {
+    #pragma omp critical
+    {
+        if (table.size() > TABLE_MAX_SIZE) {
+            std::unordered_map<std::uint64_t, std::pair<int, int>> emptyTable;
+            std::swap(table, emptyTable);  // Efficiently clears and frees memory
+            std::cout << "Cleared hash table" << std::endl;
+        }
+    }
+}
+
+
 
 // Transposition table lookup
 bool transTableLookUp(std::unordered_map<std::uint64_t, std::pair<int, int>>& table, 
@@ -133,16 +147,6 @@ int threatScore(const Board& board, const Move& move) {
 
         theirPawn.clear(sqIndex);
     }
-
-    // int gamePhase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
-    //                  board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
-    //                  board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
-    //                  board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
-
-    // Pawn push and king move is prioritized in endgame
-    // if (type == PieceType::PAWN  && gamePhase <= 12) {
-    //     threat += 5;
-    // }
 
     return threat;
 }
@@ -262,9 +266,6 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
                 priority = 3000;
             } 
             
-            // else {
-            //     priority = quietPriority(board, move);
-            // }
         } 
 
         if (!quiet) {
@@ -416,6 +417,8 @@ int alphaBeta(Board& board,
         }
         return 0;
     }
+
+    enforceTableSize(lowerBoundTable);
 
     // Probe the transposition table
     std::uint64_t hash = board.hash();
@@ -601,16 +604,6 @@ Move findBestMove(Board& board,
     omp_set_num_threads(numThreads);
 
     // Clear transposition tables
-    #pragma omp critical
-    {
-        if (lowerBoundTable.size() > tableMaxSize) {
-            lowerBoundTable.clear();
-        }
-        if (upperBoundTable.size() > tableMaxSize) {
-            upperBoundTable.clear();
-        }  
-    }
-    
     const int baseDepth = 1;
     int apsiration = evaluate(board);
     int depth = baseDepth;
@@ -736,49 +729,26 @@ Move findBestMove(Board& board,
         
 
         auto currentTime = std::chrono::high_resolution_clock::now();
-        bool spendTooMuchTime = false;
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
 
-        if (duration > timeLimit) {
-            timeLimitExceeded = true;
-        }
-
-        bool complete = static_cast<int>(PV.size()) >= depth;
-
-        // If the PV is full, store the best move and evaluation for the current depth
-        // if (complete) {
-        //     evals[depth] = bestEval;
-        //     candidateMove[depth] = bestMove; 
-        // }
-        complete = true;
+        timeLimitExceeded = duration > timeLimit;
+        bool spendTooMuchTime = duration > 2 * timeLimit;
 
         // A position is unstable if the average evaluation changes by more than 50cp from 4 plies ago
         bool stableEval = true;
-        if (complete && depth >= 4 && depth <= ENGINE_DEPTH) {  
+        if (depth >= 4 && depth <= ENGINE_DEPTH) {  
             if (std::abs(evals[depth] - evals[depth - 4]) > 50) {
                 stableEval = false; 
             }
         }
 
         // Break out of the loop if the time limit is exceeded and the evaluation is stable.
-        if (timeLimitExceeded && complete && stableEval) {
+        // We allow exceeding up to 2 * the time limit if the evaluation is unstable 
+        if ((timeLimitExceeded && stableEval) || depth > ENGINE_DEPTH || spendTooMuchTime) {
             break;
         }
 
-        // If the current depth is completed, but we still have time or the evaluation is unstable, go deeper
-        if (complete) {
-            depth++; 
-            
-            if (depth > ENGINE_DEPTH) {
-                // Break out of the loop if the maximum allowed depth is reached
-                break;
-            }
-        }
-
-        // Final safeguard: quit if we spend too much time and haven't completed the current depth
-        if (duration > 2 * timeLimit && depth > 1) {
-            break;
-        }
+        depth++;
     }
 
     return bestMove; 
