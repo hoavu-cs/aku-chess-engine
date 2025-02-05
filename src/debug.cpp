@@ -40,7 +40,7 @@ int main() {
     // Board board1 = Board("r4rk1/pp3ppp/2pp1q2/2P1p3/N1PnP3/P4N1P/2P2PP1/R2Q1RK1 b - - 0 14");
     // std::cout << "Eval = " << evaluate(board1) << std::endl;
 
-    Board board = Board("r2q1r1k/1b3p2/p2Ppn2/1p4Q1/8/3B4/PPP2PPP/R4RK1 w - - 1 22");
+    Board board = Board("r2q1r1k/1b3p2/p2Ppn2/1p4Q1/8/3B4/PPP2PPP/R4RK1 w - - 1 22"); // tactical test
     // Tactical fen 
     //Board board = Board("2rq1rk1/pp3ppp/2p2n2/3p3P/3P1n2/2N2N2/PPPQ1PP1/1K1R3R b - - 2 16");
     std::vector<std::string> pgnMoves; // Store moves in PGN format
@@ -66,15 +66,16 @@ int main() {
     
     // board = Board("1r2k2r/1pq1bppp/p3p3/2p1n3/3pNB2/1Q1P4/PPP2PPP/4RR1K b k - 5 16");
 
-    board = Board("Q7/P4rk1/3q1np1/8/3p1b1p/1P1P3P/2P1R1P1/5R1K b - - 0 37");
+    board = Board("Q7/P4rk1/3q1np1/8/3p1b1p/1P1P3P/2P1R1P1/5R1K b - - 0 37"); // tactical test
+
     // board = Board("1Q5r/3Rkppp/p3b1qn/8/5P2/P4P2/1PP2K1P/R1B5 b - - 0 24");
-    // board = Board("4knQ1/p2q1pR1/2p1pP2/3pP3/Pr1r4/R7/1PK4P/2B5 b - - 0 24");
+    // board = Board("rnbqkbnr/ppp2ppp/4p3/3pP3/8/5N2/PPPP1PPP/RNBQKB1R b KQkq - 0 3");
 
     // Default settings
     int depth = 30;
     int quiescenceDepth = 10;
     int numThreads = 6;
-    int timeLimit = 30000;
+    int timeLimit = 15000;
 
     Move bestMove;
 

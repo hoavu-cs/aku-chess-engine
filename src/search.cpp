@@ -661,7 +661,7 @@ Move findBestMove(Board& board,
                 }
             }
 
-            if (newBestFlag) {
+            if (newBestFlag && nextDepth < depth - 1) {
                 localBoard.makeMove(move);
                 eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost);
                 localBoard.unmakeMove(move);
@@ -736,7 +736,7 @@ Move findBestMove(Board& board,
             timeLimitExceeded = true;
         }
 
-        bool complete = PV.size() == depth;
+        bool complete = static_cast<int>(PV.size()) > depth - 2;
 
         // If the PV is full, store the best move and evaluation for the current depth
         if (complete) {
@@ -767,12 +767,8 @@ Move findBestMove(Board& board,
             }
         }
 
-        // Final safeguard: quit if we spend too much time and haven't completed the current depth, return the best
-        // move from the previous depth.
-        if (duration > 3 * timeLimit && depth > 1) {
-            if (PV.size() < depth) {
-                bestMove = candidateMove[depth - 1];
-            }
+        // Final safeguard: quit if we spend too much time and haven't completed the current depth
+        if (duration > 2 * timeLimit && depth > 1) {
             break;
         }
     }
