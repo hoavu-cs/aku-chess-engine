@@ -27,7 +27,7 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t tableMaxSize = 1000000000; 
+const size_t tableMaxSize = 100000000; 
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
@@ -173,7 +173,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
     //bool isThreat = threatScore(board, move) > 0;
 
-    if (i <= 3 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
+    if (i <= 4 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp || isPawnMove) {
         return depth - 1;
     } else {
         return depth / 2;

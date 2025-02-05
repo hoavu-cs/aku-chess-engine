@@ -27,7 +27,7 @@ std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackP
 std::unordered_map<std::uint64_t, int> whiteKingHashTable;
 std::unordered_map<std::uint64_t, int> blackKingHashTable;
 
-const int maxHashTableSize = 1000000000;
+const int maxHashTableSize = 100000000;
 
 // Knight piece-square tables
 const int whiteKnightTableMid[64] = {
