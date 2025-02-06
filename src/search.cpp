@@ -36,14 +36,6 @@ bool mopUp = false; // Mop up flag
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
 
 
-template<typename T>
-inline void freeContainer(T& p_container)
-{
-    T empty;
-    using std::swap;
-    swap(p_container, empty);
-}
-
 // Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {
     0,    // No piece
@@ -142,15 +134,7 @@ int threatScore(const Board& board, const Move& move) {
         theirPawn.clear(sqIndex);
     }
 
-    // int gamePhase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
-    //                  board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
-    //                  board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
-    //                  board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
 
-    // Pawn push and king move is prioritized in endgame
-    // if (type == PieceType::PAWN  && gamePhase <= 12) {
-    //     threat += 5;
-    // }
 
     return threat;
 }
@@ -178,10 +162,9 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     Board localBoard = board;
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
-    bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
-    //bool isThreat = threatScore(board, move) > 0;
+    //bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 4 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
+    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -404,13 +387,7 @@ int alphaBeta(Board& board,
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
-    bool endGameFlag;
-
-    if (whiteTurn) {
-        endGameFlag = isEndGame(board, Color::WHITE);
-    } else {
-        endGameFlag = isEndGame(board, Color::BLACK);
-    }
+    bool endGameFlag = gamePhase(board) <= 12;
 
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
@@ -491,8 +468,6 @@ int alphaBeta(Board& board,
             }
         }
     }
-
-    //
 
     // Razoring
     // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
@@ -610,10 +585,11 @@ Move findBestMove(Board& board,
     // Clear transposition tables
     #pragma omp critical
     {
-        freeContainer(lowerBoundTable);
-        freeContainer(upperBoundTable);
-        freeContainer(whiteHashMove);
-        freeContainer(blackHashMove);
+        lowerBoundTable = {};
+        upperBoundTable = {};
+        whiteHashMove = {};
+        blackHashMove = {};
+        clearPawnHashTable();
     }
     
     const int baseDepth = 1;
@@ -732,51 +708,41 @@ Move findBestMove(Board& board,
             pvStr += uci::moveToUci(move) + " ";
         }
 
-        std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
+        std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + " " + pvStr;
         std::cout << analysis << std::endl;
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         bool spendTooMuchTime = false;
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
 
-        if (duration > timeLimit) {
-            timeLimitExceeded = true;
-        }
+        timeLimitExceeded = duration > timeLimit;
+        spendTooMuchTime = duration > 2 * timeLimit;
 
-        bool complete = static_cast<int>(PV.size()) > depth - 2;
-
+        //bool complete = static_cast<int>(PV.size()) > depth - 2;
         // If the PV is full, store the best move and evaluation for the current depth
-        if (complete) {
-            evals[depth] = bestEval;
-            candidateMove[depth] = bestMove; 
-        }
+
+        evals[depth] = bestEval;
+        candidateMove[depth] = bestMove; 
 
         // A position is unstable if the average evaluation changes by more than 50cp from 4 plies ago
         bool stableEval = true;
-        if (complete && depth >= 4 && depth <= ENGINE_DEPTH) {  
-            if (std::abs(evals[depth] - evals[depth - 4]) > 50) {
+        if (depth >= 4 && depth <= ENGINE_DEPTH) {  
+            if (std::abs(evals[depth] - evals[depth - 4]) > 25) {
                 stableEval = false; 
             }
         }
 
         // Break out of the loop if the time limit is exceeded and the evaluation is stable.
-        if (timeLimitExceeded && complete && stableEval) {
+        if (!timeLimitExceeded) {
+            depth++;
+        } else if (stableEval) {
             break;
-        }
-
-        // If the current depth is completed, but we still have time or the evaluation is unstable, go deeper
-        if (complete) {
-            depth++; 
-            
-            if (depth > ENGINE_DEPTH) {
-                // Break out of the loop if the maximum allowed depth is reached
+        } else {
+            if (depth > ENGINE_DEPTH || spendTooMuchTime) {
                 break;
+            } else {
+                depth++;
             }
-        }
-
-        // Final safeguard: quit if we spend too much time and haven't completed the current depth
-        if (duration > 2 * timeLimit && depth > 1) {
-            break;
         }
     }
 

@@ -21,13 +21,8 @@ const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
 // Pawn hash table
-// std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> whitePawnHashTable;
-// std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackPawnHashTable;
-
-// std::unordered_map<std::uint64_t, int> whiteKingHashTable;
-// std::unordered_map<std::uint64_t, int> blackKingHashTable;
-
-const int maxHashTableSize = 100000000;
+std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> whitePawnHashTable;
+std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackPawnHashTable;
 
 // Knight piece-square tables
 const int whiteKnightTableMid[64] = {
@@ -384,6 +379,11 @@ const std::unordered_map<int, std::vector<int>> adjSquares = {
     Helper Functions
 ------------------------------------------------------------------------*/
 
+// Clear the pawn hash table
+void clearPawnHashTable() {
+    whitePawnHashTable = {};
+    blackPawnHashTable = {};
+}
 
 //End game special heuristics to avoid illusory material advantage.
 bool knownDraw(const Board& board) {
@@ -472,6 +472,16 @@ bool isEndGame(const Board& board, Color color) {
     } else {
         return false;
     }
+}
+
+// Return game phase 0-24 for endgame to opening
+int gamePhase (const Board& board) {
+    int phase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
+                     board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
+                     board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
+                     board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
+
+    return phase;
 }
 
 // Function to visualize a bitboard for debugging.
@@ -696,16 +706,16 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     std::uint64_t theirPawnsBits = theirPawns.getBits();
 
     // Select the appropriate pawn hash table based on color
-    // auto& pawnHashTable = (color == Color::WHITE) ? whitePawnHashTable : blackPawnHashTable;
+    auto& pawnHashTable = (color == Color::WHITE) ? whitePawnHashTable : blackPawnHashTable;
 
-    // // Check if the pawn structure value is already stored
-    // auto itOuter = pawnHashTable.find(ourPawnsBits);
-    // if (itOuter != pawnHashTable.end()) {
-    //     auto itInner = itOuter->second.find(theirPawnsBits);
-    //     if (itInner != itOuter->second.end()) {
-    //         return itInner->second;
-    //     }
-    // }
+    // Check if the pawn structure value is already stored
+    auto itOuter = pawnHashTable.find(ourPawnsBits);
+    if (itOuter != pawnHashTable.end()) {
+        auto itInner = itOuter->second.find(theirPawnsBits);
+        if (itInner != itOuter->second.end()) {
+            return itInner->second;
+        }
+    }
 
     double midGameWeight = info.gamePhase / 24.0;
     double endGameWeight = 1.0 - midGameWeight;
@@ -717,7 +727,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     const int isolatedPawnPenaltyAH = 10;
     const int isolatedPawnPenalty = 20;
-    const int unSupportedPenalty = 15;
+    const int unSupportedPenalty = 25;
     const int doubledPawnPenalty = 30;
     const int awkwardPenalty = 30;
     const int passedPawnAdvancedBonus = 10;
@@ -792,7 +802,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
             } else if (color == Color::BLACK && info.semiOpenFilesWhite[file]) {
                 value -= unSupportedPenalty;
             } else  {
-                value -= (unSupportedPenalty - 10); 
+                value -= (unSupportedPenalty - 15); 
             }
         }
 
@@ -814,10 +824,10 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
         }
     }
 
-    // #pragma omp critical
-    // {
-    //     pawnHashTable[ourPawnsBits][theirPawnsBits] = value;
-    // }
+    #pragma omp critical
+    {
+        pawnHashTable[ourPawnsBits][theirPawnsBits] = value;
+    }
 
     return value;
 }
@@ -1301,14 +1311,6 @@ int evaluate(const Board& board) {
         return 0;
     }
     
-    // Clear the hash tables if full
-    // if (whitePawnHashTable.size() > maxHashTableSize) {
-    //     whitePawnHashTable.clear();
-    // }
-    // if (blackPawnHashTable.size() > maxHashTableSize) {
-    //     blackPawnHashTable.clear();
-    // }
-
 
     /*--------------------------------------------------------------------------
     Mop-up phase: if only their king is left without any other pieces.
@@ -1352,10 +1354,7 @@ int evaluate(const Board& board) {
         blackScore += tempoBonus;
     }
 
-    info.gamePhase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
-                     board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
-                     board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
-                     board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
+    info.gamePhase = gamePhase(board);
 
     if (info.gamePhase > 24) {
         info.gamePhase = 24;
@@ -1454,7 +1453,7 @@ int evaluate(const Board& board) {
     }
 
     // Safeguard against material deficit without enough compensation.
-    const int deficitPenalty = 90;
+    const int deficitPenalty = 100;
     whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
     blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
 

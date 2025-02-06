@@ -6,7 +6,6 @@ using namespace chess;
 
 // Constants
 const int INF = 100000;
-const int maxTranspositionTableSize = 100000000;
 extern std::uint64_t positionCount;
 
 // Function Declarations

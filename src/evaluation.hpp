@@ -19,11 +19,18 @@ struct Info {
     {}
 };
 
+extern std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> whitePawnHashTable;
+extern std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackPawnHashTable;
 
 
 /*------------------------------------------------------------------------
     Helper Functions
 ------------------------------------------------------------------------*/
+
+/**
+ * @return Game phase 0-24
+ */
+int gamePhase (const Board& board);
 
 /**
  * Generate a bitboard mask for the specified file.
@@ -76,6 +83,12 @@ bool isSemiOpenFile(const chess::Board& board, int file, Color color);
 /*------------------------------------------------------------------------
     Main Functions
 ------------------------------------------------------------------------*/
+
+
+/**
+ * Clear the pawn hash table.
+ */
+void clearPawnHashTable();
 
 /**
  * Compute the value of pawns on the board.
