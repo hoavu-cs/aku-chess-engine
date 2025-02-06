@@ -10,6 +10,7 @@
 #include <chrono>
 #include <stdlib.h>
 #include <cmath>
+#include <unordered_set>
 
 using namespace chess;
 
@@ -598,6 +599,7 @@ Move findBestMove(Board& board,
     Move bestMove = Move(); 
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
     bool whiteTurn = board.sideToMove() == Color::WHITE;
+    std::unordered_set<std::string> consoleStr;
 
     std::vector<std::pair<Move, int>> moves;
     std::vector<Move> globalPV (maxDepth);
@@ -739,8 +741,10 @@ Move findBestMove(Board& board,
         }
 
         std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + " " + pvStr;
+        // if (consoleStr.find(analysis) == consoleStr.end()) {
+        //     consoleStr.insert(analysis);
         std::cout << analysis << std::endl;
-
+        //}
         auto currentTime = std::chrono::high_resolution_clock::now();
         bool spendTooMuchTime = false;
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
@@ -748,10 +752,14 @@ Move findBestMove(Board& board,
         timeLimitExceeded = duration > timeLimit;
         spendTooMuchTime = duration > 2 * timeLimit;
 
+        // if (spendTooMuchTime) {
+        //     break;
+        // }
+
         //bool complete = true;//static_cast<int>(PV.size()) > depth - 2;
-        if (!spendTooMuchTime) {
-            continue;
-        }
+        // if (!timeLimitExceeded) {
+        //     depth++;
+        // }
         // If the PV is full, store the best move and evaluation for the current depth
 
         evals[depth] = bestEval;
