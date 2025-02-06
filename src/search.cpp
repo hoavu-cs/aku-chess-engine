@@ -24,19 +24,11 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 const size_t TABLE_MAX_SIZE = 2000000; 
 
-struct hashEntry {
-    int eval = 0;
-    int depth = 0;
-    Move bestMove;
-    U64 hash = 0;
-};
 
-std::vector<hashEntry> whiteHashTable (TABLE_MAX_SIZE);
-std::vector<hashEntry> blackHashTable (TABLE_MAX_SIZE);
 
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search. Use this to compute the current ply.
-int k = 4; // top k moves in LMR
+int k = 4; // top k moves in LMR will not be reduced
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
@@ -52,6 +44,22 @@ const int pieceValues[] = {
     20000 // King
 };
 
+
+/*--------------------------------------------------------------------------------------------
+Transposition table. We use a hash table to store the evaluation values of the board positions,
+the depth of the search, and the best move. This is used to avoid re-evaluating the same position
+--------------------------------------------------------------------------------------------*/
+struct hashEntry {
+    int eval = 0;
+    int depth = 0;
+    Move bestMove;
+    U64 hash = 0;
+};
+
+std::vector<hashEntry> whiteHashTable (TABLE_MAX_SIZE);
+std::vector<hashEntry> blackHashTable (TABLE_MAX_SIZE);
+
+// Look up the hash table for a given board position
 bool tableLookUp(const Board& board, int& eval, const int depth, Move& bestMove, Color color) {
     U64 hash = board.hash();
     bool whiteTurn = board.sideToMove() == Color::WHITE;
@@ -60,7 +68,8 @@ bool tableLookUp(const Board& board, int& eval, const int depth, Move& bestMove,
     // If at the location in the hash table we find the same hash and the depth >= current depth
     // Return the evaluation and best move
     if (whiteTurn) {
-        U64 index = hash % TABLE_MAX_SIZE; // Compute the location in the hash table
+        U64 index = hash % TABLE_MAX_SIZE; 
+
         if (whiteHashTable[index].hash == hash && whiteHashTable[index].depth >= depth) {
             eval = whiteHashTable[index].eval;
             bestMove = whiteHashTable[index].bestMove;
@@ -78,6 +87,7 @@ bool tableLookUp(const Board& board, int& eval, const int depth, Move& bestMove,
     return found;
 }
 
+// Update the hash table with the evaluation value, depth, best move, and hash
 void tableUpdate(Board board, int eval, int depth, Move bestMove, Color color) {
     auto hash = board.hash();
     bool whiteTurn = board.sideToMove() == Color::WHITE;
@@ -96,80 +106,10 @@ void tableUpdate(Board board, int eval, int depth, Move bestMove, Color color) {
     }
 }
 
-
 // Check if a move is a promotion
 bool isPromotion(const Move& move) {
     return (move.typeOf() & Move::PROMOTION) != 0;
 }
-
-// Return the priority of a quiet move based on some heuristics
-// int threatScore(const Board& board, const Move& move) {
-//     auto type = board.at<Piece>(move.from()).type();
-//     Color color = board.sideToMove();
-
-//     Board boardAfter = board;
-//     boardAfter.makeMove(move);
-
-//     Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
-//     Bitboard theirRook = board.pieces(PieceType::ROOK, !color);
-//     Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
-//     Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
-//     Bitboard theirPawn = board.pieces(PieceType::PAWN, !color);
-
-//     int threat = 0;
-
-//     while (theirQueen) {
-//         int sqIndex = theirQueen.lsb();
-//         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-//         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
-
-//         threat += attackerAfter.count() > attackerBefore.count() ? 9 : 0;
-
-//         theirQueen.clear(sqIndex);
-//     }
-
-//     while (theirRook) {
-//         int sqIndex = theirRook.lsb();
-//         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-//         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
-
-//         threat += attackerAfter.count() > attackerBefore.count() ? 5 : 0;
-
-//         theirRook.clear(sqIndex);
-//     }
-
-//     while (theirBishop) {
-//         int sqIndex = theirBishop.lsb();
-//         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-//         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
-
-//         threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
-
-//         theirBishop.clear(sqIndex);
-//     }
-
-//     while (theirKnight) {
-//         int sqIndex = theirKnight.lsb();
-//         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-//         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
-
-//         threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
-
-//         theirKnight.clear(sqIndex);
-//     }
-    
-//     while (theirPawn) {
-//         int sqIndex = theirPawn.lsb();
-//         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-//         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
-
-//         threat += attackerAfter.count() > attackerBefore.count() ? 4 : 0;
-
-//         theirPawn.clear(sqIndex);
-//     }
-
-//     return threat;
-// }
 
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
@@ -231,16 +171,16 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
 
         // Previous hash moves, PV, killer moves, history heuristic, captures, promotions, checks, quiet moves
         // Currently has a bug with the Move object that I don't know how to fix yet
-        #pragma omp critical 
-        {
-            if (tableLookUp(board, tableEval, 0, tableBestMove, color)) {
-                if (tableBestMove == move) {
-                    // std::cout << "Hash move found" << std::endl;
-                    priority = 9000;
-                    hashMove = true;
-                }
-            }
-        }
+        // #pragma omp critical 
+        // {
+        //     if (tableLookUp(board, tableEval, 0, tableBestMove, color)) {
+        //         if (tableBestMove == move) {
+        //             // std::cout << "Hash move found" << std::endl;
+        //             priority = 9000;
+        //             hashMove = true;
+        //         }
+        //     }
+        // }
 
         if (hashMove) {
             candidates.push_back({move, priority});
