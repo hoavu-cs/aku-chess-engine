@@ -10,28 +10,39 @@
 #include <chrono>
 #include <stdlib.h>
 #include <cmath>
-#include <unordered_set>
 
 using namespace chess;
 
-typedef std::uint64_t U64;
+// Constants and global variables
+std::unordered_map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
+std::unordered_map<std::uint64_t, Move> whiteHashMove;
+
+std::unordered_map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
+std::unordered_map<std::uint64_t, Move> blackHashMove;
 
 // Time management
-std::vector<Move> previousPV; // Principal variation from the previous iteration (consider make this a parameters)
+std::vector<Move> previousPV; // Principal variation from the previous iteration
 
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t TABLE_MAX_SIZE = 2000000; 
-
-
-
+const size_t tableMaxSize = 1000000; 
 int tableHit = 0;
-int globalMaxDepth = 0; // Maximum depth of current search. Use this to compute the current ply.
-int k = 4; // top k moves in LMR will not be reduced
+int globalMaxDepth = 0; // Maximum depth of current search
+int globalQuiescenceDepth = 0; // Quiescence depth
+int k = 2; // top k moves in LMR
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
+
+
+template<typename T>
+inline void freeContainer(T& p_container)
+{
+    T empty;
+    using std::swap;
+    swap(p_container, empty);
+}
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {
@@ -44,71 +55,104 @@ const int pieceValues[] = {
     20000 // King
 };
 
+// Transposition table lookup
+bool transTableLookUp(std::unordered_map<std::uint64_t, std::pair<int, int>>& table, 
+                            std::uint64_t hash, 
+                            int depth, 
+                            int& eval) {    
+    auto it = table.find(hash);
+    bool found = it != table.end() && it->second.second >= depth;
 
-/*--------------------------------------------------------------------------------------------
-Transposition table. We use a hash table to store the evaluation values of the board positions,
-the depth of the search, and the best move. This is used to avoid re-evaluating the same position
---------------------------------------------------------------------------------------------*/
-struct hashEntry {
-    int eval = 0;
-    int depth = 0;
-    Move bestMove;
-    U64 hash = 0;
-};
-
-std::vector<hashEntry> whiteHashTable (TABLE_MAX_SIZE);
-std::vector<hashEntry> blackHashTable (TABLE_MAX_SIZE);
-
-// Look up the hash table for a given board position
-bool tableLookUp(const Board& board, int& eval, const int depth, Move& bestMove, Color color) {
-    U64 hash = board.hash();
-    bool whiteTurn = board.sideToMove() == Color::WHITE;
-    bool found = false;
-
-    // If at the location in the hash table we find the same hash and the depth >= current depth
-    // Return the evaluation and best move
-    if (whiteTurn) {
-        U64 index = hash % TABLE_MAX_SIZE; 
-
-        if (whiteHashTable[index].hash == hash && whiteHashTable[index].depth >= depth) {
-            eval = whiteHashTable[index].eval;
-            bestMove = whiteHashTable[index].bestMove;
-            found = true;
-        }
+    if (found) {
+        eval = it->second.first;
+        return true;
     } else {
-        U64 index = hash % TABLE_MAX_SIZE;
-
-        if (blackHashTable[index].hash == hash && blackHashTable[index].depth >= depth) {
-            eval = blackHashTable[index].eval;
-            bestMove = blackHashTable[index].bestMove;
-            found = true;
-        }
-    }
-    return found;
-}
-
-// Update the hash table with the evaluation value, depth, best move, and hash
-void tableUpdate(Board board, int eval, int depth, Move bestMove, Color color) {
-    auto hash = board.hash();
-    bool whiteTurn = board.sideToMove() == Color::WHITE;
-    auto index = hash % TABLE_MAX_SIZE;
-
-    if (whiteTurn) {
-        #pragma omp critical
-        {
-            whiteHashTable[index] = {eval, depth, bestMove, hash};
-        }
-    } else {
-        #pragma omp critical
-        {
-            blackHashTable[index] = {eval, depth, bestMove, hash};
-        }
+        return false;
     }
 }
 
 // Check if a move is a promotion
 bool isPromotion(const Move& move) {
     return (move.typeOf() & Move::PROMOTION) != 0;
+}
+
+// Return the priority of a quiet move based on some heuristics
+int threatScore(const Board& board, const Move& move) {
+    auto type = board.at<Piece>(move.from()).type();
+    Color color = board.sideToMove();
+
+    Board boardAfter = board;
+    boardAfter.makeMove(move);
+
+    Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
+    Bitboard theirRook = board.pieces(PieceType::ROOK, !color);
+    Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
+    Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
+    Bitboard theirPawn = board.pieces(PieceType::PAWN, !color);
+
+    int threat = 0;
+
+    while (theirQueen) {
+        int sqIndex = theirQueen.lsb();
+        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+
+        threat += attackerAfter.count() > attackerBefore.count() ? 9 : 0;
+
+        theirQueen.clear(sqIndex);
+    }
+
+    while (theirRook) {
+        int sqIndex = theirRook.lsb();
+        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+
+        threat += attackerAfter.count() > attackerBefore.count() ? 5 : 0;
+
+        theirRook.clear(sqIndex);
+    }
+
+    while (theirBishop) {
+        int sqIndex = theirBishop.lsb();
+        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+
+        threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
+
+        theirBishop.clear(sqIndex);
+    }
+
+    while (theirKnight) {
+        int sqIndex = theirKnight.lsb();
+        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+
+        threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
+
+        theirKnight.clear(sqIndex);
+    }
+    
+    while (theirPawn) {
+        int sqIndex = theirPawn.lsb();
+        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+
+        threat += attackerAfter.count() > attackerBefore.count() ? 4 : 0;
+
+        theirPawn.clear(sqIndex);
+    }
+
+    // int gamePhase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
+    //                  board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
+    //                  board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
+    //                  board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
+
+    // Pawn push and king move is prioritized in endgame
+    // if (type == PieceType::PAWN  && gamePhase <= 12) {
+    //     threat += 5;
+    // }
+
+    return threat;
 }
 
 // Update the killer moves
@@ -135,8 +179,9 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
+    //bool isThreat = threatScore(board, move) > 0;
 
-    if (i <= k || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp || isPawnMove) {
+    if (i <= 4 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -157,33 +202,37 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
-    U64 hash = board.hash();
+    std::uint64_t hash = board.hash();
 
     // Move ordering 1. promotion 2. captures 3. killer moves 4. hash 5. checks 6. quiet moves
     for (const auto& move : moves) {
         int priority = 0;
         bool quiet = false;
+        int moveIndex = move.from().index() * 64 + move.to().index();
         int ply = globalMaxDepth - depth;
         bool hashMove = false;
 
-        int tableEval;
-        Move tableBestMove;
-
         // Previous hash moves, PV, killer moves, history heuristic, captures, promotions, checks, quiet moves
-        // Currently has a bug with the Move object that I don't know how to fix yet
-        // #pragma omp critical 
-        // {
-        //     if (tableLookUp(board, tableEval, 0, tableBestMove, color)) {
-        //         if (tableBestMove == move) {
-        //             // std::cout << "Hash move found" << std::endl;
-        //             priority = 9000;
-        //             hashMove = true;
-        //         }
-        //     }
-        // }
+        #pragma omp critial 
+        {
+            if (whiteTurn) {
+                if (whiteHashMove.find(hash) != whiteHashMove.end() && whiteHashMove[hash] == move) {
+                    priority = 9000;
+                    candidates.push_back({move, priority});
+                    hashMove = true;
+                }
+
+            } else {
+  
+                if (blackHashMove.find(hash) != blackHashMove.end() && blackHashMove[hash] == move) {
+                    priority = 9000;
+                    candidates.push_back({move, priority});
+                    hashMove = true;
+                }
+            }
+        }
 
         if (hashMove) {
-            candidates.push_back({move, priority});
             continue;
         }
 
@@ -221,6 +270,9 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
                 priority = 3000;
             } 
             
+            // else {
+            //     priority = quietPriority(board, move);
+            // }
         } 
 
         if (!quiet) {
@@ -373,20 +425,41 @@ int alphaBeta(Board& board,
         return 0;
     }
 
-    int tableEval;
-    Move tableBestMove;
-    bool found = tableLookUp(board, tableEval, depth, tableBestMove, color);
-    if (found) {
-        #pragma omp critical
-        {
+    // Probe the transposition table
+    std::uint64_t hash = board.hash();
+    bool found = false;
+    int storedEval;
+    
+    #pragma omp critical
+    { 
+        if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
+            (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
+            found = true;
+
             tableHit++;
         }
-        return tableEval;
     }
+
+    if (found) {
+        return storedEval;
+    } 
 
     if (depth <= 0) {
         int quiescenceEval = quiescence(board, quiescenceDepth, alpha, beta);
-        tableUpdate(board, quiescenceEval, 0, -1, color); // Store the quiescence evaluation in the transposition table
+        
+        if (whiteTurn) {
+            #pragma omp critical
+            {
+                lowerBoundTable[hash] = {quiescenceEval, 0};
+            }
+            
+        } else {
+            #pragma omp critical 
+            {
+                upperBoundTable[hash] = {quiescenceEval, 0};
+            }
+        }
+        
         return quiescenceEval;
     }
 
@@ -438,7 +511,6 @@ int alphaBeta(Board& board,
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? alpha - 1 : beta + 1;
-    
 
     for (int i = 0; i < moves.size(); i++) {
         Move move = moves[i].first;
@@ -492,12 +564,17 @@ int alphaBeta(Board& board,
         }
     }
 
-    Move bestMove;
-    if (PV.size() > 0) {
-        bestMove = PV[0];
-    } else
-
-    tableUpdate(board, bestEval, depth, bestMove, color);
+    #pragma omp critical
+    {
+        // Update hash tables
+        if (whiteTurn && PV.size() > 0) {
+            lowerBoundTable[board.hash()] = {bestEval, depth}; 
+            whiteHashMove[board.hash()] = PV[0];
+        } else if (PV.size() > 0) {
+            upperBoundTable[board.hash()] = {bestEval, depth}; 
+            blackHashMove[board.hash()] = PV[0];
+        }
+    }
 
     return bestEval;
 }
@@ -513,12 +590,12 @@ Move findBestMove(Board& board,
     auto startTime = std::chrono::high_resolution_clock::now();
     bool timeLimitExceeded = false;
 
-    int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
     Move bestMove = Move(); 
-
+    int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
     bool whiteTurn = board.sideToMove() == Color::WHITE;
 
-    std::vector<std::pair<Move, int>> moves; // A vector of moves and their evaluation
+    std::vector<std::pair<Move, int>> moves;
+    std::vector<Move> globalPV (maxDepth);
 
 
     if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
@@ -526,10 +603,19 @@ Move findBestMove(Board& board,
         k = INF;
     }
 
-    //globalQuiescenceDepth = quiescenceDepth;
+
+    globalQuiescenceDepth = quiescenceDepth;
     omp_set_num_threads(numThreads);
 
     // Clear transposition tables
+    #pragma omp critical
+    {
+        freeContainer(lowerBoundTable);
+        freeContainer(upperBoundTable);
+        freeContainer(whiteHashMove);
+        freeContainer(blackHashMove);
+    }
+    
     const int baseDepth = 1;
     int apsiration = evaluate(board);
     int depth = baseDepth;
@@ -539,7 +625,6 @@ Move findBestMove(Board& board,
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
         positionCount = 0;
-        std::unordered_set<std::string> consoleMessages;
         
         // Track the best move for the current depth
         Move currentBestMove = Move();
@@ -582,10 +667,10 @@ Move findBestMove(Board& board,
                     newBestFlag = true;
                 }
             }
-            // If we find a new best move, search it with full depth if needed
+
             if (newBestFlag && nextDepth < depth - 1) {
                 localBoard.makeMove(move);
-                eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, true);
+                eval = alphaBeta(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost);
                 localBoard.unmakeMove(move);
             }
 
@@ -607,22 +692,29 @@ Move findBestMove(Board& board,
                 }
             }
         }
-
-        bestEval = currentBestEval;
-        bestMove = currentBestMove;
         
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
+        bestMove = currentBestMove;
+        bestEval = currentBestEval;
+
         if (whiteTurn) {
             std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
                 return a.second > b.second;
             });
-            tableUpdate(board, currentBestEval, depth, currentBestMove, Color::WHITE);
 
+            #pragma omp critical
+            {
+                lowerBoundTable[board.hash()] = {bestEval, depth};
+            }
         } else {
             std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
                 return a.second < b.second;
             });
-            tableUpdate(board, currentBestEval, depth, currentBestMove, Color::BLACK);
+
+            #pragma omp critical
+            {
+                upperBoundTable[board.hash()] = {bestEval, depth};
+            }
         }
 
         moves = newMoves;
@@ -639,35 +731,53 @@ Move findBestMove(Board& board,
         for (const auto& move : PV) {
             pvStr += uci::moveToUci(move) + " ";
         }
-        
+
         std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
-        if (consoleMessages.find(analysis) == consoleMessages.end()) {
-            std::cout << analysis << std::endl;
-            consoleMessages.insert(analysis);
-        }
-        
+        std::cout << analysis << std::endl;
 
         auto currentTime = std::chrono::high_resolution_clock::now();
+        bool spendTooMuchTime = false;
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
 
-        timeLimitExceeded = duration > timeLimit;
-        bool spendTooMuchTime = duration > 2 * timeLimit;
+        if (duration > timeLimit) {
+            timeLimitExceeded = true;
+        }
+
+        bool complete = static_cast<int>(PV.size()) > depth - 2;
+
+        // If the PV is full, store the best move and evaluation for the current depth
+        if (complete) {
+            evals[depth] = bestEval;
+            candidateMove[depth] = bestMove; 
+        }
 
         // A position is unstable if the average evaluation changes by more than 50cp from 4 plies ago
         bool stableEval = true;
-        if (depth >= 4 && depth <= ENGINE_DEPTH) {  
-            if (std::abs(evals[depth] - evals[depth - 4]) > 25) {
+        if (complete && depth >= 4 && depth <= ENGINE_DEPTH) {  
+            if (std::abs(evals[depth] - evals[depth - 4]) > 50) {
                 stableEval = false; 
             }
         }
 
         // Break out of the loop if the time limit is exceeded and the evaluation is stable.
-        // We allow exceeding up to 2 * the time limit if the evaluation is unstable 
-        if ((timeLimitExceeded && stableEval) || depth > ENGINE_DEPTH || spendTooMuchTime) {
+        if (timeLimitExceeded && complete && stableEval) {
             break;
         }
 
-        depth++;
+        // If the current depth is completed, but we still have time or the evaluation is unstable, go deeper
+        if (complete) {
+            depth++; 
+            
+            if (depth > ENGINE_DEPTH) {
+                // Break out of the loop if the maximum allowed depth is reached
+                break;
+            }
+        }
+
+        // Final safeguard: quit if we spend too much time and haven't completed the current depth
+        if (duration > 2 * timeLimit && depth > 1) {
+            break;
+        }
     }
 
     return bestMove; 
