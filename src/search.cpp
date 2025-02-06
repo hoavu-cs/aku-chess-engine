@@ -31,7 +31,7 @@ const size_t tableMaxSize = 1000000;
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 2; // top k moves in LMR
+int k = 4; // top k moves in LMR
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version

@@ -841,7 +841,7 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
     double endGameWeight = 1.0 - midGameWeight;
 
     int knightAdjust[9] = {-20, -16, -12, -8, -4,  0,  4,  8, 12}; // Adjust the value of the knight based on the number of pawns
-    const int mobilityBonus = 4;
+    const int mobilityBonus = 3;
 
     int ourPawnCount = board.pieces(PieceType::PAWN, color).count();
     Bitboard knights = board.pieces(PieceType::KNIGHT, color);
@@ -895,7 +895,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
     double endGameWeight = 1.0 - midGameWeight;
 
     int rookAdjust[9] = {15, 12, 9, 6, 3, 0, -3, -6, -9};
-    int mobilityBonus = 3;
+    int mobilityBonus = 2;
 
     Bitboard bishops = board.pieces(PieceType::BISHOP, color);
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
