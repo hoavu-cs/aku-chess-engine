@@ -14,19 +14,18 @@
 
 using namespace chess;
 
-
 // Time management
-std::vector<Move> previousPV; // Principal variation from the previous iteration
+std::vector<Move> previousPV; // Principal variation from the previous iteration (consider make this a parameters)
 
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t TABLE_MAX_SIZE = 1000000; 
+const size_t TABLE_MAX_SIZE = 10000000; 
 
 struct hashEntry {
     int eval = 0;
     int depth = 0;
-    int bestMoveIdx = 0;
+    Move bestMove;
     std::uint64_t hash = 0;
 };
 
@@ -34,9 +33,8 @@ std::vector<hashEntry> whiteHashTable (TABLE_MAX_SIZE);
 std::vector<hashEntry> blackHashTable (TABLE_MAX_SIZE);
 
 int tableHit = 0;
-int globalMaxDepth = 0; // Maximum depth of current search
-int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 2; // top k moves in LMR
+int globalMaxDepth = 0; // Maximum depth of current search. Use this to compute the current ply.
+int k = 4; // top k moves in LMR
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
@@ -52,18 +50,19 @@ const int pieceValues[] = {
     20000 // King
 };
 
+bool tableLookUp(const Board& board, int& eval, const int depth, Move& bestMove, Color color) {
 
-bool tableLookUp(const Board& board, int& eval, const int depth, int& bestMoveIdx, Color color) {
     std::uint64_t hash = board.hash();
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     bool found = false;
 
     if (whiteTurn) {
-        std::uint64_t index = hash % TABLE_MAX_SIZE;
-
+        std::uint64_t index = hash % TABLE_MAX_SIZE; // Compute the location in the hash table
         if (whiteHashTable[index].hash == hash && whiteHashTable[index].depth >= depth) {
+            // If at the location in the hash table we find the same hash and the depth is greater than the current depth
+            // Return the evaluation and best move
             eval = whiteHashTable[index].eval;
-            bestMoveIdx = whiteHashTable[index].bestMoveIdx;
+            bestMove = whiteHashTable[index].bestMove;
             found = true;
         }
         
@@ -72,7 +71,7 @@ bool tableLookUp(const Board& board, int& eval, const int depth, int& bestMoveId
 
         if (blackHashTable[index].hash == hash && blackHashTable[index].depth >= depth) {
             eval = blackHashTable[index].eval;
-            bestMoveIdx = blackHashTable[index].bestMoveIdx;
+            bestMove = blackHashTable[index].bestMove;
             found = true;
         }
         
@@ -80,7 +79,7 @@ bool tableLookUp(const Board& board, int& eval, const int depth, int& bestMoveId
     return found;
 }
 
-void tableUpdate(Board board, int eval, int depth, int bestMoveIdx, Color color) {
+void tableUpdate(Board board, int eval, int depth, Move bestMove, Color color) {
     auto hash = board.hash();
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     auto index = hash % TABLE_MAX_SIZE;
@@ -88,18 +87,12 @@ void tableUpdate(Board board, int eval, int depth, int bestMoveIdx, Color color)
     if (whiteTurn) {
         #pragma omp critical
         {
-            whiteHashTable[index].eval = eval;
-            whiteHashTable[index].depth = depth;
-            whiteHashTable[index].hash = hash;
-            whiteHashTable[index].bestMoveIdx = bestMoveIdx;
+            whiteHashTable[index] = {eval, depth, bestMove, hash};
         }
     } else {
         #pragma omp critical
         {
-            blackHashTable[index].eval = eval;
-            blackHashTable[index].depth = depth;
-            blackHashTable[index].hash = hash;
-            blackHashTable[index].bestMoveIdx = bestMoveIdx;
+            blackHashTable[index] = {eval, depth, bestMove, hash};
         }
     }
 }
@@ -111,73 +104,73 @@ bool isPromotion(const Move& move) {
 }
 
 // Return the priority of a quiet move based on some heuristics
-int threatScore(const Board& board, const Move& move) {
-    auto type = board.at<Piece>(move.from()).type();
-    Color color = board.sideToMove();
+// int threatScore(const Board& board, const Move& move) {
+//     auto type = board.at<Piece>(move.from()).type();
+//     Color color = board.sideToMove();
 
-    Board boardAfter = board;
-    boardAfter.makeMove(move);
+//     Board boardAfter = board;
+//     boardAfter.makeMove(move);
 
-    Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
-    Bitboard theirRook = board.pieces(PieceType::ROOK, !color);
-    Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
-    Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
-    Bitboard theirPawn = board.pieces(PieceType::PAWN, !color);
+//     Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
+//     Bitboard theirRook = board.pieces(PieceType::ROOK, !color);
+//     Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
+//     Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
+//     Bitboard theirPawn = board.pieces(PieceType::PAWN, !color);
 
-    int threat = 0;
+//     int threat = 0;
 
-    while (theirQueen) {
-        int sqIndex = theirQueen.lsb();
-        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+//     while (theirQueen) {
+//         int sqIndex = theirQueen.lsb();
+//         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+//         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
 
-        threat += attackerAfter.count() > attackerBefore.count() ? 9 : 0;
+//         threat += attackerAfter.count() > attackerBefore.count() ? 9 : 0;
 
-        theirQueen.clear(sqIndex);
-    }
+//         theirQueen.clear(sqIndex);
+//     }
 
-    while (theirRook) {
-        int sqIndex = theirRook.lsb();
-        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+//     while (theirRook) {
+//         int sqIndex = theirRook.lsb();
+//         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+//         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
 
-        threat += attackerAfter.count() > attackerBefore.count() ? 5 : 0;
+//         threat += attackerAfter.count() > attackerBefore.count() ? 5 : 0;
 
-        theirRook.clear(sqIndex);
-    }
+//         theirRook.clear(sqIndex);
+//     }
 
-    while (theirBishop) {
-        int sqIndex = theirBishop.lsb();
-        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+//     while (theirBishop) {
+//         int sqIndex = theirBishop.lsb();
+//         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+//         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
 
-        threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
+//         threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
 
-        theirBishop.clear(sqIndex);
-    }
+//         theirBishop.clear(sqIndex);
+//     }
 
-    while (theirKnight) {
-        int sqIndex = theirKnight.lsb();
-        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+//     while (theirKnight) {
+//         int sqIndex = theirKnight.lsb();
+//         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+//         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
 
-        threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
+//         threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
 
-        theirKnight.clear(sqIndex);
-    }
+//         theirKnight.clear(sqIndex);
+//     }
     
-    while (theirPawn) {
-        int sqIndex = theirPawn.lsb();
-        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+//     while (theirPawn) {
+//         int sqIndex = theirPawn.lsb();
+//         Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
+//         Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
 
-        threat += attackerAfter.count() > attackerBefore.count() ? 4 : 0;
+//         threat += attackerAfter.count() > attackerBefore.count() ? 4 : 0;
 
-        theirPawn.clear(sqIndex);
-    }
+//         theirPawn.clear(sqIndex);
+//     }
 
-    return threat;
-}
+//     return threat;
+// }
 
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
@@ -203,9 +196,8 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck();
     bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
-    //bool isThreat = threatScore(board, move) > 0;
 
-    if (i <= 4 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp || isPawnMove) {
+    if (i <= k || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp || isPawnMove) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -232,29 +224,24 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
     for (const auto& move : moves) {
         int priority = 0;
         bool quiet = false;
-        int moveIndex = move.from().index() * 64 + move.to().index();
         int ply = globalMaxDepth - depth;
         bool hashMove = false;
 
         int tableEval;
-        int tableBestMoveIdx = 0;
+        Move tableBestMove;
 
         // Previous hash moves, PV, killer moves, history heuristic, captures, promotions, checks, quiet moves
         // Currently has a bug with the Move object that I don't know how to fix yet
         #pragma omp critical 
         {
-        
-            if (tableLookUp(board, tableEval, 0, tableBestMoveIdx, color)) {
-                int moveIdx = move.from().index() * 64 + move.to().index();
-                if (tableBestMoveIdx == moveIdx) {
+            if (tableLookUp(board, tableEval, 0, tableBestMove, color)) {
+                if (tableBestMove == move) {
                     // std::cout << "Hash move found" << std::endl;
                     priority = 9000;
                     hashMove = true;
                 }
             }
         }
-
-        
 
         if (hashMove) {
             candidates.push_back({move, priority});
@@ -448,8 +435,8 @@ int alphaBeta(Board& board,
     }
 
     int tableEval;
-    int tableBestMoveIdx;
-    bool found = tableLookUp(board, tableEval, depth, tableBestMoveIdx, color);
+    Move tableBestMove;
+    bool found = tableLookUp(board, tableEval, depth, tableBestMove, color);
     if (found) {
         #pragma omp critical
         {
@@ -460,7 +447,7 @@ int alphaBeta(Board& board,
 
     if (depth <= 0) {
         int quiescenceEval = quiescence(board, quiescenceDepth, alpha, beta);
-        //tableUpdate(board, quiescenceEval, 0, 0, color); // Store the quiescence evaluation in the transposition table
+        tableUpdate(board, quiescenceEval, 0, -1, color); // Store the quiescence evaluation in the transposition table
         return quiescenceEval;
     }
 
@@ -566,14 +553,12 @@ int alphaBeta(Board& board,
         }
     }
 
-    int bestMoveIdx;
+    Move bestMove;
     if (PV.size() > 0) {
-        bestMoveIdx = PV[0].from().index() * 64 + PV[0].to().index();
-    } else {
-        bestMoveIdx = -1;
-    }
+        bestMove = PV[0];
+    } else
 
-    tableUpdate(board, bestEval, depth, bestMoveIdx, color);
+    tableUpdate(board, bestEval, depth, bestMove, color);
 
     return bestEval;
 }
@@ -589,12 +574,12 @@ Move findBestMove(Board& board,
     auto startTime = std::chrono::high_resolution_clock::now();
     bool timeLimitExceeded = false;
 
-    Move bestMove = Move(); 
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
+    Move bestMove = Move(); 
+
     bool whiteTurn = board.sideToMove() == Color::WHITE;
 
-    std::vector<std::pair<Move, int>> moves;
-    std::vector<Move> globalPV (maxDepth);
+    std::vector<std::pair<Move, int>> moves; // A vector of moves and their evaluation
 
 
     if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
@@ -602,8 +587,7 @@ Move findBestMove(Board& board,
         k = INF;
     }
 
-
-    globalQuiescenceDepth = quiescenceDepth;
+    //globalQuiescenceDepth = quiescenceDepth;
     omp_set_num_threads(numThreads);
 
     // Clear transposition tables
@@ -689,18 +673,17 @@ Move findBestMove(Board& board,
         bestMove = currentBestMove;
         
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
-        int currentBestMoveIdx = currentBestMove.from().index() * 64 + currentBestMove.to().index();
         if (whiteTurn) {
             std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
                 return a.second > b.second;
             });
-            tableUpdate(board, currentBestEval, depth, currentBestMoveIdx, Color::WHITE);
+            tableUpdate(board, currentBestEval, depth, currentBestMove, Color::WHITE);
 
         } else {
             std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
                 return a.second < b.second;
             });
-            tableUpdate(board, currentBestEval, depth, currentBestMoveIdx, Color::BLACK);
+            tableUpdate(board, currentBestEval, depth, currentBestMove, Color::BLACK);
         }
 
         moves = newMoves;
