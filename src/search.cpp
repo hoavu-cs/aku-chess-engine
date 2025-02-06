@@ -14,19 +14,21 @@
 
 using namespace chess;
 
+typedef std::uint64_t U64;
+
 // Time management
 std::vector<Move> previousPV; // Principal variation from the previous iteration (consider make this a parameters)
 
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t TABLE_MAX_SIZE = 10000000; 
+const size_t TABLE_MAX_SIZE = 2000000; 
 
 struct hashEntry {
     int eval = 0;
     int depth = 0;
     Move bestMove;
-    std::uint64_t hash = 0;
+    U64 hash = 0;
 };
 
 std::vector<hashEntry> whiteHashTable (TABLE_MAX_SIZE);
@@ -51,30 +53,27 @@ const int pieceValues[] = {
 };
 
 bool tableLookUp(const Board& board, int& eval, const int depth, Move& bestMove, Color color) {
-
-    std::uint64_t hash = board.hash();
+    U64 hash = board.hash();
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     bool found = false;
 
+    // If at the location in the hash table we find the same hash and the depth >= current depth
+    // Return the evaluation and best move
     if (whiteTurn) {
-        std::uint64_t index = hash % TABLE_MAX_SIZE; // Compute the location in the hash table
+        U64 index = hash % TABLE_MAX_SIZE; // Compute the location in the hash table
         if (whiteHashTable[index].hash == hash && whiteHashTable[index].depth >= depth) {
-            // If at the location in the hash table we find the same hash and the depth is greater than the current depth
-            // Return the evaluation and best move
             eval = whiteHashTable[index].eval;
             bestMove = whiteHashTable[index].bestMove;
             found = true;
         }
-        
     } else {
-        std::uint64_t index = hash % TABLE_MAX_SIZE;
+        U64 index = hash % TABLE_MAX_SIZE;
 
         if (blackHashTable[index].hash == hash && blackHashTable[index].depth >= depth) {
             eval = blackHashTable[index].eval;
             bestMove = blackHashTable[index].bestMove;
             found = true;
         }
-        
     }
     return found;
 }
@@ -218,7 +217,7 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
-    std::uint64_t hash = board.hash();
+    U64 hash = board.hash();
 
     // Move ordering 1. promotion 2. captures 3. killer moves 4. hash 5. checks 6. quiet moves
     for (const auto& move : moves) {
@@ -717,7 +716,7 @@ Move findBestMove(Board& board,
         // A position is unstable if the average evaluation changes by more than 50cp from 4 plies ago
         bool stableEval = true;
         if (depth >= 4 && depth <= ENGINE_DEPTH) {  
-            if (std::abs(evals[depth] - evals[depth - 4]) > 50) {
+            if (std::abs(evals[depth] - evals[depth - 4]) > 25) {
                 stableEval = false; 
             }
         }

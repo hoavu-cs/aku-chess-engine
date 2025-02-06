@@ -20,6 +20,14 @@ const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
+// Pawn hash table
+// std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> whitePawnHashTable;
+// std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackPawnHashTable;
+
+// std::unordered_map<std::uint64_t, int> whiteKingHashTable;
+// std::unordered_map<std::uint64_t, int> blackKingHashTable;
+
+const int maxHashTableSize = 100000000;
 
 // Knight piece-square tables
 const int whiteKnightTableMid[64] = {
@@ -687,6 +695,18 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     std::uint64_t ourPawnsBits = ourPawns.getBits();
     std::uint64_t theirPawnsBits = theirPawns.getBits();
 
+    // Select the appropriate pawn hash table based on color
+    // auto& pawnHashTable = (color == Color::WHITE) ? whitePawnHashTable : blackPawnHashTable;
+
+    // // Check if the pawn structure value is already stored
+    // auto itOuter = pawnHashTable.find(ourPawnsBits);
+    // if (itOuter != pawnHashTable.end()) {
+    //     auto itInner = itOuter->second.find(theirPawnsBits);
+    //     if (itInner != itOuter->second.end()) {
+    //         return itInner->second;
+    //     }
+    // }
+
     double midGameWeight = info.gamePhase / 24.0;
     double endGameWeight = 1.0 - midGameWeight;
 
@@ -1280,7 +1300,14 @@ int evaluate(const Board& board) {
     if (knownDraw(board)) {
         return 0;
     }
-
+    
+    // Clear the hash tables if full
+    // if (whitePawnHashTable.size() > maxHashTableSize) {
+    //     whitePawnHashTable.clear();
+    // }
+    // if (blackPawnHashTable.size() > maxHashTableSize) {
+    //     blackPawnHashTable.clear();
+    // }
 
 
     /*--------------------------------------------------------------------------

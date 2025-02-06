@@ -70,7 +70,8 @@ int main() {
     // board = Board("8/4k1p1/6K1/p1PP1pPP/P4P2/8/8/8 w - - 1 60"); // tactical test
 
     // board = Board("1Q5r/3Rkppp/p3b1qn/8/5P2/P4P2/1PP2K1P/R1B5 b - - 0 24");
-    // board = Board("5rk1/6pp/3P2n1/2r1p3/2P1RP2/6P1/3R2KP/8 b - - 2 443");
+    
+    board = Board("Q7/P4rk1/3q1np1/8/3p1b1p/1P1P3P/2P1R1P1/5R1K b - - 0 37"); // tactial test
 
     // Default settings
     int depth = 30;
