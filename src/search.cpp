@@ -14,12 +14,6 @@
 
 using namespace chess;
 
-// Constants and global variables
-// std::unordered_map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
-// std::unordered_map<std::uint64_t, Move> whiteHashMove;
-
-std::unordered_map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
-std::unordered_map<std::uint64_t, Move> blackHashMove;
 
 // Time management
 std::vector<Move> previousPV; // Principal variation from the previous iteration
@@ -30,20 +24,14 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 const size_t TABLE_MAX_SIZE = 1000000; 
 
 struct hashEntry {
-    int eval;
-    int depth;
-    Move bestMove;
-    std::uint64_t hash;
+    int eval = 0;
+    int depth = 0;
+    int bestMoveIdx = 0;
+    std::uint64_t hash = 0;
 };
 
-struct moveHashEntry {
-    Move move;
-    std::uint64_t hash;
-};
-
-hashEntry whiteHashTable[TABLE_MAX_SIZE]; // Transposition table
-hashEntry blackHashTable[TABLE_MAX_SIZE]; // Transposition table
-
+std::vector<hashEntry> whiteHashTable (TABLE_MAX_SIZE);
+std::vector<hashEntry> blackHashTable (TABLE_MAX_SIZE);
 
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
@@ -65,67 +53,57 @@ const int pieceValues[] = {
 };
 
 
-
-
-
-// Transposition table lookup
-// bool transTableLookUp(std::unordered_map<std::uint64_t, std::pair<int, int>>& table, 
-//                             std::uint64_t hash, 
-//                             int depth, 
-//                             int& eval) {
-//     auto it = table.find(hash);
-//     bool found = it != table.end() && it->second.second >= depth;
-
-//     if (found) {
-//         eval = it->second.first;
-//         return true;
-//     } else {
-//         return false;
-//     }
-// }
-
-// Look up the transposition table for evaluation and best move
-bool tableLookUp(const Board& board, int& eval, const int depth, Move& bestMove, Color color) {
+bool tableLookUp(const Board& board, int& eval, const int depth, int& bestMoveIdx, Color color) {
     std::uint64_t hash = board.hash();
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-    #pragma omp critical
-    {
-        if (whiteTurn) {
-            std::uint64_t index = hash % TABLE_MAX_SIZE;
-            if (whiteHashTable[index].hash == hash && whiteHashTable[index].depth >= depth) {
-                eval = whiteHashTable[index].eval;
-                bestMove = whiteHashTable[index].bestMove;
-                return true;
-            }
-        }  else {
-            std::uint64_t index = hash % TABLE_MAX_SIZE;
-            if (blackHashTable[index].hash == hash && blackHashTable[index].depth >= depth) {
-                eval = blackHashTable[index].eval;
-                bestMove = blackHashTable[index].bestMove;
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-void tableUpdate(Board& board, int eval, int depth, Move bestMove, Color color) {
-    std::uint64_t hash = board.hash();
-    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    bool found = false;
 
     if (whiteTurn) {
         std::uint64_t index = hash % TABLE_MAX_SIZE;
-        std::cout << "index: " << index << std::endl;
-        #pragma omp critical
-        whiteHashTable[index] = {eval, depth, bestMove, hash};
+
+        if (whiteHashTable[index].hash == hash && whiteHashTable[index].depth >= depth) {
+            eval = whiteHashTable[index].eval;
+            bestMoveIdx = whiteHashTable[index].bestMoveIdx;
+            found = true;
+        }
+        
     } else {
         std::uint64_t index = hash % TABLE_MAX_SIZE;
-        #pragma omp critical
-        blackHashTable[index] = {eval, depth, bestMove, hash};
+
+        if (blackHashTable[index].hash == hash && blackHashTable[index].depth >= depth) {
+            eval = blackHashTable[index].eval;
+            bestMoveIdx = blackHashTable[index].bestMoveIdx;
+            found = true;
+        }
+        
     }
-    
+    return found;
 }
+
+void tableUpdate(Board board, int eval, int depth, int bestMoveIdx, Color color) {
+    auto hash = board.hash();
+    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    auto index = hash % TABLE_MAX_SIZE;
+
+    if (whiteTurn) {
+        #pragma omp critical
+        {
+            whiteHashTable[index].eval = eval;
+            whiteHashTable[index].depth = depth;
+            whiteHashTable[index].hash = hash;
+            whiteHashTable[index].bestMoveIdx = bestMoveIdx;
+        }
+    } else {
+        #pragma omp critical
+        {
+            blackHashTable[index].eval = eval;
+            blackHashTable[index].depth = depth;
+            blackHashTable[index].hash = hash;
+            blackHashTable[index].bestMoveIdx = bestMoveIdx;
+        }
+    }
+}
+
 
 // Check if a move is a promotion
 bool isPromotion(const Move& move) {
@@ -259,42 +237,24 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
         bool hashMove = false;
 
         int tableEval;
-        Move tableBestMove;
+        int tableBestMoveIdx = 0;
 
         // Previous hash moves, PV, killer moves, history heuristic, captures, promotions, checks, quiet moves
+        // Currently has a bug with the Move object that I don't know how to fix yet
         #pragma omp critical 
         {
-            // if (whiteTurn) {
-            //     if (tableLookUp(board, tableEval, 0, tableBestMove, color)) {
-            //         if (tableBestMove == move) {
-            //             priority = 9000;
-            //             hashMove = true;
-            //         }
-            //     } 
-            // } else {
-            //     if (tableLookUp(board, tableEval, 0, tableBestMove, color)) {
-            //         if (tableBestMove == move) {
-            //             priority = 9000;
-            //             hashMove = true;
-            //         }
-            //     }
-            // }
-            // if (whiteTurn) {
-            //     if (whiteHashMove.find(hash) != whiteHashMove.end() && whiteHashMove[hash] == move) {
-            //         priority = 9000;
-            //         candidates.push_back({move, priority});
-            //         hashMove = true;
-            //     }
-
-            // } else {
-  
-            //     if (blackHashMove.find(hash) != blackHashMove.end() && blackHashMove[hash] == move) {
-            //         priority = 9000;
-            //         candidates.push_back({move, priority});
-            //         hashMove = true;
-            //     }
-            // }
+        
+            if (tableLookUp(board, tableEval, 0, tableBestMoveIdx, color)) {
+                int moveIdx = move.from().index() * 64 + move.to().index();
+                if (tableBestMoveIdx == moveIdx) {
+                    // std::cout << "Hash move found" << std::endl;
+                    priority = 9000;
+                    hashMove = true;
+                }
+            }
         }
+
+        
 
         if (hashMove) {
             candidates.push_back({move, priority});
@@ -488,50 +448,19 @@ int alphaBeta(Board& board,
     }
 
     int tableEval;
-    Move tableBestMove;
-    // bool found = tableLookUp(board, tableEval, depth, tableBestMove, color);
-
-    // if (found) {
-    //     return tableEval;
-    // }
-
-    //enforceTableSize(lowerBoundTable);
-
-    // Probe the transposition table
-    // std::uint64_t hash = board.hash();
-    // bool found = false;
-    // int storedEval;
-    
-    // #pragma omp critical
-    // { 
-    //     if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
-    //         (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
-    //         found = true;
-
-    //         tableHit++;
-    //     }
-    // }
-
-    // if (found) {
-    //     return storedEval;
-    // } 
+    int tableBestMoveIdx;
+    bool found = tableLookUp(board, tableEval, depth, tableBestMoveIdx, color);
+    if (found) {
+        #pragma omp critical
+        {
+            tableHit++;
+        }
+        return tableEval;
+    }
 
     if (depth <= 0) {
         int quiescenceEval = quiescence(board, quiescenceDepth, alpha, beta);
-        
-        // if (whiteTurn) {
-        //     #pragma omp critical
-        //     {
-        //         lowerBoundTable[hash] = {quiescenceEval, 0};
-        //     }
-            
-        // } else {
-        //     #pragma omp critical 
-        //     {
-        //         upperBoundTable[hash] = {quiescenceEval, 0};
-        //     }
-        // }
-        
+        //tableUpdate(board, quiescenceEval, 0, 0, color); // Store the quiescence evaluation in the transposition table
         return quiescenceEval;
     }
 
@@ -637,8 +566,14 @@ int alphaBeta(Board& board,
         }
     }
 
+    int bestMoveIdx;
+    if (PV.size() > 0) {
+        bestMoveIdx = PV[0].from().index() * 64 + PV[0].to().index();
+    } else {
+        bestMoveIdx = -1;
+    }
 
-    tableUpdate(board, bestEval, depth, PV[0], color);
+    tableUpdate(board, bestEval, depth, bestMoveIdx, color);
 
     return bestEval;
 }
@@ -749,31 +684,23 @@ Move findBestMove(Board& board,
                 }
             }
         }
+
+        bestEval = currentBestEval;
+        bestMove = currentBestMove;
         
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
-        bestMove = currentBestMove;
-        bestEval = currentBestEval;
-
+        int currentBestMoveIdx = currentBestMove.from().index() * 64 + currentBestMove.to().index();
         if (whiteTurn) {
             std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
                 return a.second > b.second;
             });
+            tableUpdate(board, currentBestEval, depth, currentBestMoveIdx, Color::WHITE);
 
-            
-
-            // #pragma omp critical
-            // {
-            //     lowerBoundTable[board.hash()] = {bestEval, depth};
-            // }
         } else {
             std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
                 return a.second < b.second;
             });
-
-            // #pragma omp critical
-            // {
-            //     upperBoundTable[board.hash()] = {bestEval, depth};
-            // }
+            tableUpdate(board, currentBestEval, depth, currentBestMoveIdx, Color::BLACK);
         }
 
         moves = newMoves;
