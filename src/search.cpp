@@ -164,7 +164,7 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     //bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= 5 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
+    if (i <= 3 || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
         return depth - 1;
     } else {
         return depth / 2;
@@ -451,6 +451,7 @@ int alphaBeta(Board& board,
                 std::vector<Move> nullPV;
                 int nullEval;
                 int reduction = 3;
+                if (depth > 6) reduction = 4;
 
                 if (whiteTurn) {
                     nullEval = alphaBeta(board, depth - reduction, beta - 1, beta, quiescenceDepth, nullPV, false);
@@ -469,20 +470,35 @@ int alphaBeta(Board& board,
         }
     }
 
+    // Futility pruning
+    const int futilityMargin = 400;
+    if (depth == 1 && !board.inCheck() && !endGameFlag) {
+        int standPat = evaluate(board);
+        if (whiteTurn) {
+            if (standPat + futilityMargin < alpha) {
+                return standPat + futilityMargin;
+            }
+        } else {
+            if (standPat - futilityMargin > beta) {
+                return standPat - futilityMargin;
+            }
+        }
+    }
+
     // Razoring
-    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
-    //     int razorMargin = 600;
-    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-    //     if (whiteTurn) {
-    //         if (standPat + razorMargin < alpha) {
-    //             return standPat + razorMargin;
-    //         }
-    //     } else {
-    //         if (standPat - razorMargin > beta) {
-    //             return standPat - razorMargin;
-    //         }
-    //     }
-    // }
+    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
+        int razorMargin = 600;
+        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+        if (whiteTurn) {
+            if (standPat + razorMargin < alpha) {
+                return standPat + razorMargin;
+            }
+        } else {
+            if (standPat - razorMargin > beta) {
+                return standPat - razorMargin;
+            }
+        }
+    }
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? alpha - 1 : beta + 1;
@@ -508,6 +524,20 @@ int alphaBeta(Board& board,
             eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost);
         }
         board.unmakeMove(move);
+
+        if (whiteTurn) {
+            board.makeMove(move);
+            if (eval > alpha && nextDepth < depth - 1) {
+                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost);
+            } 
+            board.unmakeMove(move);
+        } else {
+            board.makeMove(move);
+            if (eval < beta && nextDepth < depth - 1) {
+                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost);
+            }
+            board.unmakeMove(move);
+        }
 
         if (whiteTurn) {
             if (eval > alpha) {
@@ -718,7 +748,10 @@ Move findBestMove(Board& board,
         timeLimitExceeded = duration > timeLimit;
         spendTooMuchTime = duration > 2 * timeLimit;
 
-        //bool complete = static_cast<int>(PV.size()) > depth - 2;
+        bool complete = true;//static_cast<int>(PV.size()) > depth - 2;
+        if (!complete && !spendTooMuchTime) {
+            continue;
+        }
         // If the PV is full, store the best move and evaluation for the current depth
 
         evals[depth] = bestEval;
