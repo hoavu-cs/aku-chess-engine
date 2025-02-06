@@ -876,7 +876,7 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
             }
             knightMoves.clear(sqIndexMove);
         }
-        value +=  mobilityBonus * mobility;
+        value +=  mobilityBonus * (mobility - 4);
         knights.clear(sqIndex);
     }
 
@@ -917,7 +917,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
         Bitboard bishopMoves = attacks::bishop(Square(sqIndex), ourPawns);
 
         int mobility = std::min(bishopMoves.count(), 12);
-        value += mobilityBonus * mobility;
+        value += mobilityBonus * (mobility - 7);
 
         if (isOutpost(board, sqIndex, color)) {
             value += outpostBonus;
@@ -973,7 +973,7 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
         int mobility = std::min(rookMoves.count(), 12);
-        value += mobilityBonus * mobility;
+        value += mobilityBonus * (mobility - 7);
         rooks.clear(sqIndex);
     }
     
@@ -990,7 +990,7 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
     double endGameWeight = 1.0 - midGameWeight;
 
     // Give a bigger bonus for mobility near the endgame
-    int mobilityBonus = info.gamePhase < 12 ? 3 : 2;
+    int mobilityBonus = info.gamePhase < 12 ? 2 : 1;
     
     Bitboard queens = board.pieces(PieceType::QUEEN, color);
     Bitboard theirKing = board.pieces(PieceType::KING, !color);
@@ -1014,7 +1014,7 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
 
         Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
         int mobility = std::min(queenMoves.count(), 12);
-        value += mobilityBonus * mobility;
+        value += mobilityBonus * (mobility - 14);
         queens.clear(sqIndex); 
     }
     return value;

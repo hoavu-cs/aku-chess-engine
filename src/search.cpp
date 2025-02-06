@@ -27,11 +27,10 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<Move>> killerMoves(100); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-const size_t tableMaxSize = 1000000; 
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 4; // top k moves in LMR
+int k = 4; // top k moves in LMR to not be reduced
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
@@ -170,7 +169,6 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     } else {
         return depth / 2;
     }
-
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -471,22 +469,22 @@ int alphaBeta(Board& board,
         }
     }
 
-    // // Futility pruning
-    // const int futilityMargin = 400;
-    // if (depth == 1 && !board.inCheck() && !endGameFlag) {
-    //     int standPat = evaluate(board);
-    //     if (whiteTurn) {
-    //         if (standPat + futilityMargin < alpha) {
-    //             return standPat + futilityMargin;
-    //         }
-    //     } else {
-    //         if (standPat - futilityMargin > beta) {
-    //             return standPat - futilityMargin;
-    //         }
-    //     }
-    // }
+    // Futility pruning
+    const int futilityMargin = 400;
+    if (depth == 1 && !board.inCheck() && !endGameFlag) {
+        int standPat = evaluate(board);
+        if (whiteTurn) {
+            if (standPat + futilityMargin < alpha) {
+                return standPat + futilityMargin;
+            }
+        } else {
+            if (standPat - futilityMargin > beta) {
+                return standPat - futilityMargin;
+            }
+        }
+    }
 
-    // // Razoring
+    // Razoring
     // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
     //     int razorMargin = 600;
     //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
@@ -785,6 +783,15 @@ Move findBestMove(Board& board,
                 depth++;
             }
         }
+    }
+
+    #pragma omp critical
+    {
+        lowerBoundTable = {};
+        upperBoundTable = {};
+        whiteHashMove = {};
+        blackHashMove = {};
+        clearPawnHashTable();
     }
 
     return bestMove; 
