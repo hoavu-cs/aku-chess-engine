@@ -71,7 +71,7 @@ int main() {
 
     board = Board("4rrk1/pp3ppp/3b1n2/q2pnQN1/8/2NP4/PPPB1PPP/R4RK1 b - - 13 15");
 
-    board = Board("Q7/P4rk1/3q1np1/8/3p1b1p/1P1P3P/2P1R1P1/5R1K b - - 0 37"); // tactial test
+    // board = Board("Q7/P4rk1/3q1np1/8/3p1b1p/1P1P3P/2P1R1P1/5R1K b - - 0 37"); // tactial test
 
     // Default settings
     int depth = 30;
