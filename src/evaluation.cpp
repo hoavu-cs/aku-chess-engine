@@ -1571,9 +1571,51 @@ int evaluate(const Board& board) {
                                 (Bitboard::fromSquare(Square(Square::underlying::SQ_C8)) | 
                                 Bitboard::fromSquare(Square(Square::underlying::SQ_F8)));
 
-    // Apply penalty if black queen moved early
+    
     if (blackQueenDeveloped) {
         blackScore -= 5 * (blackKnightNotMoved.count() + blackBishopNotMoved.count());
+    }
+
+
+
+    const int trappedBishopPenalty = 250;
+
+    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
+    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
+
+    // Case 1: White bishop stuck on a7 or b8 (blocked by black pawns on b6 and c7)
+    if (whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_A7)) ||
+        whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_B8))) {
+        if ((board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_B6))) &&
+            (board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_C7)))) {
+            whiteScore -= trappedBishopPenalty; 
+        }
+    }
+
+    // Case 2: White bishop stuck on h7 or g8 (blocked by black pawns on g6 and f7)
+    if (whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_H7)) ||
+        whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_G8))) {
+        if ((board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_G6))) &&
+            (board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_F7)))) {
+            whiteScore -= trappedBishopPenalty; 
+        }
+    }
+
+
+    // Case 1b: Black bishop stuck on a2 (blocked by white pawns on b3 and c2)
+    if (blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_A2))) {
+        if ((board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_B3))) &&
+            (board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_C2)))) {
+            blackScore -= trappedBishopPenalty;
+        }
+    }
+
+    // Case 2b: Black bishop stuck on h2 (blocked by white pawns on g3 and f2)
+    if (blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_H2))) {
+        if ((board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_G3))) &&
+            (board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_F2)))) {
+            blackScore -= trappedBishopPenalty;
+        }
     }
 
 

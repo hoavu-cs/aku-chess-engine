@@ -260,7 +260,7 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
         } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) 
                 != killerMoves[depth].end()) {
             // Killer
-            priority = 8000;
+            priority = 3900;
 
         } else if (isPromotion(move)) {
 
