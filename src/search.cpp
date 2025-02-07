@@ -89,53 +89,83 @@ int quietPriority(const Board& board, const Move& move) {
 
     if (type == PieceType::KNIGHT) {
         // Check if the move attacks the opponent's pieces
-        threat += (attacks::knight(move.to()) & theirQueen).count() * 9;
-        threat += (attacks::knight(move.to()) & theirRooks).count() * 5;
-        threat += (attacks::knight(move.to()) & theirBishops).count() * 3;
-        threat += (attacks::knight(move.to()) & theirPawns).count() * 1;
+        threat += (attacks::knight(move.to()) & theirQueen).count() * 40;
+        threat += (attacks::knight(move.to()) & theirRooks).count() * 20;
+        threat += (attacks::knight(move.to()) & theirBishops).count() * 15;
+        threat += (attacks::knight(move.to()) & theirPawns).count() * 10;
 
         if (manhattanDistance(move.to(), theirKingSq) <= 5) {
-            threat += 3;
+            threat += 30;
         }
     }
 
     if (type == PieceType::BISHOP) {
-        threat += (attacks::bishop(move.to(), board.occ()) & theirQueen).count() * 9;
-        threat += (attacks::bishop(move.to(), board.occ()) & theirRooks).count() * 5;
-        threat += (attacks::bishop(move.to(), board.occ()) & theirKnights).count() * 3;
-        threat += (attacks::bishop(move.to(), board.occ()) & theirPawns).count() * 1;
+        threat += (attacks::bishop(move.to(), board.occ()) & theirQueen).count() * 40;
+        threat += (attacks::bishop(move.to(), board.occ()) & theirRooks).count() * 20;
+        threat += (attacks::bishop(move.to(), board.occ()) & theirKnights).count() * 15;
+        threat += (attacks::bishop(move.to(), board.occ()) & theirPawns).count() * 10;
+
         if (manhattanDistance(move.to(), theirKingSq) <= 5) {
-            threat += 3;
+            threat += 30;
         }
     }
 
     if (type == PieceType::ROOK) {
-        threat += (attacks::rook(move.to(), board.occ()) & theirQueen).count() * 9;
-        threat += (attacks::rook(move.to(), board.occ()) & theirBishops).count() * 3;
-        threat += (attacks::rook(move.to(), board.occ()) & theirKnights).count() * 3;
-        threat += (attacks::rook(move.to(), board.occ()) & theirPawns).count() * 1;
+        threat += (attacks::rook(move.to(), board.occ()) & theirQueen).count() * 40;
+        threat += (attacks::rook(move.to(), board.occ()) & theirBishops).count() * 15;
+        threat += (attacks::rook(move.to(), board.occ()) & theirKnights).count() * 15;
+        threat += (attacks::rook(move.to(), board.occ()) & theirPawns).count() * 10;
+
+        int destinationIndx = move.to().index();
+        int file = destinationIndx % 8;
+        
+        // If the move is to an open or semi-open file, increase the threat
+        if (isOpenFile(board, file) || isSemiOpenFile(board, file, color)) {
+            threat += 30;
+        }
+
+        // Moving closer to the opponent's king
         if (manhattanDistance(move.to(), theirKingSq) <= 5) {
-            threat += 3;
+            threat += 20;
+        }
+
+        // Within 1 rank or file of the opponent's king
+        if (minDistance(move.to(), theirKingSq) <= 1) {
+            threat += 30;
         }
     }
 
     if (type == PieceType::QUEEN) {
-        threat += (attacks::queen(move.to(), board.occ()) & theirRooks).count() * 5;
-        threat += (attacks::queen(move.to(), board.occ()) & theirBishops).count() * 3;
-        threat += (attacks::queen(move.to(), board.occ()) & theirKnights).count() * 3;
-        threat += (attacks::queen(move.to(), board.occ()) & theirPawns).count() * 1;
+        threat += (attacks::queen(move.to(), board.occ()) & theirRooks).count() * 20;
+        threat += (attacks::queen(move.to(), board.occ()) & theirBishops).count() * 15;
+        threat += (attacks::queen(move.to(), board.occ()) & theirKnights).count() * 15;
+        threat += (attacks::queen(move.to(), board.occ()) & theirPawns).count() * 10;
         if (manhattanDistance(move.to(), theirKingSq) <= 5) {
-            threat += 3;
+            threat += 50;
         }
     }
 
     if (type == PieceType::PAWN) {
-        threat += (attacks::pawn(color, move.to()) & theirQueen).count() * 9;
-        threat += (attacks::pawn(color, move.to()) & theirRooks).count() * 5;
-        threat += (attacks::pawn(color, move.to()) & theirBishops).count() * 3;
-        threat += (attacks::pawn(color, move.to()) & theirKnights).count() * 3;
+        threat += (attacks::pawn(color, move.to()) & theirQueen).count() * 40;
+        threat += (attacks::pawn(color, move.to()) & theirRooks).count() * 20;
+        threat += (attacks::pawn(color, move.to()) & theirBishops).count() * 15;
+        threat += (attacks::pawn(color, move.to()) & theirKnights).count() * 15;
+
+        int destinationIndx = move.to().index();
+        int rank = destinationIndx / 8;
+
+        if (color == Color::WHITE) {
+            if (rank > 3) {
+                threat += 20;
+            }
+        } else {
+            if (rank < 4) {
+                threat += 20;
+            }
+        }
+
         if (manhattanDistance(move.to(), theirKingSq) <= 3) {
-            threat += 3;
+            threat += 30;
         }
     }
 
@@ -221,7 +251,6 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
             continue;
         }
 
-
         if (previousPV.size() > ply && leftMost) {
             // Previous PV
             if (previousPV[ply] == move) {
@@ -253,9 +282,7 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
 
             if (isCheck) {
                 priority = 3000;
-            } 
-            
-            else {
+            } else {
                 quiet = true;
                 priority = quietPriority(board, move);
             }

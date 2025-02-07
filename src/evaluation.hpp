@@ -54,6 +54,14 @@ bool isEndGame(const Board& board, Color color);
 bool isPassedPawn(int sqIndex, Color color, const Bitboard& enemyPawns);
 
 /**
+ * Compute the min distance between two squares.
+ * @param sq1 The first square.
+ * @param sq2 The second square.
+ * @return The Manhattan distance between the two squares.
+ */
+int minDistance(const Square& sq1, const Square& sq2);
+
+/**
  * Compute the Manhattan distance between two squares.
  * @param sq1 The first square.
  * @param sq2 The second square.
