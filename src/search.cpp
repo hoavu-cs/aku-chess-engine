@@ -30,7 +30,7 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 4; // top k moves in LMR to not be reduced
+int k = 2; // top k moves in LMR to not be reduced
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
@@ -134,8 +134,6 @@ int quietPriority(const Board& board, const Move& move) {
         theirPawn.clear(sqIndex);
     }
 
-
-
     return threat;
 }
 
@@ -166,6 +164,8 @@ int depthReduction(Board& board, Move move, int i, int depth) {
 
     if (i <= k || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
         return depth - 1;
+    } else if (i <= 2 * k) {
+        return depth - 2;
     } else {
         return depth / 2;
     }
@@ -338,6 +338,16 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
         }         
     }
 
+    // Delta pruning
+    int deltaMargin = 200 + greatestMaterialGain;
+    if (depth <= 3) {
+        if (whiteTurn && standPat + deltaMargin < alpha) {
+            return alpha;
+        } else if (!whiteTurn && standPat - deltaMargin > beta) {
+            return beta;
+        }
+    }
+
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
@@ -470,19 +480,20 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning
-    const int futilityMargin = 400;
-    if (depth == 1 && !board.inCheck() && !endGameFlag) {
-        int standPat = evaluate(board);
-        if (whiteTurn) {
-            if (standPat + futilityMargin < alpha) {
-                return standPat + futilityMargin;
-            }
-        } else {
-            if (standPat - futilityMargin > beta) {
-                return standPat - futilityMargin;
-            }
-        }
-    }
+    // const int futilityMargin[4] = {0, 200, 400, 700};
+    // if (depth <= 3 && !board.inCheck() && !endGameFlag) {
+    //     int futi
+    //     int standPat = evaluate(board);
+    //     if (whiteTurn) {
+    //         if (standPat + futilityMargin < alpha) {
+    //             return standPat + futilityMargin;
+    //         }
+    //     } else {
+    //         if (standPat - futilityMargin > beta) {
+    //             return standPat - futilityMargin;
+    //         }
+    //     }
+    // }
 
     // Razoring
     // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
@@ -656,16 +667,34 @@ Move findBestMove(Board& board,
             bool newBestFlag = false;  
             int nextDepth = depthReduction(localBoard, move, i, depth);
             int eval = whiteTurn ? -INF : INF;
+            int aspiration;
+            if (depth == 1) {
+                aspiration = evaluate(localBoard);
+            } else {
+                aspiration = evals[depth - 1];
+            }
+            int windowLeft = 1000;
+            int windowRight = 1000;
 
-            localBoard.makeMove(move);
-            eval = alphaBeta(localBoard, 
-                            nextDepth, 
-                           -INF, 
-                            INF, 
-                            quiescenceDepth, 
-                            childPV, 
-                            leftMost);
-            localBoard.unmakeMove(move);
+            while (true) {
+                localBoard.makeMove(move);
+                eval = alphaBeta(localBoard, 
+                                nextDepth, 
+                                aspiration - windowLeft, 
+                                aspiration + windowRight,
+                                quiescenceDepth, 
+                                childPV, 
+                                leftMost);
+                localBoard.unmakeMove(move);
+
+                if (eval <= aspiration - windowLeft) {
+                    windowLeft *= 2;
+                } else if (eval >= aspiration + windowRight) {
+                    windowRight *= 2;
+                } else {
+                    break;
+                }
+            }
 
             #pragma omp critical
             {
@@ -763,11 +792,14 @@ Move findBestMove(Board& board,
         evals[depth] = bestEval;
         candidateMove[depth] = bestMove; 
 
-        // A position is unstable if the average evaluation changes by more than 50cp from 4 plies ago
+        // Check for stable evaluation
         bool stableEval = true;
         if (depth >= 4 && depth <= ENGINE_DEPTH) {  
-            if (std::abs(evals[depth] - evals[depth - 4]) > 25) {
-                stableEval = false; 
+            for (int i = 0; i < 4; i++) {
+                if (std::abs(evals[depth - i] - evals[depth - i - 1]) > 25) {
+                    stableEval = false;
+                    break;
+                }
             }
         }
 

@@ -171,6 +171,29 @@ int weakPawnPenaltyTable[64] = {
 	 0,   0,   0,   0,   0,   0,   0,   0
 };
 
+const int whitePassedPawnTable[64] = {
+	 0,   0,   0,   0,   0,   0,   0,   0,
+	20,  20,  20,  20,  20,  20,  20,  20,
+	20,  20,  20,  20,  20,  20,  20,  20,
+	32,  32,  32,  32,  32,  32,  32,  32,
+	56,  56,  56,  56,  56,  56,  56,  56,
+	92,  92,  92,  92,  92,  92,  92,  92,
+   140, 140, 140, 140, 140, 140, 140, 140,
+	 0,   0,   0,   0,   0,   0,   0,   0
+};
+
+
+const int blackPassedPawnTable[64] = {
+	 0,   0,   0,   0,   0,   0,   0,   0,
+   140, 140, 140, 140, 140, 140, 140, 140,
+	92,  92,  92,  92,  92,  92,  92,  92,
+	56,  56,  56,  56,  56,  56,  56,  56,
+	32,  32,  32,  32,  32,  32,  32,  32,
+	20,  20,  20,  20,  20,  20,  20,  20,
+	20,  20,  20,  20,  20,  20,  20,  20,
+	 0,   0,   0,   0,   0,   0,   0,   0
+};
+
 
 // Rook piece-square tables
 const int whiteRookTableMid[64] = {
@@ -729,8 +752,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     const int isolatedPawnPenalty = 20;
     const int unSupportedPenalty = 25;
     const int doubledPawnPenalty = 30;
-    const int awkwardPenalty = 30;
-    const int passedPawnAdvancedBonus = 10;
+    const int doubledPawnPenaltyDE = 40;
 
     int files[8] = {0};
     int value = 0;
@@ -781,7 +803,6 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
         // Add bonus for passed pawns, especially if they are protected
         if (isPassedPawn(sqIndex, color, theirPawns)) {
-
             if (isProtectedByPawn(sqIndex, board, color)) {
                 value += protectedPassedPawnBonus;
             } else {            
@@ -789,9 +810,9 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
             }
 
             if (color == Color::WHITE) {
-                value += passedPawnAdvancedBonus * rank;
+                value += whitePassedPawnTable[sqIndex];
             } else {
-                value += passedPawnAdvancedBonus * (6 - rank);
+                value += blackPassedPawnTable[sqIndex];
             }
         }  
         
@@ -819,7 +840,9 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     
     // Add penalty for doubled pawns
     for (int i = 0; i < 8; i++) {
-        if (files[i] > 1) {
+        if (i == 3 || i == 4) {
+            value -= (files[i] - 1) * doubledPawnPenaltyDE;
+        } else {
             value -= (files[i] - 1) * doubledPawnPenalty;
         }
     }
@@ -1467,6 +1490,7 @@ int evaluate(const Board& board) {
         Pattern detection
     --------------------------------------------------------------------------*/
 
+    // Center control
     Bitboard d2 = Bitboard::fromSquare(11);
     Bitboard e2 = Bitboard::fromSquare(12);
     Bitboard d3 = Bitboard::fromSquare(19);
@@ -1513,6 +1537,45 @@ int evaluate(const Board& board) {
             blackScore -= blockCentralPawnPenalty;
         }
     }
+
+    // Early queen development penalty
+    Bitboard whiteQueen = board.pieces(PieceType::QUEEN, Color::WHITE);
+    Bitboard blackQueen = board.pieces(PieceType::QUEEN, Color::BLACK);
+
+    // Determine if white queen moved from D1 (should be on rank 0)
+    bool whiteQueenDeveloped = (whiteQueen.count() > 0) && (whiteQueen.lsb() / 8 > 1);
+
+    // Determine if black queen moved from D8 (should be on rank 7)
+    bool blackQueenDeveloped = (blackQueen.count() > 0) && (blackQueen.lsb() / 8 < 6);
+
+    // Check if white knights and bishops haven't moved
+    Bitboard whiteKnightNotMoved = board.pieces(PieceType::KNIGHT, Color::WHITE) & 
+                                (Bitboard::fromSquare(Square(Square::underlying::SQ_B1)) | 
+                                Bitboard::fromSquare(Square(Square::underlying::SQ_G1)));
+
+    Bitboard whiteBishopNotMoved = board.pieces(PieceType::BISHOP, Color::WHITE) & 
+                                (Bitboard::fromSquare(Square(Square::underlying::SQ_C1)) | 
+                                Bitboard::fromSquare(Square(Square::underlying::SQ_F1)));
+
+    // Apply penalty if white queen moved early
+    if (whiteQueenDeveloped) {
+        whiteScore -= 5 * (whiteKnightNotMoved.count() + whiteBishopNotMoved.count());
+    }
+
+    // Check if black knights and bishops haven't moved
+    Bitboard blackKnightNotMoved = board.pieces(PieceType::KNIGHT, Color::BLACK) & 
+                                (Bitboard::fromSquare(Square(Square::underlying::SQ_B8)) | 
+                                Bitboard::fromSquare(Square(Square::underlying::SQ_G8)));
+
+    Bitboard blackBishopNotMoved = board.pieces(PieceType::BISHOP, Color::BLACK) &
+                                (Bitboard::fromSquare(Square(Square::underlying::SQ_C8)) | 
+                                Bitboard::fromSquare(Square(Square::underlying::SQ_F8)));
+
+    // Apply penalty if black queen moved early
+    if (blackQueenDeveloped) {
+        blackScore -= 5 * (blackKnightNotMoved.count() + blackBishopNotMoved.count());
+    }
+
 
     return whiteScore - blackScore;
 }
