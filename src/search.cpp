@@ -231,8 +231,6 @@ int depthReduction(Board& board, Move move, int i, int depth) {
 
     if (i <= k || depth <= 3 || isPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
-    } else if (depth <= k + 2) {
-        return depth - 2;
     } else {
         return depth / 2;
     }
@@ -672,6 +670,7 @@ Move findBestMove(Board& board,
 
     auto startTime = std::chrono::high_resolution_clock::now();
     bool timeLimitExceeded = false;
+    const int maxTableSize = 20000000;
 
     Move bestMove = Move(); 
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
@@ -694,11 +693,13 @@ Move findBestMove(Board& board,
     // Clear transposition tables
     #pragma omp critical
     {
-        lowerBoundTable = {};
-        upperBoundTable = {};
-        whiteHashMove = {};
-        blackHashMove = {};
-        clearPawnHashTable();
+        if (lowerBoundTable.size() + upperBoundTable.size() > maxTableSize) {
+            lowerBoundTable = {};
+            upperBoundTable = {};
+            whiteHashMove = {};
+            blackHashMove = {};
+            clearPawnHashTable();
+        }
     }
     
     const int baseDepth = 1;
@@ -873,13 +874,16 @@ Move findBestMove(Board& board,
         }
     }
 
+    
     #pragma omp critical
     {
-        lowerBoundTable = {};
-        upperBoundTable = {};
-        whiteHashMove = {};
-        blackHashMove = {};
-        clearPawnHashTable();
+        if (lowerBoundTable.size() + upperBoundTable.size() > maxTableSize) {
+            lowerBoundTable = {};
+            upperBoundTable = {};
+            whiteHashMove = {};
+            blackHashMove = {};
+            clearPawnHashTable();
+        }
     }
 
     return bestMove; 

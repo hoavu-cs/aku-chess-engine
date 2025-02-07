@@ -748,7 +748,6 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     const int protectedPassedPawnBonus = 45;
     const int centerBonus = 10;
 
-    const int isolatedPawnPenaltyAH = 10;
     const int isolatedPawnPenalty = 20;
     const int unSupportedPenalty = 25;
     const int doubledPawnPenalty = 30;
@@ -795,7 +794,7 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
         // If the pawn is isolated, add a penalty
         if ((file == 0 && files[1] == 0) || (file == 7 && files[6] == 0)) {
             isolated = true;
-            value -= isolatedPawnPenaltyAH;
+            value -= isolatedPawnPenalty;
         } else if (file > 0 && file < 7 && files[file - 1] == 0  && files[file + 1] == 0) {
             isolated = true;
             value -= isolatedPawnPenalty;
@@ -1652,8 +1651,6 @@ int evaluate(const Board& board) {
             blackScore -= blockedBishopPenalty;
         }
     }
-
-
 
 
     return whiteScore - blackScore;
