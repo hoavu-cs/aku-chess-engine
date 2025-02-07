@@ -1618,6 +1618,43 @@ int evaluate(const Board& board) {
         }
     }
 
+    
+    const int blockedBishopPenalty = 20;
+
+    // White bishop stuck on c1 or d2 (blocked by white pawn on e3)
+    if ((whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_C1))) ||
+        (whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_D2)))) {
+        if (board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_E3))) {
+            whiteScore -= blockedBishopPenalty;
+        }
+    }
+
+    // White bishop stuck on f1 or e2 (blocked by white pawn on d3)
+    if ((whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_F1))) ||
+        (whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_E2)))) {
+        if (board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_D3))) {
+            whiteScore -= blockedBishopPenalty;
+        }
+    }
+
+    // Black bishop stuck on c8 or d7 (blocked by black pawn on e6)
+    if ((blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_C8))) ||
+        (blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_D7)))) {
+        if (board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_E6))) {
+            blackScore -= blockedBishopPenalty;
+        }
+    }
+
+    // Black bishop stuck on f8 or e7 (blocked by black pawn on d6)
+    if ((blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_F8))) ||
+        (blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_E7)))) {
+        if (board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_D6))) {
+            blackScore -= blockedBishopPenalty;
+        }
+    }
+
+
+
 
     return whiteScore - blackScore;
 }

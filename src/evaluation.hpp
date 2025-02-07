@@ -22,6 +22,7 @@ struct Info {
 extern std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> whitePawnHashTable;
 extern std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackPawnHashTable;
 
+extern const std::unordered_map<int, std::vector<int>> adjSquares;
 
 /*------------------------------------------------------------------------
     Helper Functions

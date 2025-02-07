@@ -30,7 +30,7 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 2; // top k moves in LMR to not be reduced
+int k = 3; // top k moves in LMR to not be reduced
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
@@ -81,9 +81,19 @@ int quietPriority(const Board& board, const Move& move) {
     Bitboard theirBishops = board.pieces(PieceType::BISHOP, !color);
     Bitboard theirKnights = board.pieces(PieceType::KNIGHT, !color);
     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
 
     Bitboard theirKing = board.pieces(PieceType::KING, !color);
     Square theirKingSq = Square(theirKing.lsb());
+
+    Bitboard blockers = theirQueen | theirRooks | theirBishops | theirKnights | theirPawns | ourPawns;
+    int theirKingSqIndex = theirKing.lsb();
+
+    Bitboard adjSq; // Adjacent squares to the opponent's king
+    for (int adjSqIndex : adjSquares.at(theirKingSqIndex)) {
+        adjSq = adjSq | Bitboard::fromSquare(adjSqIndex);
+    }
+
 
     int threat = 0;
 
@@ -108,6 +118,11 @@ int quietPriority(const Board& board, const Move& move) {
         if (manhattanDistance(move.to(), theirKingSq) <= 5) {
             threat += 30;
         }
+
+        // Hitting opponent's king's adjacent squares
+        if ((attacks::bishop(move.to(), blockers) & adjSq).count() > 0) {
+            threat += 20;
+        }
     }
 
     if (type == PieceType::ROOK) {
@@ -118,6 +133,7 @@ int quietPriority(const Board& board, const Move& move) {
 
         int destinationIndx = move.to().index();
         int file = destinationIndx % 8;
+        int rank = destinationIndx / 8;
         
         // If the move is to an open or semi-open file, increase the threat
         if (isOpenFile(board, file) || isSemiOpenFile(board, file, color)) {
@@ -126,12 +142,19 @@ int quietPriority(const Board& board, const Move& move) {
 
         // Moving closer to the opponent's king
         if (manhattanDistance(move.to(), theirKingSq) <= 5) {
+            threat += 30;
+        }
+
+        // Hitting opponent's king's adjacent squares
+        if ((attacks::rook(move.to(), blockers) & adjSq).count() > 0) {
             threat += 20;
         }
 
-        // Within 1 rank or file of the opponent's king
-        if (minDistance(move.to(), theirKingSq) <= 1) {
-            threat += 30;
+        // Move to 2nd or 7th rank for a rook
+        if (color == Color::WHITE && (rank == 6 || rank == 7)) {
+            threat += 20;
+        } else if (color == Color::BLACK && (rank == 0 || rank == 1)) {
+            threat += 20;
         }
     }
 
@@ -140,8 +163,15 @@ int quietPriority(const Board& board, const Move& move) {
         threat += (attacks::queen(move.to(), board.occ()) & theirBishops).count() * 15;
         threat += (attacks::queen(move.to(), board.occ()) & theirKnights).count() * 15;
         threat += (attacks::queen(move.to(), board.occ()) & theirPawns).count() * 10;
+
+        // Moving closer to the opponent's king
         if (manhattanDistance(move.to(), theirKingSq) <= 5) {
             threat += 50;
+        }
+
+        // Hitting opponent's king's adjacent squares
+        if ((attacks::queen(move.to(), blockers) & adjSq).count() > 0) {
+            threat += 30;
         }
     }
 
@@ -154,18 +184,20 @@ int quietPriority(const Board& board, const Move& move) {
         int destinationIndx = move.to().index();
         int rank = destinationIndx / 8;
 
-        if (color == Color::WHITE) {
-            if (rank > 3) {
-                threat += 20;
-            }
-        } else {
-            if (rank < 4) {
-                threat += 20;
-            }
+        if (color == Color::WHITE && rank > 3) {
+                threat += 30;
+        } else if (color == Color::BLACK && rank < 4) {
+                threat += 30;
         }
 
+        // Moving closer to the opponent's king
         if (manhattanDistance(move.to(), theirKingSq) <= 3) {
-            threat += 30;
+            threat += 20;
+        }
+
+        // Hitting opponent's king's adjacent squares
+        if ((attacks::pawn(color, move.to()) & adjSq).count() > 0) {
+            threat += 40;
         }
     }
 
@@ -199,9 +231,11 @@ int depthReduction(Board& board, Move move, int i, int depth) {
 
     if (i <= k || depth <= 3 || isPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
+    } else if (depth <= k + 2) {
+        return depth - 2;
     } else {
         return depth / 2;
-    } 
+    }
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -802,8 +836,6 @@ Move findBestMove(Board& board,
         }
 
         std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + " " + pvStr;
-        // if (consoleStr.find(analysis) == consoleStr.end()) {
-        //     consoleStr.insert(analysis);
         std::cout << analysis << std::endl;
         //}
         auto currentTime = std::chrono::high_resolution_clock::now();
@@ -812,16 +844,6 @@ Move findBestMove(Board& board,
 
         timeLimitExceeded = duration > timeLimit;
         spendTooMuchTime = duration > 2 * timeLimit;
-
-        // if (spendTooMuchTime) {
-        //     break;
-        // }
-
-        //bool complete = true;//static_cast<int>(PV.size()) > depth - 2;
-        // if (!timeLimitExceeded) {
-        //     depth++;
-        // }
-        // If the PV is full, store the best move and evaluation for the current depth
 
         evals[depth] = bestEval;
         candidateMove[depth] = bestMove; 

@@ -25,6 +25,7 @@
 
 #include "chess.hpp"
 #include "evaluation.hpp"
+#include "openings.hpp"
 #include "search.hpp"
 #include <iostream>
 #include <sstream>
@@ -36,6 +37,44 @@ using namespace chess;
 // Engine Metadata
 const std::string ENGINE_NAME = "PIG ENGINE";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
+
+
+std::string getBookMove(Board& board) {
+    std::vector<std::string> possibleMoves;
+    std::srand(std::time(0)); // Seed random number generator
+
+    for (const auto& sequence : OPENING_MOVES) {
+        Board tempBoard;
+        bool match = true;
+        
+        // Consider the first move if the board is in the starting position
+        if (board.getFen() == Board().getFen() && !sequence.empty()) {
+            possibleMoves.push_back(sequence[0]);
+            continue;
+        }
+        
+        for (size_t i = 0; i < sequence.size(); ++i) {
+            try {
+                Move moveObj = uci::uciToMove(tempBoard, sequence[i]);
+                tempBoard.makeMove(moveObj);
+            } catch (const std::exception& e) {
+                match = false;
+                break;
+            }
+            
+            // If the board matches at any prefix of the sequence, consider the next move
+            if (tempBoard.getFen() == board.getFen() && i + 1 < sequence.size()) {
+                possibleMoves.push_back(sequence[i + 1]);
+            }
+        }
+    }
+
+    if (!possibleMoves.empty()) {
+        return possibleMoves[std::rand() % possibleMoves.size()]; // Return a random move
+    }
+    return ""; // No match found
+}
+
 
 // Global Board State
 Board board;
@@ -84,33 +123,33 @@ void processPosition(const std::string& command) {
     * @param command The full setoption command received from the GUI.
 */
 
-// void processSetOption(const std::string& command) {
-//     std::istringstream iss(command);
-//     std::string token, optionName, value;
+void processSetOption(const std::string& command) {
+    std::istringstream iss(command);
+    std::string token, optionName, value;
 
-//     iss >> token; // Skip "setoption"
-//     iss >> token; // Skip "name"
-//     std::getline(iss, optionName, ' ');
+    iss >> token; // Skip "setoption"
+    iss >> token; // Skip "name"
+    std::getline(iss, optionName, ' ');
 
-//     size_t pos = optionName.find(" value ");
-//     if (pos != std::string::npos) {
-//         value = optionName.substr(pos + 7);
-//         optionName = optionName.substr(0, pos);
-//     }
+    size_t pos = optionName.find(" value ");
+    if (pos != std::string::npos) {
+        value = optionName.substr(pos + 7);
+        optionName = optionName.substr(0, pos);
+    }
 
-//     if (optionName == "Hash") {
-//         int hashSize = std::stoi(value);
-//         // Set hash table size
-//     } else if (optionName == "Threads") {
-//         int threads = std::stoi(value);
-//         // Set number of threads
-//     } else if (optionName == "Ponder") {
-//         bool ponder = (value == "true");
-//         // Enable or disable pondering
-//     } else {
-//         std::cerr << "Unknown option: " << optionName << std::endl;
-//     }
-// }
+    if (optionName == "Hash") {
+        int hashSize = std::stoi(value);
+        // Set hash table size
+    } else if (optionName == "Threads") {
+        int threads = std::stoi(value);
+        // Set number of threads
+    } else if (optionName == "Ponder") {
+        bool ponder = (value == "true");
+        // Enable or disable pondering
+    } else {
+        std::cerr << "Unknown option: " << optionName << std::endl;
+    }
+}
 
 
 /**
@@ -122,11 +161,21 @@ void processGo(const std::vector<std::string>& tokens) {
     int depth = 9;
     int quiescenceDepth = 8;
     int numThreads = 6;
-    int timeLimit = 3000; // Default to 15 seconds
+    int timeLimit = 2000; // Default to 15 seconds
     bool quiet = false;
   
     // Simply find the best move without considering `t` or other options
     Move bestMove = Move::NO_MOVE;
+
+    // Opening book
+    std::string bookMove = getBookMove(board);
+    if (!bookMove.empty()) {
+        Move moveObj = uci::uciToMove(board, bookMove);
+        board.makeMove(moveObj);
+        std::cout << "bestmove " << bookMove << std::endl;
+        return;
+    }
+
 
     /*--------------------------------------------------------------
     Time control:
@@ -157,10 +206,10 @@ void processGo(const std::vector<std::string>& tokens) {
     } else {
         // Determine the time limit based on the current player's time and increment
         if (board.sideToMove() == Color::WHITE && wtime > 0) {
-            int baseTime = wtime / (movestogo > 0 ? movestogo : 40); 
+            int baseTime = wtime / (movestogo > 0 ? movestogo + 1 : 40); 
             timeLimit = static_cast<int>(baseTime * 0.6) + winc;
         } else if (board.sideToMove() == Color::BLACK && btime > 0) {
-            int baseTime = btime / (movestogo > 0 ? movestogo : 40); 
+            int baseTime = btime / (movestogo > 0 ? movestogo + 1 : 40); 
             timeLimit = static_cast<int>(baseTime * 0.6) + binc;
         }
     }
