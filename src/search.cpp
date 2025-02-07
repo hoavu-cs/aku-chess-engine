@@ -30,7 +30,7 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 2; // top k moves in LMR to not be reduced
+int k = 5; // top k moves in LMR to not be reduced
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
@@ -77,61 +77,66 @@ int quietPriority(const Board& board, const Move& move) {
     boardAfter.makeMove(move);
 
     Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
-    Bitboard theirRook = board.pieces(PieceType::ROOK, !color);
-    Bitboard theirBishop = board.pieces(PieceType::BISHOP, !color);
-    Bitboard theirKnight = board.pieces(PieceType::KNIGHT, !color);
-    Bitboard theirPawn = board.pieces(PieceType::PAWN, !color);
+    Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
+    Bitboard theirBishops = board.pieces(PieceType::BISHOP, !color);
+    Bitboard theirKnights = board.pieces(PieceType::KNIGHT, !color);
+    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+
+    Bitboard theirKing = board.pieces(PieceType::KING, !color);
+    Square theirKingSq = Square(theirKing.lsb());
 
     int threat = 0;
 
-    while (theirQueen) {
-        int sqIndex = theirQueen.lsb();
-        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
+    if (type == PieceType::KNIGHT) {
+        // Check if the move attacks the opponent's pieces
+        threat += (attacks::knight(move.to()) & theirQueen).count() * 9;
+        threat += (attacks::knight(move.to()) & theirRooks).count() * 5;
+        threat += (attacks::knight(move.to()) & theirBishops).count() * 3;
+        threat += (attacks::knight(move.to()) & theirPawns).count() * 1;
 
-        threat += attackerAfter.count() > attackerBefore.count() ? 9 : 0;
-
-        theirQueen.clear(sqIndex);
+        if (manhattanDistance(move.to(), theirKingSq) <= 5) {
+            threat += 3;
+        }
     }
 
-    while (theirRook) {
-        int sqIndex = theirRook.lsb();
-        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
-
-        threat += attackerAfter.count() > attackerBefore.count() ? 5 : 0;
-
-        theirRook.clear(sqIndex);
+    if (type == PieceType::BISHOP) {
+        threat += (attacks::bishop(move.to(), board.occ()) & theirQueen).count() * 9;
+        threat += (attacks::bishop(move.to(), board.occ()) & theirRooks).count() * 5;
+        threat += (attacks::bishop(move.to(), board.occ()) & theirKnights).count() * 3;
+        threat += (attacks::bishop(move.to(), board.occ()) & theirPawns).count() * 1;
+        if (manhattanDistance(move.to(), theirKingSq) <= 5) {
+            threat += 3;
+        }
     }
 
-    while (theirBishop) {
-        int sqIndex = theirBishop.lsb();
-        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
-
-        threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
-
-        theirBishop.clear(sqIndex);
+    if (type == PieceType::ROOK) {
+        threat += (attacks::rook(move.to(), board.occ()) & theirQueen).count() * 9;
+        threat += (attacks::rook(move.to(), board.occ()) & theirBishops).count() * 3;
+        threat += (attacks::rook(move.to(), board.occ()) & theirKnights).count() * 3;
+        threat += (attacks::rook(move.to(), board.occ()) & theirPawns).count() * 1;
+        if (manhattanDistance(move.to(), theirKingSq) <= 5) {
+            threat += 3;
+        }
     }
 
-    while (theirKnight) {
-        int sqIndex = theirKnight.lsb();
-        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
-
-        threat += attackerAfter.count() > attackerBefore.count() ? 3 : 0;
-
-        theirKnight.clear(sqIndex);
+    if (type == PieceType::QUEEN) {
+        threat += (attacks::queen(move.to(), board.occ()) & theirRooks).count() * 5;
+        threat += (attacks::queen(move.to(), board.occ()) & theirBishops).count() * 3;
+        threat += (attacks::queen(move.to(), board.occ()) & theirKnights).count() * 3;
+        threat += (attacks::queen(move.to(), board.occ()) & theirPawns).count() * 1;
+        if (manhattanDistance(move.to(), theirKingSq) <= 5) {
+            threat += 3;
+        }
     }
-    
-    while (theirPawn) {
-        int sqIndex = theirPawn.lsb();
-        Bitboard attackerBefore = attacks::attackers(board, color, Square(sqIndex));
-        Bitboard attackerAfter = attacks::attackers(boardAfter, color, Square(sqIndex));
 
-        threat += attackerAfter.count() > attackerBefore.count() ? 4 : 0;
-
-        theirPawn.clear(sqIndex);
+    if (type == PieceType::PAWN) {
+        threat += (attacks::pawn(color, move.to()) & theirQueen).count() * 9;
+        threat += (attacks::pawn(color, move.to()) & theirRooks).count() * 5;
+        threat += (attacks::pawn(color, move.to()) & theirBishops).count() * 3;
+        threat += (attacks::pawn(color, move.to()) & theirKnights).count() * 3;
+        if (manhattanDistance(move.to(), theirKingSq) <= 3) {
+            threat += 3;
+        }
     }
 
     return threat;
@@ -162,13 +167,11 @@ int depthReduction(Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck();
     //bool isPawnMove = localBoard.at<Piece>(move.from()).type() == PieceType::PAWN;
 
-    if (i <= k || depth <= 3 || board.isCapture(move) || isPromotion(move) || isCheck || mopUp) {
+    if (i <= k || depth <= 3 || isPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
-    } else if (i <= 2 * k) {
-        return depth - 2;
     } else {
         return depth / 2;
-    }
+    } 
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -253,6 +256,7 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
             } 
             
             else {
+                quiet = true;
                 priority = quietPriority(board, move);
             }
         } 
@@ -291,7 +295,10 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
         return evaluate(board);
     }
 
+    int storedEval;
+    bool found = false;
     bool whiteTurn = board.sideToMove() == Color::WHITE;
+
     int standPat = evaluate(board);
         
     if (whiteTurn) {
@@ -333,20 +340,20 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
 
             int priority = pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())];
             candidateMoves.push_back({move, priority});
-            greatestMaterialGain = std::max(greatestMaterialGain, pieceValues[static_cast<int>(attacker.type())]);
+            //greatestMaterialGain = std::max(greatestMaterialGain, pieceValues[static_cast<int>(attacker.type())]);
 
         }         
     }
 
     // Delta pruning
-    int deltaMargin = 200 + greatestMaterialGain;
-    if (depth <= 3) {
-        if (whiteTurn && standPat + deltaMargin < alpha) {
-            return alpha;
-        } else if (!whiteTurn && standPat - deltaMargin > beta) {
-            return beta;
-        }
-    }
+    // int deltaMargin = 200 + greatestMaterialGain;
+    // if (depth <= 3) {
+    //     if (whiteTurn && standPat + deltaMargin < alpha) {
+    //         return alpha;
+    //     } else if (!whiteTurn && standPat - deltaMargin > beta) {
+    //         return beta;
+    //     }
+    // }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
