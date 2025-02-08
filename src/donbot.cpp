@@ -39,41 +39,41 @@ const std::string ENGINE_NAME = "PIG ENGINE";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 
-std::string getBookMove(Board& board) {
-    std::vector<std::string> possibleMoves;
-    std::srand(std::time(0)); // Seed random number generator
+// std::string getBookMove(Board& board) {
+//     std::vector<std::string> possibleMoves;
+//     std::srand(std::time(0)); // Seed random number generator
 
-    for (const auto& sequence : OPENING_MOVES) {
-        Board tempBoard;
-        bool match = true;
+//     for (const auto& sequence : OPENING_MOVES) {
+//         Board tempBoard;
+//         bool match = true;
         
-        // Consider the first move if the board is in the starting position
-        if (board.getFen() == Board().getFen() && !sequence.empty()) {
-            possibleMoves.push_back(sequence[0]);
-            continue;
-        }
+//         // Consider the first move if the board is in the starting position
+//         if (board.getFen() == Board().getFen() && !sequence.empty()) {
+//             possibleMoves.push_back(sequence[0]);
+//             continue;
+//         }
         
-        for (size_t i = 0; i < sequence.size(); ++i) {
-            try {
-                Move moveObj = uci::uciToMove(tempBoard, sequence[i]);
-                tempBoard.makeMove(moveObj);
-            } catch (const std::exception& e) {
-                match = false;
-                break;
-            }
+//         for (size_t i = 0; i < sequence.size(); ++i) {
+//             try {
+//                 Move moveObj = uci::uciToMove(tempBoard, sequence[i]);
+//                 tempBoard.makeMove(moveObj);
+//             } catch (const std::exception& e) {
+//                 match = false;
+//                 break;
+//             }
             
-            // If the board matches at any prefix of the sequence, consider the next move
-            if (tempBoard.getFen() == board.getFen() && i + 1 < sequence.size()) {
-                possibleMoves.push_back(sequence[i + 1]);
-            }
-        }
-    }
+//             // If the board matches at any prefix of the sequence, consider the next move
+//             if (tempBoard.getFen() == board.getFen() && i + 1 < sequence.size()) {
+//                 possibleMoves.push_back(sequence[i + 1]);
+//             }
+//         }
+//     }
 
-    if (!possibleMoves.empty()) {
-        return possibleMoves[std::rand() % possibleMoves.size()]; // Return a random move
-    }
-    return ""; // No match found
-}
+//     if (!possibleMoves.empty()) {
+//         return possibleMoves[std::rand() % possibleMoves.size()]; // Return a random move
+//     }
+//     return ""; // No match found
+// }
 
 
 // Global Board State
