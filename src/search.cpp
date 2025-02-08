@@ -67,8 +67,16 @@ bool transTableLookUp(std::unordered_map<std::uint64_t,
 }
 
 // Check if a move is a promotion
-bool isPromotion(const Move& move) {
-    return (move.typeOf() & Move::PROMOTION) != 0;
+bool isQueenPromotion(const Move& move) {
+
+    if (move.typeOf() & Move::PROMOTION) {
+        if (move.promotionType() == PieceType::QUEEN) {
+            return true;
+        } 
+    } 
+
+    return false;
+
 }
 
 /*--------------------------------------------------------------------------------------------
@@ -284,13 +292,13 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck(); // checks should not be reduced
     // localBoard.unmakeMove(move);
 
-    if (i <= 4 || depth <= 3 || isPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+    if (i <= 3 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
     } else {
-        return static_cast<int>(depth / 3);
+        int reduction = static_cast<int>(1 +  0.75 * log2(i) + 0.75 * log2(globalMaxDepth - depth));
+        return depth - reduction;
+        //return static_cast<int>(depth / 2);
     }
-
-    //return depth - 0.5 * log2(i);
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -351,7 +359,7 @@ std::vector<std::pair<Move, int>> prioritizedMoves(
             // Killer
             priority = 3900;
 
-        } else if (isPromotion(move)) {
+        } else if (isQueenPromotion(move)) {
 
             priority = 5000; 
 
@@ -439,12 +447,12 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     int greatestMaterialGain = 0;
 
     for (const auto& move : moves) {
-        if (!board.isCapture(move) && !isPromotion(move)) {
+        if (!board.isCapture(move) && !isQueenPromotion(move)) {
             continue;
         }
 
         //  Prioritize promotions & captures
-        if (isPromotion(move)) {
+        if (isQueenPromotion(move)) {
 
             candidateMoves.push_back({move, 5000});
             greatestMaterialGain = pieceValues[5]; // Assume queen promotion
@@ -564,7 +572,7 @@ int alphaBeta(Board& board,
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
     if (!endGameFlag) {
-        const int nullDepth = 6; // Only apply null move pruning at depths >= 4
+        const int nullDepth = 4; // Only apply null move pruning at depths >= 4
 
         if (depth >= nullDepth && !leftMost) {
             if (!board.inCheck()) {
@@ -574,6 +582,7 @@ int alphaBeta(Board& board,
                 int nullEval;
                 int reduction = 3;
                 if (depth > 6) reduction = 4;
+
 
                 if (whiteTurn) {
                     nullEval = alphaBeta(board, depth - reduction, beta - 1, beta, quiescenceDepth, nullPV, false);
@@ -593,7 +602,7 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning
-    const int futilityMargins[4] = {0, 300, 500, 900};
+    const int futilityMargins[4] = {0, 500, 700, 1000};
     if (depth <= 3 && !board.inCheck() && !endGameFlag) {
         int futilityMargin = futilityMargins[depth];
         int standPat = evaluate(board);
@@ -609,19 +618,19 @@ int alphaBeta(Board& board,
     }
 
     // Razoring
-    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
-        int razorMargin = 600;
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-        if (whiteTurn) {
-            if (standPat + razorMargin < alpha) {
-                return standPat + razorMargin;
-            }
-        } else {
-            if (standPat - razorMargin > beta) {
-                return standPat - razorMargin;
-            }
-        }
-    }
+    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
+    //     int razorMargin = 1000;
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+    //     if (whiteTurn) {
+    //         if (standPat + razorMargin < alpha) {
+    //             return standPat + razorMargin;
+    //         }
+    //     } else {
+    //         if (standPat - razorMargin > beta) {
+    //             return standPat - razorMargin;
+    //         }
+    //     }
+    // }
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? alpha - 1 : beta + 1;
@@ -637,7 +646,7 @@ int alphaBeta(Board& board,
         if (i > 0) {
             leftMost = false;
         }
-
+        
         board.makeMove(move);
         eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost);
         board.unmakeMove(move);
