@@ -21,7 +21,7 @@ std::unordered_map<std::uint64_t, Move> whiteHashMove;
 std::unordered_map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
 std::unordered_map<std::uint64_t, Move> blackHashMove;
 
-const int maxTableSize = 20000000;
+const int maxTableSize = 10000000;
 
 // Time management
 std::vector<Move> previousPV; // Principal variation from the previous iteration
@@ -287,7 +287,7 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
     if (i <= 4 || depth <= 3 || isPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
     } else {
-        return static_cast<int>(depth / 2);
+        return static_cast<int>(depth / 3);
     }
 
     //return depth - 0.5 * log2(i);

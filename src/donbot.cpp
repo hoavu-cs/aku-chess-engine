@@ -168,13 +168,13 @@ void processGo(const std::vector<std::string>& tokens) {
     Move bestMove = Move::NO_MOVE;
 
     // Opening book
-    // std::string bookMove = getBookMove(board);
-    // if (!bookMove.empty()) {
-    //     Move moveObj = uci::uciToMove(board, bookMove);
-    //     board.makeMove(moveObj);
-    //     std::cout << "bestmove " << bookMove << std::endl;
-    //     return;
-    // }
+    std::string bookMove = getBookMove(board);
+    if (!bookMove.empty()) {
+        Move moveObj = uci::uciToMove(board, bookMove);
+        board.makeMove(moveObj);
+        std::cout << "bestmove " << bookMove << std::endl;
+        return;
+    }
 
 
     /*--------------------------------------------------------------
@@ -206,11 +206,13 @@ void processGo(const std::vector<std::string>& tokens) {
     } else {
         // Determine the time limit based on the current player's time and increment
         if (board.sideToMove() == Color::WHITE && wtime > 0) {
-            int baseTime = wtime / (movestogo > 0 ? movestogo + 1 : 40); 
-            timeLimit = static_cast<int>(baseTime * 0.6) + winc;
+            // int baseTime = wtime / (movestogo > 0 ? movestogo + 1 : 40); 
+            // timeLimit = static_cast<int>(baseTime * 0.6) + winc;
+            timeLimit = wtime / 20 + winc / 2;
         } else if (board.sideToMove() == Color::BLACK && btime > 0) {
-            int baseTime = btime / (movestogo > 0 ? movestogo + 1 : 40); 
-            timeLimit = static_cast<int>(baseTime * 0.6) + binc;
+            // int baseTime = btime / (movestogo > 0 ? movestogo + 1 : 40); 
+            // timeLimit = static_cast<int>(baseTime * 0.6) + binc;
+            timeLimit = btime / 20 + binc / 2;
         }
     }
 
