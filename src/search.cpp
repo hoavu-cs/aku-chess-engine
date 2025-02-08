@@ -564,7 +564,7 @@ int alphaBeta(Board& board,
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
     if (!endGameFlag) {
-        const int nullDepth = 4; // Only apply null move pruning at depths >= 4
+        const int nullDepth = 6; // Only apply null move pruning at depths >= 4
 
         if (depth >= nullDepth && !leftMost) {
             if (!board.inCheck()) {
@@ -593,35 +593,35 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning
-    // const int futilityMargins[4] = {0, 300, 500, 900};
-    // if (depth <= 3 && !board.inCheck() && !endGameFlag) {
-    //     int futilityMargin = futilityMargins[depth];
-    //     int standPat = evaluate(board);
-    //     if (whiteTurn) {
-    //         if (standPat + futilityMargin < alpha) {
-    //             return standPat + futilityMargin;
-    //         }
-    //     } else {
-    //         if (standPat - futilityMargin > beta) {
-    //             return standPat - futilityMargin;
-    //         }
-    //     }
-    // }
+    const int futilityMargins[4] = {0, 300, 500, 900};
+    if (depth <= 3 && !board.inCheck() && !endGameFlag) {
+        int futilityMargin = futilityMargins[depth];
+        int standPat = evaluate(board);
+        if (whiteTurn) {
+            if (standPat + futilityMargin < alpha) {
+                return standPat + futilityMargin;
+            }
+        } else {
+            if (standPat - futilityMargin > beta) {
+                return standPat - futilityMargin;
+            }
+        }
+    }
 
     // Razoring
-    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
-    //     int razorMargin = 600;
-    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta);
-    //     if (whiteTurn) {
-    //         if (standPat + razorMargin < alpha) {
-    //             return standPat + razorMargin;
-    //         }
-    //     } else {
-    //         if (standPat - razorMargin > beta) {
-    //             return standPat - razorMargin;
-    //         }
-    //     }
-    // }
+    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost) {
+        int razorMargin = 600;
+        int standPat = quiescence(board, quiescenceDepth, alpha, beta);
+        if (whiteTurn) {
+            if (standPat + razorMargin < alpha) {
+                return standPat + razorMargin;
+            }
+        } else {
+            if (standPat - razorMargin > beta) {
+                return standPat - razorMargin;
+            }
+        }
+    }
 
     std::vector<std::pair<Move, int>> moves = prioritizedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? alpha - 1 : beta + 1;
