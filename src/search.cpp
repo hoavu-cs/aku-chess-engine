@@ -292,13 +292,15 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck(); // checks should not be reduced
     // localBoard.unmakeMove(move);
 
-    if (i <= 3 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+    if (i <= 5 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
-    } else {
-        int reduction = static_cast<int>(1.05 +  0.5 * log2(i) + 0.5 * log2(globalMaxDepth - depth));
-        return depth - reduction;
-        //return static_cast<int>(depth / 2);
-    }
+    } else {    
+        return static_cast<int>(depth / 3);
+    } 
+    
+    // else {
+    //     return std::min(3, depth - 1);
+    // }
 }
 
 // Generate a prioritized list of moves based on their tactical value
