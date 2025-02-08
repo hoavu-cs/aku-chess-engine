@@ -25,7 +25,7 @@
 
 #include "chess.hpp"
 #include "evaluation.hpp"
-#include "openings.hpp"
+//#include "openings.hpp"
 #include "search.hpp"
 #include <iostream>
 #include <sstream>
@@ -168,13 +168,13 @@ void processGo(const std::vector<std::string>& tokens) {
     Move bestMove = Move::NO_MOVE;
 
     // Opening book
-    std::string bookMove = getBookMove(board);
-    if (!bookMove.empty()) {
-        Move moveObj = uci::uciToMove(board, bookMove);
-        board.makeMove(moveObj);
-        std::cout << "bestmove " << bookMove << std::endl;
-        return;
-    }
+    // std::string bookMove = getBookMove(board);
+    // if (!bookMove.empty()) {
+    //     Move moveObj = uci::uciToMove(board, bookMove);
+    //     board.makeMove(moveObj);
+    //     std::cout << "bestmove " << bookMove << std::endl;
+    //     return;
+    // }
 
 
     /*--------------------------------------------------------------
