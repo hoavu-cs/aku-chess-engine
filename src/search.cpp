@@ -30,9 +30,7 @@ std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
 int tableHit = 0;
-int globalMaxDepth = 0; // Maximum depth of current search
-int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 5; // top k moves in LMR to not be reduced
+int globalMaxDepth = 0; // Maximum depth of current search (mostly to conveniently compute the remaining depth)
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
@@ -251,15 +249,6 @@ int quietPriority(const Board& board, const Move& move) {
         }
     }
 
-
-    // Evasion priority
-    Bitboard attackersBefore = attacks::attackers(board, !color, move.from());
-    Bitboard attackersAfter = attacks::attackers(board, !color, move.to());
-    
-    if (attackersBefore != attackersAfter) {
-        priority += 5; 
-    }
-
     return priority;
 }
 
@@ -283,24 +272,22 @@ void updateKillerMoves(const Move& move, int depth) {
 --------------------------------------------------------------------------------------------*/
 int depthReduction(const Board& board, Move move, int i, int depth) {
 
+    if (mopUp) {
+        return depth - 1;
+    }
+
     Board localBoard = board;
     Color color = board.sideToMove();
 
-    bool inCheck = localBoard.inCheck(); // check evasions should not be reduced
-
+    PieceType pieceType = localBoard.at<Piece>(move.from()).type();
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck(); // checks should not be reduced
-    // localBoard.unmakeMove(move);
-
-    if (i <= 5 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
-        return depth - 1;
-    } else {    
-        return static_cast<int>(depth / 3);
-    } 
     
-    // else {
-    //     return std::min(3, depth - 1);
-    // }
+    if (i <= 2 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+        return depth - 1;
+    } else {
+        return depth / 2;
+    }
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -573,7 +560,7 @@ int alphaBeta(Board& board,
     }
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
-    if (!endGameFlag) {
+    if (!endGameFlag && !leftMost) {
         const int nullDepth = 4; // Only apply null move pruning at depths >= 4
 
         if (depth >= nullDepth && !leftMost) {
@@ -649,8 +636,17 @@ int alphaBeta(Board& board,
             leftMost = false;
         }
         
+        // PVS search
         board.makeMove(move);
-        eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost);
+        if (nextDepth == depth - 1) {
+            eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost);
+        } else {
+            if (whiteTurn) {
+                eval = alphaBeta(board, nextDepth, alpha, alpha + 1, quiescenceDepth, childPV, leftMost);
+            } else {
+                eval = alphaBeta(board, nextDepth, beta - 1, beta, quiescenceDepth, childPV, leftMost);
+            }
+        }
         board.unmakeMove(move);
 
         if (whiteTurn) {
@@ -736,11 +732,8 @@ Move findBestMove(Board& board,
 
     if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
         mopUp = true;
-        k = INF;
     }
 
-
-    globalQuiescenceDepth = quiescenceDepth;
     omp_set_num_threads(numThreads);
 
     // Clear transposition tables

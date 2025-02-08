@@ -26,7 +26,7 @@ std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackP
 
 // Knight piece-square tables
 const int whiteKnightTableMid[64] = {
-    -105, -30, -58, -33, -17, -28, -30,  -23,
+    -105, -30, -58, -33, -17, -28, -30,  -90,
      -29, -53, -12,  -3,  -1,  18, -14,  -19,
      -23,  -9,  12,  10,  19,  17,  15,  -16,
      -13,   4,  16,  13,  20,  19,  21,   -8,
@@ -44,7 +44,7 @@ const int blackKnightTableMid[64] = {
      -13,   4,  16,  13,  20,  19,  21,   -8,
      -23,  -9,  12,  10,  19,  17,  15,  -16,
      -29, -53, -12,  -3,  -1,  18, -14,  -19,
-    -105, -30, -58, -33, -17, -28, -30,  -23,
+    -105, -30, -58, -33, -17, -28, -30,  -90,
 };
 
 const int whiteKnightTableEnd[64] = {
@@ -398,6 +398,80 @@ const std::unordered_map<int, std::vector<int>> adjSquares = {
 };
 
 
+const Bitboard a1 = Bitboard::fromSquare(0);
+const Bitboard b1 = Bitboard::fromSquare(1);
+const Bitboard c1 = Bitboard::fromSquare(2);
+const Bitboard d1 = Bitboard::fromSquare(3);
+const Bitboard e1 = Bitboard::fromSquare(4);
+const Bitboard f1 = Bitboard::fromSquare(5);
+const Bitboard g1 = Bitboard::fromSquare(6);
+const Bitboard h1 = Bitboard::fromSquare(7);
+
+const Bitboard a2 = Bitboard::fromSquare(8);
+const Bitboard b2 = Bitboard::fromSquare(9);
+const Bitboard c2 = Bitboard::fromSquare(10);
+const Bitboard d2 = Bitboard::fromSquare(11);
+const Bitboard e2 = Bitboard::fromSquare(12);
+const Bitboard f2 = Bitboard::fromSquare(13);
+const Bitboard g2 = Bitboard::fromSquare(14);
+const Bitboard h2 = Bitboard::fromSquare(15);
+
+const Bitboard a3 = Bitboard::fromSquare(16);
+const Bitboard b3 = Bitboard::fromSquare(17);
+const Bitboard c3 = Bitboard::fromSquare(18);
+const Bitboard d3 = Bitboard::fromSquare(19);
+const Bitboard e3 = Bitboard::fromSquare(20);
+const Bitboard f3 = Bitboard::fromSquare(21);
+const Bitboard g3 = Bitboard::fromSquare(22);
+const Bitboard h3 = Bitboard::fromSquare(23);
+
+const Bitboard a4 = Bitboard::fromSquare(24);
+const Bitboard b4 = Bitboard::fromSquare(25);
+const Bitboard c4 = Bitboard::fromSquare(26);
+const Bitboard d4 = Bitboard::fromSquare(27);
+const Bitboard e4 = Bitboard::fromSquare(28);
+const Bitboard f4 = Bitboard::fromSquare(29);
+const Bitboard g4 = Bitboard::fromSquare(30);
+const Bitboard h4 = Bitboard::fromSquare(31);
+
+const Bitboard a5 = Bitboard::fromSquare(32);
+const Bitboard b5 = Bitboard::fromSquare(33);
+const Bitboard c5 = Bitboard::fromSquare(34);
+const Bitboard d5 = Bitboard::fromSquare(35);
+const Bitboard e5 = Bitboard::fromSquare(36);
+const Bitboard f5 = Bitboard::fromSquare(37);
+const Bitboard g5 = Bitboard::fromSquare(38);
+const Bitboard h5 = Bitboard::fromSquare(39);
+
+const Bitboard a6 = Bitboard::fromSquare(40);
+const Bitboard b6 = Bitboard::fromSquare(41);
+const Bitboard c6 = Bitboard::fromSquare(42);
+const Bitboard d6 = Bitboard::fromSquare(43);
+const Bitboard e6 = Bitboard::fromSquare(44);
+const Bitboard f6 = Bitboard::fromSquare(45);
+const Bitboard g6 = Bitboard::fromSquare(46);
+const Bitboard h6 = Bitboard::fromSquare(47);
+
+const Bitboard a7 = Bitboard::fromSquare(48);
+const Bitboard b7 = Bitboard::fromSquare(49);
+const Bitboard c7 = Bitboard::fromSquare(50);
+const Bitboard d7 = Bitboard::fromSquare(51);
+const Bitboard e7 = Bitboard::fromSquare(52);
+const Bitboard f7 = Bitboard::fromSquare(53);
+const Bitboard g7 = Bitboard::fromSquare(54);
+const Bitboard h7 = Bitboard::fromSquare(55);
+
+const Bitboard a8 = Bitboard::fromSquare(56);
+const Bitboard b8 = Bitboard::fromSquare(57);
+const Bitboard c8 = Bitboard::fromSquare(58);
+const Bitboard d8 = Bitboard::fromSquare(59);
+const Bitboard e8 = Bitboard::fromSquare(60);
+const Bitboard f8 = Bitboard::fromSquare(61);
+const Bitboard g8 = Bitboard::fromSquare(62);
+const Bitboard h8 = Bitboard::fromSquare(63);
+
+
+
 /*------------------------------------------------------------------------
     Helper Functions
 ------------------------------------------------------------------------*/
@@ -480,22 +554,6 @@ bool knownDraw(const Board& board) {
 
 }
 
-// Return true if the game is in the endgame phase for the given color.
-bool isEndGame(const Board& board, Color color) {
-    const int materialThreshold = 13;
-    const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9;
-
-    int totalValue = board.pieces(PieceType::KNIGHT, color).count() * knightValue
-                  + board.pieces(PieceType::BISHOP, color).count() * bishopValue
-                  + board.pieces(PieceType::ROOK, color).count() * rookValue
-                  + board.pieces(PieceType::QUEEN, color).count() * queenValue;
-
-    if (totalValue <= materialThreshold) {
-        return true;
-    } else {
-        return false;
-    }
-}
 
 // Return game phase 0-24 for endgame to opening
 int gamePhase (const Board& board) {
@@ -543,10 +601,6 @@ Bitboard generateFileMask(int file) {
     
     return Bitboard(0ULL);
 }
-
-// Check if a pawn is
-
-
 
 // Check if the given square is a passed pawn
 bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
@@ -750,8 +804,6 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     const int isolatedPawnPenalty = 20;
     const int unSupportedPenalty = 25;
-    const int doubledPawnPenalty = 30;
-    const int doubledPawnPenaltyDE = 40;
 
     int files[8] = {0};
     int value = 0;
@@ -838,12 +890,22 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     }
     
     // Add penalty for doubled pawns
+    const int doubledPawnPenalty = 30;
+    const int doubledPawnPenaltyDE = 40;
+    const int doubleIsolatedPenalty = 30;
+
     for (int i = 0; i < 8; i++) {
         if (i == 3 || i == 4) {
             value -= (files[i] - 1) * doubledPawnPenaltyDE;
         } else {
             value -= (files[i] - 1) * doubledPawnPenalty;
         }
+
+        if (i > 0 && i < 7 && files[i] > 1 && files[i - 1] == 0 && files[i + 1] == 0) {
+            value -= doubleIsolatedPenalty; // extra penalty for double & isolated pawns
+        } else if (files[i] > 1 && (files[i - 1] == 0 || files[i + 1] == 0)) {
+            value -= doubleIsolatedPenalty; // handling double isolated pawns at the edges
+        } 
     }
 
     #pragma omp critical
@@ -1322,8 +1384,6 @@ int kingValue(const Board& board, int baseValue, Color color, Info& info) {
 int evaluate(const Board& board) {
     // Constant
     const int tempoBonus = 10;
-    const int blockCentralPawnPenalty = 60;
-    const int centerControlBonus = 15;
 
     // Initialize totals
     int whiteScore = 0;
@@ -1366,8 +1426,18 @@ int evaluate(const Board& board) {
     Standard evaluation phase
     --------------------------------------------------------------------------*/
     Info info;
-    // info.endGameFlagWhite = isEndGame(board, Color::WHITE);
-    // info.endGameFlagBlack = isEndGame(board, Color::BLACK);
+
+    // Early queen development penalty
+    Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
+    Bitboard blackKnights = board.pieces(PieceType::KNIGHT, Color::BLACK);
+    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
+    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
+    Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
+    Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
+    Bitboard whiteQueen = board.pieces(PieceType::QUEEN, Color::WHITE);
+    Bitboard blackQueen = board.pieces(PieceType::QUEEN, Color::BLACK);
+    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
+    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
 
     // Tempo bonus
     if (board.sideToMove() == Color::WHITE) {
@@ -1377,7 +1447,6 @@ int evaluate(const Board& board) {
     }
 
     info.gamePhase = gamePhase(board);
-
     if (info.gamePhase > 24) {
         info.gamePhase = 24;
     }
@@ -1455,33 +1524,30 @@ int evaluate(const Board& board) {
     -------------------------------------------------------------------------*/
     const int knightValue = 3, bishopValue = 3, rookValue = 5, queenValue = 9, pawnValue = 1;
 
-    int whitePieceValue = queenValue * board.pieces(PieceType::QUEEN, Color::WHITE).count() + 
-                        rookValue * board.pieces(PieceType::ROOK, Color::WHITE).count() + 
-                        bishopValue * board.pieces(PieceType::BISHOP, Color::WHITE).count() + 
-                        knightValue * board.pieces(PieceType::KNIGHT, Color::WHITE).count();
+    int whitePieceValue = queenValue * whiteQueen.count() + rookValue * whiteRooks.count() + 
+                        bishopValue * whiteBishops.count() + knightValue * whiteKnights.count();
 
-    int blackPieceValue = queenValue * board.pieces(PieceType::QUEEN, Color::BLACK).count() + 
-                        rookValue * board.pieces(PieceType::ROOK, Color::BLACK).count() + 
-                        bishopValue * board.pieces(PieceType::BISHOP, Color::BLACK).count() + 
-                        knightValue * board.pieces(PieceType::KNIGHT, Color::BLACK).count();
+    int blackPieceValue = queenValue * blackQueen.count() + rookValue * blackRooks.count() + 
+                        bishopValue * blackBishops.count() + knightValue * blackKnights.count();
     
-    int totalPieceValue = whitePieceValue + blackPieceValue;
-    int pieceDeficitPenalty = info.gamePhase * 8;
-
-    if (whitePieceValue > blackPieceValue) {
-        whiteScore += pieceDeficitPenalty;
-    } else if (blackPieceValue > whitePieceValue) {
-        blackScore += pieceDeficitPenalty;
+    int pieceDeficitPenalty = info.gamePhase * 4;
+    
+    if (whitePieceValue < blackPieceValue) {
+        whiteScore -= pieceDeficitPenalty;
+    } else if (blackPieceValue < whitePieceValue) {
+        blackScore -= pieceDeficitPenalty;
     }
 
-    // Safeguard against material deficit without enough compensation.
-    const int deficitPenalty = 100;
-    whitePieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::WHITE).count();
-    blackPieceValue += pawnValue * board.pieces(PieceType::PAWN, Color::BLACK).count();
+    /*--------------------------------------------------------------------------
+        Add a penalty for material deficit to make sure the position advantage is real.
+    --------------------------------------------------------------------------*/
+    const int deficitPenalty = 30;
+    int whiteMaterial = whitePieceValue + pawnValue * whitePawns.count();
+    int blackMaterial = blackPieceValue + pawnValue * blackPawns.count();
 
-    if (whitePieceValue < blackPieceValue) {
+    if (whiteMaterial < blackMaterial) {
         whiteScore -= deficitPenalty;
-    } else if (blackPieceValue < whitePieceValue) {
+    } else if (blackMaterial < whiteMaterial) {
         blackScore -= deficitPenalty;
     }
 
@@ -1490,97 +1556,74 @@ int evaluate(const Board& board) {
     --------------------------------------------------------------------------*/
 
     // Center control
-    Bitboard d2 = Bitboard::fromSquare(11);
-    Bitboard e2 = Bitboard::fromSquare(12);
-    Bitboard d3 = Bitboard::fromSquare(19);
-    Bitboard e3 = Bitboard::fromSquare(20);
-    Bitboard d4 = Bitboard::fromSquare(27);
-    Bitboard e4 = Bitboard::fromSquare(28);
-
-    Bitboard d5 = Bitboard::fromSquare(35);
-    Bitboard e5 = Bitboard::fromSquare(36);
-    Bitboard d6 = Bitboard::fromSquare(43);
-    Bitboard e6 = Bitboard::fromSquare(44);
-    Bitboard d7 = Bitboard::fromSquare(51);
-    Bitboard e7 = Bitboard::fromSquare(52);
-
     Bitboard center = e4 | d4 | e5 | d5;
+    Bitboard extendedCenter =  c4 | c5 | f4 | f5;
 
-    int whiteCenterControl = (allPieces(board, Color::WHITE) & center).count() * centerControlBonus;
-    int blackCenterControl = (allPieces(board, Color::BLACK) & center).count() * centerControlBonus;
+    const int centerControlBonus = 15;
+    const int extendedCenterControlBonus = 10;
+    const int blockCentralPawnPenalty = 60;
+
+    int whiteCenterControl = (board.us(Color::WHITE) & center).count() * centerControlBonus;
+    int blackCenterControl = (board.us(Color::BLACK) & center).count() * centerControlBonus;
 
     whiteScore += whiteCenterControl;
     blackScore += blackCenterControl;
+
+    int whiteExtendedCenterControl = (board.us(Color::WHITE) & extendedCenter).count() * extendedCenterControlBonus;
+    int blackExtendedCenterControl = (board.us(Color::BLACK) & extendedCenter).count() * extendedCenterControlBonus;
+
+    whiteScore += whiteExtendedCenterControl;
+    blackScore += blackExtendedCenterControl;
     
-    if (board.occ() && d3) {
-        Piece piece = board.at(Square(11));
+    // Penalty  blocking central pawns
+    if (board.occ() && d2) {
+        Piece piece = board.at(Square(d2.lsb()));
         if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
             whiteScore -= blockCentralPawnPenalty;
         }
     }
-    if (board.occ() && e3) {
-        Piece piece = board.at(Square(12));
+    if (board.occ() && e2) {
+        Piece piece = board.at(Square(e2.lsb()));
         if (piece.type() == PieceType::PAWN && piece.color() == Color::WHITE) {
             whiteScore -= blockCentralPawnPenalty;
         }
     }
-    if (board.occ() && d6) {
-        Piece piece = board.at(Square(51));
+    if (board.occ() && d7) {
+        Piece piece = board.at(Square(d7.lsb()));
         if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
             blackScore -= blockCentralPawnPenalty;
         }
     }
-    if (board.occ() && e6) {
-        Piece piece = board.at(Square(52));
+    if (board.occ() && e7) {
+        Piece piece = board.at(Square(d7.lsb()));
         if (piece.type() == PieceType::PAWN && piece.color() == Color::BLACK) {
             blackScore -= blockCentralPawnPenalty;
         }
     }
 
-    // Early queen development penalty
-    Bitboard whiteQueen = board.pieces(PieceType::QUEEN, Color::WHITE);
-    Bitboard blackQueen = board.pieces(PieceType::QUEEN, Color::BLACK);
-
-    // Determine if white queen moved from D1 (should be on rank 0)
-    bool whiteQueenDeveloped = (whiteQueen.count() > 0) && (whiteQueen.lsb() / 8 > 1);
-
-    // Determine if black queen moved from D8 (should be on rank 7)
-    bool blackQueenDeveloped = (blackQueen.count() > 0) && (blackQueen.lsb() / 8 < 6);
+    bool whiteQueenDeveloped = (whiteQueen.count() > 0) && (whiteQueen.lsb() != d1.lsb());
+    bool blackQueenDeveloped = (blackQueen.count() > 0) && (blackQueen.lsb() != d8.lsb());
 
     // Check if white knights and bishops haven't moved
-    Bitboard whiteKnightNotMoved = board.pieces(PieceType::KNIGHT, Color::WHITE) & 
-                                (Bitboard::fromSquare(Square(Square::underlying::SQ_B1)) | 
-                                Bitboard::fromSquare(Square(Square::underlying::SQ_G1)));
+    Bitboard whiteKnightNotMoved = board.pieces(PieceType::KNIGHT, Color::WHITE) & (b1 | g1);
+    Bitboard whiteBishopNotMoved = board.pieces(PieceType::BISHOP, Color::WHITE) & (c1 | f1);
 
-    Bitboard whiteBishopNotMoved = board.pieces(PieceType::BISHOP, Color::WHITE) & 
-                                (Bitboard::fromSquare(Square(Square::underlying::SQ_C1)) | 
-                                Bitboard::fromSquare(Square(Square::underlying::SQ_F1)));
+    // Check if black knights and bishops haven't moved
+    Bitboard blackKnightNotMoved = board.pieces(PieceType::KNIGHT, Color::BLACK) & (b8 | g8);
+    Bitboard blackBishopNotMoved = board.pieces(PieceType::BISHOP, Color::BLACK) & (c8 | f8);
 
     // Apply penalty if white queen moved early
     if (whiteQueenDeveloped) {
-        whiteScore -= 5 * (whiteKnightNotMoved.count() + whiteBishopNotMoved.count());
+        whiteScore -= 7 * (whiteKnightNotMoved.count() + whiteBishopNotMoved.count());
     }
 
-    // Check if black knights and bishops haven't moved
-    Bitboard blackKnightNotMoved = board.pieces(PieceType::KNIGHT, Color::BLACK) & 
-                                (Bitboard::fromSquare(Square(Square::underlying::SQ_B8)) | 
-                                Bitboard::fromSquare(Square(Square::underlying::SQ_G8)));
-
-    Bitboard blackBishopNotMoved = board.pieces(PieceType::BISHOP, Color::BLACK) &
-                                (Bitboard::fromSquare(Square(Square::underlying::SQ_C8)) | 
-                                Bitboard::fromSquare(Square(Square::underlying::SQ_F8)));
-
-    
     if (blackQueenDeveloped) {
-        blackScore -= 5 * (blackKnightNotMoved.count() + blackBishopNotMoved.count());
+        blackScore -= 7 * (blackKnightNotMoved.count() + blackBishopNotMoved.count());
     }
-
-
 
     const int trappedBishopPenalty = 250;
 
-    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
-    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
+
 
     // Case 1: White bishop stuck on a7 or b8 (blocked by black pawns on b6 and c7)
     if (whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_A7)) ||
