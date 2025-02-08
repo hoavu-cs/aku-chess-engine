@@ -909,13 +909,13 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
 int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
 
     // Constants
-    const int bishopPairBonus = 30;
-    const int outpostBonus = 20;
+    const int outpostBonus = 30;
     const int protectionBonus = 3;
 
     double midGameWeight = info.gamePhase / 24.0;
     double endGameWeight = 1.0 - midGameWeight;
 
+    int bishopPairBonus = 30 * endGameWeight;
     int rookAdjust[9] = {15, 12, 9, 6, 3, 0, -3, -6, -9};
     int mobilityBonus = 2;
 
