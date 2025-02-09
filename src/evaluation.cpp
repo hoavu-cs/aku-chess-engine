@@ -1551,7 +1551,7 @@ int evaluate(const Board& board) {
     /*--------------------------------------------------------------------------
         Add a penalty for material deficit to make sure the position advantage is real.
     --------------------------------------------------------------------------*/
-    const int deficitPenalty = 50;
+    const int deficitPenalty = 80;
     int whiteMaterial = whitePieceValue + pawnValue * whitePawns.count();
     int blackMaterial = blackPieceValue + pawnValue * blackPawns.count();
 

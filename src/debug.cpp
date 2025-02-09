@@ -58,31 +58,25 @@ int main() {
     // board = Board("rnbqkbnr/ppp1pppp/8/3P4/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2");
     // board = Board("r3kb1r/ppp1qp2/2nnb2p/6p1/3N4/2NBB1Q1/PPP2PPP/R3K2R b KQkq - 1 12");
     // board = Board("r2q1rk1/p4ppp/2pb1n2/3p2B1/8/2QP1P2/PPP2P1P/RN3RK1 b - - 0 13");
-    
     // board = Board("2qr2k1/1p2rppp/p2BPn2/5p2/3Q4/5P2/PP4PP/2R1R1K1 b - - 4 24");
-    
     // board = Board("5rk1/pp4pp/2b1p3/2Pp2q1/P6n/2N1RP2/1PP2P1P/R2Q1K2 b - - 4 18");
-
     // board = Board("1rbqk2r/1p2b1pp/2p1p3/1B3p2/1n3Q2/3P1N2/PPP2PPP/R1B2RK1 b k - 1 16");
-    
     // board = Board("1r2k2r/1pq1bppp/p3p3/2p1n3/3pNB2/1Q1P4/PPP2PPP/4RR1K b k - 5 16");
-
     // board = Board("8/4k1p1/6K1/p1PP1pPP/P4P2/8/8/8 w - - 1 60"); // tactical test
-
     //board = Board("r4rk1/1pp1qp2/1p2b3/1B2p1p1/4Pn1p/2Q2P2/PPP2BPP/R2R2K1 b - - 7 19");
-
     //board = Board("Q7/P4rk1/3q1np1/8/3p1b1p/1P1P3P/2P1R1P1/5R1K b - - 0 37"); // tactical test
-
     // board = Board("2k4r/1r1q2pp/QBp2p2/1p6/8/8/P4PPP/2R3K1 w - - 1 1"); // mate in 4.
     // board = Board("6k1/5p1p/4p1p1/2p1P3/2P4P/3P2PK/R1Q3B1/1r1n2q1 b - - 0 1"); // tactical test
     // board = Board("r2qkb1r/3bpp2/p1np1p2/1p3P2/3NP2p/2N5/PPPQB1PP/R4RK1 b kq - 0 1"); // tactical test
     // board = Board("3qbrk1/5p2/8/3pP1bQ/1PpB4/2P5/6PP/5RK1 w - - 0 1"); // mate in 6
 
-    // board = Board("r1bqk2r/pp1n1pp1/2pBp3/8/4B2p/3R4/P3QPP1/3R2K1 w q - 0 28"); // tactical test
+    board = Board("r1bqk2r/pp1n1pp1/2pBp3/8/4B2p/3R4/P3QPP1/3R2K1 w q - 0 28"); // tactical test
 
     // board = Board("8/2p2k1p/3p4/3P3q/1p4R1/P1B2P2/4r3/Q5K1 w - - 1 42"); // tactical test
     
-    board = Board("r1b2rk1/pp1p1p2/5p1p/3P4/1n6/3B1N2/P4PPP/R3K2R w KQ - 1 18");
+    // board = Board("r1b2rk1/pp1p1p2/5p1p/3P4/1n6/3B1N2/P4PPP/R3K2R w KQ - 1 18"); // 
+
+    // board = Board("4b3/4bpk1/4p3/1p2P1P1/4NQ2/p5K1/3R4/6q1 w - - 2 46"); // promotion test
 
 
     // Default settings

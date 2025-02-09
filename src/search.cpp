@@ -287,9 +287,22 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
 
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck(); // checks should not be reduced
-    // localBoard.unmakeMove(move);
 
-    if (i <= 2 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+    // Do not reduce for promotion threatsd
+    PieceType type = board.at<Piece>(move.from()).type();
+    if (type == PieceType::PAWN){ 
+
+        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+        int destinationRank = move.to().index() / 8;
+
+        if (isPassedPawn(move.to().index(), color, theirPawns)) {
+            if ((destinationRank > 4 && color == Color::WHITE) || (destinationRank < 3 && color == Color::BLACK)) {
+                return depth - 1;
+            }
+        }
+    }
+
+    if (i <= 1 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
     } else if (i <= 5) {
         return depth - 2;
@@ -598,7 +611,7 @@ int alphaBeta(Board& board,
 
     // Futility pruning: to avoid risky behaviors at low depths, only prune when globalMaxDepth >= 8
     const int futilityMargins[4] = {0, 500, 700, 1000};
-    if (depth <= 3 && !board.inCheck() && !endGameFlag && globalMaxDepth >= 10) {
+    if (depth <= 3 && !board.inCheck() && !endGameFlag && !mopUp && globalMaxDepth >= 10) {
         int futilityMargin = futilityMargins[depth];
         int standPat = evaluate(board);
         if (whiteTurn) {
@@ -613,7 +626,7 @@ int alphaBeta(Board& board,
     }
 
     // Razoring. Only prune when globalMaxDepth >= 8.
-    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost && globalMaxDepth >= 10) {
+    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost && !mopUp && globalMaxDepth >= 10) {
         int razorMargin = 1000;
         int standPat = quiescence(board, quiescenceDepth, alpha, beta);
         if (whiteTurn) {
@@ -641,21 +654,21 @@ int alphaBeta(Board& board,
             leftMost = false;
         }
         
-
-
         board.makeMove(move);
 
         bool extendFlag = false;
         bool mateThreat = false;
         bool check = board.inCheck();
         
+        // Threat extension: this is expensive so only apply sparingly
+
+        // Mate threat
         Bitboard whiteQueen = board.pieces(PieceType::QUEEN, Color::WHITE);
         Bitboard whiteKing = board.pieces(PieceType::KING, Color::WHITE);
 
         Bitboard blackQueen = board.pieces(PieceType::QUEEN, Color::BLACK);
         Bitboard blackKing = board.pieces(PieceType::KING, Color::BLACK);
-        
-        // Threat extension: this is expensive so only apply for serious threat
+
         if (whiteQueen.count() > 0) {
             if (manhattanDistance(Square(whiteQueen.lsb()), Square(blackKing.lsb())) <= 3) {
                 mateThreat = true;
@@ -667,14 +680,15 @@ int alphaBeta(Board& board,
                 mateThreat = true;
             }
         }
-
+        
         extendFlag = (check || mateThreat) && extension > 0;
 
         if (extendFlag) {
-            // If a check extension is applied, add one more ply to the search
+            // If a check extension is applied, add one more ply to the search. 
             eval = alphaBeta(board, depth, alpha, beta, quiescenceDepth, childPV, leftMost, extension - 1);
         } else {
-            // Otherwise, search at the reduced depth
+            // Otherwise, search at the reduced depth.
+            // Note that if this is a check, the extension is not applied but the depth is still reduced only by 1 ply.
             eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension - 1);
         }
         
