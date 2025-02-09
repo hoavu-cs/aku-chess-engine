@@ -49,7 +49,7 @@ const int pieceValues[] = {
     20000 // King
 };
 
-// Transposition table lookup
+// Transposition table lookup.
 bool transTableLookUp(std::unordered_map<std::uint64_t, 
                         std::pair<int, int>>& table, 
                         std::uint64_t hash, 
