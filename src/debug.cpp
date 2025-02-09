@@ -78,7 +78,9 @@ int main() {
     // board = Board("r2qkb1r/3bpp2/p1np1p2/1p3P2/3NP2p/2N5/PPPQB1PP/R4RK1 b kq - 0 1"); // tactical test
     // board = Board("3qbrk1/5p2/8/3pP1bQ/1PpB4/2P5/6PP/5RK1 w - - 0 1"); // mate in 6
 
-    board = Board("r1b2rk1/1pp1n1pp/2nqpp2/p2p4/3P1P2/2P2NP1/PP1NQP1P/R3KB1R w KQ - 0 11"); // mid game test
+    // board = Board("r1bqk2r/pp1n1pp1/2pBp3/8/4B2p/3R4/P3QPP1/3R2K1 w q - 0 28"); // tactical test
+
+    board = Board("8/2p2k1p/3p4/3P3q/1p4R1/P1B2P2/4r3/Q5K1 w - - 1 42"); // tactical test
 
 
     // Default settings

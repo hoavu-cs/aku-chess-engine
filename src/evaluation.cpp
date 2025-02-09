@@ -470,8 +470,6 @@ const Bitboard f8 = Bitboard::fromSquare(61);
 const Bitboard g8 = Bitboard::fromSquare(62);
 const Bitboard h8 = Bitboard::fromSquare(63);
 
-
-
 /*------------------------------------------------------------------------
     Helper Functions
 ------------------------------------------------------------------------*/
@@ -601,6 +599,19 @@ Bitboard generateFileMask(int file) {
     
     return Bitboard(0ULL);
 }
+
+// Generate a bitboard mask for the specified rank.
+constexpr Bitboard generateHalfMask(int startRank, int endRank) {
+    Bitboard mask = 0ULL;
+    for (int rank = startRank; rank <= endRank; ++rank) {
+        for (int file = 0; file < 8; ++file) {
+            int squareIndex = rank * 8 + file;
+            mask |= (1ULL << squareIndex);
+        }
+    }
+    return mask;
+}
+
 
 // Check if the given square is a passed pawn
 bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
@@ -1393,7 +1404,6 @@ int evaluate(const Board& board) {
         return 0;
     }
     
-
     /*--------------------------------------------------------------------------
     Mop-up phase: if only their king is left without any other pieces.
     Aim to checkmate.
@@ -1552,6 +1562,93 @@ int evaluate(const Board& board) {
     }
 
     /*--------------------------------------------------------------------------
+        Consider the amount of squares being attacked beyond each side's half.
+    --------------------------------------------------------------------------*/
+    const int halfWayAttackBonus = 5;
+    
+    Bitboard whiteHalfWayAttacks(0); 
+    Bitboard blackHalfWayAttacks(0);
+    Bitboard whitePawnsCopy = whitePawns;
+    Bitboard blackPawnsCopy = blackPawns;
+    Bitboard whiteKnightsCopy = whiteKnights;
+    Bitboard blackKnightsCopy = blackKnights;
+    Bitboard whiteBishopsCopy = whiteBishops;
+    Bitboard blackBishopsCopy = blackBishops;
+    Bitboard whiteRooksCopy = whiteRooks;
+    Bitboard blackRooksCopy = blackRooks;
+    Bitboard whiteQueenCopy = whiteQueen;
+    Bitboard blackQueenCopy = blackQueen;
+
+    while (whitePawnsCopy) {
+        int pawnIndex = whitePawnsCopy.lsb();
+        whiteHalfWayAttacks |= attacks::pawn(Color::WHITE, Square(pawnIndex));
+        whitePawnsCopy.clear(pawnIndex);
+    }
+
+    while (whiteKnightsCopy) {
+        int knightIndex = whiteKnightsCopy.lsb();
+        whiteHalfWayAttacks |= attacks::knight(Square(knightIndex));
+        whiteKnightsCopy.clear(knightIndex);
+    }
+
+    while (whiteBishopsCopy) {
+        int bishopIndex = whiteBishopsCopy.lsb();
+        whiteHalfWayAttacks |= attacks::bishop(Square(bishopIndex), board.occ());
+        whiteBishopsCopy.clear(bishopIndex);
+    }
+
+    while (whiteRooksCopy) {
+        int rookIndex = whiteRooksCopy.lsb();
+        whiteHalfWayAttacks |= attacks::rook(Square(rookIndex), board.occ());
+        whiteRooksCopy.clear(rookIndex);
+    }
+
+    while (whiteQueenCopy) {
+        int queenIndex = whiteQueenCopy.lsb();
+        whiteHalfWayAttacks |= attacks::queen(Square(queenIndex), board.occ());
+        whiteQueenCopy.clear(queenIndex);
+    }
+
+    while (blackPawnsCopy) {
+        int pawnIndex = blackPawnsCopy.lsb();
+        blackHalfWayAttacks |= attacks::pawn(Color::BLACK, Square(pawnIndex));
+        blackPawnsCopy.clear(pawnIndex);
+    }
+
+    while (blackKnightsCopy) {
+        int knightIndex = blackKnightsCopy.lsb();
+        blackHalfWayAttacks |= attacks::knight(Square(knightIndex));
+        blackKnightsCopy.clear(knightIndex);
+    }
+
+    while (blackBishopsCopy) {
+        int bishopIndex = blackBishopsCopy.lsb();
+        blackHalfWayAttacks |= attacks::bishop(Square(bishopIndex), board.occ());
+        blackBishopsCopy.clear(bishopIndex);
+    }
+
+    while (blackRooksCopy) {
+        int rookIndex = blackRooksCopy.lsb();
+        blackHalfWayAttacks |= attacks::rook(Square(rookIndex), board.occ());
+        blackRooksCopy.clear(rookIndex);
+    }
+
+    while (blackQueenCopy) {
+        int queenIndex = blackQueenCopy.lsb();
+        blackHalfWayAttacks |= attacks::queen(Square(queenIndex), board.occ());
+        blackQueenCopy.clear(queenIndex);
+    }
+
+    Bitboard whiteHalf = generateHalfMask(0, 3);
+    Bitboard blackHalf = generateHalfMask(4, 7);
+
+    whiteHalfWayAttacks &= blackHalf;
+    blackHalfWayAttacks &= whiteHalf;
+
+    whiteScore += halfWayAttackBonus * whiteHalfWayAttacks.count();
+    blackScore += halfWayAttackBonus * blackHalfWayAttacks.count();
+
+    /*--------------------------------------------------------------------------
         Pattern detection
     --------------------------------------------------------------------------*/
 
@@ -1626,75 +1723,65 @@ int evaluate(const Board& board) {
 
 
     // Case 1: White bishop stuck on a7 or b8 (blocked by black pawns on b6 and c7)
-    if (whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_A7)) ||
-        whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_B8))) {
-        if ((board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_B6))) &&
-            (board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_C7)))) {
+    if ((whiteBishops & a7) || (whiteBishops & b8)) {
+        if ((blackPawns & b6) && (blackPawns & c7)) {
             whiteScore -= trappedBishopPenalty; 
         }
     }
 
     // Case 2: White bishop stuck on h7 or g8 (blocked by black pawns on g6 and f7)
-    if (whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_H7)) ||
-        whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_G8))) {
-        if ((board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_G6))) &&
-            (board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_F7)))) {
-            whiteScore -= trappedBishopPenalty; 
+    if ((whiteBishops & h7) || (whiteBishops & g8)) {
+        if ((blackPawns & g6) && (blackPawns & f7)) {
+            whiteScore -= trappedBishopPenalty;
         }
     }
 
-
     // Case 1b: Black bishop stuck on a2 (blocked by white pawns on b3 and c2)
-    if (blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_A2))) {
-        if ((board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_B3))) &&
-            (board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_C2)))) {
+    if ((blackBishops & a2) || (blackBishops & b1)) {
+        if ((whitePawns & b3) && (whitePawns & c2)) {
             blackScore -= trappedBishopPenalty;
         }
     }
 
     // Case 2b: Black bishop stuck on h2 (blocked by white pawns on g3 and f2)
-    if (blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_H2))) {
-        if ((board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_G3))) &&
-            (board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_F2)))) {
+    if ((blackBishops & h2) || (blackBishops & g1)) {
+        if ((whitePawns & g3) && (whitePawns & f2)) {
             blackScore -= trappedBishopPenalty;
         }
     }
 
-    
     const int blockedBishopPenalty = 20;
 
+
+
     // White bishop stuck on c1 or d2 (blocked by white pawn on e3)
-    if ((whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_C1))) ||
-        (whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_D2)))) {
-        if (board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_E3))) {
+    if ((whiteBishops & c1) || (whiteBishops & d2)) {
+        if (whitePawns & e3) {
             whiteScore -= blockedBishopPenalty;
+
         }
     }
 
     // White bishop stuck on f1 or e2 (blocked by white pawn on d3)
-    if ((whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_F1))) ||
-        (whiteBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_E2)))) {
-        if (board.pieces(PieceType::PAWN, Color::WHITE) & Bitboard::fromSquare(Square(Square::underlying::SQ_D3))) {
+    if ((whiteBishops & f1) || (whiteBishops & e2)) {
+        if (whitePawns & d3) {
             whiteScore -= blockedBishopPenalty;
         }
     }
 
     // Black bishop stuck on c8 or d7 (blocked by black pawn on e6)
-    if ((blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_C8))) ||
-        (blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_D7)))) {
-        if (board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_E6))) {
+    if ((blackBishops & c8) || (blackBishops & d7)) {
+        if (blackPawns & e6) {
             blackScore -= blockedBishopPenalty;
         }
     }
 
     // Black bishop stuck on f8 or e7 (blocked by black pawn on d6)
-    if ((blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_F8))) ||
-        (blackBishops & Bitboard::fromSquare(Square(Square::underlying::SQ_E7)))) {
-        if (board.pieces(PieceType::PAWN, Color::BLACK) & Bitboard::fromSquare(Square(Square::underlying::SQ_D6))) {
+    if ((blackBishops & f8) || (blackBishops & e7)) {
+        if (blackPawns & d6) {
             blackScore -= blockedBishopPenalty;
         }
     }
-
 
     return whiteScore - blackScore;
 }
