@@ -158,7 +158,7 @@ void processSetOption(const std::string& command) {
 void processGo(const std::vector<std::string>& tokens) {
 
     // Default settings
-    int depth = 9;
+    int depth = 10;
     int quiescenceDepth = 8;
     int numThreads = 6;
     int timeLimit = 2000; // Default to 15 seconds

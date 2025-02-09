@@ -1551,7 +1551,7 @@ int evaluate(const Board& board) {
     /*--------------------------------------------------------------------------
         Add a penalty for material deficit to make sure the position advantage is real.
     --------------------------------------------------------------------------*/
-    const int deficitPenalty = 30;
+    const int deficitPenalty = 50;
     int whiteMaterial = whitePieceValue + pawnValue * whitePawns.count();
     int blackMaterial = blackPieceValue + pawnValue * blackPawns.count();
 
@@ -1564,7 +1564,7 @@ int evaluate(const Board& board) {
     /*--------------------------------------------------------------------------
         Consider the amount of squares being attacked beyond each side's half.
     --------------------------------------------------------------------------*/
-    const int halfWayAttackBonus = 5;
+    const int halfWayAttackBonus = 1;
     
     Bitboard whiteHalfWayAttacks(0); 
     Bitboard blackHalfWayAttacks(0);
