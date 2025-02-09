@@ -291,8 +291,10 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
     bool isCheck = localBoard.inCheck(); // checks should not be reduced
     // localBoard.unmakeMove(move);
 
-    if (i <= 5 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+    if (i <= 2 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
+    } else if (i <= 5) {
+        return depth - 2;
     } else {
         return static_cast<int>(depth / 2);
     } 
@@ -807,19 +809,11 @@ Move findBestMove(Board& board,
         #pragma omp for schedule(static)
         for (int i = 0; i < moves.size(); i++) {
 
-            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>
-                                            (std::chrono::high_resolution_clock::now() - startTime).count();
-
-            if (duration > 2.5 * timeLimit) {
-                unfinished = true;
-                continue;
-            }
-
             bool leftMost = (i == 0);
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            
+        
             Board localBoard = board;
             bool newBestFlag = false;  
             int nextDepth = depthReduction(localBoard, move, i, depth);
@@ -833,8 +827,8 @@ Move findBestMove(Board& board,
             }
 
             // aspiration window search
-            int windowLeft = 1000;
-            int windowRight = 1000;
+            int windowLeft = 50;
+            int windowRight = 50;
 
             while (true) {
                 localBoard.makeMove(move);
@@ -887,11 +881,6 @@ Move findBestMove(Board& board,
                     }
                 }
             }
-        }
-
-        if (unfinished) {
-            // Return the best move from the previous depth if the current iteration is unfinished
-            return candidateMove[depth - 1]; 
         }
         
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
