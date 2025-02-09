@@ -32,7 +32,6 @@ uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
-int k = 5; // top k moves in LMR to not be reduced
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
@@ -76,7 +75,6 @@ bool isQueenPromotion(const Move& move) {
     } 
 
     return false;
-
 }
 
 /*--------------------------------------------------------------------------------------------
@@ -764,7 +762,6 @@ Move findBestMove(Board& board,
 
     if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
         mopUp = true;
-        k = INF;
     }
 
 
@@ -960,7 +957,6 @@ Move findBestMove(Board& board,
             }
         }
     }
-
     
     #pragma omp critical
     {
