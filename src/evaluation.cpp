@@ -20,7 +20,7 @@ const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
-const int maxPawnCacheSize = 5000000;
+const int maxPawnCacheSize = 1000000;
 
 // Pawn hash table
 std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> whitePawnHashTable;
@@ -1620,16 +1620,14 @@ int evaluate(const Board& board) {
 
     // Apply penalty if white queen moved early
     if (whiteQueenDeveloped) {
-        whiteScore -= 7 * (whiteKnightNotMoved.count() + whiteBishopNotMoved.count());
+        whiteScore -= 12 * (whiteKnightNotMoved.count() + whiteBishopNotMoved.count());
     }
 
     if (blackQueenDeveloped) {
-        blackScore -= 7 * (blackKnightNotMoved.count() + blackBishopNotMoved.count());
+        blackScore -= 12 * (blackKnightNotMoved.count() + blackBishopNotMoved.count());
     }
 
     const int trappedBishopPenalty = 250;
-
-
 
     // Case 1: White bishop stuck on a7 or b8 (blocked by black pawns on b6 and c7)
     if ((whiteBishops & a7) || (whiteBishops & b8)) {
@@ -1658,99 +1656,6 @@ int evaluate(const Board& board) {
             blackScore -= trappedBishopPenalty;
         }
     }
-
-    const int blockedBishopPenalty = 20;
-
-    // White bishop stuck on c1 or d2 (blocked by white pawn on e3)
-    if ((whiteBishops & c1) || (whiteBishops & d2)) {
-        if (whitePawns & e3) {
-            whiteScore -= blockedBishopPenalty;
-
-        }
-    }
-
-    // White bishop stuck on f1 or e2 (blocked by white pawn on d3)
-    if ((whiteBishops & f1) || (whiteBishops & e2)) {
-        if (whitePawns & d3) {
-            whiteScore -= blockedBishopPenalty;
-        }
-    }
-
-    // Black bishop stuck on c8 or d7 (blocked by black pawn on e6)
-    if ((blackBishops & c8) || (blackBishops & d7)) {
-        if (blackPawns & e6) {
-            blackScore -= blockedBishopPenalty;
-        }
-    }
-
-    // Black bishop stuck on f8 or e7 (blocked by black pawn on d6)
-    if ((blackBishops & f8) || (blackBishops & e7)) {
-        if (blackPawns & d6) {
-            blackScore -= blockedBishopPenalty;
-        }
-    }
-
-    // Bonus for fianchettoed bishop(s)
-    // const int fianchettoBishopBonus = 15;
-    // if (board.occ() && g2) {
-    //     Piece bishop = board.at(Square(g2.lsb()));
-    //     if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::WHITE) {
-    //         Piece king = board.at(Square(g1.lsb()));
-    //         if (king.type() == PieceType::KING && king.color() == Color::WHITE) {
-    //             // Check for pawn structure
-    //             if (board.at(Square(f2.lsb())).type() == PieceType::PAWN &&
-    //                 board.at(Square(g3.lsb())).type() == PieceType::PAWN &&
-    //                 board.at(Square(h2.lsb())).type() == PieceType::PAWN) {
-    //                 whiteScore += fianchettoBishopBonus;
-    //             }
-    //         }
-    //     }
-    // }
-
-    // if (board.occ() && b2) {
-    //     Piece bishop = board.at(Square(b2.lsb()));
-    //     if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::WHITE) {
-    //         Piece king = board.at(Square(b1.lsb()));
-    //         if (king.type() == PieceType::KING && king.color() == Color::WHITE) {
-    //             // Check for pawn structure
-    //             if (board.at(Square(a2.lsb())).type() == PieceType::PAWN &&
-    //                 board.at(Square(b3.lsb())).type() == PieceType::PAWN &&
-    //                 board.at(Square(c2.lsb())).type() == PieceType::PAWN) {
-    //                 whiteScore += fianchettoBishopBonus;
-    //             }
-    //         }
-    //     }
-    // }
-
-    // if (board.occ() && g7) {
-    //     Piece bishop = board.at(Square(g7.lsb()));
-    //     if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::BLACK) {
-    //         Piece king = board.at(Square(g8.lsb()));
-    //         if (king.type() == PieceType::KING && king.color() == Color::BLACK) {
-    //             // Check for pawn structure
-    //             if (board.at(Square(f7.lsb())).type() == PieceType::PAWN &&
-    //                 board.at(Square(g6.lsb())).type() == PieceType::PAWN &&
-    //                 board.at(Square(h7.lsb())).type() == PieceType::PAWN) {
-    //                 blackScore += fianchettoBishopBonus;
-    //             }
-    //         }
-    //     }
-    // }
-
-    // if (board.occ() && b7) {
-    //     Piece bishop = board.at(Square(b7.lsb()));
-    //     if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::BLACK) {
-    //         Piece king = board.at(Square(b8.lsb()));
-    //         if (king.type() == PieceType::KING && king.color() == Color::BLACK) {
-    //             // Check for pawn structure
-    //             if (board.at(Square(a7.lsb())).type() == PieceType::PAWN &&
-    //                 board.at(Square(b6.lsb())).type() == PieceType::PAWN &&
-    //                 board.at(Square(c7.lsb())).type() == PieceType::PAWN) {
-    //                 blackScore += fianchettoBishopBonus;
-    //             }
-    //         }
-    //     }
-    // }
 
     return whiteScore - blackScore;
 }

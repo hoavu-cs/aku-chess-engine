@@ -9,4 +9,3 @@ MacOS:
 /opt/homebrew/opt/llvm/bin/clang++ -std=c++17 -O3 -fopenmp donbot_blitz.cpp search_blitz.cpp evaluation.cpp -o donbot_blitz
 /opt/homebrew/opt/llvm/bin/clang++ -std=c++17 -O3 -fopenmp donbot.cpp search.cpp evaluation.cpp -o donbot
 
-

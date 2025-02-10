@@ -80,10 +80,12 @@ int main() {
 
     // board = Board("r1bq1k1r/pp1p1p2/1n3n2/2p3B1/2PQ4/8/P4PPP/2K1RB1R w - - 0 17"); // tactical test
 
+    // board = Board("rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2");
+
 
     // Default settings
     int depth = 30;
-    int quiescenceDepth = 10;
+    int quiescenceDepth = 8;
     int numThreads = 6;
     int timeLimit = 30000;
 
