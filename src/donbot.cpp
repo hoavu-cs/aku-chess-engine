@@ -172,6 +172,7 @@ void processGo(const std::vector<std::string>& tokens) {
     if (!bookMove.empty()) {
         Move moveObj = uci::uciToMove(board, bookMove);
         board.makeMove(moveObj);
+        std::cout << "info depth 0 score cp 0 nodes 0 time 0 pv " << bookMove << std::endl;
         std::cout << "bestmove " << bookMove << std::endl;
         return;
     }
@@ -206,11 +207,15 @@ void processGo(const std::vector<std::string>& tokens) {
     } else {
         // Determine the time limit based on the current player's time and increment
         if (board.sideToMove() == Color::WHITE && wtime > 0) {
-            int baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 40); 
+            int baseTime = wtime / (movestogo > 0 ? movestogo + 1 : 40); 
             timeLimit = static_cast<int>(baseTime * 0.6) + winc;
         } else if (board.sideToMove() == Color::BLACK && btime > 0) {
-            int baseTime = btime / (movestogo > 0 ? movestogo + 2 : 40); 
+            int baseTime = btime / (movestogo > 0 ? movestogo + 1 : 40); 
             timeLimit = static_cast<int>(baseTime * 0.6) + binc;
+        }
+
+        if (timeLimit < 15000) {
+            depth = 11; // Safety net for last few seconds
         }
     }
 

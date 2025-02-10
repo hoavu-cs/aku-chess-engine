@@ -20,6 +20,8 @@ const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
+const int maxPawnCacheSize = 5000000;
+
 // Pawn hash table
 std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> whitePawnHashTable;
 std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackPawnHashTable;
@@ -476,8 +478,10 @@ const Bitboard h8 = Bitboard::fromSquare(63);
 
 // Clear the pawn hash table
 void clearPawnHashTable() {
-    whitePawnHashTable = {};
-    blackPawnHashTable = {};
+    if (whitePawnHashTable.size() + blackPawnHashTable.size() > maxPawnCacheSize) {
+        whitePawnHashTable = {};
+        blackPawnHashTable = {};
+    }
 }
 
 //End game special heuristics to avoid illusory material advantage.
@@ -692,15 +696,7 @@ bool isOutpost(const Board& board, int sqIndex, Color color) {
     return true;
 }
 
-Bitboard allPieces(const Board& board, Color color) {
-    // Return a bitboard with all pieces of the given color except kings
-    return board.pieces(PieceType::PAWN, color) | board.pieces(PieceType::KNIGHT, color) 
-           | board.pieces(PieceType::BISHOP, color) | board.pieces(PieceType::ROOK, color) 
-           | board.pieces(PieceType::QUEEN, color) | board.pieces(PieceType::KING, color);
-}
-
 bool isOpenFile(const Board& board, int file) {
-    // Get bitboards for white and black pawns
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
     Bitboard mask = generateFileMask(File(file));
@@ -746,7 +742,7 @@ bool isProtectedByPawn(int sqIndex, const Board& board, Color color) {
         }
     }
 
-    return false; // No protecting pawn found
+    return false; 
 }
 
 // check if a squared is opposed by an enemy pawn
@@ -1691,6 +1687,68 @@ int evaluate(const Board& board) {
     if ((blackBishops & f8) || (blackBishops & e7)) {
         if (blackPawns & d6) {
             blackScore -= blockedBishopPenalty;
+        }
+    }
+
+    // Bonus for fianchettoed bishop(s
+    const int fianchettoBishopBonus = 15;
+    if (board.occ() && g2) {
+        Piece bishop = board.at(Square(g2.lsb()));
+        if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::WHITE) {
+            Piece king = board.at(Square(g1.lsb()));
+            if (king.type() == PieceType::KING && king.color() == Color::WHITE) {
+                // Check for pawn structure
+                if (board.at(Square(f2.lsb())).type() == PieceType::PAWN &&
+                    board.at(Square(g3.lsb())).type() == PieceType::PAWN &&
+                    board.at(Square(h2.lsb())).type() == PieceType::PAWN) {
+                    whiteScore += fianchettoBishopBonus;
+                }
+            }
+        }
+    }
+
+    if (board.occ() && b2) {
+        Piece bishop = board.at(Square(b2.lsb()));
+        if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::WHITE) {
+            Piece king = board.at(Square(b1.lsb()));
+            if (king.type() == PieceType::KING && king.color() == Color::WHITE) {
+                // Check for pawn structure
+                if (board.at(Square(a2.lsb())).type() == PieceType::PAWN &&
+                    board.at(Square(b3.lsb())).type() == PieceType::PAWN &&
+                    board.at(Square(c2.lsb())).type() == PieceType::PAWN) {
+                    whiteScore += fianchettoBishopBonus;
+                }
+            }
+        }
+    }
+
+    if (board.occ() && g7) {
+        Piece bishop = board.at(Square(g7.lsb()));
+        if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::BLACK) {
+            Piece king = board.at(Square(g8.lsb()));
+            if (king.type() == PieceType::KING && king.color() == Color::BLACK) {
+                // Check for pawn structure
+                if (board.at(Square(f7.lsb())).type() == PieceType::PAWN &&
+                    board.at(Square(g6.lsb())).type() == PieceType::PAWN &&
+                    board.at(Square(h7.lsb())).type() == PieceType::PAWN) {
+                    blackScore += fianchettoBishopBonus;
+                }
+            }
+        }
+    }
+
+    if (board.occ() && b7) {
+        Piece bishop = board.at(Square(b7.lsb()));
+        if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::BLACK) {
+            Piece king = board.at(Square(b8.lsb()));
+            if (king.type() == PieceType::KING && king.color() == Color::BLACK) {
+                // Check for pawn structure
+                if (board.at(Square(a7.lsb())).type() == PieceType::PAWN &&
+                    board.at(Square(b6.lsb())).type() == PieceType::PAWN &&
+                    board.at(Square(c7.lsb())).type() == PieceType::PAWN) {
+                    blackScore += fianchettoBishopBonus;
+                }
+            }
         }
     }
 

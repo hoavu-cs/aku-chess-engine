@@ -49,7 +49,7 @@ const int pieceValues[] = {
 };
 
 // Transposition table lookup.
-bool transTableLookUp(std::unordered_map<std::uint64_t, 
+bool tableLookUp(std::unordered_map<std::uint64_t, 
                         std::pair<int, int>>& table, 
                         std::uint64_t hash, 
                         int depth, 
@@ -83,183 +83,181 @@ bool isQueenPromotion(const Move& move) {
     effectively and mitigating the late move reduction (LMR) horizon effect 
     by prioritizing moves likely to be strong.
 --------------------------------------------------------------------------------------------*/
-int quietPriority(const Board& board, const Move& move) {
-    auto type = board.at<Piece>(move.from()).type();
-    Color color = board.sideToMove();
+// int quietPriority(const Board& board, const Move& move) {
+//     auto type = board.at<Piece>(move.from()).type();
+//     Color color = board.sideToMove();
 
-    Board boardAfter = board;
-    boardAfter.makeMove(move);
+//     Board boardAfter = board;
+//     boardAfter.makeMove(move);
 
-    Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
-    Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
-    Bitboard theirBishops = board.pieces(PieceType::BISHOP, !color);
-    Bitboard theirKnights = board.pieces(PieceType::KNIGHT, !color);
-    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
-    Bitboard theirKing = board.pieces(PieceType::KING, !color);
+//     Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
+//     Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
+//     Bitboard theirBishops = board.pieces(PieceType::BISHOP, !color);
+//     Bitboard theirKnights = board.pieces(PieceType::KNIGHT, !color);
+//     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+//     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
+//     Bitboard theirKing = board.pieces(PieceType::KING, !color);
     
-    Square theirKingSq = Square(theirKing.lsb());
-    Bitboard blockers = theirQueen | theirRooks | theirBishops | theirKnights | theirPawns | ourPawns;
-    int theirKingSqIndex = theirKing.lsb();
+//     Square theirKingSq = Square(theirKing.lsb());
+//     Bitboard blockers = theirQueen | theirRooks | theirBishops | theirKnights | theirPawns | ourPawns;
+//     int theirKingSqIndex = theirKing.lsb();
 
-    Bitboard adjSq; // Adjacent squares to the opponent's king
-    for (int adjSqIndex : adjSquares.at(theirKingSqIndex)) {
-        adjSq |= Bitboard::fromSquare(adjSqIndex);
-    }
+//     Bitboard adjSq; // Adjacent squares to the opponent's king
+//     for (int adjSqIndex : adjSquares.at(theirKingSqIndex)) {
+//         adjSq |= Bitboard::fromSquare(adjSqIndex);
+//     }
 
-    int priority = 0;
+//     int priority = 0;
 
-    if (type == PieceType::PAWN) {
-        int queenAttack = (attacks::pawn(color, move.to()) & theirQueen).count();
-        int rookAttack = (attacks::pawn(color, move.to()) & theirRooks).count();
-        int bishopAttack = (attacks::pawn(color, move.to()) & theirBishops).count();
-        int knightAttack = (attacks::pawn(color, move.to()) & theirKnights).count();
+//     if (type == PieceType::PAWN) {
+//         int queenAttack = (attacks::pawn(color, move.to()) & theirQueen).count();
+//         int rookAttack = (attacks::pawn(color, move.to()) & theirRooks).count();
+//         int bishopAttack = (attacks::pawn(color, move.to()) & theirBishops).count();
+//         int knightAttack = (attacks::pawn(color, move.to()) & theirKnights).count();
 
-        int totalAttack = queenAttack + rookAttack + bishopAttack + knightAttack;
-        int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + bishopAttack * 15 + knightAttack * 10;
+//         int totalAttack = queenAttack + rookAttack + bishopAttack + knightAttack;
+//         int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + bishopAttack * 15 + knightAttack * 10;
 
-        priority += totalWeightedAttack;
+//         priority += totalWeightedAttack;
 
-        // Fork priority
-        if (totalAttack >= 2) {
-            priority += totalWeightedAttack;
-        }
+//         // Fork priority
+//         if (totalAttack >= 2) {
+//             priority += totalWeightedAttack;
+//         }
 
-        int destinationIndx = move.to().index();
-        int rank = destinationIndx / 8;
+//         int destinationIndx = move.to().index();
+//         int rank = destinationIndx / 8;
 
-        // Pawn advancement
-        if ((color == Color::WHITE && rank > 3) || (color == Color::BLACK && rank < 4)) {
-            priority += 30;
-        }
+//         // Pawn advancement
+//         if ((color == Color::WHITE && rank > 3) || (color == Color::BLACK && rank < 4)) {
+//             priority += 30;
+//         }
 
-        // King proximity
-        if (manhattanDistance(move.to(), theirKingSq) <= 3) {
-            priority += 40;
-        }
-    }
+//         // King proximity
+//         if (manhattanDistance(move.to(), theirKingSq) <= 3) {
+//             priority += 40;
+//         }
+//     }
 
+//     if (type == PieceType::KNIGHT) {
+//         int queenAttack = (attacks::knight(move.to()) & theirQueen).count();
+//         int rookAttack = (attacks::knight(move.to()) & theirRooks).count();
+//         int bishopAttack = (attacks::knight(move.to()) & theirBishops).count();
+//         int pawnAttack = (attacks::knight(move.to()) & theirPawns).count();
 
-    if (type == PieceType::KNIGHT) {
-        int queenAttack = (attacks::knight(move.to()) & theirQueen).count();
-        int rookAttack = (attacks::knight(move.to()) & theirRooks).count();
-        int bishopAttack = (attacks::knight(move.to()) & theirBishops).count();
-        int pawnAttack = (attacks::knight(move.to()) & theirPawns).count();
+//         int totalAttack = queenAttack + rookAttack + bishopAttack + pawnAttack;
+//         int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + bishopAttack * 15 + pawnAttack * 10;
 
-        int totalAttack = queenAttack + rookAttack + bishopAttack + pawnAttack;
-        int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + bishopAttack * 15 + pawnAttack * 10;
+//         priority += totalWeightedAttack;
 
-        priority += totalWeightedAttack;
+//         // Fork priority (increased weight)
+//         if (totalAttack >= 2) {
+//             priority += totalWeightedAttack - 10; // Knight forks are just after pawn forks
+//         }
 
-        // Fork priority (increased weight)
-        if (totalAttack >= 2) {
-            priority += totalWeightedAttack - 10; // Knight forks are just after pawn forks
-        }
+//         // King priority
+//         if (manhattanDistance(move.to(), theirKingSq) <= 5) {
+//             priority += 30;
+//         }
+//     }
 
-        // King priority
-        if (manhattanDistance(move.to(), theirKingSq) <= 5) {
-            priority += 30;
-        }
-    }
+//     if (type == PieceType::BISHOP) {
+//         int queenAttack = (attacks::bishop(move.to(), board.occ()) & theirQueen).count();
+//         int rookAttack = (attacks::bishop(move.to(), board.occ()) & theirRooks).count();
+//         int knightAttack = (attacks::bishop(move.to(), board.occ()) & theirKnights).count();
+//         int pawnAttack = (attacks::bishop(move.to(), board.occ()) & theirPawns).count();
 
-    if (type == PieceType::BISHOP) {
-        int queenAttack = (attacks::bishop(move.to(), board.occ()) & theirQueen).count();
-        int rookAttack = (attacks::bishop(move.to(), board.occ()) & theirRooks).count();
-        int knightAttack = (attacks::bishop(move.to(), board.occ()) & theirKnights).count();
-        int pawnAttack = (attacks::bishop(move.to(), board.occ()) & theirPawns).count();
+//         int totalAttack = queenAttack + rookAttack + knightAttack + pawnAttack;
+//         int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + knightAttack * 15 + pawnAttack * 10;
 
-        int totalAttack = queenAttack + rookAttack + knightAttack + pawnAttack;
-        int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + knightAttack * 15 + pawnAttack * 10;
+//         priority += totalWeightedAttack;
 
-        priority += totalWeightedAttack;
+//         // Fork priority
+//         if (totalAttack >= 2) {
+//             priority += totalWeightedAttack - 20;
+//         }
 
-        // Fork priority
-        if (totalAttack >= 2) {
-            priority += totalWeightedAttack - 20;
-        }
+//         // King attack priority
+//         if ((attacks::bishop(move.to(), blockers) & adjSq).count() > 0 || 
+//             manhattanDistance(move.to(), theirKingSq) <= 5) {
+//             priority += 50;
+//         }
+//     }
 
-        // King attack priority
-        if ((attacks::bishop(move.to(), blockers) & adjSq).count() > 0 || 
-            manhattanDistance(move.to(), theirKingSq) <= 5) {
-            priority += 50;
-        }
-    }
+//     if (type == PieceType::ROOK) {
+//         int queenAttack = (attacks::rook(move.to(), board.occ()) & theirQueen).count();
+//         int bishopAttack = (attacks::rook(move.to(), board.occ()) & theirBishops).count();
+//         int knightAttack = (attacks::rook(move.to(), board.occ()) & theirKnights).count();
+//         int pawnAttack = (attacks::rook(move.to(), board.occ()) & theirPawns).count();
 
-    if (type == PieceType::ROOK) {
-        int queenAttack = (attacks::rook(move.to(), board.occ()) & theirQueen).count();
-        int bishopAttack = (attacks::rook(move.to(), board.occ()) & theirBishops).count();
-        int knightAttack = (attacks::rook(move.to(), board.occ()) & theirKnights).count();
-        int pawnAttack = (attacks::rook(move.to(), board.occ()) & theirPawns).count();
+//         int totalAttack = queenAttack + bishopAttack + knightAttack + pawnAttack;
+//         int totalWeightedAttack = queenAttack * 40 + bishopAttack * 20 + knightAttack * 15 + pawnAttack * 10;
 
-        int totalAttack = queenAttack + bishopAttack + knightAttack + pawnAttack;
-        int totalWeightedAttack = queenAttack * 40 + bishopAttack * 20 + knightAttack * 15 + pawnAttack * 10;
+//         priority += totalWeightedAttack;
 
-        priority += totalWeightedAttack;
+//         // Skewer priority
+//         if (totalAttack >= 2) {
+//             priority += totalWeightedAttack - 30;
+//         }
 
-        // Skewer priority
-        if (totalAttack >= 2) {
-            priority += totalWeightedAttack - 30;
-        }
+//         int destinationIndx = move.to().index();
+//         int file = destinationIndx % 8;
+//         int rank = destinationIndx / 8;
 
-        int destinationIndx = move.to().index();
-        int file = destinationIndx % 8;
-        int rank = destinationIndx / 8;
+//         // Positional prioritys (open file, semi-open file, 2nd/7th rank)
+//         if (isOpenFile(board, file) || isSemiOpenFile(board, file, color)) {
+//             priority += 20;
+//         }
 
-        // Positional prioritys (open file, semi-open file, 2nd/7th rank)
-        if (isOpenFile(board, file) || isSemiOpenFile(board, file, color)) {
-            priority += 20;
-        }
+//         if ((color == Color::WHITE && (rank == 6 || rank == 7)) ||
+//             (color == Color::BLACK && (rank == 0 || rank == 1))) {
+//             priority += 20;
+//         }
 
-        if ((color == Color::WHITE && (rank == 6 || rank == 7)) ||
-            (color == Color::BLACK && (rank == 0 || rank == 1))) {
-            priority += 20;
-        }
+//         // King attack priority
+//         int distanceToKing = manhattanDistance(move.to(), theirKingSq);
+//         if (distanceToKing <= 4) {
+//             priority += 80;
+//         } else if (distanceToKing <= 5 || (attacks::rook(move.to(), blockers) & adjSq).count() > 0) {
+//             priority += 50;
+//         }
+//     }
 
-        // King attack priority
-        int distanceToKing = manhattanDistance(move.to(), theirKingSq);
-        if (distanceToKing <= 4) {
-            priority += 80;
-        } else if (distanceToKing <= 5 || (attacks::rook(move.to(), blockers) & adjSq).count() > 0) {
-            priority += 50;
-        }
-    }
+//     if (type == PieceType::QUEEN) {
+//         int rookAttack = (attacks::queen(move.to(), board.occ()) & theirRooks).count();
+//         int bishopAttack = (attacks::queen(move.to(), board.occ()) & theirBishops).count();
+//         int knightAttack = (attacks::queen(move.to(), board.occ()) & theirKnights).count();
+//         int pawnAttack = (attacks::queen(move.to(), board.occ()) & theirPawns).count();
 
-    if (type == PieceType::QUEEN) {
-        int rookAttack = (attacks::queen(move.to(), board.occ()) & theirRooks).count();
-        int bishopAttack = (attacks::queen(move.to(), board.occ()) & theirBishops).count();
-        int knightAttack = (attacks::queen(move.to(), board.occ()) & theirKnights).count();
-        int pawnAttack = (attacks::queen(move.to(), board.occ()) & theirPawns).count();
+//         int totalAttack = rookAttack + bishopAttack + knightAttack + pawnAttack;
+//         int totalWeightedAttack = rookAttack * 20 + bishopAttack * 15 + knightAttack * 15 + pawnAttack * 10;
 
-        int totalAttack = rookAttack + bishopAttack + knightAttack + pawnAttack;
-        int totalWeightedAttack = rookAttack * 20 + bishopAttack * 15 + knightAttack * 15 + pawnAttack * 10;
+//         priority += totalWeightedAttack;
 
-        priority += totalWeightedAttack;
+//         // Fork priority
+//         if (totalAttack >= 2) {
+//             priority += totalWeightedAttack - 40;
+//         }
 
-        // Fork priority
-        if (totalAttack >= 2) {
-            priority += totalWeightedAttack - 40;
-        }
+//         // King priority
+//         int distanceToKing = manhattanDistance(move.to(), theirKingSq);
+//         if (distanceToKing <= 4) {
+//             priority += 80;
+//         } else if (distanceToKing <= 5 || (attacks::queen(move.to(), blockers) & adjSq).count() > 0) {
+//             priority += 60;
+//         }
+//     }
 
-        // King priority
-        int distanceToKing = manhattanDistance(move.to(), theirKingSq);
-        if (distanceToKing <= 4) {
-            priority += 80;
-        } else if (distanceToKing <= 5 || (attacks::queen(move.to(), blockers) & adjSq).count() > 0) {
-            priority += 60;
-        }
-    }
-
-    // Evasion priority
-    Bitboard attackersBefore = attacks::attackers(board, !color, move.from());
-    Bitboard attackersAfter = attacks::attackers(board, !color, move.to());
+//     // Evasion priority
+//     Bitboard attackersBefore = attacks::attackers(board, !color, move.from());
+//     Bitboard attackersAfter = attacks::attackers(board, !color, move.to());
     
-    if (attackersBefore != attackersAfter) {
-        priority += 5; 
-    }
+//     if (attackersBefore != attackersAfter) {
+//         priority += 5; 
+//     }
 
-    return priority;
-}
-
+//     return priority;
+// }
 
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
@@ -391,7 +389,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 priority = 3000;
             } else {
                 quiet = true;
-                priority = quietPriority(board, move);
+                priority = 0; //; quietPriority(board, move);
             }
         } 
 
@@ -548,8 +546,8 @@ int alphaBeta(Board& board,
     
     #pragma omp critical
     { 
-        if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
-            (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
+        if ((whiteTurn && tableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
+            (!whiteTurn && tableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
             found = true;
 
             tableHit++;
@@ -782,18 +780,22 @@ Move findBestMove(Board& board,
     globalQuiescenceDepth = quiescenceDepth;
     omp_set_num_threads(numThreads);
 
-    // Clear transposition tables
+    // Clear hash tables
     #pragma omp critical
     {
         if (lowerBoundTable.size() + upperBoundTable.size() > maxTableSize) {
             lowerBoundTable = {};
             upperBoundTable = {};
+        }
+
+        if (whiteHashMove.size() + blackHashMove.size() > maxTableSize) {
             whiteHashMove = {};
             blackHashMove = {};
-            clearPawnHashTable();
         }
+        
+        clearPawnHashTable();
     }
-    
+
     const int baseDepth = 1;
     int apsiration = evaluate(board);
     int depth = baseDepth;
@@ -977,10 +979,14 @@ Move findBestMove(Board& board,
         if (lowerBoundTable.size() + upperBoundTable.size() > maxTableSize) {
             lowerBoundTable = {};
             upperBoundTable = {};
+        }
+
+        if (whiteHashMove.size() + blackHashMove.size() > maxTableSize) {
             whiteHashMove = {};
             blackHashMove = {};
-            clearPawnHashTable();
         }
+
+        clearPawnHashTable();
     }
 
     return bestMove; 
