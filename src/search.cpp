@@ -224,9 +224,9 @@ std::vector<std::pair<Move, int>> orderedMoves(
     });
 
     // Sort the quiet moves by priority
-    std::sort(quietCandidates.begin(), quietCandidates.end(), [](const auto& a, const auto& b) {
-        return a.second > b.second;
-    });
+    // std::sort(quietCandidates.begin(), quietCandidates.end(), [](const auto& a, const auto& b) {
+    //     return a.second > b.second;
+    // });
 
     for (const auto& move : quietCandidates) {
         candidates.push_back(move);
