@@ -78,6 +78,8 @@ int main() {
 
     // board = Board("4b3/4bpk1/4p3/1p2P1P1/4NQ2/p5K1/3R4/6q1 w - - 2 46"); // promotion test
 
+    board = Board("r1bq1k1r/pp1p1p2/1n3n2/2p3B1/2PQ4/8/P4PPP/2K1RB1R w - - 0 17"); // tactical test
+
 
     // Default settings
     int depth = 30;
