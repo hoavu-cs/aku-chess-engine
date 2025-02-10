@@ -118,8 +118,10 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
         }
     }
 
-    if (i <= 5 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+    if (i <= 2 || depth <= 5 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
+    } else if (i <= 5) {
+        return depth - 2;
     } else {
         return static_cast<int>(depth / 2);
     } 
