@@ -491,12 +491,12 @@ int alphaBeta(Board& board,
         extendFlag = (check || mateThreat) && extension > 0;
 
         if (extendFlag) {
-            // If a check extension is applied, add 2 more plies to the search. 
+            // If a check extension is applied, add 1 more plies to the search. 
             eval = alphaBeta(board, depth, alpha, beta, quiescenceDepth, childPV, leftMost, extension - 1);
         } else {
             // Otherwise, search at the reduced depth.
             // Note that if this is a check, the extension is not applied but the depth is still reduced only by 1 ply.
-            eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension - 1);
+            eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension);
         }
         
         board.unmakeMove(move);
