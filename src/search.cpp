@@ -487,24 +487,6 @@ int alphaBeta(Board& board,
                 mateThreat = true;
             }
         }
-
-        // Bitboard whiteQueen = board.pieces(PieceType::QUEEN, Color::WHITE);
-        // Bitboard whiteKing = board.pieces(PieceType::KING, Color::WHITE);
-
-        // Bitboard blackQueen = board.pieces(PieceType::QUEEN, Color::BLACK);
-        // Bitboard blackKing = board.pieces(PieceType::KING, Color::BLACK);
-
-        // if (whiteQueen.count() > 0) {
-        //     if (manhattanDistance(Square(whiteQueen.lsb()), Square(blackKing.lsb())) <= 3) {
-        //         mateThreat = true;
-        //     }
-        // }
-
-        // if (blackQueen.count() > 0) {
-        //     if (manhattanDistance(Square(blackQueen.lsb()), Square(whiteKing.lsb())) <= 3) {
-        //         mateThreat = true;
-        //     }
-        // }
         
         extendFlag = (check || mateThreat) && extension > 0;
 
