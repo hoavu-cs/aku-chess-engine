@@ -16,7 +16,8 @@ int quiescence(
     Board& board, 
     int depth, 
     int alpha, 
-    int beta);
+    int beta,
+    int threadID);
 
 int alphaBeta(
     Board& board, 
@@ -26,7 +27,8 @@ int alphaBeta(
     int quiescenceDepth,
     std::vector<Move>& pV,
     bool leftMost,
-    int checkExtension);
+    int checkExtension,
+    int threadID);
 
 Move findBestMove(
     Board& board, 
