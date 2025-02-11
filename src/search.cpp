@@ -384,7 +384,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 priority = 3000;
             } else {
                 quiet = true;
-                priority = 0;
+                priority = quietPriority(board, move);
             }
         } 
 
@@ -608,35 +608,35 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning: to avoid risky behaviors at low depths, only prune when globalMaxDepth >= 8
-    const int futilityMargins[4] = {0, 300, 550, 975};
-    if (depth <= 3 && !board.inCheck() && !endGameFlag && !mopUp && globalMaxDepth >= 10) {
-        int futilityMargin = futilityMargins[depth];
-        int standPat = evaluate(board);
-        if (whiteTurn) {
-            if (standPat + futilityMargin < alpha) {
-                return standPat + futilityMargin;
-            }
-        } else {
-            if (standPat - futilityMargin > beta) {
-                return standPat - futilityMargin;
-            }
-        }
-    }
+    // const int futilityMargins[4] = {0, 300, 550, 975};
+    // if (depth <= 3 && !board.inCheck() && !endGameFlag && !mopUp && globalMaxDepth >= 10) {
+    //     int futilityMargin = futilityMargins[depth];
+    //     int standPat = evaluate(board);
+    //     if (whiteTurn) {
+    //         if (standPat + futilityMargin < alpha) {
+    //             return standPat + futilityMargin;
+    //         }
+    //     } else {
+    //         if (standPat - futilityMargin > beta) {
+    //             return standPat - futilityMargin;
+    //         }
+    //     }
+    // }
 
     // Razoring. Only prune when globalMaxDepth >= 8.
-    if (depth == 4 && !board.inCheck() && !endGameFlag && !leftMost && !mopUp && globalMaxDepth >= 10) {
-        int razorMargin = 1100;
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta, threadID);
-        if (whiteTurn) {
-            if (standPat + razorMargin < alpha) {
-                return standPat + razorMargin;
-            }
-        } else {
-            if (standPat - razorMargin > beta) {
-                return standPat - razorMargin;
-            }
-        }
-    }
+    // if (depth == 4 && !board.inCheck() && !endGameFlag && !leftMost && !mopUp && globalMaxDepth >= 10) {
+    //     int razorMargin = 1100;
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta, threadID);
+    //     if (whiteTurn) {
+    //         if (standPat + razorMargin < alpha) {
+    //             return standPat + razorMargin;
+    //         }
+    //     } else {
+    //         if (standPat - razorMargin > beta) {
+    //             return standPat - razorMargin;
+    //         }
+    //     }
+    // }
 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? alpha - 1 : beta + 1;
