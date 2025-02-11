@@ -16,8 +16,6 @@ using namespace chess;
 
 typedef std::uint64_t U64;
 
-std::vector<U64> positionCount(1000, 0);
-
 // Constants and global variables
 std::unordered_map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::unordered_map<std::uint64_t, Move> whiteHashMove;
@@ -25,19 +23,22 @@ std::unordered_map<std::uint64_t, Move> whiteHashMove;
 std::unordered_map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash -> (eval, depth)
 std::unordered_map<std::uint64_t, Move> blackHashMove;
 
-const int maxTableSize = 5000000;
+const int maxTableSize = 10000000;
+
+// node count for each thread
+std::vector<U64> nodeCount(1000, 0);
 
 // Time management
 std::vector<Move> previousPV; // Principal variation from the previous iteration
 
 std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
 
-int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
+
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {
@@ -51,7 +52,7 @@ const int pieceValues[] = {
 };
 
 // Transposition table lookup.
-bool tableLookUp(std::unordered_map<std::uint64_t, 
+bool transTableLookUp(std::unordered_map<std::uint64_t, 
                         std::pair<int, int>>& table, 
                         std::uint64_t hash, 
                         int depth, 
@@ -79,6 +80,190 @@ bool isQueenPromotion(const Move& move) {
     return false;
 }
 
+/*--------------------------------------------------------------------------------------------
+    Return the priority of a quiet move based on some heuristics.
+    Move ordering improves performance by pruning the search tree 
+    effectively and mitigating the late move reduction (LMR) horizon effect 
+    by prioritizing moves likely to be strong.
+--------------------------------------------------------------------------------------------*/
+int quietPriority(const Board& board, const Move& move) {
+    auto type = board.at<Piece>(move.from()).type();
+    Color color = board.sideToMove();
+
+    Board boardAfter = board;
+    boardAfter.makeMove(move);
+
+    Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
+    Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
+    Bitboard theirBishops = board.pieces(PieceType::BISHOP, !color);
+    Bitboard theirKnights = board.pieces(PieceType::KNIGHT, !color);
+    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
+    Bitboard theirKing = board.pieces(PieceType::KING, !color);
+    
+    Square theirKingSq = Square(theirKing.lsb());
+    Bitboard blockers = theirQueen | theirRooks | theirBishops | theirKnights | theirPawns | ourPawns;
+    int theirKingSqIndex = theirKing.lsb();
+
+    Bitboard adjSq; // Adjacent squares to the opponent's king
+    for (int adjSqIndex : adjSquares.at(theirKingSqIndex)) {
+        adjSq |= Bitboard::fromSquare(adjSqIndex);
+    }
+
+    int priority = 0;
+
+    if (type == PieceType::PAWN) {
+        int queenAttack = (attacks::pawn(color, move.to()) & theirQueen).count();
+        int rookAttack = (attacks::pawn(color, move.to()) & theirRooks).count();
+        int bishopAttack = (attacks::pawn(color, move.to()) & theirBishops).count();
+        int knightAttack = (attacks::pawn(color, move.to()) & theirKnights).count();
+
+        int totalAttack = queenAttack + rookAttack + bishopAttack + knightAttack;
+        int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + bishopAttack * 15 + knightAttack * 10;
+
+        priority += totalWeightedAttack;
+
+        // Fork priority
+        if (totalAttack >= 2) {
+            priority += totalWeightedAttack;
+        }
+
+        int destinationIndx = move.to().index();
+        int rank = destinationIndx / 8;
+
+        // Pawn advancement
+        if ((color == Color::WHITE && rank > 3) || (color == Color::BLACK && rank < 4)) {
+            priority += 30;
+        }
+
+        // King proximity
+        if (manhattanDistance(move.to(), theirKingSq) <= 3) {
+            priority += 40;
+        }
+    }
+
+
+    if (type == PieceType::KNIGHT) {
+        int queenAttack = (attacks::knight(move.to()) & theirQueen).count();
+        int rookAttack = (attacks::knight(move.to()) & theirRooks).count();
+        int bishopAttack = (attacks::knight(move.to()) & theirBishops).count();
+        int pawnAttack = (attacks::knight(move.to()) & theirPawns).count();
+
+        int totalAttack = queenAttack + rookAttack + bishopAttack + pawnAttack;
+        int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + bishopAttack * 15 + pawnAttack * 10;
+
+        priority += totalWeightedAttack;
+
+        // Fork priority (increased weight)
+        if (totalAttack >= 2) {
+            priority += totalWeightedAttack - 10; // Knight forks are just after pawn forks
+        }
+
+        // King priority
+        if (manhattanDistance(move.to(), theirKingSq) <= 5) {
+            priority += 30;
+        }
+    }
+
+    if (type == PieceType::BISHOP) {
+        int queenAttack = (attacks::bishop(move.to(), board.occ()) & theirQueen).count();
+        int rookAttack = (attacks::bishop(move.to(), board.occ()) & theirRooks).count();
+        int knightAttack = (attacks::bishop(move.to(), board.occ()) & theirKnights).count();
+        int pawnAttack = (attacks::bishop(move.to(), board.occ()) & theirPawns).count();
+
+        int totalAttack = queenAttack + rookAttack + knightAttack + pawnAttack;
+        int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + knightAttack * 15 + pawnAttack * 10;
+
+        priority += totalWeightedAttack;
+
+        // Fork priority
+        if (totalAttack >= 2) {
+            priority += totalWeightedAttack - 20;
+        }
+
+        // King attack priority
+        if ((attacks::bishop(move.to(), blockers) & adjSq).count() > 0 || 
+            manhattanDistance(move.to(), theirKingSq) <= 5) {
+            priority += 50;
+        }
+    }
+
+    if (type == PieceType::ROOK) {
+        int queenAttack = (attacks::rook(move.to(), board.occ()) & theirQueen).count();
+        int bishopAttack = (attacks::rook(move.to(), board.occ()) & theirBishops).count();
+        int knightAttack = (attacks::rook(move.to(), board.occ()) & theirKnights).count();
+        int pawnAttack = (attacks::rook(move.to(), board.occ()) & theirPawns).count();
+
+        int totalAttack = queenAttack + bishopAttack + knightAttack + pawnAttack;
+        int totalWeightedAttack = queenAttack * 40 + bishopAttack * 20 + knightAttack * 15 + pawnAttack * 10;
+
+        priority += totalWeightedAttack;
+
+        // Skewer priority
+        if (totalAttack >= 2) {
+            priority += totalWeightedAttack - 30;
+        }
+
+        int destinationIndx = move.to().index();
+        int file = destinationIndx % 8;
+        int rank = destinationIndx / 8;
+
+        // Positional prioritys (open file, semi-open file, 2nd/7th rank)
+        if (isOpenFile(board, file) || isSemiOpenFile(board, file, color)) {
+            priority += 20;
+        }
+
+        if ((color == Color::WHITE && (rank == 6 || rank == 7)) ||
+            (color == Color::BLACK && (rank == 0 || rank == 1))) {
+            priority += 20;
+        }
+
+        // King attack priority
+        int distanceToKing = manhattanDistance(move.to(), theirKingSq);
+        if (distanceToKing <= 4) {
+            priority += 80;
+        } else if (distanceToKing <= 5 || (attacks::rook(move.to(), blockers) & adjSq).count() > 0) {
+            priority += 50;
+        }
+    }
+
+    if (type == PieceType::QUEEN) {
+        int rookAttack = (attacks::queen(move.to(), board.occ()) & theirRooks).count();
+        int bishopAttack = (attacks::queen(move.to(), board.occ()) & theirBishops).count();
+        int knightAttack = (attacks::queen(move.to(), board.occ()) & theirKnights).count();
+        int pawnAttack = (attacks::queen(move.to(), board.occ()) & theirPawns).count();
+
+        int totalAttack = rookAttack + bishopAttack + knightAttack + pawnAttack;
+        int totalWeightedAttack = rookAttack * 20 + bishopAttack * 15 + knightAttack * 15 + pawnAttack * 10;
+
+        priority += totalWeightedAttack;
+
+        // Fork priority
+        if (totalAttack >= 2) {
+            priority += totalWeightedAttack - 40;
+        }
+
+        // King priority
+        int distanceToKing = manhattanDistance(move.to(), theirKingSq);
+        if (distanceToKing <= 4) {
+            priority += 80;
+        } else if (distanceToKing <= 5 || (attacks::queen(move.to(), blockers) & adjSq).count() > 0) {
+            priority += 60;
+        }
+    }
+
+    // Evasion priority
+    Bitboard attackersBefore = attacks::attackers(board, !color, move.from());
+    Bitboard attackersAfter = attacks::attackers(board, !color, move.to());
+    
+    if (attackersBefore != attackersAfter) {
+        priority += 5; 
+    }
+
+    return priority;
+}
+
+
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
     #pragma omp critical
@@ -96,36 +281,36 @@ void updateKillerMoves(const Move& move, int depth) {
     Late move reduction. We don't reduce depth for tacktical moves.
     It seems to work well for the most part.
 --------------------------------------------------------------------------------------------*/
-int depthReduction(Board& board, Move move, int i, int depth) {
+int depthReduction(const Board& board, Move move, int i, int depth) {
 
+    Board localBoard = board;
     Color color = board.sideToMove();
-    bool inCheck = board.inCheck(); // check evasions should not be reduced
 
-    board.makeMove(move);
-    bool isCheck = board.inCheck(); // checks should not be reduced
-    board.unmakeMove(move);
+    localBoard.makeMove(move);
+    bool isCheck = localBoard.inCheck(); // checks should not be reduced
 
-    // Do not reduce for promotion threats
-    PieceType type = board.at<Piece>(move.from()).type();
-    if (type == PieceType::PAWN){ 
-
-        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-        int destinationRank = move.to().index() / 8;
-
-        if (isPassedPawn(move.to().index(), color, theirPawns)) {
-            if ((destinationRank > 4 && color == Color::WHITE) || (destinationRank < 3 && color == Color::BLACK)) {
-                return depth - 1;
-            }
-        }
-    }
-
-    if (i <= 2 || depth <= 2 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+    if (i <= 2 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
-    } else if (i <= 5) {
-        return depth - 2;
-    } else {
-        return static_cast<int>(depth / 2);
     } 
+
+    int extraReduction = globalMaxDepth > 8 ? globalMaxDepth - 8 : 0;
+    int reduction = static_cast<int>(std::max(1.0, std::floor(1 + log (depth) * log(i) / 2.0)));
+    return depth - reduction - extraReduction;
+    
+    //int extraReduction = 0;
+
+    // if (globalMaxDepth > 12) {
+    //     extraReduction = globalMaxDepth - 12;
+    // }
+
+    // if (i <= 5 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+    //     if (globalMaxDepth > 12 && i > 1) {
+    //         return depth - 2;
+    //     }
+    //     return depth - 1;
+    // } else {
+    //     return static_cast<int>(depth / 2) - extraReduction;
+    // } 
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -138,9 +323,9 @@ std::vector<std::pair<Move, int>> orderedMoves(
     movegen::legalmoves(moves, board);
     std::vector<std::pair<Move, int>> candidates;
     std::vector<std::pair<Move, int>> quietCandidates;
-    
-    quietCandidates.reserve(moves.size());
+
     candidates.reserve(moves.size());
+    quietCandidates.reserve(moves.size());
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
@@ -154,19 +339,18 @@ std::vector<std::pair<Move, int>> orderedMoves(
         int ply = globalMaxDepth - depth;
         bool hashMove = false;
 
-        // Previous hash moves, PV, killer moves, history heuristic, captures, promotions, checks, quiet moves
+        // Previous PV move > hash moves > captures/killer moves > checks > quiet moves
         if (whiteTurn) {
             if (whiteHashMove.find(hash) != whiteHashMove.end() && whiteHashMove[hash] == move) {
                 priority = 9000;
-                candidates.emplace_back(move, priority);
+                candidates.push_back({move, priority});
                 hashMove = true;
             }
 
         } else {
-
             if (blackHashMove.find(hash) != blackHashMove.end() && blackHashMove[hash] == move) {
                 priority = 9000;
-                candidates.emplace_back(move, priority);
+                candidates.push_back({move, priority});
                 hashMove = true;
             }
         }
@@ -176,15 +360,14 @@ std::vector<std::pair<Move, int>> orderedMoves(
         }
 
         if (previousPV.size() > ply && leftMost) {
-            // Previous PV
+
             if (previousPV[ply] == move) {
-                priority = 100000;
+                priority = 100000; // PV move
             }
 
-        } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) 
-                != killerMoves[depth].end()) {
-            // Killer
-            priority = 4000;
+        } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end()) {
+            
+            priority = 3900; // Killer moves
 
         } else if (isQueenPromotion(move)) {
 
@@ -192,7 +375,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
 
         } else if (board.isCapture(move)) { 
 
-            // MVV-LVA priority for captures
             auto victim = board.at<Piece>(move.to());
             auto attacker = board.at<Piece>(move.from());
 
@@ -200,6 +382,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                             - pieceValues[static_cast<int>(attacker.type())];
 
         } else {
+
             board.makeMove(move);
             bool isCheck = board.inCheck();
             board.unmakeMove(move);
@@ -208,19 +391,24 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 priority = 3000;
             } else {
                 quiet = true;
-                priority = 0;
+                priority = quietPriority(board, move);
             }
         } 
 
         if (!quiet) {
-            candidates.emplace_back(move, priority);
+            candidates.push_back({move, priority});
         } else {
-            quietCandidates.emplace_back(move, priority);
+            quietCandidates.push_back({move, priority});
         }
     }
 
     // Sort capture, promotion, checks by priority
     std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
+
+    // Sort the quiet moves by priority
+    std::sort(quietCandidates.begin(), quietCandidates.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
@@ -232,8 +420,8 @@ std::vector<std::pair<Move, int>> orderedMoves(
 }
 
 int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
-
-    positionCount[threadID]++;
+    
+    nodeCount[threadID]++;
     
     if (depth <= 0) {
         return evaluate(board);
@@ -265,7 +453,6 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
     movegen::legalmoves(moves, board);
     std::vector<std::pair<Move, int>> candidateMoves;
     candidateMoves.reserve(moves.size());
-    int greatestMaterialGain = 0;
 
     for (const auto& move : moves) {
         if (!board.isCapture(move) && !isQueenPromotion(move)) {
@@ -275,8 +462,7 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
         //  Prioritize promotions & captures
         if (isQueenPromotion(move)) {
 
-            candidateMoves.emplace_back(move, 5000);
-            //greatestMaterialGain = pieceValues[5]; // Assume queen promotion
+            candidateMoves.push_back({move, 5000});
 
         } else if (board.isCapture(move)) {
 
@@ -284,17 +470,9 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
             auto attacker = board.at<Piece>(move.from());
 
             int priority = pieceValues[static_cast<int>(victim.type())] - pieceValues[static_cast<int>(attacker.type())];
-            //greatestMaterialGain = std::max(greatestMaterialGain, priority);
-            candidateMoves.emplace_back(move, priority);
+            candidateMoves.push_back({move, priority});
         } 
     }
-
-    // Delta pruning
-    // if (whiteTurn && standPat + greatestMaterialGain < alpha && globalMaxDepth >= 10) {
-    //     return alpha;
-    // } else if (!whiteTurn && standPat - greatestMaterialGain > beta && globalMaxDepth >= 10) {
-    //     return beta;
-    // }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
@@ -303,7 +481,6 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
     for (const auto& [move, priority] : candidateMoves) {
 
         board.makeMove(move);
-
         int score = 0;
         score = quiescence(board, depth - 1, alpha, beta, threadID);
 
@@ -340,7 +517,7 @@ int alphaBeta(Board& board,
             int threadID) {
 
 
-    positionCount[threadID]++;
+    nodeCount[threadID]++;
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
@@ -364,15 +541,12 @@ int alphaBeta(Board& board,
     bool found = false;
     int storedEval;
     
-    #pragma omp critical
-    { 
-        if ((whiteTurn && tableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
-            (!whiteTurn && tableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
-            found = true;
 
-            tableHit++;
-        }
+    if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
+        (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
+        found = true;
     }
+    
 
     if (found) {
         return storedEval;
@@ -428,8 +602,8 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning: to avoid risky behaviors at low depths, only prune when globalMaxDepth >= 8
-    const int futilityMargins[4] = {0, 300, 550, 1000};
-    if (depth <= 3 && !board.inCheck() && !endGameFlag && !mopUp && globalMaxDepth >= 10) {
+    const int futilityMargins[4] = {0, 500, 700, 1000};
+    if (depth <= 3 && !board.inCheck() && !endGameFlag && globalMaxDepth >= 10) {
         int futilityMargin = futilityMargins[depth];
         int standPat = evaluate(board);
         if (whiteTurn) {
@@ -444,19 +618,19 @@ int alphaBeta(Board& board,
     }
 
     // Razoring. Only prune when globalMaxDepth >= 8.
-    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost && !mopUp && globalMaxDepth >= 10) {
-        int razorMargin = 1000;
-        int standPat = quiescence(board, quiescenceDepth, alpha, beta, threadID);
-        if (whiteTurn) {
-            if (standPat + razorMargin < alpha) {
-                return standPat + razorMargin;
-            }
-        } else {
-            if (standPat - razorMargin > beta) {
-                return standPat - razorMargin;
-            }
-        }
-    }
+    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost && globalMaxDepth >= 10) {
+    //     int razorMargin = 1000;
+    //     int standPat = quiescence(board, quiescenceDepth, alpha, beta, threadID);
+    //     if (whiteTurn) {
+    //         if (standPat + razorMargin < alpha) {
+    //             return standPat + razorMargin;
+    //         }
+    //     } else {
+    //         if (standPat - razorMargin > beta) {
+    //             return standPat - razorMargin;
+    //         }
+    //     }
+    // }
 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? alpha - 1 : beta + 1;
@@ -471,43 +645,45 @@ int alphaBeta(Board& board,
         if (i > 0) {
             leftMost = false;
         }
-        
+
         board.makeMove(move);
 
         bool extendFlag = false;
         bool mateThreat = false;
         bool check = board.inCheck();
         
-        // Threat extension: this is expensive so only apply sparingly
-        // Mate threat
+        Bitboard whiteQueen = board.pieces(PieceType::QUEEN, Color::WHITE);
+        Bitboard whiteKing = board.pieces(PieceType::KING, Color::WHITE);
 
-        PieceType type = board.at<Piece>(move.from()).type();
-        if (type == PieceType::QUEEN) {
-            Bitboard theirKing = board.pieces(PieceType::KING, !color);
-            if (manhattanDistance(move.to(), Square(theirKing.lsb())) <= 3) {
+        Bitboard blackQueen = board.pieces(PieceType::QUEEN, Color::BLACK);
+        Bitboard blackKing = board.pieces(PieceType::KING, Color::BLACK);
+        
+        // Threat extension: this is expensive so only apply for serious threat
+        if (whiteQueen.count() > 0) {
+            if (manhattanDistance(Square(whiteQueen.lsb()), Square(blackKing.lsb())) <= 3) {
                 mateThreat = true;
             }
         }
-        
+
+        if (blackQueen.count() > 0) {
+            if (manhattanDistance(Square(blackQueen.lsb()), Square(whiteKing.lsb())) <= 3) {
+                mateThreat = true;
+            }
+        }
+
         extendFlag = (check || mateThreat) && extension > 0;
 
         if (extendFlag) {
-            // If a check extension is applied, add 1 more plies to the search. 
+            // If a check extension is applied, add one more ply to the search
             eval = alphaBeta(board, depth, alpha, beta, quiescenceDepth, childPV, leftMost, extension - 1, threadID);
         } else {
-            // Otherwise, search at the reduced depth.
-            if (whiteTurn) {
-                eval = alphaBeta(board, nextDepth, alpha, alpha + 1, quiescenceDepth, childPV, leftMost, extension, threadID);
-            } else {
-                eval = alphaBeta(board, nextDepth, beta - 1, beta, quiescenceDepth, childPV, leftMost, extension, threadID);
-            }
+            // Otherwise, search at the reduced depth
+            eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension - 1, threadID);
         }
         
         board.unmakeMove(move);
 
         bool interesting = whiteTurn ? eval > alpha : eval < beta;
-
-        // re-search at full depth if the node fails high
         if (interesting && !extendFlag) {
             board.makeMove(move);
             eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost, extension, threadID);
@@ -568,12 +744,13 @@ Move findBestMove(Board& board,
                 bool quiet = false) {
 
     auto startTime = std::chrono::high_resolution_clock::now();
+    nodeCount = std::vector<U64>(1000, 0);
     bool timeLimitExceeded = false;
 
     Move bestMove = Move(); 
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-    const int extension = 2;
+    const int extension = 3;
 
     std::vector<std::pair<Move, int>> moves;
     std::vector<Move> globalPV (maxDepth);
@@ -586,22 +763,18 @@ Move findBestMove(Board& board,
     globalQuiescenceDepth = quiescenceDepth;
     omp_set_num_threads(numThreads);
 
-    // Clear hash tables
+    // Clear transposition tables
     #pragma omp critical
     {
         if (lowerBoundTable.size() + upperBoundTable.size() > maxTableSize) {
             lowerBoundTable = {};
             upperBoundTable = {};
-        }
-
-        if (whiteHashMove.size() + blackHashMove.size() > maxTableSize) {
             whiteHashMove = {};
             blackHashMove = {};
+            clearPawnHashTable();
         }
-        
-        clearPawnHashTable();
     }
-
+    
     const int baseDepth = 1;
     int apsiration = evaluate(board);
     int depth = baseDepth;
@@ -610,8 +783,6 @@ Move findBestMove(Board& board,
 
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
-    
-        positionCount = std::vector<U64>(1000, 0);
         
         // Track the best move for the current depth
         Move currentBestMove = Move();
@@ -732,13 +903,9 @@ Move findBestMove(Board& board,
         moves = newMoves;
         previousPV = PV;
 
-        for (int i = 0; i < PV.size(); i++) {
-            globalPV[i] = PV[i];
-        }
-
         U64 totalNodes = 0;
-        for (auto i = 0; i < moves.size(); i++) {
-            totalNodes += positionCount[i];
+        for (int i = 0; i < numThreads; i++) {
+            totalNodes += nodeCount[i];
         }
 
         std::string depthStr = "depth " + std::to_string(PV.size());
@@ -796,14 +963,10 @@ Move findBestMove(Board& board,
         if (lowerBoundTable.size() + upperBoundTable.size() > maxTableSize) {
             lowerBoundTable = {};
             upperBoundTable = {};
-        }
-
-        if (whiteHashMove.size() + blackHashMove.size() > maxTableSize) {
             whiteHashMove = {};
             blackHashMove = {};
+            clearPawnHashTable();
         }
-
-        clearPawnHashTable();
     }
 
     return bestMove; 

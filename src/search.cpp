@@ -289,7 +289,7 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
     localBoard.makeMove(move);
     bool isCheck = localBoard.inCheck(); // checks should not be reduced
 
-    if (i <= 2 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+    if (i <= 5 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
     } 
 
@@ -952,9 +952,9 @@ Move findBestMove(Board& board,
         } else {
             if (depth > ENGINE_DEPTH || spendTooMuchTime) {
                 break;
-            } else {
-                depth++;
-            }
+            } 
+            
+            depth++;
         }
     }
     
