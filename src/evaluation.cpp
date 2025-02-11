@@ -20,8 +20,6 @@ const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
-const int maxPawnCacheSize = 1000000;
-
 // Pawn hash table
 std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> whitePawnHashTable;
 std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackPawnHashTable;
@@ -478,10 +476,8 @@ const Bitboard h8 = Bitboard::fromSquare(63);
 
 // Clear the pawn hash table
 void clearPawnHashTable() {
-    if (whitePawnHashTable.size() + blackPawnHashTable.size() > maxPawnCacheSize) {
-        whitePawnHashTable = {};
-        blackPawnHashTable = {};
-    }
+    whitePawnHashTable = {};
+    blackPawnHashTable = {};
 }
 
 //End game special heuristics to avoid illusory material advantage.
@@ -696,7 +692,15 @@ bool isOutpost(const Board& board, int sqIndex, Color color) {
     return true;
 }
 
+Bitboard allPieces(const Board& board, Color color) {
+    // Return a bitboard with all pieces of the given color except kings
+    return board.pieces(PieceType::PAWN, color) | board.pieces(PieceType::KNIGHT, color) 
+           | board.pieces(PieceType::BISHOP, color) | board.pieces(PieceType::ROOK, color) 
+           | board.pieces(PieceType::QUEEN, color) | board.pieces(PieceType::KING, color);
+}
+
 bool isOpenFile(const Board& board, int file) {
+    // Get bitboards for white and black pawns
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
     Bitboard mask = generateFileMask(File(file));
@@ -742,7 +746,7 @@ bool isProtectedByPawn(int sqIndex, const Board& board, Color color) {
         }
     }
 
-    return false; 
+    return false; // No protecting pawn found
 }
 
 // check if a squared is opposed by an enemy pawn
@@ -1547,7 +1551,7 @@ int evaluate(const Board& board) {
     /*--------------------------------------------------------------------------
         Add a penalty for material deficit to make sure the position advantage is real.
     --------------------------------------------------------------------------*/
-    const int deficitPenalty = 80;
+    const int deficitPenalty = 50;
     int whiteMaterial = whitePieceValue + pawnValue * whitePawns.count();
     int blackMaterial = blackPieceValue + pawnValue * blackPawns.count();
 
@@ -1620,14 +1624,16 @@ int evaluate(const Board& board) {
 
     // Apply penalty if white queen moved early
     if (whiteQueenDeveloped) {
-        whiteScore -= 12 * (whiteKnightNotMoved.count() + whiteBishopNotMoved.count());
+        whiteScore -= 7 * (whiteKnightNotMoved.count() + whiteBishopNotMoved.count());
     }
 
     if (blackQueenDeveloped) {
-        blackScore -= 12 * (blackKnightNotMoved.count() + blackBishopNotMoved.count());
+        blackScore -= 7 * (blackKnightNotMoved.count() + blackBishopNotMoved.count());
     }
 
     const int trappedBishopPenalty = 250;
+
+
 
     // Case 1: White bishop stuck on a7 or b8 (blocked by black pawns on b6 and c7)
     if ((whiteBishops & a7) || (whiteBishops & b8)) {
@@ -1654,6 +1660,37 @@ int evaluate(const Board& board) {
     if ((blackBishops & h2) || (blackBishops & g1)) {
         if ((whitePawns & g3) && (whitePawns & f2)) {
             blackScore -= trappedBishopPenalty;
+        }
+    }
+
+    const int blockedBishopPenalty = 20;
+
+    // White bishop stuck on c1 or d2 (blocked by white pawn on e3)
+    if ((whiteBishops & c1) || (whiteBishops & d2)) {
+        if (whitePawns & e3) {
+            whiteScore -= blockedBishopPenalty;
+
+        }
+    }
+
+    // White bishop stuck on f1 or e2 (blocked by white pawn on d3)
+    if ((whiteBishops & f1) || (whiteBishops & e2)) {
+        if (whitePawns & d3) {
+            whiteScore -= blockedBishopPenalty;
+        }
+    }
+
+    // Black bishop stuck on c8 or d7 (blocked by black pawn on e6)
+    if ((blackBishops & c8) || (blackBishops & d7)) {
+        if (blackPawns & e6) {
+            blackScore -= blockedBishopPenalty;
+        }
+    }
+
+    // Black bishop stuck on f8 or e7 (blocked by black pawn on d6)
+    if ((blackBishops & f8) || (blackBishops & e7)) {
+        if (blackPawns & d6) {
+            blackScore -= blockedBishopPenalty;
         }
     }
 
