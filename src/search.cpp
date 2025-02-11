@@ -29,7 +29,6 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
 uint64_t positionCount = 0; // Number of positions evaluated for benchmarking
 
-int tableHit = 0;
 int globalMaxDepth = 0; // Maximum depth of current search
 int globalQuiescenceDepth = 0; // Quiescence depth
 bool mopUp = false; // Mop up flag
@@ -533,15 +532,12 @@ int alphaBeta(Board& board,
     bool found = false;
     int storedEval;
     
-    #pragma omp critical
-    { 
-        if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
-            (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
-            found = true;
 
-            tableHit++;
-        }
+    if ((whiteTurn && transTableLookUp(lowerBoundTable, hash, depth, storedEval) && storedEval >= beta) ||
+        (!whiteTurn && transTableLookUp(upperBoundTable, hash, depth, storedEval) && storedEval <= alpha)) {
+        found = true;
     }
+    
 
     if (found) {
         return storedEval;
@@ -640,8 +636,6 @@ int alphaBeta(Board& board,
         if (i > 0) {
             leftMost = false;
         }
-        
-
 
         board.makeMove(move);
 
@@ -680,19 +674,10 @@ int alphaBeta(Board& board,
         
         board.unmakeMove(move);
 
-        if (whiteTurn) {
-            // If white managed to raise alpha, re-search at full depth
+        bool interesting = whiteTurn ? eval > alpha : eval < beta;
+        if (interesting && !extendFlag) {
             board.makeMove(move);
-            if (eval > alpha && nextDepth < depth - 1 && !extendFlag) {
-                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost, extension);
-            } 
-            board.unmakeMove(move);
-        } else {
-            // If black managed to lower beta, re-search at full depth
-            board.makeMove(move);
-            if (eval < beta && nextDepth < depth - 1 && !extendFlag) {
-                eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost, extension);
-            }
+            eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost, extension);
             board.unmakeMove(move);
         }
 
