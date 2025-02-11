@@ -99,10 +99,9 @@ void updateKillerMoves(const Move& move, int depth) {
 int depthReduction(Board& board, Move move, int i, int depth) {
 
     Color color = board.sideToMove();
-    bool inCheck = board.inCheck(); // check evasions should not be reduced
 
     board.makeMove(move);
-    bool isCheck = board.inCheck(); // checks should not be reduced
+    bool isCheck = board.inCheck();
     board.unmakeMove(move);
 
     // Do not reduce for promotion threats
@@ -119,14 +118,191 @@ int depthReduction(Board& board, Move move, int i, int depth) {
         }
     }
 
-    if (i <= 2 || depth <= 2 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+    if (i <= 1 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
         return depth - 1;
     } else if (i <= 5) {
         return depth - 2;
     } else {
-        return static_cast<int>(depth / 2);
-    } 
+        return depth / 2;
+    }
 }
+
+
+/*--------------------------------------------------------------------------------------------
+    Return the priority of a quiet move based on some heuristics.
+    Move ordering improves performance by pruning the search tree 
+    effectively and mitigating the late move reduction (LMR) horizon effect 
+    by prioritizing moves likely to be strong.
+--------------------------------------------------------------------------------------------*/
+int quietPriority(const Board& board, const Move& move) {
+    auto type = board.at<Piece>(move.from()).type();
+    Color color = board.sideToMove();
+
+    Board boardAfter = board;
+    boardAfter.makeMove(move);
+
+    Bitboard theirQueen = board.pieces(PieceType::QUEEN, !color);
+    Bitboard theirRooks = board.pieces(PieceType::ROOK, !color);
+    Bitboard theirBishops = board.pieces(PieceType::BISHOP, !color);
+    Bitboard theirKnights = board.pieces(PieceType::KNIGHT, !color);
+    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
+    Bitboard theirKing = board.pieces(PieceType::KING, !color);
+    
+    Square theirKingSq = Square(theirKing.lsb());
+    Bitboard blockers = theirQueen | theirRooks | theirBishops | theirKnights | theirPawns | ourPawns;
+    int theirKingSqIndex = theirKing.lsb();
+
+    Bitboard adjSq; // Adjacent squares to the opponent's king
+    for (int adjSqIndex : adjSquares.at(theirKingSqIndex)) {
+        adjSq |= Bitboard::fromSquare(adjSqIndex);
+    }
+
+    int priority = 0;
+
+    if (type == PieceType::PAWN) {
+        int queenAttack = (attacks::pawn(color, move.to()) & theirQueen).count();
+        int rookAttack = (attacks::pawn(color, move.to()) & theirRooks).count();
+        int bishopAttack = (attacks::pawn(color, move.to()) & theirBishops).count();
+        int knightAttack = (attacks::pawn(color, move.to()) & theirKnights).count();
+
+        int totalAttack = queenAttack + rookAttack + bishopAttack + knightAttack;
+        int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + bishopAttack * 15 + knightAttack * 10;
+
+        priority += totalWeightedAttack;
+
+        // Fork priority
+        if (totalAttack >= 2) {
+            priority += totalWeightedAttack;
+        }
+
+        int destinationIndx = move.to().index();
+        int rank = destinationIndx / 8;
+
+        // Pawn advancement
+        if ((color == Color::WHITE && rank > 3) || (color == Color::BLACK && rank < 4)) {
+            priority += 30;
+        }
+
+        // King proximity
+        if (manhattanDistance(move.to(), theirKingSq) <= 3) {
+            priority += 40;
+        }
+    }
+
+
+    if (type == PieceType::KNIGHT) {
+        int queenAttack = (attacks::knight(move.to()) & theirQueen).count();
+        int rookAttack = (attacks::knight(move.to()) & theirRooks).count();
+        int bishopAttack = (attacks::knight(move.to()) & theirBishops).count();
+        int pawnAttack = (attacks::knight(move.to()) & theirPawns).count();
+
+        int totalAttack = queenAttack + rookAttack + bishopAttack + pawnAttack;
+        int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + bishopAttack * 15 + pawnAttack * 10;
+
+        priority += totalWeightedAttack;
+
+        // Fork priority (increased weight)
+        if (totalAttack >= 2) {
+            priority += totalWeightedAttack - 10; // Knight forks are just after pawn forks
+        }
+
+        // King priority
+        if (manhattanDistance(move.to(), theirKingSq) <= 5) {
+            priority += 30;
+        }
+    }
+
+    if (type == PieceType::BISHOP) {
+        int queenAttack = (attacks::bishop(move.to(), board.occ()) & theirQueen).count();
+        int rookAttack = (attacks::bishop(move.to(), board.occ()) & theirRooks).count();
+        int knightAttack = (attacks::bishop(move.to(), board.occ()) & theirKnights).count();
+        int pawnAttack = (attacks::bishop(move.to(), board.occ()) & theirPawns).count();
+
+        int totalAttack = queenAttack + rookAttack + knightAttack + pawnAttack;
+        int totalWeightedAttack = queenAttack * 40 + rookAttack * 20 + knightAttack * 15 + pawnAttack * 10;
+
+        priority += totalWeightedAttack;
+
+        // Fork priority
+        if (totalAttack >= 2) {
+            priority += totalWeightedAttack - 20;
+        }
+
+        // King attack priority
+        if ((attacks::bishop(move.to(), blockers) & adjSq).count() > 0 || 
+            manhattanDistance(move.to(), theirKingSq) <= 5) {
+            priority += 50;
+        }
+    }
+
+    if (type == PieceType::ROOK) {
+        int queenAttack = (attacks::rook(move.to(), board.occ()) & theirQueen).count();
+        int bishopAttack = (attacks::rook(move.to(), board.occ()) & theirBishops).count();
+        int knightAttack = (attacks::rook(move.to(), board.occ()) & theirKnights).count();
+        int pawnAttack = (attacks::rook(move.to(), board.occ()) & theirPawns).count();
+
+        int totalAttack = queenAttack + bishopAttack + knightAttack + pawnAttack;
+        int totalWeightedAttack = queenAttack * 40 + bishopAttack * 20 + knightAttack * 15 + pawnAttack * 10;
+
+        priority += totalWeightedAttack;
+
+        // Skewer priority
+        if (totalAttack >= 2) {
+            priority += totalWeightedAttack - 30;
+        }
+
+        int destinationIndx = move.to().index();
+        int file = destinationIndx % 8;
+        int rank = destinationIndx / 8;
+
+        // Positional prioritys (open file, semi-open file, 2nd/7th rank)
+        if (isOpenFile(board, file) || isSemiOpenFile(board, file, color)) {
+            priority += 20;
+        }
+
+        if ((color == Color::WHITE && (rank == 6 || rank == 7)) ||
+            (color == Color::BLACK && (rank == 0 || rank == 1))) {
+            priority += 20;
+        }
+
+        // King attack priority
+        int distanceToKing = manhattanDistance(move.to(), theirKingSq);
+        if (distanceToKing <= 4) {
+            priority += 80;
+        } else if (distanceToKing <= 5 || (attacks::rook(move.to(), blockers) & adjSq).count() > 0) {
+            priority += 50;
+        }
+    }
+
+    if (type == PieceType::QUEEN) {
+        int rookAttack = (attacks::queen(move.to(), board.occ()) & theirRooks).count();
+        int bishopAttack = (attacks::queen(move.to(), board.occ()) & theirBishops).count();
+        int knightAttack = (attacks::queen(move.to(), board.occ()) & theirKnights).count();
+        int pawnAttack = (attacks::queen(move.to(), board.occ()) & theirPawns).count();
+
+        int totalAttack = rookAttack + bishopAttack + knightAttack + pawnAttack;
+        int totalWeightedAttack = rookAttack * 20 + bishopAttack * 15 + knightAttack * 15 + pawnAttack * 10;
+
+        priority += totalWeightedAttack;
+
+        // Fork priority
+        if (totalAttack >= 2) {
+            priority += totalWeightedAttack - 40;
+        }
+
+        // King priority
+        int distanceToKing = manhattanDistance(move.to(), theirKingSq);
+        if (distanceToKing <= 4) {
+            priority += 80;
+        } else if (distanceToKing <= 5 || (attacks::queen(move.to(), blockers) & adjSq).count() > 0) {
+            priority += 60;
+        }
+    }
+
+    return priority;
+}
+
 
 // Generate a prioritized list of moves based on their tactical value
 std::vector<std::pair<Move, int>> orderedMoves(
@@ -178,17 +354,17 @@ std::vector<std::pair<Move, int>> orderedMoves(
         if (previousPV.size() > ply && leftMost) {
             // Previous PV
             if (previousPV[ply] == move) {
-                priority = 100000;
+                priority = 10000;
             }
 
         } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) 
                 != killerMoves[depth].end()) {
             // Killer
-            priority = 4000;
+            priority = 8000;
 
         } else if (isQueenPromotion(move)) {
 
-            priority = 5000; 
+            priority = 7000; 
 
         } else if (board.isCapture(move)) { 
 
@@ -196,7 +372,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             auto victim = board.at<Piece>(move.to());
             auto attacker = board.at<Piece>(move.from());
 
-            priority = 4000 + pieceValues[static_cast<int>(victim.type())] 
+            priority = 6000 + pieceValues[static_cast<int>(victim.type())] 
                             - pieceValues[static_cast<int>(attacker.type())];
 
         } else {
@@ -221,6 +397,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
 
     // Sort capture, promotion, checks by priority
     std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
+
+    std::sort(quietCandidates.begin(), quietCandidates.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
@@ -428,7 +608,7 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning: to avoid risky behaviors at low depths, only prune when globalMaxDepth >= 8
-    const int futilityMargins[4] = {0, 300, 550, 1000};
+    const int futilityMargins[4] = {0, 300, 550, 975};
     if (depth <= 3 && !board.inCheck() && !endGameFlag && !mopUp && globalMaxDepth >= 10) {
         int futilityMargin = futilityMargins[depth];
         int standPat = evaluate(board);
@@ -444,8 +624,8 @@ int alphaBeta(Board& board,
     }
 
     // Razoring. Only prune when globalMaxDepth >= 8.
-    if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost && !mopUp && globalMaxDepth >= 10) {
-        int razorMargin = 1000;
+    if (depth == 4 && !board.inCheck() && !endGameFlag && !leftMost && !mopUp && globalMaxDepth >= 10) {
+        int razorMargin = 1100;
         int standPat = quiescence(board, quiescenceDepth, alpha, beta, threadID);
         if (whiteTurn) {
             if (standPat + razorMargin < alpha) {
