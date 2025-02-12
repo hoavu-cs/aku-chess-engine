@@ -324,9 +324,9 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
     bool inCheck = board.inCheck();
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
-    if (i <= 2 || depth <= 3  || mopUp || isKillerMove || isCapture || isCheck || inCheck) {
+    if (i <= 2 || depth <= 3  || mopUp || isKillerMove || isCheck || inCheck) {
         return depth - 1;
-    } else if (i <= 5) {
+    } else if (i <= 5 || isCapture) {
         return depth - 2;
     } else {
         return depth - 3;
@@ -429,9 +429,9 @@ std::vector<std::pair<Move, int>> orderedMoves(
     });
 
     // Sort the quiet moves by priority
-    std::sort(quietCandidates.begin(), quietCandidates.end(), [](const auto& a, const auto& b) {
-        return a.second > b.second;
-    });
+    // std::sort(quietCandidates.begin(), quietCandidates.end(), [](const auto& a, const auto& b) {
+    //     return a.second > b.second;
+    // });
 
     for (const auto& move : quietCandidates) {
         candidates.push_back(move);
@@ -448,11 +448,10 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
         return evaluate(board);
     }
 
-    int storedEval;
-    bool found = false;
     bool whiteTurn = board.sideToMove() == Color::WHITE;
 
     int standPat = evaluate(board);
+    int bestScore = standPat;
         
     if (whiteTurn) {
         if (standPat >= beta) {
@@ -498,6 +497,8 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
+
+    
     
     for (const auto& [move, priority] : candidateMoves) {
 
@@ -511,20 +512,16 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
             if (score >= beta) { 
                 return beta;
             }
-            if (score > alpha) {
-                alpha = score;
-            }
+            bestScore = std::max(bestScore, score);
         } else {
             if (score <= alpha) {
                 return alpha;
             }
-            if (score < beta) {
-                beta = score;
-            }
+            bestScore = std::min(bestScore, score);
         }
     }
+    return bestScore;
 
-    return whiteTurn ? alpha : beta;
 }
 
 int alphaBeta(Board& board, 
@@ -622,25 +619,15 @@ int alphaBeta(Board& board,
         }
     }
 
-    // Futility pruning: to avoid risky behaviors at low depths, only prune when globalMaxDepth >= 8
-    const int futilityMargins[4] = {0, 300, 600, 975};
-    if (depth <= 3 && !board.inCheck() && !endGameFlag && globalMaxDepth >= 10) {
-        int futilityMargin = futilityMargins[depth];
-        int standPat = evaluate(board);
-        if (whiteTurn) {
-            if (standPat + futilityMargin < alpha) {
-                return standPat + futilityMargin;
-            }
-        } else {
-            if (standPat - futilityMargin > beta) {
-                return standPat - futilityMargin;
-            }
-        }
-    }
+
 
     // Razoring. Only prune when globalMaxDepth >= 8.
-    // if (depth == 3 && !board.inCheck() && !endGameFlag && !leftMost && globalMaxDepth >= 10) {
-    //     int razorMargin = 1000;
+    // if (depth == 3 && 
+    //     !board.inCheck() && 
+    //     !endGameFlag && 
+    //     !leftMost && 
+    //     alpha <= 5000 && beta >= -5000) {
+    //     int razorMargin = 950;
     //     int standPat = quiescence(board, quiescenceDepth, alpha, beta, threadID);
     //     if (whiteTurn) {
     //         if (standPat + razorMargin < alpha) {
@@ -654,11 +641,35 @@ int alphaBeta(Board& board,
     // }
 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, previousPV, leftMost);
-    int bestEval = whiteTurn ? alpha - 1 : beta + 1;
+    int bestEval = whiteTurn ? -INF : INF;
 
     for (int i = 0; i < moves.size(); i++) {
+
         Move move = moves[i].first;
         std::vector<Move> childPV;
+
+        // Futility pruning: to avoid risky behaviors at low depths, only prune when globalMaxDepth >= 8
+        const int futilityMargins[4] = {0, 200, 300, 500};
+        if (depth <= 3 
+            && !board.inCheck() 
+            && !endGameFlag 
+            && !mopUp 
+            && !leftMost 
+            && !board.isCapture(move)
+            && alpha <= 5000 && beta >= -5000
+        ) {
+            int futilityMargin = futilityMargins[depth];
+            int standPat = evaluate(board);
+            if (whiteTurn) {
+                if (standPat + futilityMargin < alpha) {
+                    return standPat + futilityMargin;
+                }
+            } else {
+                if (standPat - futilityMargin > beta) {
+                    return standPat - futilityMargin;
+                }
+            }
+        }
 
         int eval = 0;
         int nextDepth = depthReduction(board, move, i, depth); // Apply Late Move Reduction (LMR)
@@ -667,23 +678,23 @@ int alphaBeta(Board& board,
             leftMost = false;
         }
 
-
         board.makeMove(move);
         
         // Check for extensions
         bool isCheck = board.inCheck();
-        bool extensionFlag = isCheck; // if the move is a check, extend the search
+        bool extensionFlag = isCheck && extension > 0; // if the move is a check, extend the search
         if (extensionFlag) {
-            nextDepth++; // Extend the search by one ply
+            nextDepth++;
             extension--; // Decrement the extension counter
         }
-
+    
         eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension, threadID);  
-        board.unmakeMove(move);
+         board.unmakeMove(move);
 
         // re-search if white raises alpha or black lowers beta in reduced depth
         bool interesting = whiteTurn ? eval > alpha : eval < beta;
-        if (interesting && nextDepth < depth - 1) {
+
+        if (leftMost || (interesting && nextDepth < depth - 1)) {
             board.makeMove(move);
             eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost, extension, threadID);
             board.unmakeMove(move);
@@ -907,7 +918,7 @@ Move findBestMove(Board& board,
             totalNodes += nodeCount[i];
         }
 
-        std::string depthStr = "depth " + std::to_string(PV.size());
+        std::string depthStr = "depth " +  std::to_string(depth);
         std::string scoreStr = "score cp " + std::to_string(bestEval);
         std::string nodeStr = "nodes " + std::to_string(totalNodes);
 
