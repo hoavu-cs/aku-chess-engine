@@ -287,30 +287,18 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
     Color color = board.sideToMove();
 
     localBoard.makeMove(move);
-    bool isCheck = localBoard.inCheck(); // checks should not be reduced
+    // bool isCheck = localBoard.inCheck(); 
+    bool isCapture = board.isCapture(move);
 
-    if (i <= 5 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
+    if (i <= 2 || depth <= 2  || mopUp || isCapture) {
         return depth - 1;
     } 
 
     int extraReduction = globalMaxDepth > 8 ? globalMaxDepth - 8 : 0;
-    int reduction = static_cast<int>(std::max(1.0, std::floor(1 + log (depth) * log(i) / 2.0)));
+    double c = 2.0; // Try different c values. 1.75, 2, 2.5, 3
+    int reduction = static_cast<int>(std::max(1.0, std::floor(1 + log (depth) * log(i) / c)));
     return depth - reduction - extraReduction;
     
-    //int extraReduction = 0;
-
-    // if (globalMaxDepth > 12) {
-    //     extraReduction = globalMaxDepth - 12;
-    // }
-
-    // if (i <= 5 || depth <= 3 || isQueenPromotion(move) || board.isCapture(move) || isCheck || mopUp) {
-    //     if (globalMaxDepth > 12 && i > 1) {
-    //         return depth - 2;
-    //     }
-    //     return depth - 1;
-    // } else {
-    //     return static_cast<int>(depth / 2) - extraReduction;
-    // } 
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -653,9 +641,11 @@ int alphaBeta(Board& board,
         bool check = board.inCheck();
         
         Bitboard whiteQueen = board.pieces(PieceType::QUEEN, Color::WHITE);
+        Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
         Bitboard whiteKing = board.pieces(PieceType::KING, Color::WHITE);
-
+        
         Bitboard blackQueen = board.pieces(PieceType::QUEEN, Color::BLACK);
+        Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
         Bitboard blackKing = board.pieces(PieceType::KING, Color::BLACK);
         
         // Threat extension: this is expensive so only apply for serious threat
