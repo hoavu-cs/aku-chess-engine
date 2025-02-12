@@ -84,14 +84,14 @@ int main() {
 
     // board = Board("8/4r1k1/2Pp1q2/1p1B3p/5PP1/1Q3K1P/8/8 w - - 1 47");
 
-    // board = Board("3rr1k1/1p2npp1/1qp1p2p/p3P3/3P2QR/P2BP1P1/1P3P2/2R3K1 w - - 3 29");
+    board = Board("5rk1/1p2qpp1/p2Qp1p1/2n1P3/2P5/5N2/P4PPP/3R2K1 b - - 2 24");
 
 
     // Default settings
     int depth = 30;
     int quiescenceDepth = 8;
     int numThreads = 7;
-    int timeLimit = 30000;
+    int timeLimit = 60000;
 
     Move bestMove;
 

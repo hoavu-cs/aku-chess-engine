@@ -16,6 +16,8 @@ using namespace chess;
 
 typedef std::uint64_t U64;
 
+std::unordered_set<std::string> mateThreatFens;
+
 // Constants and global variables
 std::unordered_map<std::uint64_t, std::pair<int, int>> lowerBoundTable; // Hash -> (eval, depth)
 std::unordered_map<std::uint64_t, Move> whiteHashMove;
@@ -76,6 +78,31 @@ bool isQueenPromotion(const Move& move) {
             return true;
         } 
     } 
+
+    return false;
+}
+
+bool mateInOne(Board& board) {
+    Movelist moves;
+    movegen::legalmoves(moves, board);
+    bool result = false;
+
+    for (const auto& m : moves) {    
+        board.makeMove(m);
+
+        auto gameOverResult = board.isGameOver();
+        if (gameOverResult.first != GameResultReason::NONE) {
+            if (gameOverResult.first == GameResultReason::CHECKMATE) {
+                result = true;
+            }
+        }
+
+        board.unmakeMove(m);
+        if (result) {
+            return true;
+        }
+
+    }
 
     return false;
 }
@@ -285,18 +312,36 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
 
     Board localBoard = board;
     Color color = board.sideToMove();
-    localBoard.makeMove(move);
-
-    bool isCheck = localBoard.inCheck(); 
     bool isCapture = board.isCapture(move);
     bool inCheck = board.inCheck();
 
-    if (i <= 3 || depth <= 2  || mopUp) {
+    localBoard.makeMove(move);
+    bool isCheck = localBoard.inCheck(); 
+    localBoard.unmakeMove(move);
+
+    bool mateThreat = false;
+    if (!board.inCheck()) {
+        localBoard.makeNullMove();
+        mateThreat = mateInOne(localBoard);
+        localBoard.unmakeNullMove();
+        //  3R4/1p2rpp1/p3p1p1/2n1P1Nk/2P2P2/7P/P5P1/6K1 b - - 0 29
+        // 3R4/1p2rpp1/p3p1pk/2n1P1N1/2P2P2/8/P5PP/6K1 b - - 0 28
+        if (mateThreat && localBoard.getFen() == "3R4/1p2rpp1/p3p1p1/2n1P1Nk/2P2P2/7P/P5P1/6K1 b - - 0 29") {
+            std::cout << "Mate threat detected" << std::endl;
+            std::cout << "remaining depth: " << depth << std::endl;
+        }
+
+        if (mateThreat) {
+            return depth - 1;
+        }
+    }
+
+    if (i <= 5 || depth <= 2  || mopUp) {
         return depth - 1;
     } 
 
-    double c = 1.5; // Try different c values. 1.75, 2, 2.5, 3
-    int reduction = static_cast<int>(std::max(1.0, std::floor(1 + log (depth) * log(i) / c)));
+    double c = 2.5; // Try different c values. 1.75, 2, 2.5, 3
+    int reduction = static_cast<int>(std::max(0.75, std::floor(1 + log (depth) * log(i) / c)));
 
     if (isCheck || isCapture || inCheck) {
         reduction--;
@@ -644,29 +689,26 @@ int alphaBeta(Board& board,
         bool extendFlag = false;
         bool mateThreat = false;
         bool check = board.inCheck();
-        
-        Bitboard whiteQueen = board.pieces(PieceType::QUEEN, Color::WHITE);
-        Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
-        Bitboard whiteKing = board.pieces(PieceType::KING, Color::WHITE);
-        
-        Bitboard blackQueen = board.pieces(PieceType::QUEEN, Color::BLACK);
-        Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
-        Bitboard blackKing = board.pieces(PieceType::KING, Color::BLACK);
-        
-        // Threat extension: this is expensive so only apply for serious threat
-        if (whiteQueen.count() > 0) {
-            if (manhattanDistance(Square(whiteQueen.lsb()), Square(blackKing.lsb())) <= 3) {
-                mateThreat = true;
-            }
-        }
 
-        if (blackQueen.count() > 0) {
-            if (manhattanDistance(Square(blackQueen.lsb()), Square(whiteKing.lsb())) <= 3) {
-                mateThreat = true;
-            }
-        }
+        // if (!board.inCheck()) {
+        //     board.makeNullMove();
+        //     if (mateInOne(board)) {
+        //         mateThreat = true;
+        //     }
+        //     board.unmakeNullMove();
+        // }
+        
 
-        extendFlag = (check || mateThreat) && extension > 0;
+        // Bitboard whiteKing = board.pieces(PieceType::KING, Color::WHITE);
+        // Bitboard blackKing = board.pieces(PieceType::KING, Color::BLACK);
+        
+        // if (whiteTurn) {
+        //     mateThreat = manhattanDistance(Square(blackKing.lsb()), move.to()) <= 3;
+        // } else {
+        //     mateThreat = manhattanDistance(Square(whiteKing.lsb()), move.to()) <= 3;
+        // }
+
+        extendFlag = (check) && extension > 0;
 
         if (extendFlag) {
             // If a check extension is applied, add one more ply to the search
