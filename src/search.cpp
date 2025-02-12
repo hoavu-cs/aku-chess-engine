@@ -324,9 +324,9 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
     bool inCheck = board.inCheck();
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
-    if (i <= 2 || depth <= 3  || mopUp || isKillerMove || isCheck || inCheck) {
+    if (i <= 2 || depth <= 3  || mopUp || isKillerMove || isCapture || isCheck || inCheck) {
         return depth - 1;
-    } else if (i <= 5 || isCapture) {
+    } else if (i <= 5) {
         return depth - 2;
     } else {
         return depth - 3;
@@ -412,7 +412,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 priority = 3000;
             } else {
                 quiet = true;
-                priority = quietPriority(board, move);
+                priority = 0;// quietPriority(board, move);
             }
         } 
 
@@ -623,7 +623,7 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning: to avoid risky behaviors at low depths, only prune when globalMaxDepth >= 8
-    const int futilityMargins[4] = {0, 250, 300, 500};
+    const int futilityMargins[4] = {0, 300, 600, 975};
     if (depth <= 3 && !board.inCheck() && !endGameFlag && globalMaxDepth >= 10) {
         int futilityMargin = futilityMargins[depth];
         int standPat = evaluate(board);

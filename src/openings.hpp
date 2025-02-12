@@ -387,7 +387,6 @@ const std::vector<std::vector<std::string>> OPENING_MOVES = {
     {"e2e4", "e7e5", "g1f3", "b8c6", "f1b5", "a7a6", "b5a4", "d7d6"},
     {"e2e4", "e7e5", "g1f3", "b8c6", "d2d4", "e5d4", "f3d4"},
     {"e2e4", "e7e5", "g1f3", "g8f6", "f3e5", "d7d6", "e5f3", "f6e4", "d2d4"},
-    {"e2e4", "e7e5", "f2f4"},
     {"e2e4", "g7g6", "d2d4", "f8g7", "b1c3", "d7d6"},
     {"g2g3"},
 };
