@@ -98,6 +98,7 @@ bool mateInOne(Board& board) {
         }
 
         board.unmakeMove(m);
+
         if (result) {
             return true;
         }
@@ -304,51 +305,71 @@ void updateKillerMoves(const Move& move, int depth) {
     }
 }
 
+
 /*--------------------------------------------------------------------------------------------
     Late move reduction. We don't reduce depth for tacktical moves.
     It seems to work well for the most part.
 --------------------------------------------------------------------------------------------*/
+// int depthReduction(const Board& board, Move move, int i, int depth) {
+
+//     std::string searchFen = "3R4/1p2rpp1/p3p1p1/2n1P1Nk/2P2P2/8/P5PP/6K1 w - - 1 29";//"3R2k1/1p2rpp1/p3p1p1/2n1P3/2P5/5N2/P4PPP/6K1 b - - 1 26";
+//     if (board.getFen() == searchFen) {
+//         std::cout << "Move being analyzed: " << uci::moveToUci(move) << std::endl;
+//         std::cout << "Mate threat detected" << std::endl;
+//         std::cout << "remaining depth: " << depth << std::endl;
+//         std::cout << "move number: " << i << std::endl;
+//     }
+
+//     Bitboard theirKing = board.pieces(PieceType::KING, !board.sideToMove());
+//     bool mateThreat = manhattanDistance(move.to(), Square(theirKing.lsb())) <= 3;
+
+//     Board localBoard = board;
+//     Color color = board.sideToMove();
+//     localBoard.makeMove(move);
+
+//     bool isCheck = localBoard.inCheck(); 
+//     bool isCapture = board.isCapture(move);
+//     bool inCheck = board.inCheck();
+//     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
+
+//     if (i <= 2 || depth <= 2  || mopUp || isKillerMove) {
+//         return depth - 1;
+//     } 
+
+//     double c = 1.5; 
+//     int reduction = static_cast<int>(std::max(1.0, std::floor(1 + log (depth) * log(i) / c)));
+//     int extraReduction = globalMaxDepth > 12 ? globalMaxDepth - 12 : 0;
+
+//     if (isCapture || isCheck || inCheck || mateThreat) {
+//         reduction = std::max(1, reduction - 2);
+//     }
+
+//     return depth - reduction;
+    
+// }
+
 int depthReduction(const Board& board, Move move, int i, int depth) {
+
+    Bitboard theirKing = board.pieces(PieceType::KING, !board.sideToMove());
+    bool mateThreat = manhattanDistance(move.to(), Square(theirKing.lsb())) <= 3;
 
     Board localBoard = board;
     Color color = board.sideToMove();
+    localBoard.makeMove(move);
+
+    bool isCheck = localBoard.inCheck(); 
     bool isCapture = board.isCapture(move);
     bool inCheck = board.inCheck();
+    bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
-    localBoard.makeMove(move);
-    bool isCheck = localBoard.inCheck(); 
-    localBoard.unmakeMove(move);
-
-    bool mateThreat = false;
-    if (!board.inCheck()) {
-        localBoard.makeNullMove();
-        mateThreat = mateInOne(localBoard);
-        localBoard.unmakeNullMove();
-        //  3R4/1p2rpp1/p3p1p1/2n1P1Nk/2P2P2/7P/P5P1/6K1 b - - 0 29
-        // 3R4/1p2rpp1/p3p1pk/2n1P1N1/2P2P2/8/P5PP/6K1 b - - 0 28
-        if (mateThreat && localBoard.getFen() == "3R4/1p2rpp1/p3p1p1/2n1P1Nk/2P2P2/7P/P5P1/6K1 b - - 0 29") {
-            std::cout << "Mate threat detected" << std::endl;
-            std::cout << "remaining depth: " << depth << std::endl;
-        }
-
-        if (mateThreat) {
-            return depth - 1;
-        }
-    }
-
-    if (i <= 5 || depth <= 2  || mopUp) {
+    if (i <= 1 || depth <= 3  || mopUp || isKillerMove || isCapture || isCheck || inCheck) {
         return depth - 1;
-    } 
-
-    double c = 2.5; // Try different c values. 1.75, 2, 2.5, 3
-    int reduction = static_cast<int>(std::max(0.75, std::floor(1 + log (depth) * log(i) / c)));
-
-    if (isCheck || isCapture || inCheck) {
-        reduction--;
+    } else if (i <= 4) {
+        return depth - 2;
+    } else {
+        return depth - 3;
     }
 
-    return depth - reduction;
-    
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -400,7 +421,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
         if (previousPV.size() > ply && leftMost) {
 
             if (previousPV[ply] == move) {
-                priority = 100000; // PV move
+                priority = 10000; // PV move
             }
 
         } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end()) {
@@ -409,7 +430,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
 
         } else if (isQueenPromotion(move)) {
 
-            priority = 5000; 
+            priority = 6000; 
 
         } else if (board.isCapture(move)) { 
 
@@ -625,7 +646,7 @@ int alphaBeta(Board& board,
                 if (whiteTurn) {
                     nullEval = alphaBeta(board, depth - reduction, beta - 1, beta, quiescenceDepth, nullPV, false, extension, threadID);
                 } else {
-                    nullEval = alphaBeta(board, depth - reduction, alpha, alpha + 1, quiescenceDepth, nullPV, false, extension, threadID);
+                    nullEval = alphaBeta(board, depth - reduction, alpha, alpha + 1, quiescenceDepth, nullPV, false, extension,threadID);
                 }
 
                 board.unmakeNullMove();
@@ -684,44 +705,22 @@ int alphaBeta(Board& board,
             leftMost = false;
         }
 
+
         board.makeMove(move);
-
-        bool extendFlag = false;
-        bool mateThreat = false;
-        bool check = board.inCheck();
-
-        // if (!board.inCheck()) {
-        //     board.makeNullMove();
-        //     if (mateInOne(board)) {
-        //         mateThreat = true;
-        //     }
-        //     board.unmakeNullMove();
-        // }
         
-
-        // Bitboard whiteKing = board.pieces(PieceType::KING, Color::WHITE);
-        // Bitboard blackKing = board.pieces(PieceType::KING, Color::BLACK);
-        
-        // if (whiteTurn) {
-        //     mateThreat = manhattanDistance(Square(blackKing.lsb()), move.to()) <= 3;
-        // } else {
-        //     mateThreat = manhattanDistance(Square(whiteKing.lsb()), move.to()) <= 3;
-        // }
-
-        extendFlag = (check) && extension > 0;
-
-        if (extendFlag) {
-            // If a check extension is applied, add one more ply to the search
-            eval = alphaBeta(board, depth, alpha, beta, quiescenceDepth, childPV, leftMost, extension - 1, threadID);
-        } else {
-            // Otherwise, search at the reduced depth
-            eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension - 1, threadID);
+        // Check for extensions
+        bool isCheck = board.inCheck();
+        bool extensionFlag = isCheck; // if the move is a check, extend the search
+        if (extensionFlag) {
+            nextDepth++; // Extend the search by one ply
+            extension--; // Decrement the extension counter
         }
-        
+
+        eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension, threadID);  
         board.unmakeMove(move);
 
         bool interesting = whiteTurn ? eval > alpha : eval < beta;
-        if (interesting && !extendFlag) {
+        if (interesting && nextDepth < depth - 1) {
             board.makeMove(move);
             eval = alphaBeta(board, depth - 1, alpha, beta, quiescenceDepth, childPV, leftMost, extension, threadID);
             board.unmakeMove(move);
@@ -786,8 +785,7 @@ Move findBestMove(Board& board,
 
     Move bestMove = Move(); 
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
-    bool whiteTurn = board.sideToMove() == Color::WHITE;
-    const int extension = 3;
+    bool whiteTurn = board.sideToMove() == Color::WHITE; 
 
     std::vector<std::pair<Move, int>> moves;
     std::vector<Move> globalPV (maxDepth);
@@ -841,6 +839,7 @@ Move findBestMove(Board& board,
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
+            int extension = 2;
         
             Board localBoard = board;
             bool newBestFlag = false;  

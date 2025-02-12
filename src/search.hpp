@@ -27,7 +27,7 @@ int alphaBeta(
     int quiescenceDepth,
     std::vector<Move>& pV,
     bool leftMost,
-    int checkExtension,
+    int extension,
     int threadID);
 
 Move findBestMove(
