@@ -719,6 +719,7 @@ int alphaBeta(Board& board,
         eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension, threadID);  
         board.unmakeMove(move);
 
+        // re-search if white raises alpha or black lowers beta in reduced depth
         bool interesting = whiteTurn ? eval > alpha : eval < beta;
         if (interesting && nextDepth < depth - 1) {
             board.makeMove(move);
