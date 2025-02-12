@@ -90,8 +90,8 @@ int main() {
     // Default settings
     int depth = 30;
     int quiescenceDepth = 8;
-    int numThreads = 7;
-    int timeLimit = 120000;
+    int numThreads = 8;
+    int timeLimit = 30000;
 
     Move bestMove;
 
