@@ -310,44 +310,6 @@ void updateKillerMoves(const Move& move, int depth) {
     Late move reduction. We don't reduce depth for tacktical moves.
     It seems to work well for the most part.
 --------------------------------------------------------------------------------------------*/
-// int depthReduction(const Board& board, Move move, int i, int depth) {
-
-//     std::string searchFen = "3R4/1p2rpp1/p3p1p1/2n1P1Nk/2P2P2/8/P5PP/6K1 w - - 1 29";//"3R2k1/1p2rpp1/p3p1p1/2n1P3/2P5/5N2/P4PPP/6K1 b - - 1 26";
-//     if (board.getFen() == searchFen) {
-//         std::cout << "Move being analyzed: " << uci::moveToUci(move) << std::endl;
-//         std::cout << "Mate threat detected" << std::endl;
-//         std::cout << "remaining depth: " << depth << std::endl;
-//         std::cout << "move number: " << i << std::endl;
-//     }
-
-//     Bitboard theirKing = board.pieces(PieceType::KING, !board.sideToMove());
-//     bool mateThreat = manhattanDistance(move.to(), Square(theirKing.lsb())) <= 3;
-
-//     Board localBoard = board;
-//     Color color = board.sideToMove();
-//     localBoard.makeMove(move);
-
-//     bool isCheck = localBoard.inCheck(); 
-//     bool isCapture = board.isCapture(move);
-//     bool inCheck = board.inCheck();
-//     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
-
-//     if (i <= 2 || depth <= 2  || mopUp || isKillerMove) {
-//         return depth - 1;
-//     } 
-
-//     double c = 1.5; 
-//     int reduction = static_cast<int>(std::max(1.0, std::floor(1 + log (depth) * log(i) / c)));
-//     int extraReduction = globalMaxDepth > 12 ? globalMaxDepth - 12 : 0;
-
-//     if (isCapture || isCheck || inCheck || mateThreat) {
-//         reduction = std::max(1, reduction - 2);
-//     }
-
-//     return depth - reduction;
-    
-// }
-
 int depthReduction(const Board& board, Move move, int i, int depth) {
 
     Bitboard theirKing = board.pieces(PieceType::KING, !board.sideToMove());
@@ -362,9 +324,9 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
     bool inCheck = board.inCheck();
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
-    if (i <= 1 || depth <= 3  || mopUp || isKillerMove || isCapture || isCheck || inCheck) {
+    if (i <= 2 || depth <= 3  || mopUp || isKillerMove || isCheck || inCheck) {
         return depth - 1;
-    } else if (i <= 4) {
+    } else if (i <= 5 || isCapture) {
         return depth - 2;
     } else {
         return depth - 3;
@@ -661,7 +623,7 @@ int alphaBeta(Board& board,
     }
 
     // Futility pruning: to avoid risky behaviors at low depths, only prune when globalMaxDepth >= 8
-    const int futilityMargins[4] = {0, 500, 700, 1000};
+    const int futilityMargins[4] = {0, 250, 300, 500};
     if (depth <= 3 && !board.inCheck() && !endGameFlag && globalMaxDepth >= 10) {
         int futilityMargin = futilityMargins[depth];
         int standPat = evaluate(board);
