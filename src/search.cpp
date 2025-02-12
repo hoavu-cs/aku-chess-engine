@@ -285,19 +285,24 @@ int depthReduction(const Board& board, Move move, int i, int depth) {
 
     Board localBoard = board;
     Color color = board.sideToMove();
-
     localBoard.makeMove(move);
-    // bool isCheck = localBoard.inCheck(); 
-    bool isCapture = board.isCapture(move);
 
-    if (i <= 2 || depth <= 2  || mopUp || isCapture) {
+    bool isCheck = localBoard.inCheck(); 
+    bool isCapture = board.isCapture(move);
+    bool inCheck = board.inCheck();
+
+    if (i <= 3 || depth <= 2  || mopUp) {
         return depth - 1;
     } 
 
-    int extraReduction = globalMaxDepth > 8 ? globalMaxDepth - 8 : 0;
-    double c = 2.0; // Try different c values. 1.75, 2, 2.5, 3
+    double c = 1.5; // Try different c values. 1.75, 2, 2.5, 3
     int reduction = static_cast<int>(std::max(1.0, std::floor(1 + log (depth) * log(i) / c)));
-    return depth - reduction - extraReduction;
+
+    if (isCheck || isCapture || inCheck) {
+        reduction--;
+    }
+
+    return depth - reduction;
     
 }
 
