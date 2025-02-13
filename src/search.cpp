@@ -116,7 +116,7 @@ int lateMoveReduction(const Board& board, Move move, int i, int depth, bool isPV
     if (i <= k || depth <= 2  || mopUp || isKillerMove || isCheck || inCheck) {
         return depth - 1;
     } else {
-        reduction = static_cast<int>(std::max(1.0, std::floor(1.0 + log (depth) * log(i) / 2 )));
+        reduction = static_cast<int>(std::max(1.0, std::floor(1.0 + log (depth) * log(i) / 1.5 )));
         if (!isPV) {
             reduction++; // Add 1 more ply of reduction for non-PV nodes
         }
