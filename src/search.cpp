@@ -87,14 +87,15 @@ bool isQueenPromotion(const Move& move) {
 
 // Update the killer moves
 void updateKillerMoves(const Move& move, int depth) {
-
-    if (killerMoves[depth].size() < 2) {
-        killerMoves[depth].push_back(move);
-    } else {
-        killerMoves[depth][1] = killerMoves[depth][0];
-        killerMoves[depth][0] = move;
+    #pragma omp critical
+    {
+        if (killerMoves[depth].size() < 2) {
+            killerMoves[depth].push_back(move);
+        } else {
+            killerMoves[depth][1] = killerMoves[depth][0];
+            killerMoves[depth][0] = move;
+        }
     }
-    
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -557,10 +558,7 @@ int alphaBeta(Board& board,
         }
 
         if (beta <= alpha) {
-            #pragma omp critical 
-            {
-                updateKillerMoves(move, depth);
-            }
+            updateKillerMoves(move, depth);
             break;
         }
     }
@@ -690,12 +688,12 @@ Move findBestMove(Board& board,
                 // Capture the first finished eval and stop other threads
                 #pragma omp critical
                 {
-
                     if (!evalFound) {
                         firstEval = threadEval;
                         bestChildPV = threadChildPV;
                         evalFound = true;
                         #pragma omp flush(evalFound)  // Ensure all threads see the update
+                        std::cout << "Thread finished at move " << uci::moveToUci(move) << " with eval " << firstEval << " at depth " << depth << std::endl;
                     }
                 }
             }
@@ -711,6 +709,7 @@ Move findBestMove(Board& board,
 
             newMoves.push_back({move, firstEval});
         }
+
         
 
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
