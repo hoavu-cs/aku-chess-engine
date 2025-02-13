@@ -87,13 +87,13 @@ int main() {
 
     // board = Board("5rk1/1p2qpp1/p2Qp1p1/2n1P3/2P5/5N2/P4PPP/3R2K1 b - - 2 24"); // shallow mate tactic that is easy to miss
 
-    board = Board("r1bbr1k1/1pp2ppp/3p3q/n2N4/p1PP4/P2BPNQ1/1P3RPP/R5K1 w - - 6 19"); // tactical position with many pieces
+    // board = Board("r1bbr1k1/1pp2ppp/3p3q/n2N4/p1PP4/P2BPNQ1/1P3RPP/R5K1 w - - 6 19"); // tactical position with many pieces
 
 
     // Default settings
     int depth = 30;
     int quiescenceDepth = 8;
-    int numThreads = 6;
+    int numThreads = 4;
     int timeLimit = 30000;
 
     Move bestMove;
