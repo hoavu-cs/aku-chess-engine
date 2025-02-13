@@ -26,7 +26,7 @@ std::unordered_map<std::uint64_t, std::pair<int, int>> upperBoundTable; // Hash 
 std::unordered_map<std::uint64_t, Move> blackHashMove; // Hash -> move
 
 const int maxTableSize = 10000000; // Maximum size of the transposition table
-std::vector<U64> nodeCount(1000, 0); // Node count for each thread
+U64 nodeCount = 0;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
 
@@ -49,20 +49,30 @@ const int pieceValues[] = {
 
 // Transposition table lookup.
 bool transTableLookUp(std::unordered_map<std::uint64_t, 
-                        std::pair<int, int>>& table, 
-                        std::uint64_t hash, 
-                        int depth, 
-                        int& eval) {    
-    auto it = table.find(hash);
-    bool found = it != table.end() && it->second.second >= depth;
+    std::pair<int, int>>& table, 
+    std::uint64_t hash, 
+    int depth, 
+    int& eval) {    
+    bool found = false;
+    std::pair<int, int> entry;
+
+    #pragma omp critical
+    {
+        auto it = table.find(hash);
+        if (it != table.end() && it->second.second >= depth) {
+            found = true;
+            entry = it->second; // Copy the entry inside the critical section
+        }
+    }
 
     if (found) {
-        eval = it->second.first;
+        eval = entry.first; // Safe access outside critical section
         return true;
     } else {
         return false;
     }
 }
+
 
 // Check if a move is a promotion
 bool isQueenPromotion(const Move& move) {
@@ -121,7 +131,11 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
 
     bool isCapture = board.isCapture(move);
     bool inCheck = board.inCheck();
-    bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
+    bool isKillerMove;
+    #pragma omp critical
+    {
+        isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
+    }
     bool isPromoting = isQueenPromotion(move);
     bool isTactical = tacticalMove(board, move);
 
@@ -185,6 +199,12 @@ std::vector<std::pair<Move, int>> orderedMoves(
         int moveIndex = move.from().index() * 64 + move.to().index();
         int ply = globalMaxDepth - depth;
         bool hashMove = false;
+        bool isKillerMove;
+
+        #pragma omp critical
+        {
+            isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
+        }
 
         // Previous PV move > hash moves > captures/killer moves > checks > quiet moves
         if ((whiteTurn && whiteHashMove.count(hash) && whiteHashMove[hash] == move) ||
@@ -200,7 +220,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             if (previousPV[ply] == move) {
                 priority = 10000; // PV move
             }
-        } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end()) {
+        } else if (isKillerMove) {
             priority = 2000; // Killer moves
         } else if (isQueenPromotion(move)) {
             priority = 6000; 
@@ -244,7 +264,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
 
 int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
     
-    nodeCount[threadID]++;
+    #pragma omp critical
+    {
+        nodeCount++;
+    }
     
     if (depth <= 0) {
         return evaluate(board);
@@ -340,7 +363,10 @@ int alphaBeta(Board& board,
             int threadID) {
 
 
-    nodeCount[threadID]++;
+    #pragma omp critical
+    {
+        nodeCount++;
+    }
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     bool endGameFlag = gamePhase(board) <= 12;
@@ -560,8 +586,8 @@ Move findBestMove(Board& board,
                 bool quiet = false) {
 
     auto startTime = std::chrono::high_resolution_clock::now();
-    nodeCount = std::vector<U64>(1000, 0);
     bool timeLimitExceeded = false;
+    
 
     Move bestMove = Move(); 
     int bestEval = (board.sideToMove() == Color::WHITE) ? -INF : INF;
@@ -598,6 +624,7 @@ Move findBestMove(Board& board,
 
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
+        nodeCount = 0;
         
         // Track the best move for the current depth
         Move currentBestMove = Move();
@@ -612,7 +639,7 @@ Move findBestMove(Board& board,
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
         bool unfinished = false;
 
-        #pragma omp parallel for schedule(dynamic, 1)
+        #pragma omp parallel for schedule(dynamic, 1) 
         for (int i = 0; i < moves.size(); i++) {
 
             bool leftMost = (i == 0);
@@ -673,10 +700,8 @@ Move findBestMove(Board& board,
             }
 
             #pragma omp critical
-            newMoves.push_back({move, eval});
-
-            #pragma omp critical
             {
+                newMoves.push_back({move, eval});
                 if ((whiteTurn && eval > currentBestEval) || 
                     (!whiteTurn && eval < currentBestEval)) {
                     currentBestEval = eval;
@@ -690,11 +715,12 @@ Move findBestMove(Board& board,
                 }
             }
         }
+    
         
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
         bestMove = currentBestMove;
         bestEval = currentBestEval;
-
+        
         // Sort the moves by evaluation for the next iteration
         if (whiteTurn) {
             std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
@@ -719,14 +745,11 @@ Move findBestMove(Board& board,
         moves = newMoves;
         previousPV = PV;
 
-        U64 totalNodes = 0;
-        for (int i = 0; i < numThreads; i++) {
-            totalNodes += nodeCount[i];
-        }
+        
 
         std::string depthStr = "depth " +  std::to_string(depth);
         std::string scoreStr = "score cp " + std::to_string(bestEval);
-        std::string nodeStr = "nodes " + std::to_string(totalNodes);
+        std::string nodeStr = "nodes " + std::to_string(nodeCount);
 
         auto iterationEndTime = std::chrono::high_resolution_clock::now();
         std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
