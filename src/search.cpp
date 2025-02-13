@@ -653,7 +653,7 @@ Move findBestMove(Board& board,
             bool evalFound = false;
         
             // Run multiple threads on the same move in parallel (Lazy SMP)
-            #pragma omp parallel num_threads(1)
+            #pragma omp parallel num_threads(2)
             {
                 Board threadBoard = board;  // Each thread gets a copy of the board
                 std::vector<Move> threadChildPV;
