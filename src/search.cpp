@@ -111,14 +111,14 @@ int lateMoveReduction(const Board& board, Move move, int i, int depth, bool isPV
 
     int nonPVReduction = isPV ? 0 : 1;
     int k1 = isPV ? 2 : 1;
-    int k2 = isPV ? 4 : 3;
+    int k2 = isPV ? 5 : 3;
 
     if (i <= k1 || depth <= 3  || mopUp || isKillerMove || isCheck || inCheck) {
         return depth - 1;
     } else if (i <= k2 || isCapture) {
-        return depth - 2 - nonPVReduction;
+        return depth - 2;
     } else {
-        return depth - 3 - nonPVReduction;
+        return depth - 3;
     }
 
     // Log formula: very fast but misses some shallow tactics (it's better to make this work consistently)
@@ -216,7 +216,6 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
     }
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-
     int standPat = evaluate(board);
     int bestScore = standPat;
         
@@ -237,29 +236,20 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
     }
 
     Movelist moves;
-    movegen::legalmoves(moves, board);
+    Color color = board.sideToMove();
+    movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
     std::vector<std::pair<Move, int>> candidateMoves;
     candidateMoves.reserve(moves.size());
 
     for (const auto& move : moves) {
-        if (!board.isCapture(move) && !isQueenPromotion(move)) {
-            continue;
-        }
+        auto victim = board.at<Piece>(move.to());
+        auto attacker = board.at<Piece>(move.from());
+        int victimValue = pieceValues[static_cast<int>(victim.type())];
+        int attackerValue = pieceValues[static_cast<int>(attacker.type())];
 
-        if (isQueenPromotion(move)) {
-
-            candidateMoves.push_back({move, 5000});
-
-        } else if (board.isCapture(move)) {
-
-            auto victim = board.at<Piece>(move.to());
-            auto attacker = board.at<Piece>(move.from());
-            int victimValue = pieceValues[static_cast<int>(victim.type())];
-            int attackerValue = pieceValues[static_cast<int>(attacker.type())];
-
-            int priority = victimValue - attackerValue;
-            candidateMoves.push_back({move, priority});
-        } 
+        int priority = victimValue - attackerValue;
+        candidateMoves.push_back({move, priority});
+        
     }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
@@ -304,8 +294,8 @@ int alphaBeta(Board& board,
     nodeCount[threadID]++;
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
-    Color color = board.sideToMove();
     bool endGameFlag = gamePhase(board) <= 12;
+    Color color = board.sideToMove();
 
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
@@ -355,6 +345,42 @@ int alphaBeta(Board& board,
         return quiescenceEval;
     }
 
+    bool isPV = (alpha < beta - 1); // Principal variation node flag
+    int standPat = evaluate(board);
+
+    bool pruningCondition = !board.inCheck() 
+                            && !mopUp && !endGameFlag 
+                            && std::max(alpha, beta) < INF/4 
+                            && std::min(alpha, beta) > -INF/4;
+
+    //  Futility pruning
+    if (depth < 3 && pruningCondition) {
+
+        int margin = depth * 130;
+
+        if (whiteTurn && standPat - margin > beta) {
+            // If it's white turn and the static evaluation - margin is greater than beta, 
+            // then it is considered to be too good for white so we can prune
+            return standPat - margin;
+        } else if (!whiteTurn && standPat + margin < alpha) {
+            // If it's black turn and the static evaluation + margin is less than alpha,
+            // then it is considered to be too good for black so we can prune
+            return standPat + margin;
+        }
+    }
+
+    // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
+    if (depth <= 3 && pruningCondition && !isPV) {
+        int standPat = evaluate(board); // Static evaluation
+        int razorMargin = 300 + (depth - 1) * 60; // Threshold increases slightly with depth
+
+        if ((whiteTurn && standPat + razorMargin < alpha)
+            || (!whiteTurn && standPat - razorMargin > beta)) {
+            // If the position is too weak (unlikely to raise alpha for white or lower beta for black), skip deep search
+            return quiescence(board, quiescenceDepth, alpha, beta, threadID);
+        } 
+    }
+
     // Null move pruning. Avoid null move pruning in the endgame phase.
     if (!endGameFlag) {
         const int nullDepth = 4; // Only apply null move pruning at depths >= 4
@@ -386,35 +412,11 @@ int alphaBeta(Board& board,
 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, previousPV, leftMost);
     int bestEval = whiteTurn ? -INF : INF;
-    bool isPV = (alpha < beta - 1); // Principal variation node flag
 
     for (int i = 0; i < moves.size(); i++) {
 
         Move move = moves[i].first;
         std::vector<Move> childPV;
-
-        // Futility pruning: to avoid risky behaviors at low depths, only prune when globalMaxDepth >= 8
-        const int futilityMargins[4] = {0, 200, 300, 500};
-        if (depth <= 3 
-            && !board.inCheck() 
-            && !endGameFlag 
-            && !mopUp 
-            && !leftMost 
-            && !board.isCapture(move)
-            && alpha <= 5000 && beta >= -5000
-        ) {
-            int futilityMargin = futilityMargins[depth];
-            int standPat = evaluate(board);
-            if (whiteTurn) {
-                if (standPat + futilityMargin < alpha) {
-                    return standPat + futilityMargin;
-                }
-            } else {
-                if (standPat - futilityMargin > beta) {
-                    return standPat - futilityMargin;
-                }
-            }
-        }
 
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, isPV); 
@@ -429,12 +431,12 @@ int alphaBeta(Board& board,
         bool isCheck = board.inCheck();
         bool extensionFlag = isCheck && extension > 0; // if the move is a check, extend the search
         if (extensionFlag) {
-            nextDepth++;
+            nextDepth++; // Extend the search by 1 ply
             extension--; // Decrement the extension counter
         }
 
-        // TODO: PVS when having a good move ordering (searching with null window)
-        if (isPV) {
+        if (isPV || leftMost) {
+            // full window search for PV nodes and leftmost line (I think nodes in leftmost line should be PV nodes, but this is just in case)
             eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension, threadID);
         } else {
             if (whiteTurn) {
@@ -444,8 +446,6 @@ int alphaBeta(Board& board,
             }
         }
         
-        //eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension, threadID);
-
         board.unmakeMove(move);
 
         // re-search if white raises alpha or black lowers beta in reduced depth
