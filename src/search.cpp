@@ -109,17 +109,31 @@ int lateMoveReduction(const Board& board, Move move, int i, int depth, bool isPV
     bool inCheck = board.inCheck();
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
-    int nonPVReduction = isPV ? 0 : 1;
-    int k1 = isPV ? 2 : 1;
-    int k2 = isPV ? 5 : 3;
+    int k = isPV ? 5 : 2;
+    bool noReduceCondition = depth <= 2 || mopUp || isKillerMove || isCheck || inCheck;
+    int reduction = 0;
 
-    if (i <= k1 || depth <= 3  || mopUp || isKillerMove || isCheck || inCheck) {
+    if (i <= k || depth <= 2  || mopUp || isKillerMove || isCheck || inCheck) {
         return depth - 1;
-    } else if (i <= k2 || isCapture) {
-        return depth - 2;
     } else {
-        return depth - 3;
+        reduction = static_cast<int>(std::max(1.0, std::floor(1.0 + log (depth) * log(i) / 2 )));
+        if (!isPV) {
+            reduction++; // Add 1 more ply of reduction for non-PV nodes
+        }
+        return depth - reduction;
     }
+
+    // int nonPVReduction = isPV ? 0 : 1;
+    // int k1 = isPV ? 2 : 1;
+    // int k2 = isPV ? 5 : 3;
+
+    // if (i <= k1 || depth <= 3  || mopUp || isKillerMove || isCheck || inCheck) {
+    //     return depth - 1;
+    // } else if (i <= k2 || isCapture) {
+    //     return depth - 2;
+    // } else {
+    //     return depth - 3;
+    // }
 
     // Log formula: very fast but misses some shallow tactics (it's better to make this work consistently)
     // reduction = static_cast<int>(std::max(1.0, std::floor(1.0 + log (depth) * log(i) / 1.5 )));
