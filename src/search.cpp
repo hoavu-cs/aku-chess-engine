@@ -177,7 +177,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
 // Generate a prioritized list of moves based on their tactical value
 std::vector<std::pair<Move, int>> orderedMoves(
     Board& board, 
-    int depth, std::vector<Move>& previousPV, 
+    int depth, std::vector<Move> previousPV, 
     bool leftMost) {
 
     Movelist moves;
@@ -651,7 +651,7 @@ Move findBestMove(Board& board,
             bool evalFound = false;
         
             // Run multiple threads on the same move in parallel (Lazy SMP)
-            #pragma omp parallel num_threads(2)
+            #pragma omp parallel num_threads(3)
             {
                 Board threadBoard = board;  // Each thread gets a copy of the board
                 std::vector<Move> threadChildPV;
@@ -693,7 +693,7 @@ Move findBestMove(Board& board,
                         bestChildPV = threadChildPV;
                         evalFound = true;
                         #pragma omp flush(evalFound)  // Ensure all threads see the update
-                        std::cout << "Thread finished at move " << uci::moveToUci(move) << " with eval " << firstEval << " at depth " << depth << std::endl;
+                        //std::cout << "Thread finished at move " << uci::moveToUci(move) << " with eval " << firstEval << " at depth " << depth << std::endl;
                     }
                 }
             }

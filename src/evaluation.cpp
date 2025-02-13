@@ -476,8 +476,8 @@ const Bitboard h8 = Bitboard::fromSquare(63);
 
 // Clear the pawn hash table
 void clearPawnHashTable() {
-    whitePawnHashTable = {};
-    blackPawnHashTable = {};
+    // whitePawnHashTable = {};
+    // blackPawnHashTable = {};
 }
 
 //End game special heuristics to avoid illusory material advantage.
@@ -788,21 +788,27 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
 
-    int storedValue = 0;
-
     std::uint64_t ourPawnsBits = ourPawns.getBits();
     std::uint64_t theirPawnsBits = theirPawns.getBits();
-
-    // Select the appropriate pawn hash table based on color
     auto& pawnHashTable = (color == Color::WHITE) ? whitePawnHashTable : blackPawnHashTable;
-
-    // Check if the pawn structure value is already stored
-    auto itOuter = pawnHashTable.find(ourPawnsBits);
-    if (itOuter != pawnHashTable.end()) {
-        auto itInner = itOuter->second.find(theirPawnsBits);
-        if (itInner != itOuter->second.end()) {
-            return itInner->second;
+    bool found = false;
+    int storedValue = 0;
+    
+    #pragma omp critical
+    {
+        // Check if the pawn structure value is already stored
+        auto itOuter = pawnHashTable.find(ourPawnsBits);
+        if (itOuter != pawnHashTable.end()) {
+            auto itInner = itOuter->second.find(theirPawnsBits);
+            if (itInner != itOuter->second.end()) {
+                found = true;
+                storedValue = itInner->second;
+            }
         }
+    }
+
+    if (found) {
+        return storedValue;
     }
 
     double midGameWeight = info.gamePhase / 24.0;
