@@ -110,9 +110,9 @@ int lateMoveReduction(const Board& board, Move move, int i, int depth, bool isPV
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
     int deepReduction = depth > 13 ? depth - 13 : 0; // We can increase 13 if we can search deeper faster
 
-    if (i <= 2 || depth <= 3  || mopUp || isKillerMove || isCheck || inCheck) {
+    if (i <= 2 || depth <= 2  || mopUp || isKillerMove || isCheck || inCheck) {
         return depth - 1;
-    } else if (i <= 5 || isCapture) {
+    } else if (i <= 4 || isCapture) {
         return depth - 2 - deepReduction;
     } else {
         return depth - 3 - deepReduction;
@@ -163,7 +163,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 priority = 10000; // PV move
             }
         } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end()) {
-            priority = 2000; // Killer moves
+            priority = 3000; // Killer moves
         } else if (isQueenPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
@@ -263,8 +263,6 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
         return a.second > b.second;
     });
 
-    
-    
     for (const auto& [move, priority] : candidateMoves) {
 
         board.makeMove(move);
@@ -433,6 +431,16 @@ int alphaBeta(Board& board,
         }
 
         // TODO: PVS when having a good move ordering (searching with null window)
+        // if (isPV) {
+        //     eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension, threadID);
+        // } else {
+        //     if (whiteTurn) {
+        //         eval = alphaBeta(board, nextDepth, alpha, alpha + 1, quiescenceDepth, childPV, leftMost, extension, threadID);
+        //     } else {
+        //         eval = alphaBeta(board, nextDepth, beta - 1, beta, quiescenceDepth, childPV, leftMost, extension, threadID);
+        //     }
+        // }
+        
         eval = alphaBeta(board, nextDepth, alpha, beta, quiescenceDepth, childPV, leftMost, extension, threadID);
 
         board.unmakeMove(move);
