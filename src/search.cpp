@@ -108,14 +108,17 @@ int lateMoveReduction(const Board& board, Move move, int i, int depth, bool isPV
     bool isCapture = board.isCapture(move);
     bool inCheck = board.inCheck();
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
-    int deepReduction = depth > 13 ? depth - 13 : 0; // We can increase 13 if we can search deeper faster
 
-    if (i <= 2 || depth <= 3  || mopUp || isKillerMove || isCheck || inCheck) {
+    int nonPVReduction = isPV ? 0 : 1;
+    int k1 = isPV ? 2 : 1;
+    int k2 = isPV ? 4 : 3;
+
+    if (i <= k1 || depth <= 3  || mopUp || isKillerMove || isCheck || inCheck) {
         return depth - 1;
-    } else if (i <= 5 || isCapture) {
-        return depth - 2 - deepReduction;
+    } else if (i <= k2 || isCapture) {
+        return depth - 2 - nonPVReduction;
     } else {
-        return depth - 3 - deepReduction;
+        return depth - 3 - nonPVReduction;
     }
 
     // Log formula: very fast but misses some shallow tactics (it's better to make this work consistently)
