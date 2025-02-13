@@ -89,54 +89,75 @@ void updateKillerMoves(const Move& move, int depth) {
     }
 }
 
+/*-------------------------------------------------------------------------------------------- 
+    Check for tactical threats beside the obvious checks, captures, and promotions.
+    To be expanded. 
+--------------------------------------------------------------------------------------------*/
+
+bool tacticalMove(Board& board, Move move) {
+    Color color = board.sideToMove();
+
+    Bitboard theirKing = board.pieces(PieceType::KING, !color);
+
+    if (manhattanDistance(move.to(), Square(theirKing.lsb())) <= 3) {
+        return true;
+    }
+
+    return false;
+}
+
 /*--------------------------------------------------------------------------------------------
     Late move reduction. No reduction for the first few moves, checks, or when in check.
     Reduce less on captures, checks, killer moves, etc.
     isPV is true if the node is a principal variation node. However, right now it's not used 
     since our move ordering is not that good.
 --------------------------------------------------------------------------------------------*/
-int lateMoveReduction(const Board& board, Move move, int i, int depth, bool isPV) {
+int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
 
-    Bitboard theirKing = board.pieces(PieceType::KING, !board.sideToMove());
-    bool mateThreat = manhattanDistance(move.to(), Square(theirKing.lsb())) <= 3;
-
-    Board localBoard = board;
     Color color = board.sideToMove();
-    localBoard.makeMove(move);
+    board.makeMove(move);
+    bool isCheck = board.inCheck(); 
+    board.unmakeMove(move);
 
-    bool isCheck = localBoard.inCheck(); 
     bool isCapture = board.isCapture(move);
     bool inCheck = board.inCheck();
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
+    bool isPromoting = isQueenPromotion(move);
+    bool isTactical = tacticalMove(board, move);
 
     int k = isPV ? 5 : 2;
-    bool noReduceCondition = depth <= 2 || mopUp || isKillerMove || isCheck || inCheck;
+    bool noReduceCondition = depth <= 2 || mopUp || isKillerMove || isCheck || inCheck || isPromoting || isTactical;
     int reduction = 0;
 
-    if (i <= k || depth <= 2  || mopUp || isKillerMove || isCheck || inCheck) {
+    int nonPVReduction = isPV ? 0 : 1;
+    int k1 = isPV ? 4 : 1;
+    int k2 = isPV ? 6 : 3;
+
+    if (i <= k1 || depth <= 3  || noReduceCondition) { 
         return depth - 1;
+    } else if (i <= k2) {
+        if (!isCapture || !isPV) {
+            return depth - 2;
+        } else {
+            return depth - 1;
+        } 
     } else {
-        reduction = static_cast<int>(std::max(1.0, std::floor(1.0 + log (depth) * log(i) / 1.5 )));
-        if (!isPV) {
-            reduction++; // Add 1 more ply of reduction for non-PV nodes
-        }
-        return depth - reduction;
+        return depth - 3;
     }
 
-    // int nonPVReduction = isPV ? 0 : 1;
-    // int k1 = isPV ? 2 : 1;
-    // int k2 = isPV ? 5 : 3;
-
-    // if (i <= k1 || depth <= 3  || mopUp || isKillerMove || isCheck || inCheck) {
+    // Log formula:  fast but misses some shallow tactics (it's better to make this work consistently)
+    // if (i <= k || depth <= 2  || mopUp || isKillerMove || isCheck || inCheck) {
     //     return depth - 1;
-    // } else if (i <= k2 || isCapture) {
-    //     return depth - 2;
     // } else {
-    //     return depth - 3;
+    //     reduction = static_cast<int>(std::max(1.0, std::floor(1.0 + log (depth) * log(i) / 1.5 )));
+    //     if (!isPV) {
+    //         reduction++; // Add 1 more ply of reduction for non-PV nodes
+    //     }
+    //     if (isCapture) {
+    //         reduction--; // Subtract 1 ply of reduction for captures
+    //     }
+    //     return depth - reduction;
     // }
-
-    // Log formula: very fast but misses some shallow tactics (it's better to make this work consistently)
-    // reduction = static_cast<int>(std::max(1.0, std::floor(1.0 + log (depth) * log(i) / 1.5 )));
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -254,6 +275,8 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
     std::vector<std::pair<Move, int>> candidateMoves;
     candidateMoves.reserve(moves.size());
+    int biggestMaterialGain = 0;
+    
 
     for (const auto& move : moves) {
         auto victim = board.at<Piece>(move.to());
@@ -262,9 +285,21 @@ int quiescence(Board& board, int depth, int alpha, int beta, int threadID) {
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
 
         int priority = victimValue - attackerValue;
+        biggestMaterialGain = std::max(biggestMaterialGain, priority);
         candidateMoves.push_back({move, priority});
         
     }
+
+    // Delta pruning
+    // const int deltaMargin = 950;
+    // if (whiteTurn && standPat + biggestMaterialGain + deltaMargin <= alpha) {
+    //     // If for white, the biggest material gain + the static evaluation + the delta margin 
+    //     // is less than alpha, this is unlikely to raise alpha for white so we can prune
+    //     return alpha;
+    // } else if (!whiteTurn && standPat - biggestMaterialGain - deltaMargin >= beta) {
+    //     // Same logic for black
+    //     return beta;
+    // }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
@@ -577,7 +612,7 @@ Move findBestMove(Board& board,
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
         bool unfinished = false;
 
-        #pragma omp for schedule(static)
+        #pragma omp parallel for schedule(dynamic, 1)
         for (int i = 0; i < moves.size(); i++) {
 
             bool leftMost = (i == 0);

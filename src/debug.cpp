@@ -63,8 +63,8 @@ int main() {
     // board = Board("1rbqk2r/1p2b1pp/2p1p3/1B3p2/1n3Q2/3P1N2/PPP2PPP/R1B2RK1 b k - 1 16");
     // board = Board("1r2k2r/1pq1bppp/p3p3/2p1n3/3pNB2/1Q1P4/PPP2PPP/4RR1K b k - 5 16");
     // board = Board("8/4k1p1/6K1/p1PP1pPP/P4P2/8/8/8 w - - 1 60"); // tactical test
-    //board = Board("r4rk1/1pp1qp2/1p2b3/1B2p1p1/4Pn1p/2Q2P2/PPP2BPP/R2R2K1 b - - 7 19");
-    //board = Board("Q7/P4rk1/3q1np1/8/3p1b1p/1P1P3P/2P1R1P1/5R1K b - - 0 37"); // tactical test
+    // board = Board("r4rk1/1pp1qp2/1p2b3/1B2p1p1/4Pn1p/2Q2P2/PPP2BPP/R2R2K1 b - - 7 19");
+    // board = Board("Q7/P4rk1/3q1np1/8/3p1b1p/1P1P3P/2P1R1P1/5R1K b - - 0 37"); // tactical test
     // board = Board("2k4r/1r1q2pp/QBp2p2/1p6/8/8/P4PPP/2R3K1 w - - 1 1"); // mate in 4.
     // board = Board("6k1/5p1p/4p1p1/2p1P3/2P4P/3P2PK/R1Q3B1/1r1n2q1 b - - 0 1"); // tactical test
     // board = Board("r2qkb1r/3bpp2/p1np1p2/1p3P2/3NP2p/2N5/PPPQB1PP/R4RK1 b kq - 0 1"); // tactical test
@@ -85,9 +85,9 @@ int main() {
 
     // board = Board("8/4r1k1/2Pp1q2/1p1B3p/5PP1/1Q3K1P/8/8 w - - 1 47");
 
-    // board = Board("5rk1/1p2qpp1/p2Qp1p1/2n1P3/2P5/5N2/P4PPP/3R2K1 b - - 2 24");
+    //board = Board("5rk1/1p2qpp1/p2Qp1p1/2n1P3/2P5/5N2/P4PPP/3R2K1 b - - 2 24"); // shallow mate tactic that is easy to miss
 
-    board = Board("r1bbr1k1/1pp2ppp/3p3q/n2N4/p1PP4/P2BPNQ1/1P3RPP/R5K1 w - - 6 19");
+    //board = Board("r1bbr1k1/1pp2ppp/3p3q/n2N4/p1PP4/P2BPNQ1/1P3RPP/R5K1 w - - 6 19"); // tactical position with many pieces
 
 
     // Default settings
