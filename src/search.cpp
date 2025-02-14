@@ -202,6 +202,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
 
     Movelist moves;
     movegen::legalmoves(moves, board);
+
     std::vector<std::pair<Move, int>> candidates;
     std::vector<std::pair<Move, int>> quietCandidates;
 
@@ -653,8 +654,10 @@ Move findBestMove(Board& board,
             moves = orderedMoves(board, depth, previousPV, false);
         }
 
+
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
         bool unfinished = false;
+
 
         //#pragma omp parallel for schedule(dynamic, 1)
         for (int i = 0; i < moves.size(); i++) {
@@ -799,6 +802,11 @@ Move findBestMove(Board& board,
 
         std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + " " + pvStr;
         std::cout << analysis << std::endl;
+
+        if (moves.size() == 1) {
+            return moves[0].first;
+        }
+
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         bool spendTooMuchTime = false;
