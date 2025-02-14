@@ -828,7 +828,7 @@ Move findBestMove(Board& board,
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
 
         timeLimitExceeded = duration > timeLimit;
-        spendTooMuchTime = duration > 3 * timeLimit;
+        spendTooMuchTime = duration > 2 * timeLimit;
 
         evals[depth] = bestEval;
         candidateMove[depth] = bestMove; 
