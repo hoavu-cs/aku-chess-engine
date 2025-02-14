@@ -51,6 +51,7 @@ const int pieceValues[] = {
 const int checkExtension = 1; // Number of plies to extend for checks
 const int mateThreat = 1; // Number of plies to extend for mate threats
 const int promotionExtension = 1; // Number of plies to extend for promotion threats.
+const int oneReplyExtension = 1; // Number of plies to extend if there is only one legal move.
 
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup.
@@ -175,8 +176,8 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
     int reduction = 0;
 
     int nonPVReduction = isPV ? 0 : 1;
-    int k1 = isPV ? 4 : 1;
-    int k2 = isPV ? 6 : 3;
+    int k1 = isPV ? 2 : 1;
+    int k2 = isPV ? 5 : 4;
 
     if (i <= k1 || depth <= 3  || noReduceCondition) { 
         return depth - 1;
@@ -509,22 +510,30 @@ int alphaBeta(Board& board,
         bool isCheck = board.inCheck();
         bool isMateThreat = mateThreatMove(board, move);
         bool isPromotionThreat = promotionThreatMove(board, move);
+        bool isOneReply = (moves.size() == 1);
         bool extensionFlag = (isCheck || isMateThreat || isPromotionThreat) && extension > 0; // if the move is a check, extend the search
         
         if (extensionFlag) {
             extension--; // Decrement the extension counter
+            int numPlies = 0;
 
             if (isCheck) {
-                nextDepth += checkExtension; // Extend the search by checkExtension plies
+                numPlies = std::max(checkExtension, numPlies);
             } 
             
             if (isMateThreat) {
-                nextDepth += mateThreat; // Extend the search by mateThreat plies
+                numPlies = std::max(mateThreat, numPlies);
             } 
 
             if (isPromotionThreat) {
-                nextDepth += promotionExtension;
+                numPlies = std::max(promotionExtension, numPlies);
             }
+
+            if (isOneReply && !isCheck) { // Apply one-reply extension (not applied twice if the)
+                numPlies = std::max(oneReplyExtension, numPlies);
+            }
+
+            nextDepth += numPlies;
         }
 
         if (isPV || leftMost) {
@@ -688,25 +697,34 @@ Move findBestMove(Board& board,
 
                 localBoard.makeMove(move);
 
+                // Check for extensions
                 bool isCheck = board.inCheck();
                 bool isMateThreat = mateThreatMove(board, move);
                 bool isPromotionThreat = promotionThreatMove(board, move);
+                bool isOneReply = (moves.size() == 1);
                 bool extensionFlag = (isCheck || isMateThreat || isPromotionThreat) && extension > 0; // if the move is a check, extend the search
                 
                 if (extensionFlag) {
                     extension--; // Decrement the extension counter
-        
+                    int numPlies = 0;
+
                     if (isCheck) {
-                        nextDepth += checkExtension; // Extend the search by checkExtension plies
+                        numPlies = std::max(checkExtension, numPlies);
                     } 
                     
                     if (isMateThreat) {
-                        nextDepth += mateThreat; // Extend the search by mateThreat plies
+                        numPlies = std::max(mateThreat, numPlies);
                     } 
-        
+
                     if (isPromotionThreat) {
-                        nextDepth += promotionExtension;
+                        numPlies = std::max(promotionExtension, numPlies);
                     }
+
+                    if (isOneReply && !isCheck) { // Apply one-reply extension (not applied twice if the)
+                        numPlies = std::max(oneReplyExtension, numPlies);
+                    }
+
+                    nextDepth += numPlies;
                 }
 
                 eval = alphaBeta(localBoard, 
