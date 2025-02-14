@@ -48,6 +48,10 @@ const int pieceValues[] = {
     20000 // King
 };
 
+const int checkExtension = 1; // Number of plies to extend for checks
+const int mateThreat = 1; // Number of plies to extend for mate threats
+const int promotionExtension = 1; // Number of plies to extend for promotion threats.
+
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup.
 --------------------------------------------------------------------------------------------*/
@@ -98,7 +102,7 @@ void updateKillerMoves(const Move& move, int depth) {
     Check for tactical threats beside the obvious checks, captures, and promotions.
     To be expanded. 
 --------------------------------------------------------------------------------------------*/
-bool tacticalMove(Board& board, Move move) {
+bool mateThreatMove(Board& board, Move move) {
     Color color = board.sideToMove();
     PieceType type = board.at<Piece>(move.from()).type();
 
@@ -125,6 +129,28 @@ bool tacticalMove(Board& board, Move move) {
     return false;
 }
 
+bool promotionThreatMove(Board& board, Move move) {
+    Color color = board.sideToMove();
+    PieceType type = board.at<Piece>(move.from()).type();
+
+    if (type == PieceType::PAWN) {
+        int destinationIndex = move.to().index();
+        int rank = destinationIndex / 8;
+        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+
+        bool isPassedPawnFlag = isPassedPawn(destinationIndex, color, theirPawns);
+
+        if (isPassedPawnFlag) {
+            if ((color == Color::WHITE && rank > 3) || 
+                (color == Color::BLACK && rank < 4)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 /*--------------------------------------------------------------------------------------------
     Late move reduction. No reduction for the first few moves, checks, or when in check.
     Reduce less on captures, checks, killer moves, etc.
@@ -142,7 +168,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
     bool inCheck = board.inCheck();
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
     bool isPromoting = isQueenPromotion(move);
-    bool isTactical = tacticalMove(board, move);
+    bool isTactical = mateThreatMove(board, move);
 
     int k = isPV ? 5 : 2;
     bool noReduceCondition = mopUp || isCheck || inCheck || isPromoting || isTactical;
@@ -480,11 +506,24 @@ int alphaBeta(Board& board,
         
         // Check for extensions
         bool isCheck = board.inCheck();
-        bool isTactical = tacticalMove(board, move);
-        bool extensionFlag = (isCheck || isTactical) && extension > 0; // if the move is a check, extend the search
+        bool isMateThreat = mateThreatMove(board, move);
+        bool isPromotionThreat = promotionThreatMove(board, move);
+        bool extensionFlag = (isCheck || isMateThreat || isPromotionThreat) && extension > 0; // if the move is a check, extend the search
+        
         if (extensionFlag) {
-            nextDepth += extension; // Extend the search by 1 ply
             extension--; // Decrement the extension counter
+
+            if (isCheck) {
+                nextDepth += checkExtension; // Extend the search by checkExtension plies
+            } 
+            
+            if (isMateThreat) {
+                nextDepth += mateThreat; // Extend the search by mateThreat plies
+            } 
+
+            if (isPromotionThreat) {
+                nextDepth += promotionExtension;
+            }
         }
 
         if (isPV || leftMost) {
@@ -624,7 +663,7 @@ Move findBestMove(Board& board,
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            int extension = 2;
+            int extension = 4;
         
             Board localBoard = board;
             bool newBestFlag = false;  
@@ -647,12 +686,24 @@ Move findBestMove(Board& board,
                 localBoard.makeMove(move);
 
                 bool isCheck = board.inCheck();
-                bool isTactical = tacticalMove(board, move);
-                bool extensionFlag = (isCheck || isTactical) && extension > 0; // if the move is a check, extend the search
-
+                bool isMateThreat = mateThreatMove(board, move);
+                bool isPromotionThreat = promotionThreatMove(board, move);
+                bool extensionFlag = (isCheck || isMateThreat || isPromotionThreat) && extension > 0; // if the move is a check, extend the search
+                
                 if (extensionFlag) {
-                    nextDepth += extension; // Extend the search by 1 ply
                     extension--; // Decrement the extension counter
+        
+                    if (isCheck) {
+                        nextDepth += checkExtension; // Extend the search by checkExtension plies
+                    } 
+                    
+                    if (isMateThreat) {
+                        nextDepth += mateThreat; // Extend the search by mateThreat plies
+                    } 
+        
+                    if (isPromotionThreat) {
+                        nextDepth += promotionExtension;
+                    }
                 }
 
                 eval = alphaBeta(localBoard, 
