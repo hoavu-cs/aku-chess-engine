@@ -96,11 +96,26 @@ void updateKillerMoves(const Move& move, int depth) {
 
 bool tacticalMove(Board& board, Move move) {
     Color color = board.sideToMove();
+    PieceType type = board.at<Piece>(move.from()).type();
 
     Bitboard theirKing = board.pieces(PieceType::KING, !color);
 
+    int destinationIndex = move.to().index();   
+    int destinationFile = destinationIndex % 8;
+    int destinationRank = destinationIndex / 8;
+
+    int theirKingFile = theirKing.lsb() % 8;
+    int theirKingRank = theirKing.lsb() / 8;
+
     if (manhattanDistance(move.to(), Square(theirKing.lsb())) <= 3) {
         return true;
+    }
+
+    if (type == PieceType::ROOK || type == PieceType::QUEEN) {
+        if (abs(destinationFile - theirKingFile) <= 1 && 
+            abs(destinationRank - theirKingRank) <= 1) {
+            return true;
+        }
     }
 
     return false;
@@ -125,26 +140,19 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
     bool isPromoting = isQueenPromotion(move);
     bool isTactical = tacticalMove(board, move);
 
-    int k = isPV ? 5 : 2;
-    bool noReduceCondition = depth <= 2 || mopUp || isKillerMove || isCheck || inCheck || isPromoting || isTactical;
+    bool reduceLess = isCapture || isKillerMove || isCheck || inCheck || isPromoting ;
     int reduction = 0;
-
     int nonPVReduction = isPV ? 0 : 1;
-    int k1 = 2;
+    int k1 = 1;
     int k2 = 5;
 
-    if (i <= k1 || depth <= 3  || noReduceCondition) { 
+    if (i <= k1 || mopUp || depth <= 3 ) { 
         return depth - 1;
-    } else if (i <= k2) {
-        if (!isCapture || !isPV) {
-            return depth - 2;
-        } else {
-            return depth - 1;
-        } 
+    } else if (i <= k2 || reduceLess) {
+        return depth - 2 - nonPVReduction;
     } else {
-        return depth - 3;
+        return depth - 3 - nonPVReduction;
     }
-
 }
 
 // Generate a prioritized list of moves based on their tactical value
@@ -471,9 +479,9 @@ int alphaBeta(Board& board,
         
         // Check for extensions
         bool isCheck = board.inCheck();
-        bool extensionFlag = isCheck && extension > 0; // if the move is a check, extend the search
+        bool extensionFlag = (isCheck || tacticalMove(board, move)) && extension > 0; // if the move is a check, extend the search
         if (extensionFlag) {
-            nextDepth++; // Extend the search by 1 ply
+            nextDepth += 3; // Extend the search by 1 ply
             extension--; // Decrement the extension counter
         }
 
@@ -617,11 +625,20 @@ Move findBestMove(Board& board,
             Board localBoard = board;
             bool newBestFlag = false;  
             int nextDepth = lateMoveReduction(localBoard, move, i, depth, true);
+
+            // Check for extensions
+            bool isCheck = board.inCheck();
+            bool extensionFlag = (isCheck || tacticalMove(board, move)) && extension > 0; // if the move is a check, extend the search
+            if (extensionFlag) {
+                nextDepth += 3;
+                extension--; 
+            }
+
             int eval = whiteTurn ? -INF : INF;
             int aspiration;
 
             if (depth == 1) {
-                aspiration = evaluate(localBoard); // if at depth = 1, aspiration = static evaluation
+                aspiration = evaluate(localBoard); // at depth = 1, aspiration = static evaluation
             } else {
                 aspiration = evals[depth - 1]; // otherwise, aspiration = previous depth evaluation
             }
@@ -727,7 +744,7 @@ Move findBestMove(Board& board,
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
 
         timeLimitExceeded = duration > timeLimit;
-        spendTooMuchTime = duration > 2 * timeLimit;
+        spendTooMuchTime = duration > 3 * timeLimit;
 
         evals[depth] = bestEval;
         candidateMove[depth] = bestMove; 
