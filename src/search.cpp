@@ -172,22 +172,18 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
     bool isPromotionThreat = promotionThreatMove(board, move);
 
     int k = isPV ? 5 : 2;
-    bool noReduceCondition = mopUp || isCheck || inCheck || isPromoting || isMateThreat || isPromotionThreat;
-    bool reduceLessCondition;
+    bool noReduceCondition = mopUp || isPromoting || isMateThreat || isPromotionThreat;
+    bool reduceLessCondition = isCheck || inCheck || isCapture;
     int reduction = 0;
 
     int nonPVReduction = isPV ? 0 : 1;
     int k1 = isPV ? 2 : 1;
-    int k2 = isPV ? 5 : 4;
+    int k2 = isPV ? 5 : 3;
 
     if (i <= k1 || depth <= 3  || noReduceCondition) { 
         return depth - 1;
-    } else if (i <= k2) {
-        if (!isCapture || !isPV) {
-            return depth - 2;
-        } else {
-            return depth - 1;
-        } 
+    } else if (i <= k2 || reduceLessCondition) {
+        return depth - 2;
     } else {
         return depth - 3;
     }
@@ -669,7 +665,7 @@ Move findBestMove(Board& board,
         bool unfinished = false;
 
 
-        //#pragma omp parallel for schedule(dynamic, 1)
+        #pragma omp parallel for schedule(dynamic, 1)
         for (int i = 0; i < moves.size(); i++) {
 
             bool leftMost = (i == 0);

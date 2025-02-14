@@ -69,7 +69,7 @@ int main() {
     // board = Board("2k4r/1r1q2pp/QBp2p2/1p6/8/8/P4PPP/2R3K1 w - - 1 1"); // mate in 4.
     // board = Board("6k1/5p1p/4p1p1/2p1P3/2P4P/3P2PK/R1Q3B1/1r1n2q1 b - - 0 1"); // tactical test
     // board = Board("r2qkb1r/3bpp2/p1np1p2/1p3P2/3NP2p/2N5/PPPQB1PP/R4RK1 b kq - 0 1"); // tactical test
-    board = Board("3qbrk1/5p2/8/3pP1bQ/1PpB4/2P5/6PP/5RK1 w - - 0 1"); // mate in 6
+    // board = Board("3qbrk1/5p2/8/3pP1bQ/1PpB4/2P5/6PP/5RK1 w - - 0 1"); // mate in 6
     // board = Board("r1bqk2r/pp1n1pp1/2pBp3/8/4B2p/3R4/P3QPP1/3R2K1 w q - 0 28"); // tactical test
     // board = Board("8/2p2k1p/3p4/3P3q/1p4R1/P1B2P2/4r3/Q5K1 w - - 1 42"); // mate threat test
     // board = Board("r1b2rk1/pp1p1p2/5p1p/3P4/1n6/3B1N2/P4PPP/R3K2R w KQ - 1 18"); // 
@@ -79,7 +79,7 @@ int main() {
     //board = Board("8/4r1k1/2Pp1q2/1p1B3p/5PP1/1Q3K1P/8/8 w - - 1 47");
     // board = Board("5rk1/1p2qpp1/p2Qp1p1/2n1P3/2P5/5N2/P4PPP/3R2K1 b - - 2 24"); // mate blunder test
     // board = Board("5rk1/1p1bbp2/2p1p1p1/2PpP1Pp/1q1P3P/4PR2/1rB2Q2/R4NK1 w - - 0 32");
-    board = Board("r5k1/1p4pp/2p1b3/3pP3/pq1P2PQ/4PR2/8/5RK1 w - - 2 45"); // promotion test
+    //board = Board("r5k1/1p4pp/2p1b3/3pP3/pq1P2PQ/4PR2/8/5RK1 w - - 2 45"); // promotion test
 
 
     // Default settings
@@ -109,18 +109,7 @@ int main() {
         board.makeMove(bestMove);
         std::cout << "Move " << i + 1 << ": " << uci::moveToUci(bestMove) << std::endl;
         
-        // std::string moveStr = uci::moveToUci(bestMove);
-        
-        // if (board.sideToMove() == Color::BLACK) {
-        //     pgnMoves.push_back(std::to_string((i / 2) + 1) + ". " + moveStr);
-        // } else {
-        //     pgnMoves.back() += " " + moveStr;
-        // }
     }
-
-    // Write PGN to file
-    // writePNGToFile(pgnMoves, "game.pgn");
-    // std::cout << "Game saved to game.pgn" << std::endl;
 
     return 0;
 }
