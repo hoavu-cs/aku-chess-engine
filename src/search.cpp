@@ -140,18 +140,18 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
     bool isPromoting = isQueenPromotion(move);
     bool isTactical = tacticalMove(board, move);
 
-    bool reduceLess = isCapture || isKillerMove || isCheck || inCheck || isPromoting ;
+    bool noReduce =  isCheck || inCheck || isPromoting ;
     int reduction = 0;
     int nonPVReduction = isPV ? 0 : 1;
-    int k1 = 1;
+    int k1 = 2;
     int k2 = 5;
 
-    if (i <= k1 || mopUp || depth <= 3 ) { 
+    if (i <= k1 || mopUp || depth <= 3) { 
         return depth - 1;
-    } else if (i <= k2 || reduceLess) {
-        return depth - 2 - nonPVReduction;
+    } else if (i <= k2 || ((isKillerMove || isTactical || isCapture || isCheck || inCheck) && isPV)) {
+        return depth - 2;
     } else {
-        return depth - 3 - nonPVReduction;
+        return depth - 3 ;
     }
 }
 
@@ -783,6 +783,5 @@ Move findBestMove(Board& board,
             clearPawnHashTable();
         }
     }
-
     return candidateMove[depth];
 }

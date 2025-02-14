@@ -87,7 +87,7 @@ int main() {
 
     // board = Board("5rk1/1p2qpp1/p2Qp1p1/2n1P3/2P5/5N2/P4PPP/3R2K1 b - - 2 24"); // mate blunder test
 
-    board = Board("5rk1/1pqbbpp1/2p1p2p/2PpP3/1P1P2P1/r3P2Q/3N3P/1BR2RK1 w - - 3 22");
+    // board = Board("5rk1/1p1bbp2/2p1p1p1/2PpP1Pp/1q1P3P/4PR2/1rB2Q2/R4NK1 w - - 0 32");
 
 
     // Default settings
