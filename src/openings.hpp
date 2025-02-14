@@ -3,7 +3,6 @@
 #include <vector>
 #include <string>
 
-
 const std::vector<std::vector<std::string>> OPENING_MOVES = {
     {"g1f3", "g8f6", "c2c4", "b7b6", "g2g3"},
     {"g1f3", "g8f6", "c2c4", "c7c5", "b1c3", "b8c6"},

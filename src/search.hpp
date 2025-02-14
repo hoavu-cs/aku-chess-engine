@@ -9,29 +9,37 @@ const int INF = 100000;
 
 // Function Declarations
 
-std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board& board, 
-                                                            int depth);
+std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board &board,
+                                                           int depth);
 
 int quiescence(
-    Board& board, 
-    int depth, 
-    int alpha, 
+    Board &board,
+    int depth,
+    int alpha,
     int beta);
 
 int alphaBeta(
-    Board& board, 
-    int depth, 
-    int alpha, 
-    int beta, 
+    Board &board,
+    int depth,
+    int alpha,
+    int beta,
     int quiescenceDepth,
-    std::vector<Move>& pV,
+    std::vector<Move> &pV,
     bool leftMost,
     int extension);
 
 Move findBestMove(
-    Board& board, 
-    int numThreads, 
-    int maxDepth, 
+    Board &board,
+    int numThreads,
+    int maxDepth,
     int quiescenceDepth,
     int timeLimit,
+    bool quiet);
+
+Move parallelFindBestMove(
+    Board &board, 
+    int numThreads, 
+    int maxDepth, 
+    int quiescenceDepth, 
+    int timeLimit, 
     bool quiet);

@@ -476,8 +476,8 @@ const Bitboard h8 = Bitboard::fromSquare(63);
 
 // Clear the pawn hash table
 void clearPawnHashTable() {
-    // whitePawnHashTable = {};
-    // blackPawnHashTable = {};
+    whitePawnHashTable = {};
+    blackPawnHashTable = {};
 }
 
 //End game special heuristics to avoid illusory material advantage.
@@ -787,9 +787,10 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-
     std::uint64_t ourPawnsBits = ourPawns.getBits();
     std::uint64_t theirPawnsBits = theirPawns.getBits();
+
+    // Select the appropriate pawn hash table based on color
     auto& pawnHashTable = (color == Color::WHITE) ? whitePawnHashTable : blackPawnHashTable;
     bool found = false;
     int storedValue = 0;
