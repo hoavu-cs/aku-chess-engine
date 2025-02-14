@@ -167,12 +167,13 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
 
     bool isCapture = board.isCapture(move);
     bool inCheck = board.inCheck();
-    bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
     bool isPromoting = isQueenPromotion(move);
-    bool isTactical = mateThreatMove(board, move);
+    bool isMateThreat = mateThreatMove(board, move);
+    bool isPromotionThreat = promotionThreatMove(board, move);
 
     int k = isPV ? 5 : 2;
-    bool noReduceCondition = mopUp || isCheck || inCheck || isPromoting || isTactical;
+    bool noReduceCondition = mopUp || isCheck || inCheck || isPromoting || isMateThreat || isPromotionThreat;
+    bool reduceLessCondition;
     int reduction = 0;
 
     int nonPVReduction = isPV ? 0 : 1;
