@@ -54,7 +54,7 @@ const int oneReplyExtension = 1; // Number of plies to extend if there is only o
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup.
 --------------------------------------------------------------------------------------------*/
-bool transTableLookUp(U64 hash, int depth, int& eval) {    
+bool tableLookUp(U64 hash, int depth, int& eval) {    
     auto it = transpositionTable.find(hash);
     bool found = it != transpositionTable.end() && it->second.second >= depth;
 
@@ -66,6 +66,14 @@ bool transTableLookUp(U64 hash, int depth, int& eval) {
     }
 }
 
+void clearTables() {
+    if (transpositionTable.size() > maxTableSize) {
+        transpositionTable = {};
+        hashMoveTable = {};
+        clearPawnHashTable();
+    }
+}
+ 
 /*-------------------------------------------------------------------------------------------- 
     Check if the move is a queen promotion.
 --------------------------------------------------------------------------------------------*/
@@ -353,6 +361,9 @@ int negamax(Board& board,
             int extension) {
 
     #pragma omp critical
+    clearTables();
+
+    #pragma omp critical
     nodeCount++;
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
@@ -378,7 +389,7 @@ int negamax(Board& board,
     
     #pragma omp critical
     {
-        if (transTableLookUp(hash, depth, storedEval) && storedEval >= beta) {
+        if (tableLookUp(hash, depth, storedEval) && storedEval >= beta) {
             #pragma 
             {
                 tableHit++;
@@ -540,6 +551,9 @@ int negamax(Board& board,
         }
     }
 
+    #pragma omp critical
+    clearTables();
+
     return bestEval;
 }
 
@@ -573,13 +587,7 @@ Move findBestMove(Board& board,
 
     // Clear transposition tables
     #pragma omp critical
-    {
-        if (transpositionTable.size() > maxTableSize) {
-            transpositionTable = {};
-            hashMoveTable = {};
-            clearPawnHashTable();
-        }
-    }
+    clearTables();
     
     const int baseDepth = 1;
     int apsiration = color * evaluate(board);
@@ -792,13 +800,7 @@ Move findBestMove(Board& board,
     }
     
     #pragma omp critical
-    {
-        if (transpositionTable.size() > maxTableSize) {
-            transpositionTable = {};
-            hashMoveTable = {};
-            clearPawnHashTable();
-        }
-    }
+    clearTables();
 
     return bestMove; 
 }
