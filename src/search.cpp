@@ -341,7 +341,7 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Alpha-beta.
+    Negamax with alpha-beta pruning.
 --------------------------------------------------------------------------------------------*/
 int negamax(Board& board, 
             int depth, 
@@ -358,12 +358,15 @@ int negamax(Board& board,
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     bool endGameFlag = gamePhase(board) <= 12;
     int color = whiteTurn ? 1 : -1;
+    bool isPV = (alpha < beta - 1); // Principal variation node flag
+    
 
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
     if (gameOverResult.first != GameResultReason::NONE) {
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
-            return color * (INF/2 - (1000 - depth)); 
+            int ply = globalMaxDepth - depth;
+            return -(INF/2 - ply); 
         }
         return 0;
     }
@@ -376,8 +379,10 @@ int negamax(Board& board,
     #pragma omp critical
     {
         if (transTableLookUp(hash, depth, storedEval) && storedEval >= beta) {
-            #pragma omp atomic
-            tableHit++;
+            #pragma 
+            {
+                tableHit++;
+            }
 
             found = true;
         }
@@ -398,12 +403,12 @@ int negamax(Board& board,
         return quiescenceEval;
     }
 
-    bool isPV = (alpha < beta - 1); // Principal variation node flag
-    int standPat = color * evaluate(board);
+
 
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
-    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4;
+    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
+    int standPat = color * evaluate(board);
 
     //  Futility pruning
     if (depth < 3 && pruningCondition) {
@@ -428,7 +433,7 @@ int negamax(Board& board,
     // Null move pruning. Avoid null move pruning in the endgame phase.
     const int nullDepth = 4; // Only apply null move pruning at depths >= 4
 
-    if (depth >= nullDepth && !endGameFlag && !leftMost && !board.inCheck()) {
+    if (depth >= nullDepth && !endGameFlag && !leftMost && !board.inCheck() && !mopUp) {
         std::vector<Move> nullPV;
         int nullEval;
         int reduction = 3 + depth / 4;
@@ -491,8 +496,8 @@ int negamax(Board& board,
             nextDepth += numPlies;
         }
 
-        if (isPV || leftMost) {
-            // full window search for PV nodes and leftmost line (I think nodes in leftmost line should be PV nodes, but this is just in case)
+        if (isPV || mopUp) {
+            // full window search for the first node
             eval = -negamax(board, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension);
         } else {
             eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, quiescenceDepth, childPV, leftMost, extension);
@@ -609,7 +614,7 @@ Move findBestMove(Board& board,
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            int extension = 4;
+            int extension = mopUp ? 0 : 4;
         
             Board localBoard = board;
             bool newBestFlag = false;  
@@ -663,6 +668,12 @@ Move findBestMove(Board& board,
 
                 int alpha = aspiration - windowLeft;
                 int beta = aspiration + windowRight;
+
+                if (mopUp) {
+                    alpha = -INF;
+                    beta = INF;
+                }
+
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension);
                 localBoard.unmakeMove(move);
 
@@ -725,7 +736,7 @@ Move findBestMove(Board& board,
         previousPV = PV;
 
         std::string depthStr = "depth " +  std::to_string(PV.size());
-        std::string scoreStr = "score cp " + std::to_string(bestEval);
+        std::string scoreStr = "score cp " + std::to_string(color * bestEval);
         std::string nodeStr = "nodes " + std::to_string(nodeCount);
 
         auto iterationEndTime = std::chrono::high_resolution_clock::now();

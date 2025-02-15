@@ -484,7 +484,7 @@ void clearPawnHashTable() {
 bool knownDraw(const Board& board) {
 
     // Two kings are a draw
-    if (board.us(Color::WHITE).count() == 1 && board.them(Color::BLACK).count() == 1) {
+    if (board.us(Color::WHITE).count() == 1 && board.us(Color::BLACK).count() == 1) {
         return true;
     }
 
@@ -1415,28 +1415,34 @@ int evaluate(const Board& board) {
     Mop-up phase: if only their king is left without any other pieces.
     Aim to checkmate.
     --------------------------------------------------------------------------*/
-    
-    Color theirColor = !board.sideToMove();
-    Bitboard theirPieces = board.pieces(PieceType::PAWN, theirColor) | board.pieces(PieceType::KNIGHT, theirColor) | 
-                           board.pieces(PieceType::BISHOP, theirColor) | board.pieces(PieceType::ROOK, theirColor) | 
-                           board.pieces(PieceType::QUEEN, theirColor);
 
-    Bitboard ourPieces =  board.pieces(PieceType::ROOK, board.sideToMove()) | board.pieces(PieceType::QUEEN, board.sideToMove());
-    if (theirPieces.count() == 0 && ourPieces.count() > 0) {
-        Square ourKing = Square(board.pieces(PieceType::KING, board.sideToMove()).lsb());
-        Square theirKing = Square(board.pieces(PieceType::KING, theirColor).lsb());
+    if (board.us(Color::WHITE).count() == 1 && board.us(Color::BLACK).count() == 1) {
+        return 0; 
+    }
+
+    bool mopUp = board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1;
+
+    Color winningColor = board.us(Color::WHITE).count() > 1 ? Color::WHITE : Color::BLACK;
+
+    Bitboard pieces = board.pieces(PieceType::PAWN, winningColor) | board.pieces(PieceType::KNIGHT, winningColor) | 
+                    board.pieces(PieceType::BISHOP, winningColor) | board.pieces(PieceType::ROOK, winningColor) | 
+                    board.pieces(PieceType::QUEEN, winningColor);
+
+    if (mopUp) {
+        Square winningKingSq = Square(board.pieces(PieceType::KING, winningColor).lsb());
+        Square losingKingSq = Square(board.pieces(PieceType::KING, !winningColor).lsb());
         Square E4 = Square(28);
 
-        int kingDist = manhattanDistance(ourKing, theirKing);
-        int distToCenter = manhattanDistance(theirKing, E4);
-        int ourMaterial = 900 * board.pieces(PieceType::QUEEN, board.sideToMove()).count() + 
-                          500 * board.pieces(PieceType::ROOK, board.sideToMove()).count() + 
-                          300 * board.pieces(PieceType::BISHOP, board.sideToMove()).count() + 
-                          300 * board.pieces(PieceType::KNIGHT, board.sideToMove()).count() + 
-                          100 * board.pieces(PieceType::PAWN, board.sideToMove()).count(); // avoid throwing away pieces
+        int kingDist = manhattanDistance(winningKingSq, losingKingSq);
+        int distToCenter = manhattanDistance(losingKingSq, E4);
+        int winningMaterial = 900 * board.pieces(PieceType::QUEEN, winningColor).count() + 
+                          500 * board.pieces(PieceType::ROOK, winningColor).count() + 
+                          300 * board.pieces(PieceType::BISHOP, winningColor).count() + 
+                          300 * board.pieces(PieceType::KNIGHT, winningColor).count() + 
+                          100 * board.pieces(PieceType::PAWN, winningColor).count(); // avoid throwing away pieces
         int score = 5000 +  500 * distToCenter + 150 * (14 - kingDist);
 
-        return board.sideToMove() == Color::WHITE ? score : -score;
+        return winningColor == Color::WHITE ? score : -score;
     }
 
     /*--------------------------------------------------------------------------
