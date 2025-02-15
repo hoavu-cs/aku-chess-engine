@@ -92,6 +92,7 @@ void updateKillerMoves(const Move& move, int depth) {
     }
 }
 
+
 /*-------------------------------------------------------------------------------------------- 
     Check for tactical threats beside the obvious checks, captures, and promotions.
     To be expanded. 
@@ -145,28 +146,6 @@ bool promotionThreatMove(Board& board, Move move) {
     return false;
 }
 
-bool diagonalThreatMove(Board& board, Move move) {
-    Color color = board.sideToMove();
-    PieceType type = board.at<Piece>(move.from()).type();
-
-    if (type == PieceType::BISHOP || type == PieceType::QUEEN) {
-        Bitboard theirKing = board.pieces(PieceType::KING, !color);
-        int destinationIndex = move.to().index();
-        int destinationFile = destinationIndex % 8;
-        int destinationRank = destinationIndex / 8;
-
-        int theirKingFile = theirKing.lsb() % 8;
-        int theirKingRank = theirKing.lsb() / 8;
-
-        if (abs(destinationFile - theirKingFile) <= 1 && 
-            abs(destinationRank - theirKingRank) <= 1) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
 /*--------------------------------------------------------------------------------------------
     Late move reduction. No reduction for the first few moves, checks, or when in check.
     Reduce less on captures, checks, killer moves, etc.
@@ -204,6 +183,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
     }
 
 }
+
 
 /*-------------------------------------------------------------------------------------------- 
     Returns a list of candidate moves ordered by priority.
@@ -414,7 +394,7 @@ int alphaBeta(Board& board,
 
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
-    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha > INF/4;
+    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && !alpha > INF/4;
 
     //  Futility pruning
     if (depth < 3 && pruningCondition) {
@@ -504,9 +484,9 @@ int alphaBeta(Board& board,
 
         if (isPV || leftMost) {
             // full window search for PV nodes and leftmost line (I think nodes in leftmost line should be PV nodes, but this is just in case)
-            eval = -alphaBeta(board, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension);
+            eval = -alphaBeta(board, depth - 1, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension);
         } else {
-            eval = -alphaBeta(board, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension);
+            eval = -alphaBeta(board, nextDepth, -(alpha + 1), -alpha, quiescenceDepth, childPV, leftMost, extension);
         }
         
         board.unmakeMove(move);
