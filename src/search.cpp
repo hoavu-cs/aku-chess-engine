@@ -189,17 +189,8 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     int k2 = 5;
 
     // Deep pruning
-    bool deepPrune = false;
-    const int nodeCountLimit = 20000000;
-    #pragma omp critical
-    {
-        if ((ply >= 10 && i > 1) || nodeCount > nodeCountLimit) {
-            deepPrune = true;
-        }
-    }
-
-    if (deepPrune) {
-        return 0;
+    if (ply > 6 && i > 3) {
+            return 0;
     }
 
     if (i <= k1 || depth <= 3  || noReduceCondition) { 
@@ -791,14 +782,11 @@ Move findBestMove(Board& board,
 
         // Check for stable evaluation
         bool stableEval = true;
-        if (depth >= 4 && depth <= ENGINE_DEPTH) {  
-            for (int i = 0; i < 4; i++) {
-                if (std::abs(evals[depth - i] - evals[depth - i - 1]) > 25) {
-                    stableEval = false;
-                    break;
-                }
-            }
+        if (depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 40) {
+            stableEval = false;
         }
+        
+        
 
         // Break out of the loop if the time limit is exceeded and the evaluation is stable.
         if (!timeLimitExceeded) {
