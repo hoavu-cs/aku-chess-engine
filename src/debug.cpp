@@ -96,7 +96,7 @@ int main() {
 
     for (int i = 0; i < moveCount; i++) {
 
-        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, true);
+        Move bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, true, false);
 
         if (bestMove == Move::NO_MOVE) {
             auto gameResult = board.isGameOver();
