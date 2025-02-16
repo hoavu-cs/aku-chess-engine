@@ -20,8 +20,6 @@ const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
-const int maxPawnCacheSize = 5000000;
-
 // Pawn hash table
 std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> whitePawnHashTable;
 std::unordered_map<std::uint64_t, std::unordered_map<std::uint64_t, int>> blackPawnHashTable;
@@ -478,17 +476,15 @@ const Bitboard h8 = Bitboard::fromSquare(63);
 
 // Clear the pawn hash table
 void clearPawnHashTable() {
-    if (whitePawnHashTable.size() + blackPawnHashTable.size() > maxPawnCacheSize) {
-        whitePawnHashTable = {};
-        blackPawnHashTable = {};
-    }
+    whitePawnHashTable = {};
+    blackPawnHashTable = {};
 }
 
 //End game special heuristics to avoid illusory material advantage.
 bool knownDraw(const Board& board) {
 
     // Two kings are a draw
-    if (board.us(Color::WHITE).count() == 1 && board.them(Color::BLACK).count() == 1) {
+    if (board.us(Color::WHITE).count() == 1 && board.us(Color::BLACK).count() == 1) {
         return true;
     }
 
@@ -696,7 +692,15 @@ bool isOutpost(const Board& board, int sqIndex, Color color) {
     return true;
 }
 
+Bitboard allPieces(const Board& board, Color color) {
+    // Return a bitboard with all pieces of the given color except kings
+    return board.pieces(PieceType::PAWN, color) | board.pieces(PieceType::KNIGHT, color) 
+           | board.pieces(PieceType::BISHOP, color) | board.pieces(PieceType::ROOK, color) 
+           | board.pieces(PieceType::QUEEN, color) | board.pieces(PieceType::KING, color);
+}
+
 bool isOpenFile(const Board& board, int file) {
+    // Get bitboards for white and black pawns
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
     Bitboard mask = generateFileMask(File(file));
@@ -742,7 +746,7 @@ bool isProtectedByPawn(int sqIndex, const Board& board, Color color) {
         }
     }
 
-    return false; 
+    return false; // No protecting pawn found
 }
 
 // check if a squared is opposed by an enemy pawn
@@ -783,22 +787,29 @@ int pawnValue(const Board& board, int baseValue, Color color, Info& info) {
 
     Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
     Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-
-    int storedValue = 0;
-
     std::uint64_t ourPawnsBits = ourPawns.getBits();
     std::uint64_t theirPawnsBits = theirPawns.getBits();
 
     // Select the appropriate pawn hash table based on color
     auto& pawnHashTable = (color == Color::WHITE) ? whitePawnHashTable : blackPawnHashTable;
-
-    // Check if the pawn structure value is already stored
-    auto itOuter = pawnHashTable.find(ourPawnsBits);
-    if (itOuter != pawnHashTable.end()) {
-        auto itInner = itOuter->second.find(theirPawnsBits);
-        if (itInner != itOuter->second.end()) {
-            return itInner->second;
+    bool found = false;
+    int storedValue = 0;
+    
+    #pragma omp critical
+    {
+        // Check if the pawn structure value is already stored
+        auto itOuter = pawnHashTable.find(ourPawnsBits);
+        if (itOuter != pawnHashTable.end()) {
+            auto itInner = itOuter->second.find(theirPawnsBits);
+            if (itInner != itOuter->second.end()) {
+                found = true;
+                storedValue = itInner->second;
+            }
         }
+    }
+
+    if (found) {
+        return storedValue;
     }
 
     double midGameWeight = info.gamePhase / 24.0;
@@ -1404,28 +1415,34 @@ int evaluate(const Board& board) {
     Mop-up phase: if only their king is left without any other pieces.
     Aim to checkmate.
     --------------------------------------------------------------------------*/
-    
-    Color theirColor = !board.sideToMove();
-    Bitboard theirPieces = board.pieces(PieceType::PAWN, theirColor) | board.pieces(PieceType::KNIGHT, theirColor) | 
-                           board.pieces(PieceType::BISHOP, theirColor) | board.pieces(PieceType::ROOK, theirColor) | 
-                           board.pieces(PieceType::QUEEN, theirColor);
 
-    Bitboard ourPieces =  board.pieces(PieceType::ROOK, board.sideToMove()) | board.pieces(PieceType::QUEEN, board.sideToMove());
-    if (theirPieces.count() == 0 && ourPieces.count() > 0) {
-        Square ourKing = Square(board.pieces(PieceType::KING, board.sideToMove()).lsb());
-        Square theirKing = Square(board.pieces(PieceType::KING, theirColor).lsb());
+    if (board.us(Color::WHITE).count() == 1 && board.us(Color::BLACK).count() == 1) {
+        return 0; 
+    }
+
+    bool mopUp = board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1;
+
+    Color winningColor = board.us(Color::WHITE).count() > 1 ? Color::WHITE : Color::BLACK;
+
+    Bitboard pieces = board.pieces(PieceType::PAWN, winningColor) | board.pieces(PieceType::KNIGHT, winningColor) | 
+                    board.pieces(PieceType::BISHOP, winningColor) | board.pieces(PieceType::ROOK, winningColor) | 
+                    board.pieces(PieceType::QUEEN, winningColor);
+
+    if (mopUp) {
+        Square winningKingSq = Square(board.pieces(PieceType::KING, winningColor).lsb());
+        Square losingKingSq = Square(board.pieces(PieceType::KING, !winningColor).lsb());
         Square E4 = Square(28);
 
-        int kingDist = manhattanDistance(ourKing, theirKing);
-        int distToCenter = manhattanDistance(theirKing, E4);
-        int ourMaterial = 900 * board.pieces(PieceType::QUEEN, board.sideToMove()).count() + 
-                          500 * board.pieces(PieceType::ROOK, board.sideToMove()).count() + 
-                          300 * board.pieces(PieceType::BISHOP, board.sideToMove()).count() + 
-                          300 * board.pieces(PieceType::KNIGHT, board.sideToMove()).count() + 
-                          100 * board.pieces(PieceType::PAWN, board.sideToMove()).count(); // avoid throwing away pieces
+        int kingDist = manhattanDistance(winningKingSq, losingKingSq);
+        int distToCenter = manhattanDistance(losingKingSq, E4);
+        int winningMaterial = 900 * board.pieces(PieceType::QUEEN, winningColor).count() + 
+                          500 * board.pieces(PieceType::ROOK, winningColor).count() + 
+                          300 * board.pieces(PieceType::BISHOP, winningColor).count() + 
+                          300 * board.pieces(PieceType::KNIGHT, winningColor).count() + 
+                          100 * board.pieces(PieceType::PAWN, winningColor).count(); // avoid throwing away pieces
         int score = 5000 +  500 * distToCenter + 150 * (14 - kingDist);
 
-        return board.sideToMove() == Color::WHITE ? score : -score;
+        return winningColor == Color::WHITE ? score : -score;
     }
 
     /*--------------------------------------------------------------------------
@@ -1547,7 +1564,7 @@ int evaluate(const Board& board) {
     /*--------------------------------------------------------------------------
         Add a penalty for material deficit to make sure the position advantage is real.
     --------------------------------------------------------------------------*/
-    const int deficitPenalty = 80;
+    const int deficitPenalty = 50;
     int whiteMaterial = whitePieceValue + pawnValue * whitePawns.count();
     int blackMaterial = blackPieceValue + pawnValue * blackPawns.count();
 
@@ -1690,70 +1707,11 @@ int evaluate(const Board& board) {
         }
     }
 
-    // Bonus for fianchettoed bishop(s
-    const int fianchettoBishopBonus = 15;
-    if (board.occ() && g2) {
-        Piece bishop = board.at(Square(g2.lsb()));
-        if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::WHITE) {
-            Piece king = board.at(Square(g1.lsb()));
-            if (king.type() == PieceType::KING && king.color() == Color::WHITE) {
-                // Check for pawn structure
-                if (board.at(Square(f2.lsb())).type() == PieceType::PAWN &&
-                    board.at(Square(g3.lsb())).type() == PieceType::PAWN &&
-                    board.at(Square(h2.lsb())).type() == PieceType::PAWN) {
-                    whiteScore += fianchettoBishopBonus;
-                }
-            }
-        }
-    }
 
-    if (board.occ() && b2) {
-        Piece bishop = board.at(Square(b2.lsb()));
-        if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::WHITE) {
-            Piece king = board.at(Square(b1.lsb()));
-            if (king.type() == PieceType::KING && king.color() == Color::WHITE) {
-                // Check for pawn structure
-                if (board.at(Square(a2.lsb())).type() == PieceType::PAWN &&
-                    board.at(Square(b3.lsb())).type() == PieceType::PAWN &&
-                    board.at(Square(c2.lsb())).type() == PieceType::PAWN) {
-                    whiteScore += fianchettoBishopBonus;
-                }
-            }
-        }
-    }
-
-    if (board.occ() && g7) {
-        Piece bishop = board.at(Square(g7.lsb()));
-        if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::BLACK) {
-            Piece king = board.at(Square(g8.lsb()));
-            if (king.type() == PieceType::KING && king.color() == Color::BLACK) {
-                // Check for pawn structure
-                if (board.at(Square(f7.lsb())).type() == PieceType::PAWN &&
-                    board.at(Square(g6.lsb())).type() == PieceType::PAWN &&
-                    board.at(Square(h7.lsb())).type() == PieceType::PAWN) {
-                    blackScore += fianchettoBishopBonus;
-                }
-            }
-        }
-    }
-
-    if (board.occ() && b7) {
-        Piece bishop = board.at(Square(b7.lsb()));
-        if (bishop.type() == PieceType::BISHOP && bishop.color() == Color::BLACK) {
-            Piece king = board.at(Square(b8.lsb()));
-            if (king.type() == PieceType::KING && king.color() == Color::BLACK) {
-                // Check for pawn structure
-                if (board.at(Square(a7.lsb())).type() == PieceType::PAWN &&
-                    board.at(Square(b6.lsb())).type() == PieceType::PAWN &&
-                    board.at(Square(c7.lsb())).type() == PieceType::PAWN) {
-                    blackScore += fianchettoBishopBonus;
-                }
-            }
-        }
-    }
-
-    // Space advantage
-    const double halfWayAttackBonus = 2.0;
+    /*--------------------------------------------------------------------------
+        Consider the amount of squares being attacked beyond each side's half.
+    --------------------------------------------------------------------------*/
+    const double halfWayAttackBonus = 1;
     
     Bitboard whiteHalfWayAttacks(0); 
     Bitboard blackHalfWayAttacks(0);
@@ -1767,73 +1725,60 @@ int evaluate(const Board& board) {
     Bitboard blackRooksCopy = blackRooks;
     Bitboard whiteQueenCopy = whiteQueen;
     Bitboard blackQueenCopy = blackQueen;
-
     while (whitePawnsCopy) {
         int pawnIndex = whitePawnsCopy.lsb();
         whiteHalfWayAttacks |= attacks::pawn(Color::WHITE, Square(pawnIndex));
         whitePawnsCopy.clear(pawnIndex);
     }
-
     while (whiteKnightsCopy) {
         int knightIndex = whiteKnightsCopy.lsb();
         whiteHalfWayAttacks |= attacks::knight(Square(knightIndex));
         whiteKnightsCopy.clear(knightIndex);
     }
-
     while (whiteBishopsCopy) {
         int bishopIndex = whiteBishopsCopy.lsb();
         whiteHalfWayAttacks |= attacks::bishop(Square(bishopIndex), board.occ());
         whiteBishopsCopy.clear(bishopIndex);
     }
-
     while (whiteRooksCopy) {
         int rookIndex = whiteRooksCopy.lsb();
         whiteHalfWayAttacks |= attacks::rook(Square(rookIndex), board.occ());
         whiteRooksCopy.clear(rookIndex);
     }
-
     while (whiteQueenCopy) {
         int queenIndex = whiteQueenCopy.lsb();
         whiteHalfWayAttacks |= attacks::queen(Square(queenIndex), board.occ());
         whiteQueenCopy.clear(queenIndex);
     }
-
     while (blackPawnsCopy) {
         int pawnIndex = blackPawnsCopy.lsb();
         blackHalfWayAttacks |= attacks::pawn(Color::BLACK, Square(pawnIndex));
         blackPawnsCopy.clear(pawnIndex);
     }
-
     while (blackKnightsCopy) {
         int knightIndex = blackKnightsCopy.lsb();
         blackHalfWayAttacks |= attacks::knight(Square(knightIndex));
         blackKnightsCopy.clear(knightIndex);
     }
-
     while (blackBishopsCopy) {
         int bishopIndex = blackBishopsCopy.lsb();
         blackHalfWayAttacks |= attacks::bishop(Square(bishopIndex), board.occ());
         blackBishopsCopy.clear(bishopIndex);
     }
-
     while (blackRooksCopy) {
         int rookIndex = blackRooksCopy.lsb();
         blackHalfWayAttacks |= attacks::rook(Square(rookIndex), board.occ());
         blackRooksCopy.clear(rookIndex);
     }
-
     while (blackQueenCopy) {
         int queenIndex = blackQueenCopy.lsb();
         blackHalfWayAttacks |= attacks::queen(Square(queenIndex), board.occ());
         blackQueenCopy.clear(queenIndex);
     }
-
     Bitboard whiteHalf = generateHalfMask(0, 3);
     Bitboard blackHalf = generateHalfMask(4, 7);
-
     whiteHalfWayAttacks &= blackHalf;
     blackHalfWayAttacks &= whiteHalf;
-
     whiteScore += halfWayAttackBonus * whiteHalfWayAttacks.count();
     blackScore += halfWayAttackBonus * blackHalfWayAttacks.count();
 

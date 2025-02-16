@@ -50,6 +50,7 @@ const int checkExtension = 1; // Number of plies to extend for checks
 const int mateThreat = 1; // Number of plies to extend for mate threats
 const int promotionExtension = 1; // Number of plies to extend for promotion threats.
 const int oneReplyExtension = 1; // Number of plies to extend if there is only one legal move.
+const int recaptureExtension = 1; // Number of plies to extend for recaptures
 
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup.
@@ -197,7 +198,6 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
     }
 
 }
-
 
 /*-------------------------------------------------------------------------------------------- 
     Returns a list of candidate moves ordered by priority.
