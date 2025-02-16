@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <cmath>
 #include <unordered_set>
-//#include "nneu/nnue_evaluation.hpp"
 
 using namespace chess;
 
@@ -35,7 +34,6 @@ int globalQuiescenceDepth = 0; // Quiescence depth of current search
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
-bool USE_NNEU = false; // Use NNUE evaluation function
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {
@@ -294,9 +292,8 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     nodeCount++;
 
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
-    int standPat = evaluate(board);
 
-    
+    int standPat = color * evaluate(board);
     alpha = std::max(alpha, standPat);
     
     if (depth <= 0) {
@@ -593,7 +590,7 @@ Move findBestMove(Board& board,
     clearTables();
     
     const int baseDepth = 1;
-    int apsiration;
+    int apsiration = color * evaluate(board);
     int depth = baseDepth;
     int evals[ENGINE_DEPTH + 1];
     Move candidateMove[ENGINE_DEPTH + 1];
@@ -634,7 +631,7 @@ Move findBestMove(Board& board,
             int aspiration;
 
             if (depth == 1) {
-                aspiration = color * evaluate(board); 
+                aspiration = color * evaluate(localBoard); // if at depth = 1, aspiration = static evaluation
             } else {
                 aspiration = evals[depth - 1]; // otherwise, aspiration = previous depth evaluation
             }
