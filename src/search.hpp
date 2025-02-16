@@ -34,8 +34,7 @@ Move findBestMove(
     int maxDepth,
     int quiescenceDepth,
     int timeLimit,
-    bool quiet,
-    bool nneu);
+    bool quiet);
 
 Move parallelFindBestMove(
     Board &board, 

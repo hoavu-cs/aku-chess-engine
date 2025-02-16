@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <cmath>
 #include <unordered_set>
-#include "nnue_evaluation.hpp"
+//#include "nneu/nnue_evaluation.hpp"
 
 using namespace chess;
 
@@ -23,7 +23,6 @@ typedef std::uint64_t U64;
 --------------------------------------------------------------------------------------------*/
 std::unordered_map<U64, std::pair<int, int>> transpositionTable; // Hash -> (eval, depth)
 std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
-NNUEEvaluator nnueEvaluator; // NNUE evaluator
 
 const int maxTableSize = 10000000; // Maximum size of the transposition table
 U64 nodeCount; // Node count for each thread
@@ -295,15 +294,8 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     nodeCount++;
 
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
+    int standPat = evaluate(board);
 
-    int standPat;
-    
-    if (!mopUp) {
-        standPat = color * (USE_NNEU ? nnueEvaluator.evaluate(board) : evaluate(board));
-    } else {
-        // Use transposition table to get the evaluation value when trying to checkmate
-        standPat = evaluate(board);
-    }
     
     alpha = std::max(alpha, standPat);
     
@@ -430,7 +422,7 @@ int negamax(Board& board,
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
-    int standPat = color * (USE_NNEU ? nnueEvaluator.evaluate(board) : evaluate(board));
+    int standPat = color * evaluate(board);
 
     //  Futility pruning
     if (depth < 3 && pruningCondition) {
@@ -576,12 +568,10 @@ Move findBestMove(Board& board,
                 int maxDepth = 8, 
                 int quiescenceDepth = 10, 
                 int timeLimit = 15000,
-                bool quiet = false,
-                bool nneu = false) {
+                bool quiet = false) {
 
     auto startTime = std::chrono::high_resolution_clock::now();
     bool timeLimitExceeded = false;
-    USE_NNEU = nneu;
 
     Move bestMove = Move(); 
     int bestEval = -INF;
@@ -644,7 +634,7 @@ Move findBestMove(Board& board,
             int aspiration;
 
             if (depth == 1) {
-                aspiration = color * (USE_NNEU ? nnueEvaluator.evaluate(board) : evaluate(board)); 
+                aspiration = color * evaluate(board); 
             } else {
                 aspiration = evals[depth - 1]; // otherwise, aspiration = previous depth evaluation
             }
