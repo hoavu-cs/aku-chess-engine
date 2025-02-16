@@ -50,7 +50,7 @@ const int checkExtension = 1; // Number of plies to extend for checks
 const int mateThreat = 1; // Number of plies to extend for mate threats
 const int promotionExtension = 1; // Number of plies to extend for promotion threats.
 const int oneReplyExtension = 1; // Number of plies to extend if there is only one legal move.
-const int recaptureExtension = 1; // Number of plies to extend for recaptures
+const int captureExtension = 1; // Number of plies to extend for recaptures
 
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup.
@@ -167,7 +167,7 @@ bool promotionThreatMove(Board& board, Move move) {
     isPV is true if the node is a principal variation node. However, right now it's not used 
     since our move ordering is not that good.
 --------------------------------------------------------------------------------------------*/
-int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
+int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV) {
 
     Color color = board.sideToMove();
     board.makeMove(move);
@@ -180,14 +180,27 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, bool isPV) {
     bool isMateThreat = mateThreatMove(board, move);
     bool isPromotionThreat = promotionThreatMove(board, move);
 
-    int k = isPV ? 5 : 2;
-    bool noReduceCondition = mopUp || isPromoting || isMateThreat || isPromotionThreat;
-    bool reduceLessCondition = isCheck || inCheck || isCapture;
-    int reduction = 0;
+    int d = isPV;
+    bool noReduceCondition = mopUp || isMateThreat || inCheck;
+    bool reduceLessCondition =  isCapture || isCheck;
 
     int nonPVReduction = isPV ? 0 : 1;
-    int k1 = isPV ? 2 : 1;
-    int k2 = isPV ? 5 : 3;
+    int k1 = 2;
+    int k2 = 5;
+
+    // Deep pruning
+    bool deepPrune = false;
+    const int nodeCountLimit = 20000000;
+    #pragma omp critical
+    {
+        if ((ply >= 10 && i > 1) || nodeCount > nodeCountLimit) {
+            deepPrune = true;
+        }
+    }
+
+    if (deepPrune) {
+        return 0;
+    }
 
     if (i <= k1 || depth <= 3  || noReduceCondition) { 
         return depth - 1;
@@ -358,7 +371,8 @@ int negamax(Board& board,
             int quiescenceDepth,
             std::vector<Move>& PV,
             bool leftMost,
-            int extension) {
+            int extension, 
+            int ply) {
 
     #pragma omp critical
     clearTables();
@@ -450,7 +464,7 @@ int negamax(Board& board,
         int reduction = 3 + depth / 4;
 
         board.makeNullMove();
-        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), quiescenceDepth, nullPV, false, extension);
+        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), quiescenceDepth, nullPV, false, extension, ply + 1);
         board.unmakeNullMove();
 
         if (nullEval >= beta) { 
@@ -469,7 +483,7 @@ int negamax(Board& board,
         std::vector<Move> childPV;
 
         int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, isPV); 
+        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV); 
         
         if (i > 0) {
             leftMost = false;
@@ -509,9 +523,9 @@ int negamax(Board& board,
 
         if (isPV || mopUp) {
             // full window search for the first node
-            eval = -negamax(board, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension);
+            eval = -negamax(board, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension, ply + 1);
         } else {
-            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, quiescenceDepth, childPV, leftMost, extension);
+            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, quiescenceDepth, childPV, leftMost, extension, ply + 1);
         }
         
         board.unmakeMove(move);
@@ -521,7 +535,7 @@ int negamax(Board& board,
 
         if (leftMost || (alphaRaised && nextDepth < depth - 1)) {
             board.makeMove(move);
-            eval = -negamax(board, depth - 1, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension);
+            eval = -negamax(board, depth - 1, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension, ply + 1);
             board.unmakeMove(move);
         }
 
@@ -622,11 +636,11 @@ Move findBestMove(Board& board,
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            int extension = mopUp ? 0 : 4;
+            int extension = mopUp ? 0 : 3;
         
             Board localBoard = board;
             bool newBestFlag = false;  
-            int nextDepth = lateMoveReduction(localBoard, move, i, depth, true);
+            int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true);
             int eval = -INF;
             int aspiration;
 
@@ -649,6 +663,7 @@ Move findBestMove(Board& board,
                 bool isMateThreat = mateThreatMove(board, move);
                 bool isPromotionThreat = promotionThreatMove(board, move);
                 bool isOneReply = (moves.size() == 1);
+                bool isCapture = localBoard.isCapture(move);
                 bool extensionFlag = (isCheck || isMateThreat || isPromotionThreat) && extension > 0; // if the move is a check, extend the search
                 
                 if (extensionFlag) {
@@ -682,7 +697,7 @@ Move findBestMove(Board& board,
                     beta = INF;
                 }
 
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension);
+                eval = -negamax(localBoard, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension, 0);
                 localBoard.unmakeMove(move);
 
                 if (eval <= aspiration - windowLeft) {
@@ -703,7 +718,7 @@ Move findBestMove(Board& board,
 
             if (newBestFlag && nextDepth < depth - 1) {
                 localBoard.makeMove(move);
-                eval = -negamax(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost, extension);
+                eval = -negamax(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost, extension, 0);
                 localBoard.unmakeMove(move);
             }
 
