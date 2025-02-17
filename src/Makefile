@@ -11,33 +11,41 @@ SRC_DONBOT = donbot.cpp
 SRC_DONBOT_WEB = donbot.cpp
 SRC_DEBUG = debug.cpp
 SRC_DONBOT_BLITZ = donbot_blitz.cpp
+SRC_NNUE = search_nnue.cpp debug.cpp evaluation.cpp
 
 # Output Binaries
 BIN_DONBOT = $(BIN_DIR)/donbot
 BIN_DONBOT_WEB = $(BIN_DIR)/donbot_web
 BIN_DEBUG = $(BIN_DIR)/debug
 BIN_DONBOT_BLITZ = $(BIN_DIR)/donbot_blitz
+BIN_DONBOT_NNUE = $(BIN_DIR)/donbot_nnue
+
+# Include Directory
+INCLUDE_DIR = -I include/
 
 # Build Targets
-all: donbot donbot_web debug donbot_blitz
+all: donbot donbot_web debug donbot_blitz donbot_nnue
 
 $(BIN_DIR):
 	@mkdir -p $(BIN_DIR)
 
 donbot: $(SRC_DONBOT) $(SRC_COMMON) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(BIN_DONBOT) $(SRC_DONBOT) $(SRC_COMMON)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DONBOT) $(SRC_DONBOT) $(SRC_COMMON)
 
 donbot_web: $(SRC_DONBOT_WEB) $(SRC_COMMON) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(BIN_DONBOT_WEB) $(SRC_DONBOT_WEB) $(SRC_COMMON)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DONBOT_WEB) $(SRC_DONBOT_WEB) $(SRC_COMMON)
 
 debug: $(SRC_DEBUG) $(SRC_COMMON) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(BIN_DEBUG) $(SRC_DEBUG) $(SRC_COMMON)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DEBUG) $(SRC_DEBUG) $(SRC_COMMON)
 
 donbot_blitz: $(SRC_DONBOT_BLITZ) $(SRC_COMMON) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) -o $(BIN_DONBOT_BLITZ) $(SRC_DONBOT_BLITZ) $(SRC_COMMON)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DONBOT_BLITZ) $(SRC_DONBOT_BLITZ) $(SRC_COMMON)
+
+donbot_nnue: $(SRC_NNUE) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DONBOT_NNUE) $(SRC_NNUE) -static-libstdc++ -static-libgcc
 
 # Clean
 clean:
 	rm -rf $(BIN_DIR)
 
-.PHONY: all donbot donbot_web debug donbot_blitz clean
+.PHONY: all donbot donbot_web debug donbot_blitz donbot_nnue clean

@@ -12,12 +12,6 @@ const int INF = 100000;
 std::vector<std::pair<Move, int>> generatePrioritizedMoves(Board &board,
                                                            int depth);
 
-int quiescence(
-    Board &board,
-    int depth,
-    int alpha,
-    int beta);
-
 int alphaBeta(
     Board &board,
     int depth,
