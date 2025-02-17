@@ -23,6 +23,9 @@ typedef std::uint64_t U64;
 std::unordered_map<U64, std::pair<int, int>> transpositionTable; // Hash -> (eval, depth)
 std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 
+std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
+std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
+
 const int maxTableSize = 10000000; // Maximum size of the transposition table
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
@@ -184,16 +187,14 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool noReduceCondition = mopUp || isMateThreat || inCheck;
     bool reduceLessCondition =  isCapture || isCheck;
 
-    int nonPVReduction = isPV ? 0 : 1;
     int k1 = 2;
     int k2 = 5;
 
-    // Deep pruning
-    if (ply > 6 && i > 3) {
-            return 0;
+    if (ply > 6) {
+        k2 = k1;
     }
 
-    if (i <= k1 || depth <= 3  || noReduceCondition) { 
+    if (i <= k1 || depth <= 2  || noReduceCondition) { 
         return depth - 1;
     } else if (i <= k2 || reduceLessCondition) {
         return depth - 2;
@@ -364,6 +365,11 @@ int negamax(Board& board,
             bool leftMost,
             int extension, 
             int ply) {
+
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    if (currentTime >= hardDeadline) {
+        return 0;
+    }
 
     #pragma omp critical
     clearTables();
@@ -564,6 +570,16 @@ int negamax(Board& board,
 
 /*-------------------------------------------------------------------------------------------- 
     Main search function to communicate with UCI interface.
+    Time control: 
+    Soft deadline: 2x time limit
+    Hard deadline: 3x time limit
+
+    - Case 1: As long as we are within the time limit, we search as deep as we can.
+    - Case 2: If we have used more than the time limit:
+        Case 2.1: If the search has stabilized, return the best move.
+        Case 2.2: If the search has not stabilized and we used less than the soft deadline, 
+                  continue searching.
+    - Case 3: If we are past the hard deadline, stop the search and return the best move.
 --------------------------------------------------------------------------------------------*/
 Move findBestMove(Board& board, 
                 int numThreads = 4, 
@@ -573,6 +589,8 @@ Move findBestMove(Board& board,
                 bool quiet = false) {
 
     auto startTime = std::chrono::high_resolution_clock::now();
+    hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
+    softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
 
     Move bestMove = Move(); 
@@ -585,7 +603,6 @@ Move findBestMove(Board& board,
     if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
         mopUp = true;
     }
-
 
     globalQuiescenceDepth = quiescenceDepth;
     omp_set_num_threads(numThreads);
@@ -691,6 +708,12 @@ Move findBestMove(Board& board,
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension, 0);
                 localBoard.unmakeMove(move);
 
+                // Check if the time limit has been exceeded, if so the search 
+                // has not finished. Return the best move so far.
+                if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
+                    return bestMove;
+                }
+
                 if (eval <= aspiration - windowLeft) {
                     windowLeft *= 2;
                 } else if (eval >= aspiration + windowRight) {
@@ -711,6 +734,12 @@ Move findBestMove(Board& board,
                 localBoard.makeMove(move);
                 eval = -negamax(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost, extension, 0);
                 localBoard.unmakeMove(move);
+
+                // Check if the time limit has been exceeded, if so the search 
+                // has not finished. Return the best move so far.
+                if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
+                    return bestMove;
+                }
             }
 
             #pragma omp critical
@@ -771,11 +800,10 @@ Move findBestMove(Board& board,
 
 
         auto currentTime = std::chrono::high_resolution_clock::now();
-        bool spendTooMuchTime = false;
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
-
+        
         timeLimitExceeded = duration > timeLimit;
-        spendTooMuchTime = duration > 2 * timeLimit;
+        bool spendTooMuchTime = currentTime >= softDeadline;
 
         evals[depth] = bestEval;
         candidateMove[depth] = bestMove; 
@@ -785,8 +813,6 @@ Move findBestMove(Board& board,
         if (depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 40) {
             stableEval = false;
         }
-        
-        
 
         // Break out of the loop if the time limit is exceeded and the evaluation is stable.
         if (!timeLimitExceeded) {
