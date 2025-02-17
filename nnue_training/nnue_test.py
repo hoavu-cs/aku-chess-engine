@@ -37,9 +37,16 @@ def load_vector(filename, size):
 
 def load_matrix(filename, rows, cols):
     data = np.load(filename).astype(np.float32)
+
+    if data.shape == (cols, rows):  # If transposed, fix it
+        print(f"Warning: Transposing {filename} to match expected shape ({rows}, {cols})")
+        data = data.T  # Transpose the matrix
+
     if data.shape != (rows, cols):
         raise ValueError(f"Error: Expected ({rows}, {cols}) elements in {filename}, but got {data.shape}")
+    
     return data
+
 
 # ReLU activation function
 def relu(x):
@@ -48,20 +55,31 @@ def relu(x):
 # NNUE forward inference
 def nnue_inference(input_vector):
     # Load weights
-    W1 = load_matrix("fc1.weight.npy", 256, 768)
-    B1 = load_vector("fc1.bias.npy", 256)
+    W1 = load_matrix("fc1.weight.npy", 1024, 768)
+    B1 = load_vector("fc1.bias.npy", 1024)
 
-    W2 = load_matrix("fc2.weight.npy", 128, 256)
-    B2 = load_vector("fc2.bias.npy", 128)
+    W2 = load_matrix("fc2.weight.npy", 1, 1024)
+    B2 = load_vector("fc2.bias.npy", 1)
 
-    W3 = load_matrix("fc3.weight.npy", 1, 128)
-    B3 = load_vector("fc3.bias.npy", 1)
+    # Fix shape if incorrect
+    if W1.shape == (768, 1024):  
+        print("Warning: Transposing W1 to match expected shape.")
+        W1 = W1.T  # Fix shape if needed
 
-    x1 = relu(np.dot(W1, input_vector) + B1)
-    x2 = relu(np.dot(W2, x1) + B2)
-    output = np.dot(W3, x2) + B3
+    # Ensure input shape is correct
+    input_vector = input_vector.flatten()  # Ensure it's (768,)
+    if input_vector.shape != (768,):
+        raise ValueError(f"Error: Input vector must have shape (768,), but got {input_vector.shape}")
+
+    print(f"Input Vector Shape: {input_vector.shape}")  # Should be (768,)
+    print(f"W1 Shape: {W1.shape}")  # Should be (1024, 768)
+
+    # Forward pass
+    x1 = relu(np.dot(W1, input_vector) + B1)  # First layer
+    output = np.dot(W2, x1) + B2  # Final output layer
 
     return output[0]
+
 
 # Main function
 if __name__ == "__main__":

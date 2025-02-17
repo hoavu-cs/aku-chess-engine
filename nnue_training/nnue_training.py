@@ -45,7 +45,7 @@ class ChessDataset(Dataset):
         return torch.tensor(input_tensor, dtype=torch.float32), torch.tensor([eval_score], dtype=torch.float32)
 
 # Load dataset
-csv_file = "train_tiny.csv"  # Change to your filename
+csv_file = "train_800k.csv"  # Change to your filename
 train_dataset = ChessDataset(csv_file, train=True)
 test_dataset = ChessDataset(csv_file, train=False)
 
@@ -60,15 +60,14 @@ print(f"Training samples: {len(train_dataset)}, Testing samples: {len(test_datas
 class NNUE(nn.Module):
     def __init__(self):
         super(NNUE, self).__init__()
-        self.fc1 = nn.Linear(768, 256)
-        self.fc2 = nn.Linear(256, 128)
-        self.fc3 = nn.Linear(128, 1)
+        self.fc1 = nn.Linear(768, 1024)
+        self.fc2 = nn.Linear(1024, 1)
         self.relu = nn.ReLU()
 
     def forward(self, x):
         x = self.relu(self.fc1(x))
-        x = self.relu(self.fc2(x))
-        return self.fc3(x)
+        x = self.fc2(x)
+        return x
 
 # Initialize model, loss function, and optimizer
 model = NNUE().to(device)
@@ -76,7 +75,7 @@ criterion = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
 # Training Loop
-num_epochs = 10
+num_epochs = 5
 for epoch in range(num_epochs):
     total_train_loss = 0
     total_val_loss = 0

@@ -13,7 +13,7 @@ using namespace chess;
 ------------------------------------------------------------------------*/
 
 // Constants for the evaluation function
-const int PAWN_VALUE = 100;
+const int PAWN_VALUE = 120;
 const int KNIGHT_VALUE = 320; 
 const int BISHOP_VALUE = 330;
 const int ROOK_VALUE = 500;

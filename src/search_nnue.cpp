@@ -28,6 +28,7 @@ std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
+
 NNUEEvaluator nnueEvaluator = NNUEEvaluator();
 
 const int maxTableSize = 10000000; // Maximum size of the transposition table
@@ -320,11 +321,20 @@ int quiescence(Board& board, int depth, int alpha, int beta, bool leftMost) {
     int standPat = color * (evaluate(board));
 
     bool nneuFlag = occursWithProbability(0.05);
+    int nnueEval = color * nnueEvaluator.evaluate(board);
 
-    if ((leftMost || nneuFlag) && !mopUp) {
-        int nnueEval = color * nnueEvaluator.evaluate(board);
-        standPat = (standPat + nnueEval) / 2; // Average the two evaluations
-    }
+    // if (depth <= 0) {
+    //     std::cout << "FEN: " << board.getFen() << std::endl;
+    //     std::cout << "Normal eval: " << evaluate(board) << " NNEU eval: " << nnueEvaluator.evaluate(board) << std::endl;
+    //     std::cout << "--------------------------" << std::endl;
+    // }
+
+
+    // if ((leftMost || nneuFlag) && !mopUp) {
+        
+        
+    //     standPat = (standPat + nnueEval) / 2; // Average the two evaluations
+    // }
 
     alpha = std::max(alpha, standPat);
     
@@ -459,11 +469,6 @@ int negamax(Board& board,
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
     int standPat = color * evaluate(board);
 
-    bool nneuFlag = occursWithProbability(0.05);
-    if (nneuFlag) {
-        int nnueEval = color * nnueEvaluator.evaluate(board);
-        standPat = (standPat + nnueEval) / 2; // Average the two evaluations
-    }
 
     //  Futility pruning
     if (depth < 3 && pruningCondition) {

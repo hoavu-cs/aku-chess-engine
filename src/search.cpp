@@ -367,8 +367,6 @@ int negamax(Board& board,
         return 0;
     }
 
-    #pragma omp critical
-    clearTables();
 
     #pragma omp critical
     nodeCount++;
@@ -558,9 +556,6 @@ int negamax(Board& board,
         }
     }
 
-    #pragma omp critical
-    clearTables();
-
     return bestEval;
 }
 
@@ -588,6 +583,7 @@ Move findBestMove(Board& board,
     hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
+    bool stopNow = false;
 
     Move bestMove = Move(); 
     int bestEval = -INF;
@@ -633,8 +629,12 @@ Move findBestMove(Board& board,
         bool unfinished = false;
 
 
-        //#pragma omp parallel for schedule(dynamic, 1)
+        #pragma omp parallel for schedule(dynamic, 1)
         for (int i = 0; i < moves.size(); i++) {
+
+            if (stopNow) {
+                continue;
+            }
 
             bool leftMost = (i == 0);
 
@@ -707,7 +707,8 @@ Move findBestMove(Board& board,
                 // Check if the time limit has been exceeded, if so the search 
                 // has not finished. Return the best move so far.
                 if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
-                    return bestMove;
+                    stopNow = true;
+                    continue;
                 }
 
                 if (eval <= aspiration - windowLeft) {
@@ -734,7 +735,8 @@ Move findBestMove(Board& board,
                 // Check if the time limit has been exceeded, if so the search 
                 // has not finished. Return the best move so far.
                 if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
-                    return bestMove;
+                    stopNow = true;
+                    continue;
                 }
             }
 
@@ -754,6 +756,11 @@ Move findBestMove(Board& board,
                     }
                 }
             }
+        }
+
+        if (stopNow) {
+            // Time limit exceeded, return the best move so far
+            return bestMove;
         }
         
         // Update the global best move and evaluation after this depth if the time limit is not exceeded

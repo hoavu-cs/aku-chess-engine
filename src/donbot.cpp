@@ -159,7 +159,7 @@ void processGo(const std::vector<std::string>& tokens) {
 
     // Default settings
     int depth = 30;
-    int quiescenceDepth = 8;
+    int quiescenceDepth = 10;
     int numThreads = 6;
     int timeLimit = 15000; // Default to 15 seconds
     bool quiet = false;
@@ -219,7 +219,7 @@ void processGo(const std::vector<std::string>& tokens) {
         }
     }
 
-    bestMove = findBestMove(board, numThreads, depth, quiescenceDepth, timeLimit, quiet);
+    bestMove = findBestMove(board, depth, quiescenceDepth, timeLimit, quiet);
 
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove)  << std::endl;
