@@ -184,13 +184,13 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool isPromotionThreat = promotionThreatMove(board, move);
 
     int d = isPV;
-    bool noReduceCondition = mopUp || isMateThreat || inCheck;
+    bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck;
     bool reduceLessCondition =  isCapture || isCheck;
 
     int k1 = 2;
     int k2 = 5;
 
-    if (i <= k1 || depth <= 3  || noReduceCondition) { 
+    if (i <= k1 || depth <= 2  || noReduceCondition) { 
         return depth - 1;
     } else if (i <= k2 || reduceLessCondition) {
         return depth - 2;
@@ -640,7 +640,7 @@ Move findBestMove(Board& board,
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            int extension = mopUp ? 0 : 3;
+            int extension = mopUp ? 0 : 2;
         
             Board localBoard = board;
             bool newBestFlag = false;  
