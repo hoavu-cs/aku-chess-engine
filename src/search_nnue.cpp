@@ -12,6 +12,7 @@
 #include <cmath>
 #include <unordered_set>
 #include "include/nnue_evaluation.hpp"
+#include <random>
 
 using namespace chess;
 
@@ -58,6 +59,25 @@ const int mateThreat = 1; // Number of plies to extend for mate threats
 const int promotionExtension = 1; // Number of plies to extend for promotion threats.
 const int oneReplyExtension = 1; // Number of plies to extend if there is only one legal move.
 const int captureExtension = 1; // Number of plies to extend for recaptures
+
+std::random_device rd;  // Non-deterministic random seed
+std::mt19937 gen(rd()); // Mersenne Twister PRNG
+std::uniform_real_distribution<double> dist(0.0, 1.0); // Generate values in [0, 1]
+
+
+/*-------------------------------------------------------------------------------------------- 
+    Random number between 0-1. We are not going to perform nneu evaluation everywhere.
+    We only use nnue at the leftmost path as well as some random leaves. 
+    This saves some computational cost while improving the playing strength (hopefully).
+--------------------------------------------------------------------------------------------*/
+bool occursWithProbability(double p) {
+    static std::random_device rd;  // Seed for randomness
+    static std::mt19937 gen(rd()); // Mersenne Twister PRNG
+    static std::uniform_real_distribution<double> dist(0.0, 1.0); // Values in [0, 1]
+
+    return dist(gen) < p;
+}
+
 
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup.
@@ -299,7 +319,9 @@ int quiescence(Board& board, int depth, int alpha, int beta, bool leftMost) {
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     int standPat = color * (evaluate(board));
 
-    if (leftMost) {
+    bool nneuFlag = occursWithProbability(0.05);
+
+    if ((leftMost || nneuFlag) && !mopUp) {
         int nnueEval = color * nnueEvaluator.evaluate(board);
         standPat = (standPat + nnueEval) / 2; // Average the two evaluations
     }
@@ -436,6 +458,12 @@ int negamax(Board& board,
     // Disable pruning for when alpha is very high to avoid missing checkmates
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
     int standPat = color * evaluate(board);
+
+    bool nneuFlag = occursWithProbability(0.05);
+    if (nneuFlag) {
+        int nnueEval = color * nnueEvaluator.evaluate(board);
+        standPat = (standPat + nnueEval) / 2; // Average the two evaluations
+    }
 
     //  Futility pruning
     if (depth < 3 && pruningCondition) {

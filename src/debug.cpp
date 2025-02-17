@@ -83,7 +83,7 @@ int main() {
     //board = Board("r5k1/1p4pp/2p1b3/3pP3/pq1P2PQ/4PR2/8/5RK1 w - - 2 45"); // promotion test
     // board = Board("r3r1k1/pppb1ppp/1q2N3/3Pn3/2B1p3/P3P1P1/1P2QPP1/2RR2K1 w - - 3 23");
     // board = Board("8/8/8/2K5/8/8/5k2/6r1 w - - 0 1");
-    // board = Board("8/1p2np2/p1k1p2R/2p2r2/P2p1B2/3P2P1/1PP3K1/8 b - - 1 35");
+    board = Board("8/8/3k4/8/8/8/3K4/4R3 w - - 0 1");
 
     // Default settings
     int depth = 30;

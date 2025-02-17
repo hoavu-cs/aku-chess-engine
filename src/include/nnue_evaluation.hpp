@@ -92,7 +92,7 @@ private:
     void loadModel() {
         if (loaded) return; // Avoid reloading
 
-        cout << "Loading NNUE weights (Optimized)..." << endl;
+        //cout << "Loading NNUE weights (Optimized)..." << endl;
         model.W1 = loadMatrix("nnue_weights/fc1.weight.npy", 256, 768);
         model.B1 = loadVector("nnue_weights/fc1.bias.npy", 256);
         
@@ -103,7 +103,7 @@ private:
         model.B3 = loadVector("nnue_weights/fc3.bias.npy", 1);
 
         loaded = true;
-        cout << "Optimized Weights Loaded Successfully!" << endl;
+        //cout << "Optimized Weights Loaded Successfully!" << endl;
     }
 
     /* --------------------------------------------------------------
