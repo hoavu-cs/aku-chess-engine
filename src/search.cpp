@@ -190,10 +190,6 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     int k1 = 2;
     int k2 = 5;
 
-    if (ply > 6) {
-        k2 = k1;
-    }
-
     if (i <= k1 || depth <= 2  || noReduceCondition) { 
         return depth - 1;
     } else if (i <= k2 || reduceLessCondition) {
@@ -801,7 +797,7 @@ Move findBestMove(Board& board,
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
-        
+
         timeLimitExceeded = duration > timeLimit;
         bool spendTooMuchTime = currentTime >= softDeadline;
 
