@@ -474,6 +474,35 @@ const Bitboard h8 = Bitboard::fromSquare(63);
     Helper Functions
 ------------------------------------------------------------------------*/
 
+// Calculate material imbalance
+int materialImbalance(const Board& board) {
+    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
+    Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
+    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
+    Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
+    Bitboard whiteQueens = board.pieces(PieceType::QUEEN, Color::WHITE);
+
+    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
+    Bitboard blackKnights = board.pieces(PieceType::KNIGHT, Color::BLACK);
+    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
+    Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
+    Bitboard blackQueens = board.pieces(PieceType::QUEEN, Color::BLACK);
+
+    int whiteMaterial = whitePawns.count() * PAWN_VALUE +
+                        whiteKnights.count() * KNIGHT_VALUE +
+                        whiteBishops.count() * BISHOP_VALUE +
+                        whiteRooks.count() * ROOK_VALUE +
+                        whiteQueens.count() * QUEEN_VALUE;
+
+    int blackMaterial = blackPawns.count() * PAWN_VALUE + 
+                        blackKnights.count() * KNIGHT_VALUE +
+                        blackBishops.count() * BISHOP_VALUE +
+                        blackRooks.count() * ROOK_VALUE +
+                        blackQueens.count() * QUEEN_VALUE;
+
+    return whiteMaterial - blackMaterial;
+}
+
 // Clear the pawn hash table
 void clearPawnHashTable() {
     whitePawnHashTable = {};
@@ -1553,7 +1582,7 @@ int evaluate(const Board& board) {
     int blackPieceValue = queenValue * blackQueen.count() + rookValue * blackRooks.count() + 
                         bishopValue * blackBishops.count() + knightValue * blackKnights.count();
     
-    int pieceDeficitPenalty = info.gamePhase * 5;
+    int pieceDeficitPenalty = info.gamePhase * 3;
     
     if (whitePieceValue < blackPieceValue) {
         whiteScore -= pieceDeficitPenalty;

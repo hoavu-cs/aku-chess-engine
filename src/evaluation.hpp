@@ -30,6 +30,11 @@ extern const std::unordered_map<int, std::vector<int>> adjSquares;
 ------------------------------------------------------------------------*/
 
 /**
+ *  Return material imbalance in centipawn
+*/
+int materialImbalance(const Board& board);
+
+/**
  * @return Game phase 0-24
  */
 int gamePhase(const Board &board);

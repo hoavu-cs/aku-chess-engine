@@ -17,7 +17,6 @@ int alphaBeta(
     int depth,
     int alpha,
     int beta,
-    int quiescenceDepth,
     std::vector<Move> &pV,
     bool leftMost,
     int extension, 
@@ -27,7 +26,6 @@ Move findBestMove(
     Board &board,
     int numThreads,
     int maxDepth,
-    int quiescenceDepth,
     int timeLimit,
     bool quiet);
 
@@ -35,6 +33,5 @@ Move parallelFindBestMove(
     Board &board, 
     int numThreads, 
     int maxDepth, 
-    int quiescenceDepth, 
     int timeLimit, 
     bool quiet);

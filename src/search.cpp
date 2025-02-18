@@ -33,7 +33,6 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
 
 int globalMaxDepth = 0; // Maximum depth of current search
-int globalQuiescenceDepth = 0; // Quiescence depth of current search
 bool mopUp = false; // Mop up flag
 
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
@@ -287,7 +286,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
 /*-------------------------------------------------------------------------------------------- 
     Quiescence search for captures only.
 --------------------------------------------------------------------------------------------*/
-int quiescence(Board& board, int depth, int alpha, int beta) {
+int quiescence(Board& board, int alpha, int beta) {
     
     #pragma omp critical
     nodeCount++;
@@ -296,11 +295,7 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
 
     int standPat = color * evaluate(board);
     alpha = std::max(alpha, standPat);
-    
-    if (depth <= 0) {
-        return standPat;
-    }
-    
+
     int bestScore = standPat;
 
     if (standPat >= beta) {
@@ -335,7 +330,7 @@ int quiescence(Board& board, int depth, int alpha, int beta) {
     for (const auto& [move, priority] : candidateMoves) {
         board.makeMove(move);
         int score = 0;
-        score = -quiescence(board, depth - 1, -beta, -alpha);
+        score = -quiescence(board, -beta, -alpha);
         board.unmakeMove(move);
 
         bestScore = std::max(bestScore, score);
@@ -356,7 +351,6 @@ int negamax(Board& board,
             int depth, 
             int alpha, 
             int beta, 
-            int quiescenceDepth,
             std::vector<Move>& PV,
             bool leftMost,
             int extension, 
@@ -408,7 +402,7 @@ int negamax(Board& board,
     } 
 
     if (depth <= 0) {
-        int quiescenceEval = quiescence(board, quiescenceDepth, alpha, beta);
+        int quiescenceEval = quiescence(board, alpha, beta);
         
         #pragma omp critical
         {
@@ -441,7 +435,7 @@ int negamax(Board& board,
 
         if (standPat + razorMargin < alpha) {
             // If the position is too weak and unlikely to raise alpha, skip deep search
-            return quiescence(board, quiescenceDepth, alpha, beta);
+            return quiescence(board, alpha, beta);
         } 
     }
 
@@ -454,7 +448,7 @@ int negamax(Board& board,
         int reduction = 3 + depth / 4;
 
         board.makeNullMove();
-        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), quiescenceDepth, nullPV, false, extension, ply + 1);
+        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, extension, ply + 1);
         board.unmakeNullMove();
 
         if (nullEval >= beta) { 
@@ -513,9 +507,9 @@ int negamax(Board& board,
 
         if (isPV || mopUp) {
             // full window search for the first node
-            eval = -negamax(board, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension, ply + 1);
+            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, extension, ply + 1);
         } else {
-            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, quiescenceDepth, childPV, leftMost, extension, ply + 1);
+            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, extension, ply + 1);
         }
         
         board.unmakeMove(move);
@@ -525,7 +519,7 @@ int negamax(Board& board,
 
         if (leftMost || (alphaRaised && nextDepth < depth - 1)) {
             board.makeMove(move);
-            eval = -negamax(board, depth - 1, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension, ply + 1);
+            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, extension, ply + 1);
             board.unmakeMove(move);
         }
 
@@ -574,7 +568,6 @@ int negamax(Board& board,
 Move findBestMove(Board& board, 
                 int numThreads = 4, 
                 int maxDepth = 8, 
-                int quiescenceDepth = 10, 
                 int timeLimit = 15000,
                 bool quiet = false) {
 
@@ -594,7 +587,6 @@ Move findBestMove(Board& board,
         mopUp = true;
     }
 
-    globalQuiescenceDepth = quiescenceDepth;
     omp_set_num_threads(numThreads);
 
     // Clear transposition tables
@@ -691,7 +683,7 @@ Move findBestMove(Board& board,
                     beta = INF;
                 }
 
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, quiescenceDepth, childPV, leftMost, extension, 0);
+                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, extension, 0);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -718,7 +710,7 @@ Move findBestMove(Board& board,
 
             if (newBestFlag && nextDepth < depth - 1) {
                 localBoard.makeMove(move);
-                eval = -negamax(localBoard, depth - 1, -INF, INF, quiescenceDepth, childPV, leftMost, extension, 0);
+                eval = -negamax(localBoard, depth - 1, -INF, INF, childPV, leftMost, extension, 0);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 

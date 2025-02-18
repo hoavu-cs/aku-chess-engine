@@ -60,19 +60,17 @@ const int oneReplyExtension = 1; // Number of plies to extend if there is only o
 const int captureExtension = 1; // Number of plies to extend for recaptures
 
 
-
 void initializeNNUE() {
     static bool initialized = false;
 
     #pragma omp critical
     {
         if (!initialized) {
-            Stockfish::Probe::init("nn-1c0000000000.nnue", "nn-1c0000000000.nnue");
+            Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-baff1ede1f90.nnue");
             initialized = true;
         }
     }
 }
-
 
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup.
@@ -307,25 +305,27 @@ std::vector<std::pair<Move, int>> orderedMoves(
     Quiescence search for captures only.
 --------------------------------------------------------------------------------------------*/
 int quiescence(Board& board, int depth, int alpha, int beta) {
-
-    static bool initialized = false;  // Ensures the function runs only once
-    if (!initialized) {
-        Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-baff1ede1f90.nnue");
-        initialized = true;
-    }
     
     #pragma omp critical
     nodeCount++;
 
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
+    int standPat = 0;
 
-    int standPat = Probe::eval(board.getFen().c_str());
-    alpha = std::max(alpha, standPat);
+    // hybrid approach: use NNUE only when the position is relatively balanced material-wise
+    // if (materialImbalance(board) > 100) {
+    //     standPat = color * evaluate(board);
+    // } else {
+    //     standPat = color * Probe::eval(board.getFen().c_str());
+    // }
+
+    standPat = color * evaluate(board);
     
     if (depth <= 0) {
         return standPat;
     }
-    
+
+    alpha = std::max(alpha, standPat);
     int bestScore = standPat;
 
     if (standPat >= beta) {
@@ -448,7 +448,7 @@ int negamax(Board& board,
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
-    int standPat = color * Probe::eval(board.getFen().c_str());
+    int standPat = color * evaluate(board);
 
     //  Futility pruning
     if (depth < 3 && pruningCondition) {
@@ -629,7 +629,7 @@ Move findBestMove(Board& board,
     clearTables();
     
     const int baseDepth = 1;
-    int apsiration = color * Probe::eval(board.getFen().c_str());
+    int apsiration = color * evaluate(board);
     int depth = baseDepth;
     int evals[ENGINE_DEPTH + 1];
     Move candidateMove[ENGINE_DEPTH + 1];
@@ -666,7 +666,7 @@ Move findBestMove(Board& board,
             int aspiration;
 
             if (depth == 1) {
-                aspiration = color * Probe::eval(localBoard.getFen().c_str()); // if at depth = 1, aspiration = static evaluation
+                aspiration = color * evaluate(localBoard); // if at depth = 1, aspiration = static evaluation
             } else {
                 aspiration = evals[depth - 1]; // otherwise, aspiration = previous depth evaluation
             }
