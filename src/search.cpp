@@ -598,8 +598,8 @@ Move findBestMove(Board& board,
     const int baseDepth = 1;
     int apsiration = color * evaluate(board);
     int depth = baseDepth;
-    int evals[ENGINE_DEPTH + 1];
-    Move candidateMove[ENGINE_DEPTH + 1];
+    std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
+    std::vector<Move> candidateMove (2 * ENGINE_DEPTH + 1, Move());
 
     while (depth <= maxDepth) {
         nodeCount = 0;
