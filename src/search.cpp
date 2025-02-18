@@ -790,7 +790,7 @@ Move findBestMove(Board& board,
 
         // Check for stable evaluation
         bool stableEval = true;
-        if (depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 40) {
+        if (depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 40 &&  candidateMove[depth] != candidateMove[depth - 2]) {
             stableEval = false;
         }
 
