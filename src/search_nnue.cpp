@@ -314,12 +314,12 @@ int quiescence(Board& board, int alpha, int beta) {
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     int standPat;
 
-    if (moves.size() == 0) {
+    // if (moves.size() == 0) {
         // Only use nnue evaluation when the position is quiet
-        standPat = color * Probe::eval(board.getFen().c_str());
-    } else {
-        standPat = color * evaluate(board);
-    }
+    standPat = color * Probe::eval(board.getFen().c_str());
+    // } else {
+    //     standPat = color * evaluate(board);
+    // }
 
     int bestScore = standPat;
     if (standPat >= beta) {
@@ -451,15 +451,15 @@ int negamax(Board& board,
         } 
     }
 
-    // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
-    if (depth <= 3 && pruningCondition && !isPV) {
-        int razorMargin = 300 + (depth - 1) * 60; // Threshold increases slightly with depth
+    // // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
+    // if (depth <= 3 && pruningCondition && !isPV) {
+    //     int razorMargin = 300 + (depth - 1) * 60; // Threshold increases slightly with depth
 
-        if (standPat + razorMargin < alpha) {
-            // If the position is too weak and unlikely to raise alpha, skip deep search
-            return quiescence(board, alpha, beta);
-        } 
-    }
+    //     if (standPat + razorMargin < alpha) {
+    //         // If the position is too weak and unlikely to raise alpha, skip deep search
+    //         return quiescence(board, alpha, beta);
+    //     } 
+    // }
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
     const int nullDepth = 4; // Only apply null move pruning at depths >= 4

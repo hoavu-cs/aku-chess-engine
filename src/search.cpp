@@ -313,9 +313,14 @@ int quiescence(Board& board, int alpha, int beta) {
         auto attacker = board.at<Piece>(move.from());
         int victimValue = pieceValues[static_cast<int>(victim.type())];
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
-
         int priority = victimValue - attackerValue;
-        biggestMaterialGain = std::max(biggestMaterialGain, priority);
+
+        // Delta pruning. If the material gain is not big enough, prune the move.
+        const int deltaMargin = 250;
+        if (standPat + priority + deltaMargin < beta) {
+            continue;
+        }
+
         candidateMoves.push_back({move, priority});
         
     }

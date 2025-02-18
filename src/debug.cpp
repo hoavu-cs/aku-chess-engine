@@ -42,6 +42,7 @@ int main() {
     // std::cout << "Eval = " << evaluate(board1) << std::endl;
     // https://www.wtharvey.com/anan.html
     
+    
     Board board = Board("r2q1r1k/1b3p2/p2Ppn2/1p4Q1/8/3B4/PPP2PPP/R4RK1 w - - 1 22"); // tactical test
     // Tactical fen 
     //Board board = Board("2rq1rk1/pp3ppp/2p2n2/3p3P/3P1n2/2N2N2/PPPQ1PP1/1K1R3R b - - 2 16");
@@ -84,6 +85,10 @@ int main() {
     // board = Board("r3r1k1/pppb1ppp/1q2N3/3Pn3/2B1p3/P3P1P1/1P2QPP1/2RR2K1 w - - 3 23");
     // board = Board("8/8/8/2K5/8/8/5k2/6r1 w - - 0 1");
     //board = Board("8/8/3k4/8/8/8/3K4/4R3 w - - 0 1");
+    std::string startingFen;
+    std::cout << "Starting FEN: " ;
+    std::getline(std::cin, startingFen);
+    board = Board(startingFen);
 
     // Default settings
     int depth = 30;
