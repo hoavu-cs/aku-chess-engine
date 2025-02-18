@@ -316,7 +316,7 @@ int quiescence(Board& board, int alpha, int beta) {
         int priority = victimValue - attackerValue;
 
         // Delta pruning. If the material gain is not big enough, prune the move.
-        const int deltaMargin = 250;
+        const int deltaMargin = 400;
         if (standPat + priority + deltaMargin < beta) {
             continue;
         }
@@ -433,7 +433,7 @@ int negamax(Board& board,
 
     // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
     if (depth <= 3 && pruningCondition && !isPV) {
-        int razorMargin = 300 + (depth - 1) * 60; // Threshold increases slightly with depth
+        int razorMargin = 400 + (depth - 1) * 60; // Threshold increases slightly with depth
 
         if (standPat + razorMargin < alpha) {
             // If the position is too weak and unlikely to raise alpha, skip deep search
