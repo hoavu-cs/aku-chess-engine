@@ -159,7 +159,7 @@ void processGo(const std::vector<std::string>& tokens) {
 
     // Default settings
     int depth = 30;
-    int quiescenceDepth = 10;
+    int quiescenceDepth = 16;
     int numThreads = 4;
     int timeLimit = 15000; // Default to 15 seconds
     bool quiet = false;

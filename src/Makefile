@@ -1,6 +1,14 @@
-# Compiler and Flags
-CXX = g++
-CXXFLAGS = -std=c++17 -O3 -fopenmp -march=native
+# Detect platform
+UNAME_S := $(shell uname -s)
+
+# Default Compiler and Flags
+ifeq ($(UNAME_S), Darwin)
+    CXX = /opt/homebrew/opt/llvm/bin/clang++
+    CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp
+else
+    CXX = g++
+    CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp -march=native
+endif
 
 # Directories
 BIN_DIR = ../bin
@@ -42,7 +50,7 @@ donbot_blitz: $(SRC_DONBOT_BLITZ) $(SRC_COMMON) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DONBOT_BLITZ) $(SRC_DONBOT_BLITZ) $(SRC_COMMON)
 
 donbot_nnue: $(SRC_NNUE) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DONBOT_NNUE) $(SRC_NNUE) 
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DONBOT_NNUE) $(SRC_NNUE)
 
 # Clean
 clean:

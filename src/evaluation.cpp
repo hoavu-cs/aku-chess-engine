@@ -1553,7 +1553,7 @@ int evaluate(const Board& board) {
     int blackPieceValue = queenValue * blackQueen.count() + rookValue * blackRooks.count() + 
                         bishopValue * blackBishops.count() + knightValue * blackKnights.count();
     
-    int pieceDeficitPenalty = info.gamePhase * 4;
+    int pieceDeficitPenalty = info.gamePhase * 5;
     
     if (whitePieceValue < blackPieceValue) {
         whiteScore -= pieceDeficitPenalty;
