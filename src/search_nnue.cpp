@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <cmath>
 #include <unordered_set>
-#include "..\lib\stockfish_nnue_probe\probe.h"
+#include "../lib/stockfish_nnue_probe/probe.h"
 
 using namespace chess;
 using namespace Stockfish;
