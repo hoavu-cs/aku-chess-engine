@@ -330,17 +330,20 @@ int quiescence(Board& board, int alpha, int beta) {
 
     std::vector<std::pair<Move, int>> candidateMoves;
     candidateMoves.reserve(moves.size());
-    int biggestMaterialGain = 0;
-    
 
     for (const auto& move : moves) {
         auto victim = board.at<Piece>(move.to());
         auto attacker = board.at<Piece>(move.from());
         int victimValue = pieceValues[static_cast<int>(victim.type())];
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
-
         int priority = victimValue - attackerValue;
-        biggestMaterialGain = std::max(biggestMaterialGain, priority);
+        
+        // Delta pruning. If the material gain is not big enough, prune the move.
+        const int deltaMargin = 250;
+        if (standPat + priority + deltaMargin < beta) {
+            continue;
+        }
+        
         candidateMoves.push_back({move, priority});
         
     }
@@ -452,14 +455,14 @@ int negamax(Board& board,
     }
 
     // // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
-    // if (depth <= 3 && pruningCondition && !isPV) {
-    //     int razorMargin = 300 + (depth - 1) * 60; // Threshold increases slightly with depth
+    if (depth <= 3 && pruningCondition && !isPV) {
+        int razorMargin = 300 + (depth - 1) * 60; // Threshold increases slightly with depth
 
-    //     if (standPat + razorMargin < alpha) {
-    //         // If the position is too weak and unlikely to raise alpha, skip deep search
-    //         return quiescence(board, alpha, beta);
-    //     } 
-    // }
+        if (standPat + razorMargin < alpha) {
+            // If the position is too weak and unlikely to raise alpha, skip deep search
+            return quiescence(board, alpha, beta);
+        } 
+    }
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
     const int nullDepth = 4; // Only apply null move pruning at depths >= 4
