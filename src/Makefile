@@ -7,11 +7,12 @@ ifeq ($(UNAME_S), Darwin)
     CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp
 else
     CXX = g++
-    CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp -march=native
+    CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp -march=native -pthread -w
 endif
 
 # Directories
 BIN_DIR = ../bin
+LIB_DIR = ../lib/stockfish_nnue_probe
 
 # Source Files
 SRC_COMMON = search.cpp evaluation.cpp
@@ -19,7 +20,14 @@ SRC_DONBOT = donbot.cpp
 SRC_DONBOT_WEB = donbot.cpp
 SRC_DEBUG = debug.cpp
 SRC_DONBOT_BLITZ = donbot_blitz.cpp
-SRC_NNUE = search_nnue.cpp donbot.cpp evaluation.cpp
+SRC_NNUE = search_nnue.cpp donbot.cpp evaluation.cpp \
+           $(LIB_DIR)/bitboard.cpp \
+           $(LIB_DIR)/evaluate.cpp \
+           $(LIB_DIR)/misc.cpp \
+           $(LIB_DIR)/position.cpp \
+           $(LIB_DIR)/probe.cpp \
+           $(LIB_DIR)/nnue/evaluate_nnue.cpp \
+           $(LIB_DIR)/nnue/features/half_ka_v2_hm.cpp
 
 # Output Binaries
 BIN_DONBOT = $(BIN_DIR)/donbot
@@ -28,8 +36,8 @@ BIN_DEBUG = $(BIN_DIR)/debug
 BIN_DONBOT_BLITZ = $(BIN_DIR)/donbot_blitz
 BIN_DONBOT_NNUE = $(BIN_DIR)/donbot_nnue
 
-# Include Directory
-INCLUDE_DIR = -I include/
+# Include Directories
+INCLUDE_DIR = -I include/ -I $(LIB_DIR)
 
 # Build Targets
 all: donbot donbot_web debug donbot_blitz donbot_nnue

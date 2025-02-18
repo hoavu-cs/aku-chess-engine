@@ -161,7 +161,7 @@ void processGo(const std::vector<std::string>& tokens) {
     int depth = 30;
     int quiescenceDepth = 16;
     int numThreads = 4;
-    int timeLimit = 15000; // Default to 15 seconds
+    int timeLimit = 30000; // Default to 15 seconds
     bool quiet = false;
 
     // Simply find the best move without considering `t` or other options
