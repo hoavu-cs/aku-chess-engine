@@ -65,7 +65,7 @@ void initializeNNUE() {
     #pragma omp critical
     {
         if (!initialized) {
-            Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-baff1ede1f90.nnue");
+            Stockfish::Probe::init("nn-1c0000000000.nnue", "nn-1c0000000000.nnue");
             initialized = true;
         }
     }
@@ -213,7 +213,6 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     } else {
         return depth - 3;
     }
-
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -312,14 +311,21 @@ int quiescence(Board& board, int alpha, int beta) {
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
-    int standPat;
+    int standPat = 0;
 
     // if (moves.size() == 0) {
-        // Only use nnue evaluation when the position is quiet
-    standPat = color * (Probe::eval(board.getFen().c_str()) + evaluate(board)) / 2;
+    //     // Only use nnue evaluation when the position is quiet
+    //     standPat = color * Probe::eval(board.getFen().c_str());
     // } else {
     //     standPat = color * evaluate(board);
     // }
+
+    // Only use nnue if material is balanced and the position is quiet (no more captures)
+    if (std::abs(materialImbalance(board)) < 200 && moves.size() == 0) {
+        standPat = color * Probe::eval(board.getFen().c_str()) - board.halfMoveClock() * 5;
+    } else {
+        standPat = color * materialImbalance(board);
+    }
 
     int bestScore = standPat;
     if (standPat >= beta) {
@@ -339,7 +345,8 @@ int quiescence(Board& board, int alpha, int beta) {
         int priority = victimValue - attackerValue;
         
         // Delta pruning. If the material gain is not big enough, prune the move.
-        const int deltaMargin = 250;
+        // Commented out since it makes the engine behavior weird
+        const int deltaMargin = 400;
         if (standPat + priority + deltaMargin < beta) {
             continue;
         }
@@ -442,7 +449,7 @@ int negamax(Board& board,
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
-    int standPat = color * evaluate(board);
+    int standPat = materialImbalance(board);//color * evaluate(board);
 
     //  Futility pruning
     if (depth < 3 && pruningCondition) {

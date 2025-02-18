@@ -186,10 +186,10 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck;
     bool reduceLessCondition =  isCapture || isCheck;
 
-    int k1 = 1;
+    int k1 = 2;
     int k2 = 5;
 
-    if (i <= k1 || depth <= 2  || noReduceCondition) { 
+    if (i <= k1 || depth <= 3  || noReduceCondition) { 
         return depth - 1;
     } else if (i <= k2 || reduceLessCondition) {
         return depth - 2;
@@ -316,13 +316,12 @@ int quiescence(Board& board, int alpha, int beta) {
         int priority = victimValue - attackerValue;
 
         // Delta pruning. If the material gain is not big enough, prune the move.
-        const int deltaMargin = 400;
+        const int deltaMargin = 300;
         if (standPat + priority + deltaMargin < beta) {
             continue;
         }
 
         candidateMoves.push_back({move, priority});
-        
     }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
@@ -418,28 +417,28 @@ int negamax(Board& board,
 
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
-    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
-    int standPat = color * evaluate(board);
+    // bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
+    // int standPat = color * materialImbalance(board); 
 
-    //  Futility pruning
-    if (depth < 3 && pruningCondition) {
-        int margin = depth * 130;
-        if (standPat - margin > beta) {
-            // If the static evaluation - margin > beta, 
-            // then it is considered to be too good and most likely a cutoff
-            return standPat - margin;
-        } 
-    }
+    // //  Futility pruning
+    // if (depth < 3 && pruningCondition) {
+    //     int margin = depth * 130;
+    //     if (standPat - margin > beta) {
+    //         // If the static evaluation - margin > beta, 
+    //         // then it is considered to be too good and most likely a cutoff
+    //         return standPat - margin;
+    //     } 
+    // }
 
-    // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
-    if (depth <= 3 && pruningCondition && !isPV) {
-        int razorMargin = 400 + (depth - 1) * 60; // Threshold increases slightly with depth
+    // // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
+    // if (depth <= 3 && pruningCondition && !isPV) {
+    //     int razorMargin = 300 + (depth - 1) * 60; // Threshold increases slightly with depth
 
-        if (standPat + razorMargin < alpha) {
-            // If the position is too weak and unlikely to raise alpha, skip deep search
-            return quiescence(board, alpha, beta);
-        } 
-    }
+    //     if (standPat + razorMargin < alpha) {
+    //         // If the position is too weak and unlikely to raise alpha, skip deep search
+    //         return quiescence(board, alpha, beta);
+    //     } 
+    // }
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
     const int nullDepth = 4; // Only apply null move pruning at depths >= 4
@@ -624,7 +623,7 @@ Move findBestMove(Board& board,
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            int extension = mopUp ? 0 : 2;
+            int extension = mopUp ? 0 : 3;
         
             Board localBoard = board;
             bool newBestFlag = false;  
