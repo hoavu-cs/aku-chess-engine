@@ -186,7 +186,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck;
     bool reduceLessCondition =  isCapture || isCheck;
 
-    int k1 = 2;
+    int k1 = 1;
     int k2 = 5;
 
     if (i <= k1 || depth <= 2  || noReduceCondition) { 
@@ -292,10 +292,7 @@ int quiescence(Board& board, int alpha, int beta) {
     nodeCount++;
 
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
-
     int standPat = color * evaluate(board);
-    alpha = std::max(alpha, standPat);
-
     int bestScore = standPat;
 
     if (standPat >= beta) {
