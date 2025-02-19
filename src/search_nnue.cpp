@@ -324,15 +324,7 @@ int quiescence(Board& board, int alpha, int beta) {
     if (mopUp) {
         standPat = evaluate(board) * color;
     } else {
-        if (moves.size() == 0) {
-            standPat = Probe::eval(board.getFen().c_str());
-        } else {
-            if (probability_p(0.4)) {
-                standPat = Probe::eval(board.getFen().c_str());
-            } else {
-                standPat = evaluate(board) * color;
-            }
-        }
+        standPat = Probe::eval(board.getFen().c_str());
     }
 
     int bestScore = standPat;
@@ -573,7 +565,9 @@ int negamax(Board& board,
         alpha = std::max(alpha, eval);
 
         if (beta <= alpha) {
-            updateKillerMoves(move, depth);
+            if (!board.isCapture(move) && !isCheck) {
+                updateKillerMoves(move, depth);
+            }
             break;
         }
     }

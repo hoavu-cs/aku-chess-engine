@@ -545,7 +545,9 @@ int negamax(Board& board,
         alpha = std::max(alpha, eval);
 
         if (beta <= alpha) {
-            updateKillerMoves(move, depth);
+            if (!board.isCapture(move) && !isCheck) {
+                updateKillerMoves(move, depth);
+            }
             break;
         }
     }
@@ -603,7 +605,7 @@ Move findBestMove(Board& board,
     #pragma omp critical
     clearTables();
     
-    const int baseDepth = 1;
+    const int baseDepth = 4;
     int apsiration = color * evaluate(board);
     int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
