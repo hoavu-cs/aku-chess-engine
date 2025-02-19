@@ -327,7 +327,11 @@ int quiescence(Board& board, int alpha, int beta) {
         if (moves.size() == 0) {
             standPat = Probe::eval(board.getFen().c_str());
         } else {
-            standPat = evaluate(board) * color;
+            if (probability_p(0.4)) {
+                standPat = Probe::eval(board.getFen().c_str());
+            } else {
+                standPat = evaluate(board) * color;
+            }
         }
     }
 
