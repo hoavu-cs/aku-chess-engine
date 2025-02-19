@@ -65,7 +65,7 @@ void initializeNNUE() {
     #pragma omp critical
     {
         if (!initialized) {
-            Stockfish::Probe::init("nn-1c0000000000.nnue", "nn-1c0000000000.nnue");
+            Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-baff1ede1f90.nnue");
             initialized = true;
         }
     }
@@ -203,10 +203,10 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck;
     bool reduceLessCondition =  isCapture || isCheck;
 
-    int k1 = 2;
+    int k1 = 3;
     int k2 = 5;
 
-    if (i <= k1 || depth <= 2  || noReduceCondition) { 
+    if (i <= k1 || depth <= 3  || noReduceCondition) { 
         return depth - 1;
     } else if (i <= k2 || reduceLessCondition) {
         return depth - 2;
@@ -313,19 +313,15 @@ int quiescence(Board& board, int alpha, int beta) {
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     int standPat = 0;
 
-    // if (moves.size() == 0) {
-    //     // Only use nnue evaluation when the position is quiet
-    //     standPat = color * Probe::eval(board.getFen().c_str());
-    // } else {
-    //     standPat = color * evaluate(board);
-    // }
-
-    // Only use nnue if material is balanced and the position is quiet (no more captures)
-    if (std::abs(materialImbalance(board)) < 200 && moves.size() == 0) {
-        standPat = color * Probe::eval(board.getFen().c_str()) - board.halfMoveClock() * 5;
+    if (mopUp || moves.size() > 0) {
+        standPat = color * evaluate(board);
     } else {
-        standPat = color * materialImbalance(board);
-    }
+        // Note that nnue eval is in the perspective of the side to move (unlike evaluate)
+        // We only use nnue in quiet positions
+        int nnueEval = Probe::eval(board.getFen().c_str());  
+        standPat = nnueEval;
+    } 
+
 
     int bestScore = standPat;
     if (standPat >= beta) {
@@ -401,7 +397,6 @@ int negamax(Board& board,
     int color = whiteTurn ? 1 : -1;
     bool isPV = (alpha < beta - 1); // Principal variation node flag
     
-
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
     if (gameOverResult.first != GameResultReason::NONE) {
@@ -448,6 +443,7 @@ int negamax(Board& board,
 
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
+    
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
     int standPat = materialImbalance(board);//color * evaluate(board);
 
@@ -530,7 +526,8 @@ int negamax(Board& board,
                 numPlies = std::max(promotionExtension, numPlies);
             }
 
-            if (isOneReply && !isCheck) { // Apply one-reply extension (not applied twice if the)
+            if (isOneReply && !isCheck) { 
+                // Apply one-reply extension (not applied twice if the)
                 numPlies = std::max(oneReplyExtension, numPlies);
             }
 
@@ -835,7 +832,6 @@ Move findBestMove(Board& board,
             if (depth > ENGINE_DEPTH || spendTooMuchTime) {
                 break;
             } 
-            
             depth++;
         }
     }

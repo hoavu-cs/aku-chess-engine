@@ -11,8 +11,10 @@
 #include <stdlib.h>
 #include <cmath>
 #include <unordered_set>
+#include "../lib/stockfish_nnue_probe/probe.h"
 
 using namespace chess;
+using namespace Stockfish;
 
 typedef std::uint64_t U64;
 
@@ -20,6 +22,8 @@ typedef std::uint64_t U64;
 /*-------------------------------------------------------------------------------------------- 
     Constants and global variables.
 --------------------------------------------------------------------------------------------*/
+
+
 std::unordered_map<U64, std::pair<int, int>> transpositionTable; // Hash -> (eval, depth)
 std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 
@@ -53,6 +57,7 @@ const int mateThreat = 1; // Number of plies to extend for mate threats
 const int promotionExtension = 1; // Number of plies to extend for promotion threats.
 const int oneReplyExtension = 1; // Number of plies to extend if there is only one legal move.
 const int captureExtension = 1; // Number of plies to extend for recaptures
+
 
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup.
@@ -186,7 +191,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck;
     bool reduceLessCondition =  isCapture || isCheck;
 
-    int k1 = 2;
+    int k1 = 3;
     int k2 = 5;
 
     if (i <= k1 || depth <= 3  || noReduceCondition) { 
@@ -196,7 +201,6 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     } else {
         return depth - 3;
     }
-
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -291,22 +295,24 @@ int quiescence(Board& board, int alpha, int beta) {
     #pragma omp critical
     nodeCount++;
 
-    int color = board.sideToMove() == Color::WHITE ? 1 : -1;
-    int standPat = color * evaluate(board);
-    int bestScore = standPat;
+    Movelist moves;
+    movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
+    int color = board.sideToMove() == Color::WHITE ? 1 : -1;
+    int standPat = 0;
+
+    // Non-nnue evaluation
+    standPat = color * evaluate(board);
+
+    int bestScore = standPat;
     if (standPat >= beta) {
         return beta;
     }
 
     alpha = std::max(alpha, standPat);
 
-    Movelist moves;
-    movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
     std::vector<std::pair<Move, int>> candidateMoves;
     candidateMoves.reserve(moves.size());
-    int biggestMaterialGain = 0;
-    
 
     for (const auto& move : moves) {
         auto victim = board.at<Piece>(move.to());
@@ -314,14 +320,16 @@ int quiescence(Board& board, int alpha, int beta) {
         int victimValue = pieceValues[static_cast<int>(victim.type())];
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
         int priority = victimValue - attackerValue;
-
+        
         // Delta pruning. If the material gain is not big enough, prune the move.
-        const int deltaMargin = 300;
+        // Commented out since it makes the engine behavior weird
+        const int deltaMargin = 400;
         if (standPat + priority + deltaMargin < beta) {
             continue;
         }
-
+        
         candidateMoves.push_back({move, priority});
+        
     }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
@@ -370,7 +378,6 @@ int negamax(Board& board,
     int color = whiteTurn ? 1 : -1;
     bool isPV = (alpha < beta - 1); // Principal variation node flag
     
-
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
     if (gameOverResult.first != GameResultReason::NONE) {
@@ -417,28 +424,29 @@ int negamax(Board& board,
 
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
-    // bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
-    // int standPat = color * materialImbalance(board); 
+    
+    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
+    int standPat = materialImbalance(board);//color * evaluate(board);
 
-    // //  Futility pruning
-    // if (depth < 3 && pruningCondition) {
-    //     int margin = depth * 130;
-    //     if (standPat - margin > beta) {
-    //         // If the static evaluation - margin > beta, 
-    //         // then it is considered to be too good and most likely a cutoff
-    //         return standPat - margin;
-    //     } 
-    // }
+    //  Futility pruning
+    if (depth < 3 && pruningCondition) {
+        int margin = depth * 130;
+        if (standPat - margin > beta) {
+            // If the static evaluation - margin > beta, 
+            // then it is considered to be too good and most likely a cutoff
+            return standPat - margin;
+        } 
+    }
 
     // // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
-    // if (depth <= 3 && pruningCondition && !isPV) {
-    //     int razorMargin = 300 + (depth - 1) * 60; // Threshold increases slightly with depth
+    if (depth <= 3 && pruningCondition && !isPV) {
+        int razorMargin = 400 + (depth - 1) * 60; // Threshold increases slightly with depth
 
-    //     if (standPat + razorMargin < alpha) {
-    //         // If the position is too weak and unlikely to raise alpha, skip deep search
-    //         return quiescence(board, alpha, beta);
-    //     } 
-    // }
+        if (standPat + razorMargin < alpha) {
+            // If the position is too weak and unlikely to raise alpha, skip deep search
+            return quiescence(board, alpha, beta);
+        } 
+    }
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
     const int nullDepth = 4; // Only apply null move pruning at depths >= 4
@@ -499,7 +507,8 @@ int negamax(Board& board,
                 numPlies = std::max(promotionExtension, numPlies);
             }
 
-            if (isOneReply && !isCheck) { // Apply one-reply extension (not applied twice if the)
+            if (isOneReply && !isCheck) { 
+                // Apply one-reply extension (not applied twice if the)
                 numPlies = std::max(oneReplyExtension, numPlies);
             }
 
@@ -623,7 +632,7 @@ Move findBestMove(Board& board,
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            int extension = mopUp ? 0 : 3;
+            int extension = mopUp ? 0 : 2;
         
             Board localBoard = board;
             bool newBestFlag = false;  
@@ -802,7 +811,6 @@ Move findBestMove(Board& board,
             if (depth > ENGINE_DEPTH || spendTooMuchTime) {
                 break;
             } 
-            
             depth++;
         }
     }
