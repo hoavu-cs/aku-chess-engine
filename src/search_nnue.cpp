@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <cmath>
 #include <unordered_set>
+#include <random>
 #include "../lib/stockfish_nnue_probe/probe.h"
 
 using namespace chess;
@@ -123,7 +124,6 @@ void updateKillerMoves(const Move& move, int depth) {
     }
 }
 
-
 /*-------------------------------------------------------------------------------------------- 
     Check for tactical threats beside the obvious checks, captures, and promotions.
     To be expanded. 
@@ -200,14 +200,15 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool isPromotionThreat = promotionThreatMove(board, move);
 
     int d = isPV;
-    bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck  || isCapture;
+    bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck;
+    bool reduceLessCondition =  isCapture || isCheck;
 
-    int k1 = 2;
+    int k1 = 3;
     int k2 = 5;
 
-    if (i <= k1 || depth <= 2  || noReduceCondition) { 
+    if (i <= k1 || depth <= 3  || noReduceCondition) { 
         return depth - 1;
-    } else if (i <= k2) {
+    } else if (i <= k2 || reduceLessCondition) {
         return depth - 2;
     } else {
         return depth - 3;
@@ -299,8 +300,16 @@ std::vector<std::pair<Move, int>> orderedMoves(
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Quiescence search for captures only.
+    Quiescence search for captures only. Here we use nnue with some probability.
 --------------------------------------------------------------------------------------------*/
+bool probability_p(double p) {
+    static std::random_device rd;  // Non-deterministic random number generator
+    static std::mt19937 gen(rd()); // Mersenne Twister pseudo-random generator
+    std::uniform_real_distribution<double> dist(0.0, 1.0); // Uniform distribution in [0,1)
+
+    return dist(gen) < p;
+}
+
 int quiescence(Board& board, int alpha, int beta) {
     
     #pragma omp critical
@@ -315,21 +324,12 @@ int quiescence(Board& board, int alpha, int beta) {
     if (mopUp) {
         standPat = evaluate(board) * color;
     } else {
-        standPat = Probe::eval(board.getFen().c_str());
+        if (moves.size() == 0) {
+            standPat = Probe::eval(board.getFen().c_str());
+        } else {
+            standPat = evaluate(board) * color;
+        }
     }
-
-
-    // if (mopUp || moves.size() > 0) {
-    //     standPat = Probe::eval(board.getFen().c_str());
-    // } else {
-    //     // We only use nnue in quiet positions
-    //     int nnueEval = Probe::eval(board.getFen().c_str());  
-        // std::cout << "NNUE eval: " << Probe::eval(board.getFen().c_str())
-        //             << " Classic eval: " << color * evaluate(board) 
-        //             << " Fen: " << board.getFen() << std::endl;
-        //standPat = nnueEval;
-    // } 
-
 
     int bestScore = standPat;
     if (standPat >= beta) {
@@ -447,11 +447,8 @@ int negamax(Board& board,
         return quiescenceEval;
     }
 
-
-
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
-    
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
     int standPat = color * materialImbalance(board);//color * evaluate(board);
 
