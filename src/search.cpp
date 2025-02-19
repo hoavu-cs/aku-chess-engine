@@ -426,7 +426,7 @@ int negamax(Board& board,
     // Disable pruning for when alpha is very high to avoid missing checkmates
     
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
-    int standPat = materialImbalance(board);//color * evaluate(board);
+    int standPat = color * materialImbalance(board);//color * evaluate(board);
 
     //  Futility pruning
     if (depth < 3 && pruningCondition) {

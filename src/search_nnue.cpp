@@ -200,15 +200,14 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool isPromotionThreat = promotionThreatMove(board, move);
 
     int d = isPV;
-    bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck;
-    bool reduceLessCondition =  isCapture || isCheck;
+    bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck  || isCapture;
 
-    int k1 = 3;
+    int k1 = 2;
     int k2 = 5;
 
-    if (i <= k1 || depth <= 3  || noReduceCondition) { 
+    if (i <= k1 || depth <= 2  || noReduceCondition) { 
         return depth - 1;
-    } else if (i <= k2 || reduceLessCondition) {
+    } else if (i <= k2) {
         return depth - 2;
     } else {
         return depth - 3;
@@ -313,14 +312,23 @@ int quiescence(Board& board, int alpha, int beta) {
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     int standPat = 0;
 
-    if (mopUp || moves.size() > 0) {
-        standPat = color * evaluate(board);
+    if (mopUp) {
+        standPat = evaluate(board) * color;
     } else {
-        // Note that nnue eval is in the perspective of the side to move (unlike evaluate)
-        // We only use nnue in quiet positions
-        int nnueEval = Probe::eval(board.getFen().c_str());  
-        standPat = nnueEval;
-    } 
+        standPat = Probe::eval(board.getFen().c_str());
+    }
+
+
+    // if (mopUp || moves.size() > 0) {
+    //     standPat = Probe::eval(board.getFen().c_str());
+    // } else {
+    //     // We only use nnue in quiet positions
+    //     int nnueEval = Probe::eval(board.getFen().c_str());  
+        // std::cout << "NNUE eval: " << Probe::eval(board.getFen().c_str())
+        //             << " Classic eval: " << color * evaluate(board) 
+        //             << " Fen: " << board.getFen() << std::endl;
+        //standPat = nnueEval;
+    // } 
 
 
     int bestScore = standPat;
@@ -445,7 +453,7 @@ int negamax(Board& board,
     // Disable pruning for when alpha is very high to avoid missing checkmates
     
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
-    int standPat = materialImbalance(board);//color * evaluate(board);
+    int standPat = color * materialImbalance(board);//color * evaluate(board);
 
     //  Futility pruning
     if (depth < 3 && pruningCondition) {
