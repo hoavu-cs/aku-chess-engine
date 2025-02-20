@@ -189,8 +189,8 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
     // int d = isPV;
-    bool noReduceCondition = mopUp || isMateThreat || inCheck || isPromoting;
-    bool reduceLessCondition =  isCapture || isCheck || isKillerMove;
+    bool noReduceCondition = mopUp || isMateThreat || isPromoting;
+    bool reduceLessCondition =  isCapture || isCheck || isKillerMove || inCheck;
 
     int k1 = 2;
     int k2 = 5;
