@@ -515,19 +515,43 @@ int negamax(Board& board,
             nextDepth += numPlies;
         }
 
-        if (isPV || mopUp) {
-            // full window search for the first node
+        /*--------------------------------------------------------------------------------------------
+            PVS search: 
+            Full window & full depth for the first node or during mop up.
+
+            After the first node, search other nodes with a null window and potentially reduced depth.
+            - If the depth is reduced and alpha is raised, research with full depth but still 
+            with a null window.
+            - Then, if alpha is raised, re-search with a full window & full depth. 
+
+        --------------------------------------------------------------------------------------------*/
+
+        bool nullWindow = false;
+        if (i == 0 || mopUp) {
+            // full window & full depth search for the first node
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, extension, ply + 1);
         } else {
+            // null window and potential reduced depth for the rest
+            nullWindow = true;
             eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, extension, ply + 1);
         }
         
         board.unmakeMove(move);
-
-        // re-search if we raise alpha with reduced depth
         bool alphaRaised = eval > alpha;
+        bool reducedDepth = nextDepth < depth - 1;
 
-        if (leftMost || (alphaRaised && nextDepth < depth - 1)) {
+        if (alphaRaised && reducedDepth && nullWindow) {
+            // If alpha is raised and we reduced the depth, research with full depth but still with a null window
+            board.makeMove(move);
+            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, extension, ply + 1);
+            board.unmakeMove(move);
+        } 
+
+        // After this, check if we have raised alpha
+        alphaRaised = eval > alpha;
+
+        if (alphaRaised && nullWindow) {
+            // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
             board.makeMove(move);
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, extension, ply + 1);
             board.unmakeMove(move);
@@ -605,7 +629,7 @@ Move findBestMove(Board& board,
     #pragma omp critical
     clearTables();
     
-    const int baseDepth = 4;
+    const int baseDepth = 1;
     int apsiration = color * evaluate(board);
     int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
