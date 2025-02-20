@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <cmath>
 #include <unordered_set>
-#include <random>
 #include "../lib/stockfish_nnue_probe/probe.h"
 
 using namespace chess;
@@ -124,6 +123,7 @@ void updateKillerMoves(const Move& move, int depth) {
     }
 }
 
+
 /*-------------------------------------------------------------------------------------------- 
     Check for tactical threats beside the obvious checks, captures, and promotions.
     To be expanded. 
@@ -198,17 +198,18 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool isPromoting = isQueenPromotion(move);
     bool isMateThreat = mateThreatMove(board, move);
     bool isPromotionThreat = promotionThreatMove(board, move);
+    bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
-    int d = isPV;
-    bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck;
-    bool reduceLessCondition =  isCapture || isCheck;
+    // int d = isPV;
+    bool noReduceCondition = mopUp || isMateThreat || inCheck || isPromoting;
+    bool reduceLessCondition =  isCapture || isCheck || isKillerMove;
 
-    int k1 = 3;
+    int k1 = 5;
     int k2 = 5;
 
-    if (i <= k1 || depth <= 3  || noReduceCondition) { 
+    if (i <= k1 || noReduceCondition) { 
         return depth - 1;
-    } else if (i <= k2 || reduceLessCondition) {
+    } else if (reduceLessCondition || isKillerMove || isPromotionThreat) {
         return depth - 2;
     } else {
         return depth - 3;
@@ -300,16 +301,8 @@ std::vector<std::pair<Move, int>> orderedMoves(
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Quiescence search for captures only. Here we use nnue with some probability.
+    Quiescence search for captures only.
 --------------------------------------------------------------------------------------------*/
-bool probability_p(double p) {
-    static std::random_device rd;  // Non-deterministic random number generator
-    static std::mt19937 gen(rd()); // Mersenne Twister pseudo-random generator
-    std::uniform_real_distribution<double> dist(0.0, 1.0); // Uniform distribution in [0,1)
-
-    return dist(gen) < p;
-}
-
 int quiescence(Board& board, int alpha, int beta) {
     
     #pragma omp critical
@@ -388,6 +381,9 @@ int negamax(Board& board,
             int extension, 
             int ply) {
 
+    #pragma omp critical
+    clearTables();
+
     auto currentTime = std::chrono::high_resolution_clock::now();
     if (currentTime >= hardDeadline) {
         return 0;
@@ -443,8 +439,11 @@ int negamax(Board& board,
         return quiescenceEval;
     }
 
+
+
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
+    
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
     int standPat = color * materialImbalance(board);//color * evaluate(board);
 
@@ -535,19 +534,43 @@ int negamax(Board& board,
             nextDepth += numPlies;
         }
 
-        if (isPV || mopUp) {
-            // full window search for the first node
+        /*--------------------------------------------------------------------------------------------
+            PVS search: 
+            Full window & full depth for the first node or during mop up.
+
+            After the first node, search other nodes with a null window and potentially reduced depth.
+            - If the depth is reduced and alpha is raised, research with full depth but still 
+            with a null window.
+            - Then, if alpha is raised, re-search with a full window & full depth. 
+
+        --------------------------------------------------------------------------------------------*/
+
+        bool nullWindow = false;
+        if (i == 0 || mopUp) {
+            // full window & full depth search for the first node
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, extension, ply + 1);
         } else {
+            // null window and potential reduced depth for the rest
+            nullWindow = true;
             eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, extension, ply + 1);
         }
         
         board.unmakeMove(move);
-
-        // re-search if we raise alpha with reduced depth
         bool alphaRaised = eval > alpha;
+        bool reducedDepth = nextDepth < depth - 1;
 
-        if (leftMost || (alphaRaised && nextDepth < depth - 1)) {
+        if (alphaRaised && reducedDepth && nullWindow) {
+            // If alpha is raised and we reduced the depth, research with full depth but still with a null window
+            board.makeMove(move);
+            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, extension, ply + 1);
+            board.unmakeMove(move);
+        } 
+
+        // After this, check if we have raised alpha
+        alphaRaised = eval > alpha;
+
+        if (alphaRaised && nullWindow) {
+            // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
             board.makeMove(move);
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, extension, ply + 1);
             board.unmakeMove(move);
@@ -580,6 +603,9 @@ int negamax(Board& board,
             hashMoveTable[board.hash()] = PV[0];
         }
     }
+
+    #pragma omp critical
+    clearTables();
 
     return bestEval;
 }

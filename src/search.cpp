@@ -189,15 +189,15 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
     // int d = isPV;
-    bool noReduceCondition = mopUp || isMateThreat || inCheck || isCheck;
+    bool noReduceCondition = mopUp || isMateThreat || inCheck || isPromoting;
     bool reduceLessCondition =  isCapture || isCheck || isKillerMove;
 
-    int k1 = 3;
+    int k1 = 5;
     int k2 = 5;
 
     if (i <= k1 || noReduceCondition) { 
         return depth - 1;
-    } else if (i <= k2 || reduceLessCondition || isKillerMove) {
+    } else if (reduceLessCondition || isKillerMove || isPromotionThreat) {
         return depth - 2;
     } else {
         return depth - 3;
@@ -365,6 +365,9 @@ int negamax(Board& board,
             bool leftMost,
             int extension, 
             int ply) {
+
+    #pragma omp critical
+    clearTables();
 
     auto currentTime = std::chrono::high_resolution_clock::now();
     if (currentTime >= hardDeadline) {
@@ -585,6 +588,9 @@ int negamax(Board& board,
             hashMoveTable[board.hash()] = PV[0];
         }
     }
+
+    #pragma omp critical
+    clearTables();
 
     return bestEval;
 }

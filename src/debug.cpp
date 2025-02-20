@@ -85,7 +85,9 @@ int main() {
     // board = Board("r3r1k1/pppb1ppp/1q2N3/3Pn3/2B1p3/P3P1P1/1P2QPP1/2RR2K1 w - - 3 23");
     // board = Board("8/8/8/2K5/8/8/5k2/6r1 w - - 0 1");
     //board = Board("8/8/3k4/8/8/8/3K4/4R3 w - - 0 1");
-    // 1r4k1/pq2bppp/4b3/3r4/1PN1QB2/P7/5PpP/R3R1K1 w - - 0 21
+    board = Board("1r4k1/pq2bppp/4b3/3r4/1PN1QB2/P7/5PpP/R3R1K1 w - - 0 21");
+
+    //5k2/2p5/1p6/1r2N3/p2K1PR1/6P1/6P1/8 w - - 6 45
     std::string startingFen;
     std::cout << "Starting FEN: " ;
     std::getline(std::cin, startingFen);
