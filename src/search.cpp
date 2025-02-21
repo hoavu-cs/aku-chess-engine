@@ -665,7 +665,7 @@ Move findBestMove(Board& board,
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            int extension = mopUp ? 0 : 2;
+            int extension = mopUp ? 0 : 1;
         
             Board localBoard = board;
             bool newBestFlag = false;  

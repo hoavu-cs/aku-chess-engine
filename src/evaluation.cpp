@@ -1067,7 +1067,8 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     // Constants
     const int semiOpenFileBonus = 10;
     const int openFileBonus = 15;
-    const int cutOffKingBonus = 10;
+    
+    
 
     double midGameWeight = info.gamePhase / 24.0;
     double endGameWeight = 1.0 - midGameWeight;
@@ -1077,12 +1078,15 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
     int mobilityBonus = info.gamePhase < 12 ? 3 : 2;
 
     Bitboard rooks = board.pieces(PieceType::ROOK, color);
-    int ourPawnCount = board.pieces(PieceType::PAWN, color).count();
+    Bitboard ourPawns = board.pieces(PieceType::PAWN, color);
+    int ourPawnCount = ourPawns.count();
+
     int value = 0;
 
     while (!rooks.empty()) {
         int sqIndex = rooks.lsb(); 
         int file = sqIndex % 8; 
+        int rank = sqIndex / 8;
 
         value += baseValue + rookAdjust[ourPawnCount];
 
@@ -1105,6 +1109,18 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
         Bitboard rookMoves = attacks::rook(Square(sqIndex), board.occ());
         int mobility = std::min(rookMoves.count(), 12);
         value += mobilityBonus * (mobility - 7);
+
+        const int pawnBlockPenalty = 20;
+
+        if ((color == Color::WHITE && rank == 0) || (color == Color::BLACK && rank == 7)) {
+            int squareAbove = (color == Color::WHITE) ? sqIndex + 8 : sqIndex - 8;
+    
+            if (ourPawns & Bitboard::fromSquare(squareAbove)) {
+                value -= pawnBlockPenalty;
+            }
+        }
+
+
         rooks.clear(sqIndex);
     }
     
@@ -1749,8 +1765,8 @@ int evaluate(const Board& board) {
         blackScore -= blockedFianchettoPenalty;
     }
 
-/*--------------------------------------------------------------------------
-    Consider the amount of squares being attacked beyond each side's half.
+    /*--------------------------------------------------------------------------
+    Consider the amount of squares controlled in the other half of the board.
     --------------------------------------------------------------------------*/
     const double halfWayAttackBonus = 1;
     Bitboard whiteHalfWayAttacks(0); 
