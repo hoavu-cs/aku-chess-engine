@@ -188,9 +188,12 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool isPromotionThreat = promotionThreatMove(board, move);
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
-    // int d = isPV;
     bool noReduceCondition = mopUp || isMateThreat || isPromoting;
     bool reduceLessCondition =  isCapture || isCheck || isKillerMove || inCheck;
+
+    if (ply > 13 && !noReduceCondition && !reduceLessCondition) {
+        return 0; // Prune quiet moves after a certain depth
+    }
 
     int k1 = 2;
     int k2 = 5;
