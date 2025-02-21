@@ -1019,10 +1019,10 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         }
         value +=  mobilityBonus * (mobility - 4);
 
-        const int protectedBonus = 4;
-        if (isProtected(board, color, sqIndex)) {
-            value += protectedBonus;
-        }
+        // const int protectedBonus = 4;
+        // if (isProtected(board, color, sqIndex)) {
+        //     value += protectedBonus;
+        // }
 
 
         knights.clear(sqIndex);

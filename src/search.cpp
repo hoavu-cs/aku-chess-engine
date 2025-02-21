@@ -199,9 +199,6 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     } else if (i <= k2 || reduceLessCondition || isKillerMove || isPromotionThreat) {
         return depth - 2;
     } else {
-        if (ply > 12 && !noReduceCondition && !reduceLessCondition) {
-            return 0; // Prune quiet moves after a certain depth
-        }
         return depth - 3;
     }
 }

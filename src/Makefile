@@ -20,6 +20,7 @@ SRC_DONBOT = donbot.cpp
 SRC_DONBOT_WEB = donbot.cpp
 SRC_DEBUG = debug.cpp
 SRC_DONBOT_BLITZ = donbot_blitz.cpp
+SRC_DONBOT_BLITZ_EVAL = search.cpp evaluation_blitz.cpp # Change to evaluation_blitz.cpp
 SRC_NNUE = search_nnue.cpp donbot.cpp evaluation.cpp \
            $(LIB_DIR)/bitboard.cpp \
            $(LIB_DIR)/evaluate.cpp \
@@ -64,8 +65,8 @@ donbot_web: $(SRC_DONBOT_WEB) $(SRC_COMMON) | $(BIN_DIR)
 debug: $(SRC_DEBUG) $(SRC_COMMON) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DEBUG) $(SRC_DEBUG) $(SRC_COMMON)
 
-donbot_blitz: $(SRC_DONBOT_BLITZ) $(SRC_COMMON) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DONBOT_BLITZ) $(SRC_DONBOT_BLITZ) $(SRC_COMMON)
+donbot_blitz: $(SRC_DONBOT_BLITZ) $(SRC_DONBOT_BLITZ_EVAL) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DONBOT_BLITZ) $(SRC_DONBOT_BLITZ) $(SRC_DONBOT_BLITZ_EVAL)
 
 donbot_nnue: $(SRC_NNUE) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDE_DIR) -o $(BIN_DONBOT_NNUE) $(SRC_NNUE)
