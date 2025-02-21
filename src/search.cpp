@@ -85,14 +85,10 @@ void clearTables() {
 /*-------------------------------------------------------------------------------------------- 
     Check if the move is a queen promotion.
 --------------------------------------------------------------------------------------------*/
-bool isQueenPromotion(const Move& move) {
-
+bool isPromotion(const Move& move) {
     if (move.typeOf() & Move::PROMOTION) {
-        if (move.promotionType() == PieceType::QUEEN) {
-            return true;
-        } 
+        return true;
     } 
-
     return false;
 }
 
@@ -183,20 +179,25 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 
     bool isCapture = board.isCapture(move);
     bool inCheck = board.inCheck();
-    bool isPromoting = isQueenPromotion(move);
+    bool isPromoting;
     bool isMateThreat = mateThreatMove(board, move);
     bool isPromotionThreat = promotionThreatMove(board, move);
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
-    bool noReduceCondition = mopUp || isMateThreat || isPromoting;
+    bool noReduceCondition = mopUp || isMateThreat || isPromoting  || isPromotionThreat;
     bool reduceLessCondition =  isCapture || isCheck || isKillerMove || inCheck;
+
+    // int phase = gamePhase(board);
+    // if (phase < 14) {
+    //     noReduceCondition |= isPromotionThreat;
+    // }
 
     int k1 = 2;
     int k2 = 5;
 
-    if (i <= k1 || i <= 2 || noReduceCondition) { 
+    if (i <= k1 || depth <= 1 || noReduceCondition) { 
         return depth - 1;
-    } else if (i <= k2 || reduceLessCondition || isKillerMove || isPromotionThreat) {
+    } else if (i <= k2 || reduceLessCondition || isKillerMove) {
         return depth - 2;
     } else {
         return depth - 3;
@@ -247,7 +248,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             }
         } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end()) {
             priority = 2000; // Killer moves
-        } else if (isQueenPromotion(move)) {
+        } else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
             auto victim = board.at<Piece>(move.to());
@@ -664,7 +665,7 @@ Move findBestMove(Board& board,
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            int extension = mopUp ? 0 : 1;
+            int extension = mopUp ? 0 : 2;
         
             Board localBoard = board;
             bool newBestFlag = false;  
