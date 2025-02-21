@@ -1019,10 +1019,10 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
         }
         value +=  mobilityBonus * (mobility - 4);
 
-        // const int protectedBonus = 4;
-        // if (isProtected(board, color, sqIndex)) {
-        //     value += protectedBonus;
-        // }
+        const int protectedBonus = 2;
+        if (isProtected(board, color, sqIndex)) {
+            value += protectedBonus;
+        }
 
 
         knights.clear(sqIndex);
@@ -1071,7 +1071,7 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
             value += outpostBonus;
         }
 
-        const int protectedBonus = 4;
+        const int protectedBonus = 2;
         if (isProtected(board, color, sqIndex)) {
             value += protectedBonus;
         }
@@ -1142,7 +1142,7 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
             }
         }
         
-        const int protectedBonus = 4;
+        const int protectedBonus = 2;
         if (isProtected(board, color, sqIndex)) {
             value += protectedBonus;
         }
@@ -1189,7 +1189,7 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         int mobility = std::min(queenMoves.count(), 12);
         value += mobilityBonus * (mobility - 14);
 
-        const int protectedBonus = 4;
+        const int protectedBonus = 2;
         if (isProtected(board, color, sqIndex)) {
             value += protectedBonus;
         }

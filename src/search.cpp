@@ -192,10 +192,10 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     //     noReduceCondition |= isPromotionThreat;
     // }
 
-    int k1 = 2;
+    int k1 = 3;
     int k2 = 5;
 
-    if (i <= k1 || depth <= 1 || noReduceCondition) { 
+    if (i <= k1 || depth <= 2 || noReduceCondition) { 
         return depth - 1;
     } else if (i <= k2 || reduceLessCondition || isKillerMove) {
         return depth - 2;
