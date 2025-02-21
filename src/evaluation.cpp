@@ -743,6 +743,16 @@ bool isSemiOpenFile(const Board& board, int file, Color color) {
     return !(ownPawns & mask);
 }
 
+bool isProtected(const Board& board, Color color, int sqIndex) {
+    // Get the file and rank of the square
+    Bitboard protectors = attacks::attackers(board, color, Square(sqIndex));
+    if (protectors) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 bool isProtectedByPawn(int sqIndex, const Board& board, Color color) {
     // Get the file and rank of the square
     int file = sqIndex % 8;
@@ -1008,6 +1018,13 @@ int knightValue(const Board& board, int baseValue, Color color, Info& info) {
             knightMoves.clear(sqIndexMove);
         }
         value +=  mobilityBonus * (mobility - 4);
+
+        const int protectedBonus = 5;
+        if (isProtected(board, color, sqIndex)) {
+            value += protectedBonus;
+        }
+
+
         knights.clear(sqIndex);
     }
 
@@ -1052,6 +1069,11 @@ int bishopValue(const Board& board, int baseValue, Color color, Info& info) {
 
         if (isOutpost(board, sqIndex, color)) {
             value += outpostBonus;
+        }
+
+        const int protectedBonus = 5;
+        if (isProtected(board, color, sqIndex)) {
+            value += protectedBonus;
         }
 
         bishops.clear(sqIndex);
@@ -1119,7 +1141,11 @@ int rookValue(const Board& board, int baseValue, Color color, Info& info) {
                 value -= pawnBlockPenalty;
             }
         }
-
+        
+        const int protectedBonus = 5;
+        if (isProtected(board, color, sqIndex)) {
+            value += protectedBonus;
+        }
 
         rooks.clear(sqIndex);
     }
@@ -1162,6 +1188,12 @@ int queenValue(const Board& board, int baseValue, Color color, Info& info) {
         Bitboard queenMoves = attacks::queen(Square(sqIndex), board.occ());
         int mobility = std::min(queenMoves.count(), 12);
         value += mobilityBonus * (mobility - 14);
+
+        const int protectedBonus = 5;
+        if (isProtected(board, color, sqIndex)) {
+            value += protectedBonus;
+        }
+
         queens.clear(sqIndex); 
     }
     return value;
