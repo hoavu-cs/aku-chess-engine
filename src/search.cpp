@@ -14,9 +14,12 @@
 #include "../lib/stockfish_nnue_probe/probe.h"
 
 using namespace chess;
-using namespace Stockfish;
 
 typedef std::uint64_t U64;
+
+/*-------------------------------------------------------------------------------------------- 
+    Initialize the NNUE evaluation function.
+--------------------------------------------------------------------------------------------*/
 
 
 /*-------------------------------------------------------------------------------------------- 
@@ -50,12 +53,6 @@ const int pieceValues[] = {
     900,  // Queen
     20000 // King
 };
-
-const int checkExtension = 1; // Number of plies to extend for checks
-const int mateThreat = 1; // Number of plies to extend for mate threats
-const int promotionExtension = 1; // Number of plies to extend for promotion threats.
-const int oneReplyExtension = 1; // Number of plies to extend if there is only one legal move.
-const int captureExtension = 1; // Number of plies to extend for recaptures
 
 
 /*-------------------------------------------------------------------------------------------- 
@@ -106,40 +103,8 @@ void updateKillerMoves(const Move& move, int depth) {
     }
 }
 
-
 /*-------------------------------------------------------------------------------------------- 
-    Check for tactical threats beside the obvious checks, captures, and promotions.
-    To be expanded. 
---------------------------------------------------------------------------------------------*/
-bool mateThreatMove(Board& board, Move move) {
-    Color color = board.sideToMove();
-    PieceType type = board.at<Piece>(move.from()).type();
-
-    Bitboard theirKing = board.pieces(PieceType::KING, !color);
-
-    int destinationIndex = move.to().index();   
-    int destinationFile = destinationIndex % 8;
-    int destinationRank = destinationIndex / 8;
-
-    int theirKingFile = theirKing.lsb() % 8;
-    int theirKingRank = theirKing.lsb() / 8;
-
-    if (manhattanDistance(move.to(), Square(theirKing.lsb())) <= 3) {
-        return true;
-    }
-
-    if (type == PieceType::ROOK || type == PieceType::QUEEN) {
-        if (abs(destinationFile - theirKingFile) <= 1 && 
-            abs(destinationRank - theirKingRank) <= 1) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/*-------------------------------------------------------------------------------------------- 
-    Check for promotion threats.
+    Check if the move involves a passed pawn push.
 --------------------------------------------------------------------------------------------*/
 bool promotionThreatMove(Board& board, Move move) {
     Color color = board.sideToMove();
@@ -185,12 +150,9 @@ int see(Board& board, Move move) {
     // Material gain from the first capture
     int materialGain = victimValue - attackerValue;
 
-
     board.makeMove(move);
-
     Movelist subsequentCaptures;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(subsequentCaptures, board);
-
     int maxSubsequentGain = 0;
     
     // Store attackers sorted by increasing value (weakest first)
@@ -214,55 +176,33 @@ int see(Board& board, Move move) {
 
     // Undo the move before returning
     board.unmakeMove(move);
-    
     return materialGain + maxSubsequentGain;
 }
 
 
 /*--------------------------------------------------------------------------------------------
-    Late move reduction. No reduction for the first few moves, checks, or when in check.
-    Reduce less on captures, checks, killer moves, etc.
-    isPV is true if the node is a principal variation node. However, right now it's not used 
-    since our move ordering is not that good.
+    Late move reduction. 
 --------------------------------------------------------------------------------------------*/
-int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV) {
+int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount) {
 
-    // Color color = board.sideToMove();
-    // board.makeMove(move);
-    // bool isCheck = board.inCheck(); 
-    // board.unmakeMove(move);
+    if (mopUp) {
+        return depth - 1;
+    }
 
-    // bool isCapture = board.isCapture(move);
-    // bool inCheck = board.inCheck();
-    // bool isPromoting = isPromotion(move);
-    // bool isMateThreat = mateThreatMove(board, move);
-    // bool isPromotionThreat = promotionThreatMove(board, move);
-    // bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
+    if (!isPV && i > 10 && !board.inCheck()) {
+        return 0;
+    }
 
-    // bool noReduceCondition = mopUp 
-    //                         || isMateThreat 
-    //                         || isPromoting  
-    //                         || isPromotionThreat 
-    //                         || isKillerMove 
-    //                         || inCheck;
-    // bool reduceLessCondition =  isCapture || isCheck;
+    if (quietCount >= 15 && ply >= globalMaxDepth - 2) {
+        return 0;
+    } 
 
-    // int k1 = 3;
-    // int k2 = 5;
-
-    // if (i <= k1 || depth <= 2 || noReduceCondition) { 
-    //     return depth - 1;
-    // } else if (i <= k2 || reduceLessCondition || isKillerMove) {
-    //     return depth - 2;
-    // } else {
-    //     return depth - 3;
-    // }
-
-    if (i <= 5) {
+    if (i <= 5 || depth <= 2) { 
         return depth - 1;
     } else {
         return depth / 2;
     }
+    
 }
 
 
@@ -360,8 +300,7 @@ int quiescence(Board& board, int alpha, int beta) {
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     int standPat = 0;
 
-    // Non-nnue evaluation
-    standPat = color * evaluate(board);
+    standPat = evaluate(board) * color;
 
     int bestScore = standPat;
     if (standPat >= beta) {
@@ -421,7 +360,6 @@ int negamax(Board& board,
             int beta, 
             std::vector<Move>& PV,
             bool leftMost,
-            int extension, 
             int ply) {
 
     #pragma omp critical
@@ -502,7 +440,7 @@ int negamax(Board& board,
 
     // // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
     if (depth <= 3 && pruningCondition && !isPV) {
-        int razorMargin = 400 + (depth - 1) * 60; // Threshold increases slightly with depth
+        int razorMargin = 350 + (depth - 1) * 60; // Threshold increases slightly with depth
 
         if (standPat + razorMargin < alpha) {
             // If the position is too weak and unlikely to raise alpha, skip deep search
@@ -519,7 +457,7 @@ int negamax(Board& board,
         int reduction = 3 + depth / 4;
 
         board.makeNullMove();
-        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, extension, ply + 1);
+        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
         board.unmakeNullMove();
 
         if (nullEval >= beta) { 
@@ -531,14 +469,29 @@ int negamax(Board& board,
 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, previousPV, leftMost);
     int bestEval = -INF;
+    int quietCount = 0;
+
 
     for (int i = 0; i < moves.size(); i++) {
 
         Move move = moves[i].first;
         std::vector<Move> childPV;
 
+        bool isCapture = board.isCapture(move);
+        bool inCheck = board.inCheck();
+        bool isPromo = isPromotion(move);
+        board.makeMove(move);
+        bool isCheck = board.inCheck();
+        board.unmakeMove(move);
+        bool isPromoThreat = promotionThreatMove(board, move);
+
+        bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
+        if (quiet) {
+            quietCount++;
+        }
+
         int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV); 
+        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, quietCount); 
         
         if (i > 0) {
             leftMost = false;
@@ -546,37 +499,6 @@ int negamax(Board& board,
 
         board.makeMove(move);
         
-        // Check for extensions
-        bool isCheck = board.inCheck();
-        bool isMateThreat = mateThreatMove(board, move);
-        bool isPromotionThreat = promotionThreatMove(board, move);
-        bool isOneReply = (moves.size() == 1);
-        bool extensionFlag = (isCheck || isMateThreat || isPromotionThreat) && extension > 0; // if the move is a check, extend the search
-        
-        if (extensionFlag) {
-            extension--; // Decrement the extension counter
-            int numPlies = 0;
-
-            if (isCheck) {
-                numPlies = std::max(checkExtension, numPlies);
-            } 
-            
-            if (isMateThreat) {
-                numPlies = std::max(mateThreat, numPlies);
-            } 
-
-            if (isPromotionThreat) {
-                numPlies = std::max(promotionExtension, numPlies);
-            }
-
-            if (isOneReply && !isCheck) { 
-                // Apply one-reply extension (not applied twice if the)
-                numPlies = std::max(oneReplyExtension, numPlies);
-            }
-
-            nextDepth += numPlies;
-        }
-
         /*--------------------------------------------------------------------------------------------
             PVS search: 
             Full window & full depth for the first node or during mop up.
@@ -591,12 +513,13 @@ int negamax(Board& board,
         bool nullWindow = false;
         if (i == 0 || mopUp) {
             // full window & full depth search for the first node
-            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, extension, ply + 1);
+            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
         } else {
             // null window and potential reduced depth for the rest
             nullWindow = true;
-            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, extension, ply + 1);
+            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, ply + 1);
         }
+
         
         board.unmakeMove(move);
         bool alphaRaised = eval > alpha;
@@ -605,7 +528,7 @@ int negamax(Board& board,
         if (alphaRaised && reducedDepth && nullWindow) {
             // If alpha is raised and we reduced the depth, research with full depth but still with a null window
             board.makeMove(move);
-            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, extension, ply + 1);
+            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, ply + 1);
             board.unmakeMove(move);
         } 
 
@@ -615,7 +538,7 @@ int negamax(Board& board,
         if (alphaRaised && nullWindow) {
             // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
             board.makeMove(move);
-            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, extension, ply + 1);
+            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
             board.unmakeMove(move);
         }
 
@@ -716,18 +639,38 @@ Move findBestMove(Board& board,
         }
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
-        //#pragma omp parallel for schedule(dynamic, 1)
+        bool stopNow = false;
+        int quietCount = 0;
+
+        #pragma omp parallel for schedule(dynamic, 1)
         for (int i = 0; i < moves.size(); i++) {
+
+            if (stopNow) {
+                continue;
+            }
 
             bool leftMost = (i == 0);
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            int extension = mopUp ? 0 : 2;
         
             Board localBoard = board;
+
+            bool isCapture = localBoard.isCapture(move);
+            bool inCheck = localBoard.inCheck();
+            bool isPromo = isPromotion(move);
+            localBoard.makeMove(move);
+            bool isCheck = localBoard.inCheck();
+            localBoard.unmakeMove(move);
+            bool isPromoThreat = promotionThreatMove(localBoard, move);
+    
+            bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
+            if (quiet) {
+                quietCount++;
+            }
+
             bool newBestFlag = false;  
-            int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true);
+            int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount);
             int eval = -INF;
             int aspiration;
 
@@ -745,37 +688,6 @@ Move findBestMove(Board& board,
 
                 localBoard.makeMove(move);
 
-                // Check for extensions
-                bool isCheck = board.inCheck();
-                bool isMateThreat = mateThreatMove(board, move);
-                bool isPromotionThreat = promotionThreatMove(board, move);
-                bool isOneReply = (moves.size() == 1);
-                bool isCapture = localBoard.isCapture(move);
-                bool extensionFlag = (isCheck || isMateThreat || isPromotionThreat) && extension > 0; // if the move is a check, extend the search
-                
-                if (extensionFlag) {
-                    extension--; // Decrement the extension counter
-                    int numPlies = 0;
-
-                    if (isCheck) {
-                        numPlies = std::max(checkExtension, numPlies);
-                    } 
-                    
-                    if (isMateThreat) {
-                        numPlies = std::max(mateThreat, numPlies);
-                    } 
-
-                    if (isPromotionThreat) {
-                        numPlies = std::max(promotionExtension, numPlies);
-                    }
-
-                    if (isOneReply && !isCheck) { // Apply one-reply extension (not applied twice if the)
-                        numPlies = std::max(oneReplyExtension, numPlies);
-                    }
-
-                    nextDepth += numPlies;
-                }
-
                 int alpha = aspiration - windowLeft;
                 int beta = aspiration + windowRight;
 
@@ -784,13 +696,14 @@ Move findBestMove(Board& board,
                     beta = INF;
                 }
 
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, extension, 0);
+                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, 0);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
                 // has not finished. Return the best move so far.
                 if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
-                    return bestMove;
+                    stopNow = true;
+                    break;
                 }
 
                 if (eval <= aspiration - windowLeft) {
@@ -802,6 +715,8 @@ Move findBestMove(Board& board,
                 }
             }
 
+            if (stopNow) continue;
+
             #pragma omp critical
             {
                 if (eval > currentBestEval) {
@@ -811,15 +726,17 @@ Move findBestMove(Board& board,
 
             if (newBestFlag && nextDepth < depth - 1) {
                 localBoard.makeMove(move);
-                eval = -negamax(localBoard, depth - 1, -INF, INF, childPV, leftMost, extension, 0);
+                eval = -negamax(localBoard, depth - 1, -INF, INF, childPV, leftMost, 0);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
                 // has not finished. Return the best move so far.
                 if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
-                    return bestMove;
+                    stopNow = true;
                 }
             }
+
+            if (stopNow) continue;
 
             #pragma omp critical
             newMoves.push_back({move, eval});

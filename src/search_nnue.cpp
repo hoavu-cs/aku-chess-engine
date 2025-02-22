@@ -27,7 +27,7 @@ void initializeNNUE() {
     #pragma omp critical
     {
         if (!initialized) {
-            Stockfish::Probe::init("nn-1c0000000000.nnue", "nn-1c0000000000.nnue");
+            Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-b1a57edbea57.nnue");
             initialized = true;
         }
     }
@@ -67,7 +67,7 @@ const int pieceValues[] = {
 
 
 /*-------------------------------------------------------------------------------------------- 
-    Transposition table lookup.
+    Transposition table lookup and clear.
 --------------------------------------------------------------------------------------------*/
 bool tableLookUp(U64 hash, int depth, int& eval) {    
     auto it = transpositionTable.find(hash);
@@ -112,6 +112,31 @@ void updateKillerMoves(const Move& move, int depth) {
             killerMoves[depth][0] = move;
         }
     }
+}
+
+/*-------------------------------------------------------------------------------------------- 
+    Check if the move involves a passed pawn push.
+--------------------------------------------------------------------------------------------*/
+bool promotionThreatMove(Board& board, Move move) {
+    Color color = board.sideToMove();
+    PieceType type = board.at<Piece>(move.from()).type();
+
+    if (type == PieceType::PAWN) {
+        int destinationIndex = move.to().index();
+        int rank = destinationIndex / 8;
+        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+
+        bool isPassedPawnFlag = isPassedPawn(destinationIndex, color, theirPawns);
+
+        if (isPassedPawnFlag) {
+            if ((color == Color::WHITE && rank > 3) || 
+                (color == Color::BLACK && rank < 4)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -169,16 +194,29 @@ int see(Board& board, Move move) {
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
-int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV) {
+int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount) {
 
-    if (i <= 6) { 
+    if (mopUp) {
+        return depth - 1;
+    }
+
+    // Late move pruning.
+    if (!isPV && i > 5 && !board.inCheck()) {
+        return 0;
+    }
+
+    if (depth <= 4 && quietCount >= depth + 10) {
+        return 0;
+    } 
+
+    // Late move reduction
+    if (i <= 6 || depth <= 2) { 
         return depth - 1;
     } else {
         return depth / 3;
     }
     
 }
-
 
 /*-------------------------------------------------------------------------------------------- 
     Returns a list of candidate moves ordered by priority.
@@ -447,23 +485,36 @@ int negamax(Board& board,
 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, previousPV, leftMost);
     int bestEval = -INF;
+    int quietCount = 0;
+
 
     for (int i = 0; i < moves.size(); i++) {
 
         Move move = moves[i].first;
         std::vector<Move> childPV;
 
+        bool isCapture = board.isCapture(move);
+        bool inCheck = board.inCheck();
+        bool isPromo = isPromotion(move);
+        board.makeMove(move);
+        bool isCheck = board.inCheck();
+        board.unmakeMove(move);
+        bool isPromoThreat = promotionThreatMove(board, move);
+
+        bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
+        if (quiet) {
+            quietCount++;
+        }
+
         int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV); 
+        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, quietCount); 
         
         if (i > 0) {
             leftMost = false;
         }
 
         board.makeMove(move);
-        bool isCheck = board.inCheck();
         
-
         /*--------------------------------------------------------------------------------------------
             PVS search: 
             Full window & full depth for the first node or during mop up.
@@ -607,6 +658,7 @@ Move findBestMove(Board& board,
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
         bool stopNow = false;
+        int quietCount = 0;
 
         #pragma omp parallel for schedule(dynamic, 1)
         for (int i = 0; i < moves.size(); i++) {
@@ -621,8 +673,22 @@ Move findBestMove(Board& board,
             std::vector<Move> childPV; 
         
             Board localBoard = board;
+
+            bool isCapture = localBoard.isCapture(move);
+            bool inCheck = localBoard.inCheck();
+            bool isPromo = isPromotion(move);
+            localBoard.makeMove(move);
+            bool isCheck = localBoard.inCheck();
+            localBoard.unmakeMove(move);
+            bool isPromoThreat = promotionThreatMove(localBoard, move);
+    
+            bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
+            if (quiet) {
+                quietCount++;
+            }
+
             bool newBestFlag = false;  
-            int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true);
+            int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount);
             int eval = -INF;
             int aspiration;
 
