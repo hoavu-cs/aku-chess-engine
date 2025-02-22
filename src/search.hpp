@@ -20,7 +20,8 @@ int alphaBeta(
     std::vector<Move> &pV,
     bool leftMost,
     int extension, 
-    int ply);
+    int ply,
+    int previousCaptureIndex);
 
 Move findBestMove(
     Board &board,

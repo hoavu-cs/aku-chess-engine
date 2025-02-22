@@ -23,7 +23,6 @@ typedef std::uint64_t U64;
     Constants and global variables.
 --------------------------------------------------------------------------------------------*/
 
-
 std::unordered_map<U64, std::pair<int, int>> transpositionTable; // Hash -> (eval, depth)
 std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 
@@ -164,6 +163,56 @@ bool promotionThreatMove(Board& board, Move move) {
     return false;
 }
 
+/**
+ * SEE (Static Exchange Evaluation) function.
+ */
+int see(Board& board, Move move) {
+    int to = move.to().index();
+    
+    // Get victim and attacker piece values
+    auto victim = board.at<Piece>(move.to());
+    auto attacker = board.at<Piece>(move.from());
+    
+    int victimValue = pieceValues[static_cast<int>(victim.type())];
+    int attackerValue = pieceValues[static_cast<int>(attacker.type())];
+
+    // Material gain from the first capture
+    int materialGain = victimValue - attackerValue;
+
+
+    board.makeMove(move);
+
+    Movelist subsequentCaptures;
+    movegen::legalmoves<movegen::MoveGenType::CAPTURE>(subsequentCaptures, board);
+
+    int maxSubsequentGain = 0;
+    
+    // Store attackers sorted by increasing value (weakest first)
+    std::vector<Move> attackers;
+    for (int i = 0; i < subsequentCaptures.size(); i++) {
+        if (subsequentCaptures[i].to() == to) {
+            attackers.push_back(subsequentCaptures[i]);
+        }
+    }
+
+    // Sort attackers by piece value (weakest attacker moves first)
+    std::sort(attackers.begin(), attackers.end(), [&](const Move& a, const Move& b) {
+        return pieceValues[static_cast<int>(board.at<Piece>(a.from()).type())] < 
+               pieceValues[static_cast<int>(board.at<Piece>(b.from()).type())];
+    });
+
+    // Recursively evaluate each attacker
+    for (const Move& nextCapture : attackers) {
+        maxSubsequentGain = -std::max(maxSubsequentGain, see(board, nextCapture));
+    }
+
+    // Undo the move before returning
+    board.unmakeMove(move);
+    
+    return materialGain + maxSubsequentGain;
+}
+
+
 /*--------------------------------------------------------------------------------------------
     Late move reduction. No reduction for the first few moves, checks, or when in check.
     Reduce less on captures, checks, killer moves, etc.
@@ -186,11 +235,6 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 
     bool noReduceCondition = mopUp || isMateThreat || isPromoting  || isPromotionThreat;
     bool reduceLessCondition =  isCapture || isCheck || isKillerMove || inCheck;
-
-    // int phase = gamePhase(board);
-    // if (phase < 14) {
-    //     noReduceCondition |= isPromotionThreat;
-    // }
 
     int k1 = 3;
     int k2 = 5;
@@ -251,11 +295,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
-            auto victim = board.at<Piece>(move.to());
-            auto attacker = board.at<Piece>(move.from());
-            int victimValue = pieceValues[static_cast<int>(victim.type())];
-            int attackerValue = pieceValues[static_cast<int>(attacker.type())];
-            priority = 4000 + victimValue - attackerValue;
+            priority = 4000 + see(board, move);
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
@@ -320,15 +360,15 @@ int quiescence(Board& board, int alpha, int beta) {
         auto attacker = board.at<Piece>(move.from());
         int victimValue = pieceValues[static_cast<int>(victim.type())];
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
-        int priority = victimValue - attackerValue;
-        
+
         // Delta pruning. If the material gain is not big enough, prune the move.
         // Commented out since it makes the engine behavior weird
         const int deltaMargin = 400;
-        if (standPat + priority + deltaMargin < beta) {
+        if (standPat + victimValue - attackerValue + deltaMargin < beta) {
             continue;
         }
-        
+
+        int priority = see(board, move);
         candidateMoves.push_back({move, priority});
         
     }
