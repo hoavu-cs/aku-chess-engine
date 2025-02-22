@@ -227,35 +227,41 @@ int see(Board& board, Move move) {
 --------------------------------------------------------------------------------------------*/
 int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV) {
 
-    Color color = board.sideToMove();
-    board.makeMove(move);
-    bool isCheck = board.inCheck(); 
-    board.unmakeMove(move);
+    // Color color = board.sideToMove();
+    // board.makeMove(move);
+    // bool isCheck = board.inCheck(); 
+    // board.unmakeMove(move);
 
-    bool isCapture = board.isCapture(move);
-    bool inCheck = board.inCheck();
-    bool isPromoting = isPromotion(move);
-    bool isMateThreat = mateThreatMove(board, move);
-    bool isPromotionThreat = promotionThreatMove(board, move);
-    bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
+    // bool isCapture = board.isCapture(move);
+    // bool inCheck = board.inCheck();
+    // bool isPromoting = isPromotion(move);
+    // bool isMateThreat = mateThreatMove(board, move);
+    // bool isPromotionThreat = promotionThreatMove(board, move);
+    // bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
-    bool noReduceCondition = mopUp 
-                            || isMateThreat 
-                            || isPromoting  
-                            || isPromotionThreat 
-                            || isKillerMove 
-                            || inCheck;
-    bool reduceLessCondition =  isCapture || isCheck;
+    // bool noReduceCondition = mopUp 
+    //                         || isMateThreat 
+    //                         || isPromoting  
+    //                         || isPromotionThreat 
+    //                         || isKillerMove 
+    //                         || inCheck;
+    // bool reduceLessCondition =  isCapture || isCheck;
 
-    int k1 = 3;
-    int k2 = 5;
+    // int k1 = 3;
+    // int k2 = 5;
 
-    if (i <= k1 || depth <= 2 || noReduceCondition) { 
+    // if (i <= k1 || depth <= 2 || noReduceCondition) { 
+    //     return depth - 1;
+    // } else if (i <= k2 || reduceLessCondition || isKillerMove) {
+    //     return depth - 2;
+    // } else {
+    //     return depth - 3;
+    // }
+
+    if (i <= 5) {
         return depth - 1;
-    } else if (i <= k2 || reduceLessCondition || isKillerMove) {
-        return depth - 2;
     } else {
-        return depth - 3;
+        return depth / 2;
     }
 }
 
