@@ -167,6 +167,12 @@ bool promotionThreatMove(Board& board, Move move) {
  * SEE (Static Exchange Evaluation) function.
  */
 int see(Board& board, Move move) {
+
+    #pragma omp critical
+    {
+        nodeCount++;
+    }
+
     int to = move.to().index();
     
     // Get victim and attacker piece values
@@ -228,13 +234,18 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 
     bool isCapture = board.isCapture(move);
     bool inCheck = board.inCheck();
-    bool isPromoting;
+    bool isPromoting = isPromotion(move);
     bool isMateThreat = mateThreatMove(board, move);
     bool isPromotionThreat = promotionThreatMove(board, move);
     bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
 
-    bool noReduceCondition = mopUp || isMateThreat || isPromoting  || isPromotionThreat;
-    bool reduceLessCondition =  isCapture || isCheck || isKillerMove || inCheck;
+    bool noReduceCondition = mopUp 
+                            || isMateThreat 
+                            || isPromoting  
+                            || isPromotionThreat 
+                            || isKillerMove 
+                            || inCheck;
+    bool reduceLessCondition =  isCapture || isCheck;
 
     int k1 = 3;
     int k2 = 5;
@@ -247,6 +258,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 3;
     }
 }
+
 
 /*-------------------------------------------------------------------------------------------- 
     Returns a list of candidate moves ordered by priority.
@@ -291,7 +303,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 priority = 10000; // PV move
             }
         } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end()) {
-            priority = 2000; // Killer moves
+            priority = 4000; // Killer moves
         } else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
