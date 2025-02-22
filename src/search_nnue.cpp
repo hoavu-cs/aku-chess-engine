@@ -171,21 +171,6 @@ int see(Board& board, Move move) {
 --------------------------------------------------------------------------------------------*/
 int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV) {
 
-    bool inCheck = board.inCheck();
-    bool isCapture = board.isCapture(move);
-    bool isKiller = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
-    bool isPromo = isPromotion(move);
-
-    board.makeMove(move);
-    bool isCheck = board.inCheck();
-    board.unmakeMove(move);
-
-    bool quiet = !isCapture && !isCheck && !isKiller && !isPromo;
-    
-    if (ply >= globalMaxDepth - 1 && quiet) {
-        return 0;
-    }
-
     if (i <= 6) { 
         return depth - 1;
     } else {
@@ -634,7 +619,6 @@ Move findBestMove(Board& board,
 
             Move move = moves[i].first;
             std::vector<Move> childPV; 
-            int extension = mopUp ? 0 : 0;
         
             Board localBoard = board;
             bool newBestFlag = false;  
@@ -671,7 +655,7 @@ Move findBestMove(Board& board,
                 // has not finished. Return the best move so far.
                 if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
                     stopNow = true;
-                    continue;
+                    break;
                 }
 
                 if (eval <= aspiration - windowLeft) {
@@ -682,6 +666,8 @@ Move findBestMove(Board& board,
                     break;
                 }
             }
+
+            if (stopNow) continue;
 
             #pragma omp critical
             {
@@ -699,9 +685,10 @@ Move findBestMove(Board& board,
                 // has not finished. Return the best move so far.
                 if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
                     stopNow = true;
-                    continue;
                 }
             }
+
+            if (stopNow) continue;
 
             #pragma omp critical
             newMoves.push_back({move, eval});
