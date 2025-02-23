@@ -43,7 +43,7 @@ std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
-const int maxTableSize = 10000000; // Maximum size of the transposition table
+const int maxTableSize = 30000000; // Maximum size of the transposition table
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
@@ -140,39 +140,8 @@ bool promotionThreatMove(Board& board, Move move) {
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Check if a move is a mate threat.
---------------------------------------------------------------------------------------------*/
-bool mateThreatMove(Board& board, Move move) {
-    Color color = board.sideToMove();
-    PieceType type = board.at<Piece>(move.from()).type();
-
-    Bitboard theirKing = board.pieces(PieceType::KING, !color);
-
-    int destinationIndex = move.to().index();   
-    int destinationFile = destinationIndex % 8;
-    int destinationRank = destinationIndex / 8;
-
-    int theirKingFile = theirKing.lsb() % 8;
-    int theirKingRank = theirKing.lsb() / 8;
-
-    if (manhattanDistance(move.to(), Square(theirKing.lsb())) <= 3) {
-        return true;
-    }
-
-    if (type == PieceType::ROOK || type == PieceType::QUEEN) {
-        if (abs(destinationFile - theirKingFile) <= 1 && 
-            abs(destinationRank - theirKingRank) <= 1) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-
-/*-------------------------------------------------------------------------------------------- 
-    Static Exchange Evaluation (SEE) function.
---------------------------------------------------------------------------------------------*/
+  SEE (Static Exchange Evaluation) function.
+ -------------------------------------------------------------------------------------------*/
 int see(Board& board, Move move) {
 
     #pragma omp critical
@@ -231,20 +200,22 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-    int quietReduction = 0;
-
-    if (depth <= 2 && quietCount >= 10) {
-        quietReduction = 1;
+    // Late move pruning.
+    if (!isPV && i > 5 && !board.inCheck()) {
+        return 0;
     }
+
+    if (depth <= 4 && quietCount >= depth + 8) {
+        return 0;
+    } 
 
     // Late move reduction
-    if (i <= 6 || depth <= 2) { 
+    if (i <= 7 || depth <= 3) { 
         return depth - 1;
     } else {
-        return depth - 2 - quietReduction;
+        return depth / 2;
     }
 }
-
 /*-------------------------------------------------------------------------------------------- 
     Returns a list of candidate moves ordered by priority.
 --------------------------------------------------------------------------------------------*/
@@ -463,25 +434,13 @@ int negamax(Board& board,
         return quiescenceEval;
     }
 
-
-
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
     
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
     int standPat = color * materialImbalance(board);//color * evaluate(board);
 
-    //  Futility pruning
-    if (depth < 3 && pruningCondition) {
-        int margin = depth * 130;
-        if (standPat - margin > beta) {
-            // If the static evaluation - margin > beta, 
-            // then it is considered to be too good and most likely a cutoff
-            return standPat - margin;
-        } 
-    }
-
-    // // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
+    // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
     if (depth <= 3 && pruningCondition && !isPV) {
         int razorMargin = 350 + (depth - 1) * 60; // Threshold increases slightly with depth
 
@@ -516,6 +475,7 @@ int negamax(Board& board,
 
 
     for (int i = 0; i < moves.size(); i++) {
+
         Move move = moves[i].first;
         std::vector<Move> childPV;
 
@@ -532,7 +492,7 @@ int negamax(Board& board,
             quietCount++;
         }
 
-        //  Pre-move futility pruning. If the move is quiet and late.
+        //  Futility pruning. If the move is quiet and late.
         if (depth < 3 && pruningCondition && quiet && quietCount >= 10) {
             int margin = depth * 200;
             if (standPat + margin < alpha) {
@@ -725,17 +685,49 @@ Move findBestMove(Board& board,
             bool newBestFlag = false;  
             int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount);
             int eval = -INF;
+            int aspiration;
 
-            localBoard.makeMove(move);
-            eval = -negamax(localBoard, nextDepth, -INF, INF, childPV, leftMost, 0);
-            localBoard.unmakeMove(move);
-
-            // Check if the time limit has been exceeded, if so the search 
-            // has not finished. Return the best move so far.
-            if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
-                stopNow = true;
+            if (depth == 1) {
+                aspiration = color * evaluate(localBoard); // if at depth = 1, aspiration = static evaluation
+            } else {
+                aspiration = evals[depth - 1]; // otherwise, aspiration = previous depth evaluation
             }
-        
+
+            // aspiration window search
+            int windowLeft = 50;
+            int windowRight = 50;
+
+            while (true) {
+
+                localBoard.makeMove(move);
+
+                int alpha = aspiration - windowLeft;
+                int beta = aspiration + windowRight;
+
+                if (mopUp) {
+                    alpha = -INF;
+                    beta = INF;
+                }
+
+                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, 0);
+                localBoard.unmakeMove(move);
+
+                // Check if the time limit has been exceeded, if so the search 
+                // has not finished. Return the best move so far.
+                if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
+                    stopNow = true;
+                    break;
+                }
+
+                if (eval <= aspiration - windowLeft) {
+                    windowLeft *= 2;
+                } else if (eval >= aspiration + windowRight) {
+                    windowRight *= 2;
+                } else {
+                    break;
+                }
+            }
+
             if (stopNow) continue;
 
             #pragma omp critical
