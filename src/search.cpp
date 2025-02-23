@@ -189,18 +189,20 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-    if (!isPV && i > 10 && !board.inCheck()) {
+    // Late move pruning.
+    if (!isPV && i > 5 && !board.inCheck()) {
         return 0;
     }
 
-    if (quietCount >= 15 && ply >= globalMaxDepth - 2) {
+    if (depth <= 4 && quietCount >= depth + 10) {
         return 0;
     } 
 
-    if (i <= 5 || depth <= 2) { 
+    // Late move reduction
+    if (i <= 6 || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth / 2;
+        return depth / 3;
     }
     
 }

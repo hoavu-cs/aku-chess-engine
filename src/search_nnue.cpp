@@ -196,6 +196,7 @@ int see(Board& board, Move move) {
 --------------------------------------------------------------------------------------------*/
 int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount) {
 
+
     if (mopUp) {
         return depth - 1;
     }
@@ -210,12 +211,11 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     } 
 
     // Late move reduction
-    if (i <= 6 || depth <= 2) { 
+    if (i <= 6 || depth <= 3) { 
         return depth - 1;
     } else {
-        return depth / 3;
+        return depth / 2;
     }
-    
 }
 
 /*-------------------------------------------------------------------------------------------- 
