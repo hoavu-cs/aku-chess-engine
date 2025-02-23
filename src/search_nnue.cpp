@@ -201,11 +201,11 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     }
 
     // Late move pruning.
-    if (!isPV && i > 5 && !board.inCheck()) {
+    if (!isPV && i > 10 && !board.inCheck()) {
         return 0;
     }
 
-    if (depth <= 4 && quietCount >= depth + 8) {
+    if (depth <= 2 && quietCount >= depth + 10) {
         return 0;
     } 
 
@@ -275,7 +275,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             board.unmakeMove(move);
 
             if (isCheck) {
-                priority = 3000;
+                priority = 4000;
             } else {
                 quiet = true;
                 priority = 0;// quietPriority(board, move);
