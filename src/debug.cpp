@@ -98,7 +98,7 @@ int main() {
     // Default settings
     int depth = 30;
     int numThreads = 6;
-    int timeLimit = 15000;
+    int timeLimit = 30000;
 
     Move bestMove;
 

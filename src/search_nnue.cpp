@@ -210,10 +210,15 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     } 
 
     // Late move reduction
-    if (i <= 7 || depth <= 3) { 
+    int R = 0;
+    if  (depth <= 2 && quietCount >= 20) {
+        R++;
+    }
+
+    if (i <= 5 || depth <= 3) { 
         return depth - 1;
     } else {
-        return depth / 2;
+        return depth - 2 - R;
     }
 }
 /*-------------------------------------------------------------------------------------------- 
@@ -693,39 +698,14 @@ Move findBestMove(Board& board,
                 aspiration = evals[depth - 1]; // otherwise, aspiration = previous depth evaluation
             }
 
-            // aspiration window search
-            int windowLeft = 50;
-            int windowRight = 50;
+            localBoard.makeMove(move);
+            eval = -negamax(localBoard, nextDepth, -INF, INF, childPV, leftMost, 0);
+            localBoard.unmakeMove(move);
 
-            while (true) {
-
-                localBoard.makeMove(move);
-
-                int alpha = aspiration - windowLeft;
-                int beta = aspiration + windowRight;
-
-                if (mopUp) {
-                    alpha = -INF;
-                    beta = INF;
-                }
-
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, 0);
-                localBoard.unmakeMove(move);
-
-                // Check if the time limit has been exceeded, if so the search 
-                // has not finished. Return the best move so far.
-                if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
-                    stopNow = true;
-                    break;
-                }
-
-                if (eval <= aspiration - windowLeft) {
-                    windowLeft *= 2;
-                } else if (eval >= aspiration + windowRight) {
-                    windowRight *= 2;
-                } else {
-                    break;
-                }
+            // Check if the time limit has been exceeded, if so the search 
+            // has not finished. Return the best move so far.
+            if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
+                stopNow = true;
             }
 
             if (stopNow) continue;

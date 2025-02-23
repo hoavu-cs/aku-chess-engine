@@ -236,8 +236,8 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     bool noReduceCondition = mopUp || isMateThreat || isPromoting  || isPromotionThreat;
     bool reduceLessCondition =  isCapture || isCheck || isKillerMove || inCheck;
 
-    int k1 = 3;
-    int k2 = 5;
+    int k1 = 5;
+    int k2 = 8;
 
     if (i <= k1 || depth <= 2 || noReduceCondition) { 
         return depth - 1;
@@ -302,7 +302,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             board.unmakeMove(move);
 
             if (isCheck) {
-                priority = 3000;
+                priority = 4000;
             } else {
                 quiet = true;
                 priority = 0;// quietPriority(board, move);
