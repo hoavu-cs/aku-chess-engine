@@ -1894,8 +1894,8 @@ int evaluate(const Board& board) {
         Weak squares are squares that are not controlled by our pawns.
         If a weak square is attacked by the opponent, we apply a penalty.
     --------------------------------------------------------------------------*/
-    const int weakSquarePenalty = 1;
-    const int weakSquarePenaltyNearKing = 3;
+    const int weakSquarePenalty = 2;
+    const int weakSquarePenaltyNearKing = 6;
 
     Bitboard whitePawnControl = attacks::pawnLeftAttacks<Color::WHITE>(whitePawns) 
                                 | attacks::pawnRightAttacks<Color::WHITE>(whitePawns);
