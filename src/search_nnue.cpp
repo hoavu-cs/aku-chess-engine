@@ -43,7 +43,7 @@ std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
-const int maxTableSize = 10000000; // Maximum size of the transposition table
+const int maxTableSize = 30000000; // Maximum size of the transposition table
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
@@ -139,9 +139,9 @@ bool promotionThreatMove(Board& board, Move move) {
     return false;
 }
 
-/**
- * SEE (Static Exchange Evaluation) function.
- */
+/*-------------------------------------------------------------------------------------------- 
+  SEE (Static Exchange Evaluation) function.
+ -------------------------------------------------------------------------------------------*/
 int see(Board& board, Move move) {
 
     #pragma omp critical
@@ -196,7 +196,6 @@ int see(Board& board, Move move) {
 --------------------------------------------------------------------------------------------*/
 int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount) {
 
-
     if (mopUp) {
         return depth - 1;
     }
@@ -206,18 +205,17 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return 0;
     }
 
-    if (depth <= 4 && quietCount >= depth + 10) {
+    if (depth <= 4 && quietCount >= depth + 8) {
         return 0;
     } 
 
     // Late move reduction
-    if (i <= 6 || depth <= 3) { 
+    if (i <= 7 || depth <= 3) { 
         return depth - 1;
     } else {
         return depth / 2;
     }
 }
-
 /*-------------------------------------------------------------------------------------------- 
     Returns a list of candidate moves ordered by priority.
 --------------------------------------------------------------------------------------------*/
@@ -436,25 +434,13 @@ int negamax(Board& board,
         return quiescenceEval;
     }
 
-
-
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
     
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
     int standPat = color * materialImbalance(board);//color * evaluate(board);
 
-    //  Futility pruning
-    if (depth < 3 && pruningCondition) {
-        int margin = depth * 130;
-        if (standPat - margin > beta) {
-            // If the static evaluation - margin > beta, 
-            // then it is considered to be too good and most likely a cutoff
-            return standPat - margin;
-        } 
-    }
-
-    // // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
+    // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
     if (depth <= 3 && pruningCondition && !isPV) {
         int razorMargin = 350 + (depth - 1) * 60; // Threshold increases slightly with depth
 
@@ -504,6 +490,15 @@ int negamax(Board& board,
         bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
         if (quiet) {
             quietCount++;
+        }
+
+        //  Futility pruning. If the move is quiet and late.
+        if (depth < 3 && pruningCondition && quiet && quietCount >= 10) {
+            int margin = depth * 200;
+            if (standPat + margin < alpha) {
+                // If it is unlikely to raise alpha, skip the move
+                return alpha;
+            } 
         }
 
         int eval = 0;
