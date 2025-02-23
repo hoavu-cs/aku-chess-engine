@@ -1805,97 +1805,97 @@ int evaluate(const Board& board) {
     /*--------------------------------------------------------------------------
     Consider the amount of squares controlled in the other half of the board.
     --------------------------------------------------------------------------*/
-    // const double halfWayAttackBonus = 1;
-    // Bitboard whiteHalfWayAttacks(0); 
-    // Bitboard blackHalfWayAttacks(0);
-    // Bitboard whitePawnsCopy = whitePawns;
-    // Bitboard blackPawnsCopy = blackPawns;
-    // Bitboard whiteKnightsCopy = whiteKnights;
-    // Bitboard blackKnightsCopy = blackKnights;
-    // Bitboard whiteBishopsCopy = whiteBishops;
-    // Bitboard blackBishopsCopy = blackBishops;
-    // Bitboard whiteRooksCopy = whiteRooks;
-    // Bitboard blackRooksCopy = blackRooks;
-    // Bitboard whiteQueenCopy = whiteQueen;
-    // Bitboard blackQueenCopy = blackQueen;
+    const double halfWayAttackBonus = 1;
+    Bitboard whiteHalfWayAttacks(0); 
+    Bitboard blackHalfWayAttacks(0);
+    Bitboard whitePawnsCopy = whitePawns;
+    Bitboard blackPawnsCopy = blackPawns;
+    Bitboard whiteKnightsCopy = whiteKnights;
+    Bitboard blackKnightsCopy = blackKnights;
+    Bitboard whiteBishopsCopy = whiteBishops;
+    Bitboard blackBishopsCopy = blackBishops;
+    Bitboard whiteRooksCopy = whiteRooks;
+    Bitboard blackRooksCopy = blackRooks;
+    Bitboard whiteQueenCopy = whiteQueen;
+    Bitboard blackQueenCopy = blackQueen;
 
-    // while (whitePawnsCopy) {
-    //     int pawnIndex = whitePawnsCopy.lsb();
-    //     whiteHalfWayAttacks |= attacks::pawn(Color::WHITE, Square(pawnIndex));
-    //     whitePawnsCopy.clear(pawnIndex);
-    // }
+    while (whitePawnsCopy) {
+        int pawnIndex = whitePawnsCopy.lsb();
+        whiteHalfWayAttacks |= attacks::pawn(Color::WHITE, Square(pawnIndex));
+        whitePawnsCopy.clear(pawnIndex);
+    }
 
-    // while (whiteKnightsCopy) {
-    //     int knightIndex = whiteKnightsCopy.lsb();
-    //     whiteHalfWayAttacks |= attacks::knight(Square(knightIndex));
-    //     whiteKnightsCopy.clear(knightIndex);
-    // }
+    while (whiteKnightsCopy) {
+        int knightIndex = whiteKnightsCopy.lsb();
+        whiteHalfWayAttacks |= attacks::knight(Square(knightIndex));
+        whiteKnightsCopy.clear(knightIndex);
+    }
 
-    // while (whiteBishopsCopy) {
-    //     int bishopIndex = whiteBishopsCopy.lsb();
-    //     whiteHalfWayAttacks |= attacks::bishop(Square(bishopIndex), board.occ());
-    //     whiteBishopsCopy.clear(bishopIndex);
-    // }
+    while (whiteBishopsCopy) {
+        int bishopIndex = whiteBishopsCopy.lsb();
+        whiteHalfWayAttacks |= attacks::bishop(Square(bishopIndex), board.occ());
+        whiteBishopsCopy.clear(bishopIndex);
+    }
 
-    // while (whiteRooksCopy) {
-    //     int rookIndex = whiteRooksCopy.lsb();
-    //     whiteHalfWayAttacks |= attacks::rook(Square(rookIndex), board.occ());
-    //     whiteRooksCopy.clear(rookIndex);
-    // }
+    while (whiteRooksCopy) {
+        int rookIndex = whiteRooksCopy.lsb();
+        whiteHalfWayAttacks |= attacks::rook(Square(rookIndex), board.occ());
+        whiteRooksCopy.clear(rookIndex);
+    }
 
-    // while (whiteQueenCopy) {
-    //     int queenIndex = whiteQueenCopy.lsb();
-    //     whiteHalfWayAttacks |= attacks::queen(Square(queenIndex), board.occ());
-    //     whiteQueenCopy.clear(queenIndex);
-    // }
+    while (whiteQueenCopy) {
+        int queenIndex = whiteQueenCopy.lsb();
+        whiteHalfWayAttacks |= attacks::queen(Square(queenIndex), board.occ());
+        whiteQueenCopy.clear(queenIndex);
+    }
 
-    // while (blackPawnsCopy) {
-    //     int pawnIndex = blackPawnsCopy.lsb();
-    //     blackHalfWayAttacks |= attacks::pawn(Color::BLACK, Square(pawnIndex));
-    //     blackPawnsCopy.clear(pawnIndex);
-    // }
+    while (blackPawnsCopy) {
+        int pawnIndex = blackPawnsCopy.lsb();
+        blackHalfWayAttacks |= attacks::pawn(Color::BLACK, Square(pawnIndex));
+        blackPawnsCopy.clear(pawnIndex);
+    }
 
-    // while (blackKnightsCopy) {
-    //     int knightIndex = blackKnightsCopy.lsb();
-    //     blackHalfWayAttacks |= attacks::knight(Square(knightIndex));
-    //     blackKnightsCopy.clear(knightIndex);
-    // }
-
-
-    // while (blackBishopsCopy) {
-    //     int bishopIndex = blackBishopsCopy.lsb();
-    //     blackHalfWayAttacks |= attacks::bishop(Square(bishopIndex), board.occ());
-    //     blackBishopsCopy.clear(bishopIndex);
-    // }
+    while (blackKnightsCopy) {
+        int knightIndex = blackKnightsCopy.lsb();
+        blackHalfWayAttacks |= attacks::knight(Square(knightIndex));
+        blackKnightsCopy.clear(knightIndex);
+    }
 
 
-    // while (blackRooksCopy) {
-    //     int rookIndex = blackRooksCopy.lsb();
-    //     blackHalfWayAttacks |= attacks::rook(Square(rookIndex), board.occ());
-    //     blackRooksCopy.clear(rookIndex);
-    // }
+    while (blackBishopsCopy) {
+        int bishopIndex = blackBishopsCopy.lsb();
+        blackHalfWayAttacks |= attacks::bishop(Square(bishopIndex), board.occ());
+        blackBishopsCopy.clear(bishopIndex);
+    }
 
-    // while (blackQueenCopy) {
-    //     int queenIndex = blackQueenCopy.lsb();
-    //     blackHalfWayAttacks |= attacks::queen(Square(queenIndex), board.occ());
-    //     blackQueenCopy.clear(queenIndex);
-    // }
+
+    while (blackRooksCopy) {
+        int rookIndex = blackRooksCopy.lsb();
+        blackHalfWayAttacks |= attacks::rook(Square(rookIndex), board.occ());
+        blackRooksCopy.clear(rookIndex);
+    }
+
+    while (blackQueenCopy) {
+        int queenIndex = blackQueenCopy.lsb();
+        blackHalfWayAttacks |= attacks::queen(Square(queenIndex), board.occ());
+        blackQueenCopy.clear(queenIndex);
+    }
 
     Bitboard whiteHalf = generateHalfMask(0, 3);
     Bitboard blackHalf = generateHalfMask(4, 7);
 
-    // whiteHalfWayAttacks &= blackHalf;
-    // blackHalfWayAttacks &= whiteHalf;
+    whiteHalfWayAttacks &= blackHalf;
+    blackHalfWayAttacks &= whiteHalf;
 
-    // whiteScore += halfWayAttackBonus * whiteHalfWayAttacks.count();
-    // blackScore += halfWayAttackBonus * blackHalfWayAttacks.count();
+    whiteScore += halfWayAttackBonus * whiteHalfWayAttacks.count();
+    blackScore += halfWayAttackBonus * blackHalfWayAttacks.count();
 
     /*--------------------------------------------------------------------------
         Weak squares are squares that are not controlled by our pawns.
         If a weak square is attacked by the opponent, we apply a penalty.
     --------------------------------------------------------------------------*/
-    const int weakSquarePenalty = 1;
-    const int weakSquarePenaltyNearKing = 3;
+    const int weakSquarePenalty = 2;
+    const int weakSquarePenaltyNearKing = 6;
 
     Bitboard whitePawnControl = attacks::pawnLeftAttacks<Color::WHITE>(whitePawns) 
                                 | attacks::pawnRightAttacks<Color::WHITE>(whitePawns);
