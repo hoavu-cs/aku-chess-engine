@@ -11,15 +11,11 @@
 #include <stdlib.h>
 #include <cmath>
 #include <unordered_set>
-#include "../lib/stockfish_nnue_probe/probe.h"
 
 using namespace chess;
 
 typedef std::uint64_t U64;
 
-/*-------------------------------------------------------------------------------------------- 
-    Initialize the NNUE evaluation function.
---------------------------------------------------------------------------------------------*/
 
 
 /*-------------------------------------------------------------------------------------------- 
@@ -56,7 +52,7 @@ const int pieceValues[] = {
 
 
 /*-------------------------------------------------------------------------------------------- 
-    Transposition table lookup.
+    Transposition table lookup and clear.
 --------------------------------------------------------------------------------------------*/
 bool tableLookUp(U64 hash, int depth, int& eval) {    
     auto it = transpositionTable.find(hash);
@@ -185,28 +181,22 @@ int see(Board& board, Move move) {
 --------------------------------------------------------------------------------------------*/
 int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount) {
 
+
     if (mopUp) {
         return depth - 1;
     }
 
-    // Late move pruning.
-    if (!isPV && i > 5 && !board.inCheck()) {
-        return 0;
-    }
-
-    if (depth <= 4 && quietCount >= depth + 10) {
+    if (depth <= 2 && quietCount >= depth + 10) {
         return 0;
     } 
 
     // Late move reduction
-    if (i <= 6 || depth <= 2) { 
+    if (i <= 6 || depth <= 3) { 
         return depth - 1;
     } else {
-        return depth / 3;
+        return depth / 2;
     }
-    
 }
-
 
 /*-------------------------------------------------------------------------------------------- 
     Returns a list of candidate moves ordered by priority.
