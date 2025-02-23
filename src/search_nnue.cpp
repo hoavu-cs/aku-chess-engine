@@ -231,47 +231,18 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-    // Late move pruning
-    if (!isPV && i > 10 && !board.inCheck()) {
-        return 0;
-    }
+    int quietReduction = 0;
 
-    if (depth <= 4 && quietCount >= depth + 10) {
-        return 0;
-    } 
+    if (depth <= 2 && quietCount >= 10) {
+        quietReduction = 1;
+    }
 
     // Late move reduction
-    Color color = board.sideToMove();
-    board.makeMove(move);
-    bool isCheck = board.inCheck(); 
-    board.unmakeMove(move);
-
-    bool isCapture = board.isCapture(move);
-    bool inCheck = board.inCheck();
-    bool isPromoting;
-    bool isMateThreat = mateThreatMove(board, move);
-    bool isPromotionThreat = promotionThreatMove(board, move);
-    bool isKillerMove = std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end();
-
-    bool noReduceCondition = isMateThreat || isPromoting || isPromotionThreat || isCheck || isKillerMove || inCheck;
-
-    // int k1 = 3;
-    // int k2 = 6;
-
-    // if (i <= 7 || depth <= 3 || noReduceCondition) { 
-    //     return depth - 1;
-    // } else {
-    //     return depth - 2;
-    // }
-
-    int R = log(depth) * log(i);
-
-    if (i <= 5 || depth <= 3 || noReduceCondition) { 
+    if (i <= 6 || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth - R;
+        return depth - 2 - quietReduction;
     }
-
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -754,49 +725,17 @@ Move findBestMove(Board& board,
             bool newBestFlag = false;  
             int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount);
             int eval = -INF;
-            int aspiration;
 
-            if (depth == 1) {
-                aspiration = color * evaluate(localBoard); // if at depth = 1, aspiration = static evaluation
-            } else {
-                aspiration = evals[depth - 1]; // otherwise, aspiration = previous depth evaluation
+            localBoard.makeMove(move);
+            eval = -negamax(localBoard, nextDepth, -INF, INF, childPV, leftMost, 0);
+            localBoard.unmakeMove(move);
+
+            // Check if the time limit has been exceeded, if so the search 
+            // has not finished. Return the best move so far.
+            if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
+                stopNow = true;
             }
-
-            // aspiration window search
-            int windowLeft = 50;
-            int windowRight = 50;
-
-            while (true) {
-
-                localBoard.makeMove(move);
-
-                int alpha = aspiration - windowLeft;
-                int beta = aspiration + windowRight;
-
-                if (mopUp) {
-                    alpha = -INF;
-                    beta = INF;
-                }
-
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, 0);
-                localBoard.unmakeMove(move);
-
-                // Check if the time limit has been exceeded, if so the search 
-                // has not finished. Return the best move so far.
-                if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
-                    stopNow = true;
-                    break;
-                }
-
-                if (eval <= aspiration - windowLeft) {
-                    windowLeft *= 2;
-                } else if (eval >= aspiration + windowRight) {
-                    windowRight *= 2;
-                } else {
-                    break;
-                }
-            }
-
+        
             if (stopNow) continue;
 
             #pragma omp critical
