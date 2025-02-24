@@ -750,6 +750,7 @@ Move findBestMove(Board& board,
         
         
         if (stopNow) {
+            // If the search was interrupted, break out of the loop.
             break;
         }
 
