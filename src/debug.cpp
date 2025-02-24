@@ -87,6 +87,7 @@ int main() {
     //board = Board("8/8/3k4/8/8/8/3K4/4R3 w - - 0 1");
     // 5rk1/p1p2pp1/4pb1p/3b4/3P2Q1/q3P3/1r1NBPPP/2RR2K1 w - - 0 22 material blunder
     // r4q1k/2p4p/3p2R1/1R1PnP1Q/4r2p/2B1p3/4P2K/8 b - - 4 42
+    // r2qr2k/6pp/2P5/bN6/2QP2n1/2P3P1/PP5P/R1B2K1R b - - 0 19 (Qf6 vs Rh8)
     board = Board("1r4k1/pq2bppp/4b3/3r4/1PN1QB2/P7/5PpP/R3R1K1 w - - 0 21");
 
     //5k2/2p5/1p6/1r2N3/p2K1PR1/6P1/6P1/8 w - - 6 45

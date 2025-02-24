@@ -36,6 +36,7 @@ void initializeNNUE() {
 
 std::unordered_map<U64, std::pair<int, int>> transpositionTable; // Hash -> (eval, depth)
 std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
+std::unordered_map<U64, U64> historyTable; // History heuristic table
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
@@ -82,6 +83,7 @@ void clearTables() {
     if (transpositionTable.size() > maxTableSize) {
         transpositionTable = {};
         hashMoveTable = {};
+        historyTable = {};
     }
 }
  
@@ -271,7 +273,12 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 priority = 4000;
             } else {
                 quiet = true;
-                priority = 0;// quietPriority(board, move);
+                U64 moveIndex = move.from().index() * 64 + move.to().index();
+                if (historyTable.count(moveIndex)) {
+                    priority = historyTable[moveIndex];
+                } else {
+                    priority = 0;// quietPriority(board, move);
+                }
             }
         } 
 
@@ -284,6 +291,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
 
     // Sort capture, promotion, checks by priority
     std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
+        return a.second > b.second;
+    });
+
+    std::sort(quietCandidates.begin(), quietCandidates.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
@@ -530,8 +541,9 @@ int negamax(Board& board,
         --------------------------------------------------------------------------------------------*/
 
         bool nullWindow = false;
-        if (i == 0 || mopUp) {
-            // full window & full depth search for the first node
+        if (i <= 0 || mopUp) {
+            // full window & full depth search for the first few nodes
+            // In an ideal world, with good move ordering, we only need to do this for i = 0
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
         } else {
             // null window and potential reduced depth for the rest
@@ -575,6 +587,12 @@ int negamax(Board& board,
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
                 updateKillerMoves(move, depth);
+
+                U64 moveIndex = move.from().index() * 64 + move.to().index();
+                #pragma omp critical
+                {
+                    historyTable[moveIndex] += depth * depth;
+                }
             }
             break;
         }
