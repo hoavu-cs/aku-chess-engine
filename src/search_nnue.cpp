@@ -24,12 +24,9 @@ typedef std::uint64_t U64;
 void initializeNNUE() {
     static bool initialized = false;
 
-    #pragma omp critical
-    {
-        if (!initialized) {
-            Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-b1a57edbea57.nnue");
-            initialized = true;
-        }
+    if (!initialized) {
+        Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-b1a57edbea57.nnue");
+        initialized = true;
     }
 }
 
@@ -803,8 +800,8 @@ Move findBestMove(Board& board,
 
         // Check for stable evaluation
         bool stableEval = true;
-        if ((depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 40) ||
-            (depth > 3 && std::abs(evals[depth] - evals[depth - 1]) > 40) ||
+        if ((depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 50) ||
+            (depth > 3 && std::abs(evals[depth] - evals[depth - 1]) > 50) ||
             (depth > 3 && std::abs(candidateMove[depth] != candidateMove[depth - 1]))){
             stableEval = false;
         }
