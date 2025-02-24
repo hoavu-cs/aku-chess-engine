@@ -43,7 +43,7 @@ std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
-const int maxTableSize = 15000000; // Maximum size of the transposition table
+const int maxTableSize = 10000000; // Maximum size of the transposition table
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
@@ -204,14 +204,10 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return 0;
     }
 
-    if (depth <= 2 && quietCount >= 20) {
-        return 0;
-    } 
-
     // Late move reduction
     int R = 0;
-    if  (depth <= 2 && quietCount >= 20) {
-        R++;
+    if (quietCount >= 4 * depth) {
+        R = 1;
     }
 
     if (i <= 5 || depth <= 2) { 
@@ -220,6 +216,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 2 - R;
     }
 }
+
 /*-------------------------------------------------------------------------------------------- 
     Returns a list of candidate moves ordered by priority.
 --------------------------------------------------------------------------------------------*/
@@ -442,15 +439,25 @@ int negamax(Board& board,
     // Disable pruning for when alpha is very high to avoid missing checkmates
     
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
-    int standPat = color * materialImbalance(board);//color * evaluate(board);
+    int standPat = Probe::eval(board.getFen().c_str());
 
     // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
     if (depth <= 3 && pruningCondition && !isPV) {
-        int razorMargin = 350 + (depth - 1) * 60; // Threshold increases slightly with depth
+        int razorMargin = 350 + depth * 60; // Threshold increases slightly with depth
 
         if (standPat + razorMargin < alpha) {
             // If the position is too weak and unlikely to raise alpha, skip deep search
             return quiescence(board, alpha, beta);
+        } 
+    }
+
+    // Futility pruning outside move loop
+    if (depth <= 2 && pruningCondition && globalMaxDepth >= 10) {
+        int margin = depth * 200;
+        if (standPat - margin > beta) {
+            // If the static evaluation - margin > beta, 
+            // then it is considered to be too good and most likely a cutoff
+            return standPat - margin;
         } 
     }
 
@@ -497,7 +504,7 @@ int negamax(Board& board,
         }
 
         //  Futility pruning. If the move is quiet and late.
-        if (depth < 3 && pruningCondition && quiet && quietCount >= 10) {
+        if (depth <= 2 && pruningCondition && quiet && quietCount >= 10 && globalMaxDepth >= 10) {
             int margin = depth * 200;
             if (standPat + margin < alpha) {
                 // If it is unlikely to raise alpha, skip the move
@@ -741,6 +748,11 @@ Move findBestMove(Board& board,
             }
         }
         
+        
+        if (stopNow) {
+            break;
+        }
+
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
         bestMove = currentBestMove;
         bestEval = currentBestEval;
@@ -754,7 +766,6 @@ Move findBestMove(Board& board,
         {
             transpositionTable[board.hash()] = {bestEval, depth};
         }
-
 
         moves = newMoves;
         previousPV = PV;
@@ -791,7 +802,9 @@ Move findBestMove(Board& board,
 
         // Check for stable evaluation
         bool stableEval = true;
-        if (depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 40 &&  candidateMove[depth] != candidateMove[depth - 2]) {
+        if ((depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 40) ||
+            (depth > 3 && std::abs(evals[depth] - evals[depth - 1]) > 40) ||
+            (depth > 3 && std::abs(candidateMove[depth] != candidateMove[depth - 1]))){
             stableEval = false;
         }
 
