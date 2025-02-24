@@ -5,13 +5,22 @@
 
 using namespace chess;
 
-int gamePhase(const Board& board);
+const int PAWN_VALUE = 120;
+const int KNIGHT_VALUE = 320;
+const int BISHOP_VALUE = 330;
+const int ROOK_VALUE = 500;
+const int QUEEN_VALUE = 900;
+const int KING_VALUE = 5000;
+
+/*-------------------
+    Helper Functions
+-------------------*/
 
 void bitBoardVisualize(const Bitboard& board);
 
-Bitboard generateFileMask(int file);
+int gamePhase(const Board& board);
 
-constexpr Bitboard generateHalfMask(int startRank, int endRank);
+int materialImbalance(const Board& board);
 
 bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns);
 

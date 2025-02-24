@@ -14,7 +14,9 @@ const int KING_VALUE = 5000;
     Helper Functions
 ------------------------------------------------------------------------*/
 
-// Function to visualize a bitboard for debugging.
+/*------------------------------------------------------------------------
+    Visualize a bitboard
+------------------------------------------------------------------------*/
 void bitBoardVisualize(const Bitboard& board) {
     std::uint64_t boardInt = board.getBits();
 
@@ -31,7 +33,9 @@ void bitBoardVisualize(const Bitboard& board) {
     std::cout << std::endl;
 }
 
-// Return game phase 0-24 for endgame to opening
+/*------------------------------------------------------------------------
+    Return game phase 0-24 for endgame to opening
+------------------------------------------------------------------------*/
 int gamePhase (const Board& board) {
     int phase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
                      board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
@@ -41,7 +45,9 @@ int gamePhase (const Board& board) {
     return phase;
 }
 
-// Calculate material imbalance
+/*------------------------------------------------------------------------
+    Calculate material imbalance in centipawn
+------------------------------------------------------------------------*/
 int materialImbalance(const Board& board) {
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
@@ -70,7 +76,9 @@ int materialImbalance(const Board& board) {
     return whiteMaterial - blackMaterial;
 }
 
-// Check if the given square is a passed pawn
+/*------------------------------------------------------------------------
+    Check if the given square is a passed pawn 
+------------------------------------------------------------------------*/
 bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
     int file = sqIndex % 8;
     int rank = sqIndex / 8;
@@ -106,7 +114,9 @@ int minDistance(const Square& sq, const Square& sq2) {
     return std::min(std::abs(sq.file() - sq2.file()), std::abs(sq.rank() - sq2.rank()));
 }
 
-// Mop up score for KQ v K, KR v K
+/*------------------------------------------------------------------------
+    Mop up score for KQ v K, KR v K
+------------------------------------------------------------------------*/
 int mopUpScore(const Board& board) {
     if (board.us(Color::WHITE).count() == 1 && board.us(Color::BLACK).count() == 1) {
         return 0; 
