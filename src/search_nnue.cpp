@@ -1,6 +1,6 @@
 #include "search.hpp"
 #include "chess.hpp"
-#include "evaluation.hpp"
+#include "utils.hpp"
 #include <iostream>
 #include <unordered_map>
 #include <string>
@@ -43,7 +43,7 @@ std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
-const int maxTableSize = 30000000; // Maximum size of the transposition table
+const int maxTableSize = 15000000; // Maximum size of the transposition table
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
@@ -85,7 +85,6 @@ void clearTables() {
     if (transpositionTable.size() > maxTableSize) {
         transpositionTable = {};
         hashMoveTable = {};
-        clearPawnHashTable();
     }
 }
  
@@ -205,7 +204,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return 0;
     }
 
-    if (depth <= 2 && quietCount >= depth + 10) {
+    if (depth <= 2 && quietCount >= 20) {
         return 0;
     } 
 
@@ -215,7 +214,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         R++;
     }
 
-    if (i <= 5 || depth <= 3) { 
+    if (i <= 5 || depth <= 2) { 
         return depth - 1;
     } else {
         return depth - 2 - R;
@@ -316,7 +315,7 @@ int quiescence(Board& board, int alpha, int beta) {
     int standPat = 0;
 
     if (mopUp) {
-        standPat = evaluate(board) * color;
+        standPat = color * mopUpScore(board);
     } else {
         standPat = Probe::eval(board.getFen().c_str());
     }
@@ -636,7 +635,6 @@ Move findBestMove(Board& board,
     clearTables();
     
     const int baseDepth = 1;
-    int apsiration = color * evaluate(board);
     int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
     std::vector<Move> candidateMove (2 * ENGINE_DEPTH + 1, Move());
@@ -691,12 +689,6 @@ Move findBestMove(Board& board,
             int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount);
             int eval = -INF;
             int aspiration;
-
-            if (depth == 1) {
-                aspiration = color * evaluate(localBoard); // if at depth = 1, aspiration = static evaluation
-            } else {
-                aspiration = evals[depth - 1]; // otherwise, aspiration = previous depth evaluation
-            }
 
             localBoard.makeMove(move);
             eval = -negamax(localBoard, nextDepth, -INF, INF, childPV, leftMost, 0);

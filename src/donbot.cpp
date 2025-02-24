@@ -24,7 +24,6 @@
 */
 
 #include "chess.hpp"
-#include "evaluation.hpp"
 #include "openings.hpp"
 #include "search.hpp"
 #include <iostream>
