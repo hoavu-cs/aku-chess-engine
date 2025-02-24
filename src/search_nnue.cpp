@@ -227,11 +227,11 @@ std::vector<std::pair<Move, int>> orderedMoves(
     Movelist moves;
     movegen::legalmoves(moves, board);
 
-    std::vector<std::pair<Move, int>> candidates;
-    std::vector<std::pair<Move, int>> quietCandidates;
+    std::vector<std::pair<Move, int>> candidatesPrimary;
+    std::vector<std::pair<Move, int>> candidatesSecondary;
 
-    candidates.reserve(moves.size());
-    quietCandidates.reserve(moves.size());
+    candidatesPrimary.reserve(moves.size());
+    candidatesSecondary.reserve(moves.size());
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
@@ -240,7 +240,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
     // Move ordering 1. promotion 2. captures 3. killer moves 4. hash 5. checks 6. quiet moves
     for (const auto& move : moves) {
         int priority = 0;
-        bool quiet = false;
+        bool secondary = false;
         int moveIndex = move.from().index() * 64 + move.to().index();
         int ply = globalMaxDepth - depth;
         bool hashMove = false;
@@ -248,7 +248,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
         // Previous PV move > hash moves > captures/killer moves > checks > quiet moves
         if (hashMoveTable.count(hash) && hashMoveTable[hash] == move) {
             priority = 9000;
-            candidates.push_back({move, priority});
+            candidatesPrimary.push_back({move, priority});
             hashMove = true;
         }
       
@@ -263,7 +263,8 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
-            priority = 4000 + see(board, move);
+            int seeScore = see(board, move);
+            priority = 4000 + seeScore;
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
@@ -272,7 +273,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             if (isCheck) {
                 priority = 4000;
             } else {
-                quiet = true;
+                secondary = true;
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
                 if (historyTable.count(moveIndex)) {
                     priority = historyTable[moveIndex];
@@ -282,27 +283,27 @@ std::vector<std::pair<Move, int>> orderedMoves(
             }
         } 
 
-        if (!quiet) {
-            candidates.push_back({move, priority});
+        if (!secondary) {
+            candidatesPrimary.push_back({move, priority});
         } else {
-            quietCandidates.push_back({move, priority});
+            candidatesSecondary.push_back({move, priority});
         }
     }
 
     // Sort capture, promotion, checks by priority
-    std::sort(candidates.begin(), candidates.end(), [](const auto& a, const auto& b) {
+    std::sort(candidatesPrimary.begin(), candidatesPrimary.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
-    std::sort(quietCandidates.begin(), quietCandidates.end(), [](const auto& a, const auto& b) {
+    std::sort(candidatesSecondary.begin(), candidatesSecondary.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
-    for (const auto& move : quietCandidates) {
-        candidates.push_back(move);
+    for (const auto& move : candidatesSecondary) {
+        candidatesPrimary.push_back(move);
     }
 
-    return candidates;
+    return candidatesPrimary;
 }
 
 /*-------------------------------------------------------------------------------------------- 
