@@ -204,16 +204,13 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     }
 
     // Late move reduction
-    int R = 0;
-    if (quietCount >= 4 * depth) {
-        R = 1;
-    }
+    int R = static_cast<int>((ply) * log(quietCount) / 2.5);
 
     if (i <= 5 || depth <= 2) { 
         return depth - 1;
     } else {
         return depth - 2 - R;
-    }
+    } 
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -275,10 +272,13 @@ std::vector<std::pair<Move, int>> orderedMoves(
             } else {
                 secondary = true;
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
-                if (historyTable.count(moveIndex)) {
-                    priority = historyTable[moveIndex];
-                } else {
-                    priority = 0;// quietPriority(board, move);
+                #pragma omp critical
+                {
+                    if (historyTable.count(moveIndex)) {
+                        priority = historyTable[moveIndex];
+                    } else {
+                        priority = 0;// quietPriority(board, move);
+                    }
                 }
             }
         } 
@@ -655,7 +655,9 @@ Move findBestMove(Board& board,
 
     // Clear transposition tables
     #pragma omp critical
-    clearTables();
+    {
+        clearTables();
+    }
     
     const int baseDepth = 1;
     int depth = baseDepth;
@@ -821,7 +823,7 @@ Move findBestMove(Board& board,
         bool stableEval = true;
         if ((depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 50) ||
             (depth > 3 && std::abs(evals[depth] - evals[depth - 1]) > 50) ||
-            (depth > 3 && std::abs(candidateMove[depth] != candidateMove[depth - 1]))){
+            (depth > 3 && candidateMove[depth] != candidateMove[depth - 1])){
             stableEval = false;
         }
 
@@ -839,7 +841,9 @@ Move findBestMove(Board& board,
     }
     
     #pragma omp critical
-    clearTables();
+    {
+        clearTables();
+    }
 
     return bestMove; 
 }
