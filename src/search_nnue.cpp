@@ -204,13 +204,16 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     }
 
     // Late move reduction
-    int R = static_cast<int>((ply) * log(quietCount) / 2.5);
+    int R = 0;
+    if (quietCount >= 6 * depth) {
+        R = 1;
+    }
 
     if (i <= 5 || depth <= 2) { 
         return depth - 1;
     } else {
         return depth - 2 - R;
-    } 
+    }
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -277,7 +280,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                     if (historyTable.count(moveIndex)) {
                         priority = historyTable[moveIndex];
                     } else {
-                        priority = 0;// quietPriority(board, move);
+                        priority = moveScoreByTable(board, move);
                     }
                 }
             }
@@ -542,7 +545,7 @@ int negamax(Board& board,
         --------------------------------------------------------------------------------------------*/
 
         bool nullWindow = false;
-        if (i <= 0 || mopUp) {
+        if (i == 0 || mopUp) {
             // full window & full depth search for the first few nodes
             // In an ideal world, with good move ordering, we only need to do this for i = 0
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
