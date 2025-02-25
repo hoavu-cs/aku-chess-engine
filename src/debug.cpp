@@ -1,5 +1,4 @@
 #include "chess.hpp"
-#include "evaluation.hpp"
 #include "search.hpp"
 #include <fstream>
 #include <iostream>
@@ -41,6 +40,8 @@ int main() {
     // Board board1 = Board("r4rk1/pp3ppp/2pp1q2/2P1p3/N1PnP3/P4N1P/2P2PP1/R2Q1RK1 b - - 0 14");
     // std::cout << "Eval = " << evaluate(board1) << std::endl;
     // https://www.wtharvey.com/anan.html
+
+    initializeNNUE();   
     
     
     Board board = Board("r2q1r1k/1b3p2/p2Ppn2/1p4Q1/8/3B4/PPP2PPP/R4RK1 w - - 1 22"); // tactical test

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "chess.hpp"
-#include "evaluation.hpp"
 
 using namespace chess;
 

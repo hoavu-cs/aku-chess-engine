@@ -9,6 +9,8 @@ const int INF = 100000;
 
 // Function Declarations
 
+void initializeNNUE();
+
 Move findBestMove(
     Board &board,
     int numThreads,
