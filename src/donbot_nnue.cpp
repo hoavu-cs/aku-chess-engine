@@ -90,8 +90,9 @@ void processPosition(const std::string& command) {
     iss >> token; // Skip "position"
     iss >> token; // "startpos" or "fen"
 
+    board = Board(); // Initialize to the starting position
+
     if (token == "startpos") {
-        board = Board(); // Initialize to the starting position
         if (iss >> token && token == "moves") {
             while (iss >> token) {
                 Move move = uci::uciToMove(board, token);
@@ -159,7 +160,7 @@ void processGo(const std::vector<std::string>& tokens) {
     // Default settings
     int depth = 30;
     int numThreads = 6;
-    int timeLimit = 30000; // Default to 15 seconds
+    int timeLimit = 5000; // Default to 15 seconds
     bool quiet = false;
 
     // Simply find the best move without considering `t` or other options
@@ -205,10 +206,10 @@ void processGo(const std::vector<std::string>& tokens) {
     } else {
         // Determine the time limit based on the current player's time and increment
         if (board.sideToMove() == Color::WHITE && wtime > 0) {
-            int baseTime = wtime / (movestogo > 0 ? movestogo + 1 : 40); 
+            int baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 40); 
             timeLimit = static_cast<int>(baseTime * 0.6) + winc;
         } else if (board.sideToMove() == Color::BLACK && btime > 0) {
-            int baseTime = btime / (movestogo > 0 ? movestogo + 1 : 40); 
+            int baseTime = btime / (movestogo > 0 ? movestogo + 2 : 40); 
             timeLimit = static_cast<int>(baseTime * 0.6) + binc;
         }
 

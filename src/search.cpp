@@ -22,12 +22,9 @@ typedef std::uint64_t U64;
     Initialize the NNUE evaluation function.
 --------------------------------------------------------------------------------------------*/
 void initializeNNUE() {
-    static bool initialized = false;
+    std::cout << "Initializing NNUE." << std::endl;
 
-    if (!initialized) {
-        Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-b1a57edbea57.nnue");
-        initialized = true;
-    }
+    Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-b1a57edbea57.nnue");
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -635,6 +632,7 @@ Move findBestMove(Board& board,
                 int maxDepth = 8, 
                 int timeLimit = 15000,
                 bool quiet = false) {
+
 
     auto startTime = std::chrono::high_resolution_clock::now();
     hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);

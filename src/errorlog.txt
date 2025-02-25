@@ -1,0 +1,23 @@
+
+position fen 8/8/8/6P1/8/2K5/6Q1/2k5 w - - 9 80
+go
+info depth 1 score cp 49999 nodes 46 time 0  pv g2f1 
+info depth 1 score cp 49999 nodes 91 time 0  pv g2h1
+info depth 1 score cp 49999 nodes 1145 time 0  pv g2f1
+info depth 1 score cp 49999 nodes 1534 time 1  pv g2g1
+info depth 1 score cp 49999 nodes 20680 time 12  pv g2h1 
+info depth 1 score cp 49999 nodes 16416 time 15  pv g2c2 
+info depth 1 score cp 49999 nodes 167061 time 110  pv g2f1 
+info depth 1 score cp 49999 nodes 130676 time 111  pv g2g1 
+info depth 1 score cp 49999 nodes 1040402 time 701  pv g2c2 
+info depth 1 score cp 49999 nodes 882270 time 729  pv g2h1 
+info depth 1 score cp 49999 nodes 5177302 time 3701  pv g2f1 
+bestmove g2f1
+position fen rnbqkbnr/ppp2ppp/4p3/3p4/3P4/4PN2/PPP2PPP/RNBQKB1R b KQkq - 0 3
+go
+info depth 1 score cp 0 nodes 66 time 0  pv d8f6 
+info depth 2 score cp 0 nodes 2049 time 2  pv d8g5 f3g5
+info depth 3 score cp 0 nodes 5839 time 12  pv f8b4 c1d2 b4d2 
+info depth 4 score cp 0 nodes 58477 time 66  pv d8f6 f1b5 b8c6 e1g1 
+info depth 5 score cp 0 nodes 187316 time 284  pv f7f6 f1b5 b8c6 e1g1 g8h6 
+info depth 6 score cp 0 nodes 1346931 time 1484  pv f8b4 c1d2 b4d2 b1d2 e8d7 f3e5 
