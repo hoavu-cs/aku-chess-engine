@@ -648,6 +648,8 @@ Move findBestMove(Board& board,
 
     if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
         mopUp = true;
+    } else {
+        mopUp = false;
     }
 
     omp_set_num_threads(numThreads);

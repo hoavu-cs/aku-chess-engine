@@ -160,7 +160,7 @@ void processGo(const std::vector<std::string>& tokens) {
     // Default settings
     int depth = 30;
     int numThreads = 6;
-    int timeLimit = 5000; // Default to 15 seconds
+    int timeLimit = 30000; // Default to 15 seconds
     bool quiet = false;
 
     // Simply find the best move without considering `t` or other options
