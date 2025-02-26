@@ -196,25 +196,24 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     }
 
     // Late move pruning.
-    if (!isPV && i > 10 && !board.inCheck()) {
-        return 0;
-    }
+    // if (!isPV && quietCount > 10 && !board.inCheck()) {
+    //     return 0;
+    // }
 
     // Late move reduction
-    int R = 0;
-
-    if (quietCount >= 6 * depth) {
-        R++;
-    }
-
-    // Do not further reduce the first move
-    //if (i == 0) R = 0;
-
-    // Reduce less if we are in a PV node
-    if (R > 0 && isPV) R = 0;
+    // int R = 1 + 3 * static_cast<int>(log(i + 1) * log (depth + 1));
+    // R += quietCount / 15;
     
-    if (i <= 5 || depth <= 2) { 
-        return depth - 1 - R;
+    // if (isPV) {
+    //     R = std::max(1, R - 1);
+    // }
+
+    
+    int R = quietCount / 15;
+    int k = std::max(2, 20 / globalMaxDepth);
+
+    if (i <= k || depth <= 2) { 
+        return depth - 1;
     } else {
         return depth - 3 - R;
     }
@@ -282,10 +281,11 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 #pragma omp critical
                 {
                     if (historyTable.count(moveIndex)) {
-                        priority = historyTable[moveIndex];
-                    } else {
-                        priority = moveScoreByTable(board, move);
-                    }
+                        priority += historyTable[moveIndex];
+                    } 
+                        
+                    //priority += moveScoreByTable(board, move);
+                    
                 }
             }
         } 

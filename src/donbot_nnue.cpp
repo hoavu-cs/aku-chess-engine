@@ -213,7 +213,7 @@ void processGo(const std::vector<std::string>& tokens) {
             timeLimit = static_cast<int>(baseTime * adjust) + binc;
         }
 
-        if (timeLimit < 15000) {
+        if (movetime < 15000) {
             depth = 12; // Safety net for last few seconds
         }
     }
