@@ -200,7 +200,7 @@ void processGo(const std::vector<std::string>& tokens) {
         }
     }
 
-    double adjust = 0.7;
+    double adjust = 0.6;
     if (movetime > 0) {
         timeLimit = movetime * adjust;
     } else {
