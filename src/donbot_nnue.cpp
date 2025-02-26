@@ -214,7 +214,7 @@ void processGo(const std::vector<std::string>& tokens) {
         }
 
         if (timeLimit < 15000) {
-            depth = 11; // Safety net for last few seconds
+            depth = 12; // Safety net for last few seconds
         }
     }
 

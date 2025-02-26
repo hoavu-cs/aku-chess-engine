@@ -210,13 +210,12 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 
     
     int R = quietCount / 15;
-    int k = std::min(2, 20 / globalMaxDepth);
-
+    int k = std::max(2, 20 / globalMaxDepth);
 
     if (i <= k || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth / 2 - R;
+        return depth - 3 - R;
     }
 }
 
