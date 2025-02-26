@@ -223,11 +223,10 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         R++;
     }
 
-
-    if (i <= 5 || depth <= 2) { 
+    if (i <= 5) { 
         return depth - 1 - R;
     } else {
-        return depth - 2 - R;
+        return depth / 3 - R;
     }
 }
 
@@ -603,12 +602,19 @@ int negamax(Board& board,
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
 
-        if (eval < alpha) {
+        if (eval <= alpha) {
+
             #pragma omp critical
             {
                 badMoveTable[board.hash()].insert(move.from().index() * 64 + move.to().index());
             }
+        } else if (eval > alpha) {
+            #pragma omp critical
+            {
+                badMoveTable[board.hash()].erase(move.from().index() * 64 + move.to().index());
+            }
         }
+
 
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
