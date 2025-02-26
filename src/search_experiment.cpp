@@ -186,6 +186,7 @@ int see(Board& board, Move move) {
 }
 
 
+
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
@@ -209,13 +210,14 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     // }
 
     
-    int R = quietCount / 15;
-    int k = std::max(2, 20 / globalMaxDepth);
+    //int R = quietCount / 20;
+    int k = std::min(2, 25 / globalMaxDepth);
+
 
     if (i <= k || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth / 2;
+        return depth - log (depth) * log (i);
     }
 }
 
