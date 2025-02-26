@@ -34,7 +34,6 @@ void initializeNNUE() {
 std::unordered_map<U64, std::pair<int, int>> transpositionTable; // Hash -> (eval, depth)
 std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 std::unordered_map<U64, U64> historyTable; // History heuristic table
-std::unordered_map<U64, std::unordered_set<U64>> badMoveTable; // Hash -> set of bad moves
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
@@ -82,9 +81,7 @@ void clearTables() {
         transpositionTable = {};
         hashMoveTable = {};
         historyTable = {};
-        badMoveTable = {};
     }
-    
 }
  
 /*-------------------------------------------------------------------------------------------- 
@@ -199,34 +196,27 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     }
 
     // Late move pruning.
-    if (!isPV && i > 10 && !board.inCheck()) {
-        return 0;
-    }
-
-    int R = 0;
-    #pragma omp critical
-    {
-        U64 moveIndex = move.from().index() * 64 + move.to().index();
-        if (badMoveTable.find(board.hash()) != badMoveTable.end() && 
-            badMoveTable[board.hash()].count(moveIndex)) {
-            R++;
-        }
-    }
-
-    if (i == 0) {
-        R = 0;
-    }
+    // if (!isPV && quietCount > 10 && !board.inCheck()) {
+    //     return 0;
+    // }
 
     // Late move reduction
-    // int R = 0;
-    if (quietCount >= 6 * depth) {
-        R++;
-    }
+    // int R = 1 + 3 * static_cast<int>(log(i + 1) * log (depth + 1));
+    // R += quietCount / 15;
+    
+    // if (isPV) {
+    //     R = std::max(1, R - 1);
+    // }
 
-    if (i <= 5) { 
-        return depth - 1 - R;
+    
+    int R = quietCount / 15;
+    int k = std::min(2, 20 / globalMaxDepth);
+
+
+    if (i <= k || depth <= 2) { 
+        return depth - 1;
     } else {
-        return depth / 3 - R;
+        return depth / 2 - R;
     }
 }
 
@@ -292,10 +282,11 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 #pragma omp critical
                 {
                     if (historyTable.count(moveIndex)) {
-                        priority = historyTable[moveIndex];
-                    } else {
-                        priority = moveScoreByTable(board, move);
-                    }
+                        priority += historyTable[moveIndex];
+                    } 
+                        
+                    //priority += moveScoreByTable(board, move);
+                    
                 }
             }
         } 
@@ -601,19 +592,6 @@ int negamax(Board& board,
 
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
-
-        if (eval <= alpha) {
-
-            #pragma omp critical
-            {
-                badMoveTable[board.hash()].insert(move.from().index() * 64 + move.to().index());
-            }
-        } else if (eval > alpha) {
-            #pragma omp critical
-            {
-                badMoveTable[board.hash()].erase(move.from().index() * 64 + move.to().index());
-            }
-        }
 
 
         if (beta <= alpha) {

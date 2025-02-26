@@ -202,14 +202,21 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 
     // Late move reduction
     int R = 0;
+
     if (quietCount >= 6 * depth) {
-        R = 1;
+        R++;
     }
 
+    // Do not further reduce the first move
+    //if (i == 0) R = 0;
+
+    // Reduce less if we are in a PV node
+    if (R > 0 && isPV) R = 0;
+    
     if (i <= 5 || depth <= 2) { 
-        return depth - 1;
+        return depth - 1 - R;
     } else {
-        return depth - 2 - R;
+        return depth - 3 - R;
     }
 }
 
@@ -584,6 +591,7 @@ int negamax(Board& board,
 
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
+
 
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {

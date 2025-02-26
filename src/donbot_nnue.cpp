@@ -200,17 +200,17 @@ void processGo(const std::vector<std::string>& tokens) {
         }
     }
 
-
+    double adjust = 0.7;
     if (movetime > 0) {
-        timeLimit = movetime * 0.6;
+        timeLimit = movetime * adjust;
     } else {
         // Determine the time limit based on the current player's time and increment
         if (board.sideToMove() == Color::WHITE && wtime > 0) {
-            int baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 40); 
-            timeLimit = static_cast<int>(baseTime * 0.6) + winc;
+            int baseTime = wtime / (movestogo > 0 ? movestogo + 1 : 40); 
+            timeLimit = static_cast<int>(baseTime * adjust) + winc;
         } else if (board.sideToMove() == Color::BLACK && btime > 0) {
-            int baseTime = btime / (movestogo > 0 ? movestogo + 2 : 40); 
-            timeLimit = static_cast<int>(baseTime * 0.6) + binc;
+            int baseTime = btime / (movestogo > 0 ? movestogo + 1 : 40); 
+            timeLimit = static_cast<int>(baseTime * adjust) + binc;
         }
 
         if (timeLimit < 15000) {
