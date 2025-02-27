@@ -35,6 +35,7 @@ std::unordered_map<U64, std::pair<int, int>> transpositionTable; // Hash -> (eva
 std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 std::unordered_map<U64, U64> historyTable; // History heuristic table
 
+
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 

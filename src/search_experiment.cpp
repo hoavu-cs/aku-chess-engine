@@ -196,28 +196,12 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-    // Late move pruning.
-    // if (!isPV && quietCount > 10 && !board.inCheck()) {
-    //     return 0;
-    // }
-
-    // Late move reduction
-    // int R = 1 + 3 * static_cast<int>(log(i + 1) * log (depth + 1));
-    // R += quietCount / 15;
-    
-    // if (isPV) {
-    //     R = std::max(1, R - 1);
-    // }
-
-    
-    //int R = quietCount / 20;
     int k = std::min(2, 25 / globalMaxDepth);
-
 
     if (i <= k || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth - log (depth) * log (i);
+        return depth - log (i) * log (depth);
     }
 }
 
@@ -283,11 +267,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 #pragma omp critical
                 {
                     if (historyTable.count(moveIndex)) {
-                        priority += historyTable[moveIndex];
-                    } 
-                        
-                    //priority += moveScoreByTable(board, move);
-                    
+                        priority = 200 + historyTable[moveIndex];
+                    } else {
+                        priority = moveScoreByTable(board, move);
+                    }
                 }
             }
         } 
@@ -469,9 +452,9 @@ int negamax(Board& board,
         } 
     }
 
-    // Futility pruning outside move loop
-    if (depth <= 2 && pruningCondition && globalMaxDepth >= 10) {
-        int margin = depth * 200;
+    // Static move pruning. 
+    if (depth <= 3 && pruningCondition && globalMaxDepth >= 10) {
+        int margin = depth * 330;
         if (standPat - margin > beta) {
             // If the static evaluation - margin > beta, 
             // then it is considered to be too good and most likely a cutoff
@@ -502,7 +485,6 @@ int negamax(Board& board,
     int bestEval = -INF;
     int quietCount = 0;
 
-
     for (int i = 0; i < moves.size(); i++) {
 
         Move move = moves[i].first;
@@ -522,8 +504,9 @@ int negamax(Board& board,
         }
 
         //  Futility pruning. If the move is quiet and late.
-        if (depth <= 2 && pruningCondition && quiet && quietCount >= 10 && globalMaxDepth >= 10) {
-            int margin = depth * 200;
+        std::vector<int> futilityMargins = {0, 230, 440, 950};
+        if (depth <= 2 && pruningCondition && quiet && globalMaxDepth >= 10) {
+            int margin = futilityMargins[depth];
             if (standPat + margin < alpha) {
                 // If it is unlikely to raise alpha, skip the move
                 return alpha;
@@ -725,10 +708,26 @@ Move findBestMove(Board& board,
             int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount);
             int eval = -INF;
             int aspiration;
+            int window = 75;
+            int alpha = -INF;
+            int beta = INF;
+
+            if (depth >= 10) {
+                aspiration = evals[depth - 1];
+                alpha = aspiration - window;
+                beta = aspiration + window;
+            } 
 
             localBoard.makeMove(move);
-            eval = -negamax(localBoard, nextDepth, -INF, INF, childPV, leftMost, 0);
+            eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, 0);
             localBoard.unmakeMove(move);
+
+            if (eval <= alpha || eval >= beta) {
+                // If the search window is too small, re-search with a full window
+                localBoard.makeMove(move);
+                eval = -negamax(localBoard, nextDepth, -INF, INF, childPV, leftMost, 0);
+                localBoard.unmakeMove(move);
+            }
 
             // Check if the time limit has been exceeded, if so the search 
             // has not finished. Return the best move so far.
