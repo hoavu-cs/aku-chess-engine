@@ -35,7 +35,6 @@ std::unordered_map<U64, std::pair<int, int>> transpositionTable; // Hash -> (eva
 std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
 std::unordered_map<U64, U64> historyTable; // History heuristic table
 
-
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
@@ -187,6 +186,7 @@ int see(Board& board, Move move) {
 }
 
 
+
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
@@ -195,28 +195,15 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     if (mopUp) {
         return depth - 1;
     }
-
-    // Late move pruning.
-    // if (!isPV && quietCount > 10 && !board.inCheck()) {
-    //     return 0;
-    // }
-
-    // Late move reduction
-    // int R = 1 + 3 * static_cast<int>(log(i + 1) * log (depth + 1));
-    // R += quietCount / 15;
     
-    // if (isPV) {
-    //     R = std::max(1, R - 1);
-    // }
+    //int R = quietCount / 20;
+    int k = std::min(2, 25 / globalMaxDepth);
 
-    
-    int R = quietCount / 15;
-    int k = std::max(2, 20 / globalMaxDepth);
 
     if (i <= k || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth / 2;
+        return depth - log (depth) * log (i);
     }
 }
 
