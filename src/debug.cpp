@@ -96,6 +96,7 @@ int main() {
     r2q1r1k/1b3p2/p2Ppn2/1p4Q1/8/3B4/PPP2PPP/R4RK1 w - - 1 22
     3qbrk1/5p2/8/3pP1bQ/1PpB4/2P5/6PP/5RK1 w - - 0 1
     r3r1k1/pppbq2p/3p1ppQ/2nP1P2/4P3/P6R/1BB3PP/R6K w - - 0 28
+    rnbqkb1r/pp2pppp/5n2/2pp4/3P1B2/2N1P3/PPP2PPP/R2QKBNR b KQkq - 0 4
     */
     board = Board("1r4k1/pq2bppp/4b3/3r4/1PN1QB2/P7/5PpP/R3R1K1 w - - 0 21");
 

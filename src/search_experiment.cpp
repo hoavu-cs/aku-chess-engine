@@ -80,7 +80,6 @@ void clearTables() {
     if (transpositionTable.size() > maxTableSize) {
         transpositionTable = {};
         hashMoveTable = {};
-        historyTable = {};
     }
 }
  
@@ -195,20 +194,6 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     if (mopUp) {
         return depth - 1;
     }
-
-    // Late move pruning.
-    // if (!isPV && quietCount > 10 && !board.inCheck()) {
-    //     return 0;
-    // }
-
-    // Late move reduction
-    // int R = 1 + 3 * static_cast<int>(log(i + 1) * log (depth + 1));
-    // R += quietCount / 15;
-    
-    // if (isPV) {
-    //     R = std::max(1, R - 1);
-    // }
-
     
     //int R = quietCount / 20;
     int k = std::min(2, 25 / globalMaxDepth);
@@ -460,18 +445,19 @@ int negamax(Board& board,
     int standPat = Probe::eval(board.getFen().c_str());
 
     // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
-    if (depth <= 3 && pruningCondition && !isPV) {
-        int razorMargin = 350 + depth * 60; // Threshold increases slightly with depth
+    if (depth <= 3 && standPat < alpha - 600 - 293 * depth * depth && pruningCondition && !isPV && globalMaxDepth >= 10) {
+        return quiescence(board, alpha, beta);
+        // int razorMargin = 500 * depth; // Threshold increases slightly with depth
 
-        if (standPat + razorMargin < alpha) {
-            // If the position is too weak and unlikely to raise alpha, skip deep search
-            return quiescence(board, alpha, beta);
-        } 
+        // if (standPat + razorMargin < alpha) {
+        //     // If the position is too weak and unlikely to raise alpha, skip deep search
+        //     return quiescence(board, alpha, beta);
+        // } 
     }
 
     // Futility pruning outside move loop
     if (depth <= 2 && pruningCondition && globalMaxDepth >= 10) {
-        int margin = depth * 200;
+        int margin = depth * 300;
         if (standPat - margin > beta) {
             // If the static evaluation - margin > beta, 
             // then it is considered to be too good and most likely a cutoff
@@ -480,12 +466,12 @@ int negamax(Board& board,
     }
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
-    const int nullDepth = 4; // Only apply null move pruning at depths >= 4
+    const int nullDepth = 6; // Only apply null move pruning at depths >= 4
 
     if (depth >= nullDepth && !endGameFlag && !leftMost && !board.inCheck() && !mopUp) {
         std::vector<Move> nullPV;
         int nullEval;
-        int reduction = 3 + depth / 4;
+        int reduction = 3;
 
         board.makeNullMove();
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
@@ -522,8 +508,8 @@ int negamax(Board& board,
         }
 
         //  Futility pruning. If the move is quiet and late.
-        if (depth <= 2 && pruningCondition && quiet && quietCount >= 10 && globalMaxDepth >= 10) {
-            int margin = depth * 200;
+        if (depth <= 3 && pruningCondition && quiet && quietCount >= 10 && globalMaxDepth >= 10) {
+            int margin = depth * 300;
             if (standPat + margin < alpha) {
                 // If it is unlikely to raise alpha, skip the move
                 return alpha;
