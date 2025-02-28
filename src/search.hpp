@@ -16,4 +16,5 @@ Move findBestMove(
     int numThreads,
     int maxDepth,
     int timeLimit,
-    bool quiet);
+    bool quiet
+);
