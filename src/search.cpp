@@ -38,7 +38,7 @@ std::unordered_map<U64, U64> historyTable; // History heuristic table
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
-const int maxTableSize = 10000000; // Maximum size of the transposition table
+const int maxTableSize = 15000000; // Maximum size of the transposition table
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
