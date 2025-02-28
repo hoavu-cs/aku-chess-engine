@@ -38,7 +38,7 @@ std::unordered_map<U64, U64> historyTable; // History heuristic table
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
-const int maxTableSize = 10e6; // Maximum size of the transposition table
+const int maxTableSize = 15000000; // Maximum size of the transposition table
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
@@ -80,6 +80,7 @@ void clearTables() {
     if (transpositionTable.size() > maxTableSize) {
         transpositionTable = {};
         hashMoveTable = {};
+        historyTable = {};
     }
 }
  
@@ -189,29 +190,24 @@ int see(Board& board, Move move) {
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
-int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount, std::vector<int>& staticEvals) {
+int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount) {
 
     if (mopUp) {
         return depth - 1;
     }
+
+    // Late move pruning
+    if (!board.inCheck() && !isPV && i > 10) {
+        return 0;
+    }
     
-    //int R = quietCount / 20;
+    // Late move reduction
     int k = std::min(2, 25 / globalMaxDepth);
-    bool improving = true;
-    int d = 0;
-
-    if (staticEvals.size() >= 2) {
-        improving = staticEvals[staticEvals.size() - 1] > staticEvals[staticEvals.size() - 2];
-    }
-
-    if (!improving) {
-        d = -1;
-    }
 
     if (i <= k || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth - log (depth) * log (i) + d;
+        return depth - log (depth) * log (i);
     }
 }
 
@@ -387,8 +383,7 @@ int negamax(Board& board,
             int beta, 
             std::vector<Move>& PV,
             bool leftMost,
-            int ply,
-            std::vector<int>& staticEvals) {
+            int ply) {
 
     #pragma omp critical
     clearTables();
@@ -451,20 +446,15 @@ int negamax(Board& board,
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
     
-    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
-    int standPat = Probe::eval(board.getFen().c_str());
-
-    // improving means static eval is improving compared to 2 plies ago
-    bool improving = true;
-    if (staticEvals.size() >= 2) {
-        improving = staticEvals[staticEvals.size() - 1] > staticEvals[staticEvals.size() - 2];
-    }
+    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4 && !leftMost;
+    int standPat = color * materialImbalance(board);
+    //Probe::eval(board.getFen().c_str());
 
     // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
-    std::vector<int> razorMargins = {0, 350, 550, 950};
     if (depth <= 3 && pruningCondition && !isPV) {
+        int razorMargin = 350 + depth * 100; // Threshold increases slightly with depth
 
-        if (standPat + razorMargins[depth] < alpha) {
+        if (standPat + razorMargin < alpha) {
             // If the position is too weak and unlikely to raise alpha, skip deep search
             return quiescence(board, alpha, beta);
         } 
@@ -488,11 +478,8 @@ int negamax(Board& board,
         int nullEval;
         int reduction = 3 + depth / 4;
 
-        staticEvals.push_back(-INF);
         board.makeNullMove();
-        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1, staticEvals);
-
-        staticEvals.pop_back();
+        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
         board.unmakeNullMove();
 
         if (nullEval >= beta) { 
@@ -535,7 +522,7 @@ int negamax(Board& board,
         }
 
         int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, quietCount, staticEvals); 
+        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, quietCount); 
         
         if (i > 0) {
             leftMost = false;
@@ -555,19 +542,15 @@ int negamax(Board& board,
         --------------------------------------------------------------------------------------------*/
 
         bool nullWindow = false;
-        staticEvals.push_back(standPat);
-
         if (i == 0 || mopUp) {
             // full window & full depth search for the first few nodes
             // In an ideal world, with good move ordering, we only need to do this for i = 0
-            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1, staticEvals);
+            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
         } else {
             // null window and potential reduced depth for the rest
             nullWindow = true;
-            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, ply + 1, staticEvals);
+            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, ply + 1);
         }
-
-        staticEvals.pop_back();
 
         
         board.unmakeMove(move);
@@ -576,12 +559,8 @@ int negamax(Board& board,
 
         if (alphaRaised && reducedDepth && nullWindow) {
             // If alpha is raised and we reduced the depth, research with full depth but still with a null window
-            staticEvals.push_back(standPat);
             board.makeMove(move);
-
-            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, ply + 1, staticEvals);
-
-            staticEvals.pop_back();
+            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, ply + 1);
             board.unmakeMove(move);
         } 
 
@@ -590,12 +569,8 @@ int negamax(Board& board,
 
         if (alphaRaised && nullWindow) {
             // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
-            staticEvals.push_back(standPat);
             board.makeMove(move);
-
-            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1, staticEvals);
-
-            staticEvals.pop_back();
+            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
             board.unmakeMove(move);
         }
 
@@ -737,25 +712,14 @@ Move findBestMove(Board& board,
                 quietCount++;
             }
 
-            std::vector<int> staticEvals;
-
             bool newBestFlag = false;  
-            int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount, staticEvals);
+            int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount);
             int eval = -INF;
-            
-            
+            int aspiration;
 
-            int standPat = Probe::eval(localBoard.getFen().c_str());
-            staticEvals.push_back(standPat);
             localBoard.makeMove(move);
-
-            eval = -negamax(localBoard, nextDepth, -INF, INF, childPV, leftMost, 0, staticEvals);
-
-            staticEvals.pop_back();
+            eval = -negamax(localBoard, nextDepth, -INF, INF, childPV, leftMost, 0);
             localBoard.unmakeMove(move);
-            
-
-
 
             // Check if the time limit has been exceeded, if so the search 
             // has not finished. Return the best move so far.
@@ -773,14 +737,9 @@ Move findBestMove(Board& board,
             }
 
             if (newBestFlag && nextDepth < depth - 1) {
-                staticEvals.push_back(standPat);
                 localBoard.makeMove(move);
-
-                eval = -negamax(localBoard, depth - 1, -INF, INF, childPV, leftMost, 0, staticEvals);
-
-                staticEvals.pop_back();
+                eval = -negamax(localBoard, depth - 1, -INF, INF, childPV, leftMost, 0);
                 localBoard.unmakeMove(move);
-                
 
                 // Check if the time limit has been exceeded, if so the search 
                 // has not finished. Return the best move so far.
