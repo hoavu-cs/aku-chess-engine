@@ -204,9 +204,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         improving = staticEvals[staticEvals.size() - 1] > staticEvals[staticEvals.size() - 2];
     }
 
-    if (improving) {
-        d = 1;
-    } else {
+    if (!improving) {
         d = -1;
     }
 
