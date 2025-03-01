@@ -208,7 +208,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     }
 
     // Late move reduction
-    int k = std::min(1, 25 / globalMaxDepth);
+    int k = std::min(2, 25 / globalMaxDepth);
 
     if (i <= k || depth <= 2) { 
         return depth - 1;
@@ -288,7 +288,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 #pragma omp critical
                 {
                     if (historyTable.count(moveIndex)) {
-                        priority += historyTable[moveIndex];
+                        priority = 1000 + historyTable[moveIndex];
                     } 
                         
                     //priority += moveScoreByTable(board, move);
@@ -355,13 +355,6 @@ int quiescence(Board& board, int alpha, int beta) {
         auto attacker = board.at<Piece>(move.from());
         int victimValue = pieceValues[static_cast<int>(victim.type())];
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
-
-        // Delta pruning. If the material gain is not big enough, prune the move.
-        // Commented out since it makes the engine behavior weird
-        const int deltaMargin = 400;
-        if (standPat + victimValue - attackerValue + deltaMargin < beta) {
-            continue;
-        }
 
         int priority = see(board, move);
         candidateMoves.push_back({move, priority});
@@ -458,13 +451,21 @@ int negamax(Board& board,
     int standPat = Probe::eval(board.getFen().c_str());
 
 
-    // Futility pruning outside move loop
-    if (pruningCondition && depth <= 2 && globalMaxDepth >= 10) {
-        int margin = isPV ? 330 : 550;
+    // Reverse futility pruning
+    if (pruningCondition && depth <= 2 && !isPV) {
+        int margin = 200 + 50 * depth * depth;
         if (standPat - margin > beta) {
-            // If the static evaluation - margin > beta, 
-            // then it is considered to be too good and most likely a cutoff
             return standPat - margin;
+        } 
+    }
+
+    // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
+    if (pruningCondition) {
+        int razorMargin = 550 + 300 * depth * depth;
+
+        if (standPat < alpha - razorMargin) {
+            // If the position is too weak and unlikely to raise alpha, skip deep search
+            return quiescence(board, alpha, beta);
         } 
     }
 
@@ -515,9 +516,20 @@ int negamax(Board& board,
             quietCount++;
         }
 
+        // Probcut
+        // board.makeMove(move);
+        
+        // const int probCutDepth = 10;
+        // const 
+        // if (depth >= probCutDepth && pruningCondition && !isPV) {
+
+        // }
+
+        // board.unmakeMove(move);
+
         //  Futility pruning. If the move is quiet and late.
-        if (depth <= 2 && quiet && globalMaxDepth >= 10) {
-            int margin = isPV ? 150 : 350;
+        if (depth <= 4 && quiet && pruningCondition) {
+            int margin = 200 + 50 * depth * depth;
             if (standPat + margin < alpha) {
                 // If it is unlikely to raise alpha, skip the move
                 return alpha;

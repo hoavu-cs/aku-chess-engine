@@ -31,14 +31,22 @@ void initializeNNUE() {
     Constants and global variables.
 --------------------------------------------------------------------------------------------*/
 
-std::unordered_map<U64, std::pair<int, int>> transpositionTable; // Hash -> (eval, depth)
-std::unordered_map<U64, Move> hashMoveTable; // Hash -> move
+const int maxTableSize = 10e6; // Maximum size of the transposition table
+
+struct tableEntry {
+    U64 hash;
+    int eval;
+    int depth;
+    Move bestMove;
+};
+
+std::vector<tableEntry> transpositionTable(maxTableSize); 
 std::unordered_map<U64, U64> historyTable; // History heuristic table
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
-const int maxTableSize = 15000000; // Maximum size of the transposition table
+
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
@@ -64,24 +72,27 @@ const int pieceValues[] = {
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and clear.
 --------------------------------------------------------------------------------------------*/
-bool tableLookUp(U64 hash, int depth, int& eval) {    
-    auto it = transpositionTable.find(hash);
-    bool found = it != transpositionTable.end() && it->second.second >= depth;
+bool tableLookUp(Board& board, int depth, int& eval, Move& bestMove) {    
+    U64 hash = board.hash();
+    U64 index = hash % maxTableSize;
+    bool found = false;
 
-    if (found) {
-        eval = it->second.first;
-        return true;
-    } else {
-        return false;
+    tableEntry entry = transpositionTable[index];
+    if (entry.hash == hash && entry.depth >= depth) {
+        eval = entry.eval;
+        bestMove = entry.bestMove;
+        found = true;
     }
+
+    return found;
 }
 
-void clearTables() {
-    if (transpositionTable.size() > maxTableSize) {
-        transpositionTable = {};
-        hashMoveTable = {};
-        historyTable = {};
-    }
+void tableInsert(Board& board, int depth, int eval, Move bestMove) {
+    U64 hash = board.hash();
+    U64 index = hash % maxTableSize;
+
+    tableEntry entry = {hash, eval, depth, bestMove};
+    transpositionTable[index] = entry;
 }
  
 /*-------------------------------------------------------------------------------------------- 
@@ -196,7 +207,6 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-
     // Late move reduction
     int k = std::min(2, 25 / globalMaxDepth);
 
@@ -237,10 +247,19 @@ std::vector<std::pair<Move, int>> orderedMoves(
         bool hashMove = false;
 
         // Previous PV move > hash moves > captures/killer moves > checks > quiet moves
-        if (hashMoveTable.count(hash) && hashMoveTable[hash] == move) {
-            priority = 9000;
-            candidatesPrimary.push_back({move, priority});
-            hashMove = true;
+
+        #pragma omp critical
+        {
+            Move tableMove;
+            int tableEval;
+            if (tableLookUp(board, 0, tableEval, tableMove)) {
+                if (tableMove == move) {
+                    tableHit++;
+                    priority = 8000;
+                    candidatesPrimary.push_back({tableMove, priority});
+                    hashMove = true;
+                }
+            }
         }
       
         if (hashMove) continue;
@@ -269,7 +288,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 #pragma omp critical
                 {
                     if (historyTable.count(moveIndex)) {
-                        priority += historyTable[moveIndex];
+                        priority = 1000 + historyTable[moveIndex];
                     } 
                         
                     //priority += moveScoreByTable(board, move);
@@ -337,13 +356,6 @@ int quiescence(Board& board, int alpha, int beta) {
         int victimValue = pieceValues[static_cast<int>(victim.type())];
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
 
-        // Delta pruning. If the material gain is not big enough, prune the move.
-        // Commented out since it makes the engine behavior weird
-        const int deltaMargin = 400;
-        if (standPat + victimValue - attackerValue + deltaMargin < beta) {
-            continue;
-        }
-
         int priority = see(board, move);
         candidateMoves.push_back({move, priority});
         
@@ -381,9 +393,6 @@ int negamax(Board& board,
             bool leftMost,
             int ply) {
 
-    #pragma omp critical
-    clearTables();
-
     auto currentTime = std::chrono::high_resolution_clock::now();
     if (currentTime >= hardDeadline) {
         return 0;
@@ -408,24 +417,20 @@ int negamax(Board& board,
     }
 
     // Probe the transposition table
-    U64 hash = board.hash();
     bool found = false;
-    int storedEval;
+    Move tableMove;
+    int tableEval;
     
     #pragma omp critical
     {
-        if (tableLookUp(hash, depth, storedEval) && storedEval >= beta) {
-            #pragma 
-            {
-                tableHit++;
-            }
-
+        if (tableLookUp(board, depth, tableEval, tableMove)) {
+            tableHit++;
             found = true;
         }
     }
 
-    if (found) {
-        return storedEval;
+    if (found && tableEval >= beta) {
+        return tableEval;
     } 
 
     if (depth <= 0) {
@@ -433,7 +438,7 @@ int negamax(Board& board,
         
         #pragma omp critical
         {
-            transpositionTable[hash] = {quiescenceEval, 0};
+            tableInsert(board, 0, quiescenceEval, Move());
         }
             
         return quiescenceEval;
@@ -445,18 +450,22 @@ int negamax(Board& board,
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4 && !leftMost;
     int standPat = Probe::eval(board.getFen().c_str());
 
-    // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
 
-
-
-
-    // Futility pruning outside move loop
-    if (pruningCondition && depth <= 2 && globalMaxDepth >= 10) {
+    // Reverse futility pruning
+    if (pruningCondition && depth <= 2 && !isPV) {
         int margin = 200 + 50 * depth * depth;
         if (standPat - margin > beta) {
-            // If the static evaluation - margin > beta, 
-            // then it is considered to be too good and most likely a cutoff
             return standPat - margin;
+        } 
+    }
+
+    // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
+    if (pruningCondition) {
+        int razorMargin = 550 + 300 * depth * depth;
+
+        if (standPat < alpha - razorMargin) {
+            // If the position is too weak and unlikely to raise alpha, skip deep search
+            return quiescence(board, alpha, beta);
         } 
     }
 
@@ -507,8 +516,19 @@ int negamax(Board& board,
             quietCount++;
         }
 
+        // Probcut
+        // board.makeMove(move);
+        
+        // const int probCutDepth = 10;
+        // const 
+        // if (depth >= probCutDepth && pruningCondition && !isPV) {
+
+        // }
+
+        // board.unmakeMove(move);
+
         //  Futility pruning. If the move is quiet and late.
-        if (depth <= 2 && quiet && quietCount >= 10 && globalMaxDepth >= 10) {
+        if (depth <= 4 && quiet && pruningCondition) {
             int margin = 200 + 50 * depth * depth;
             if (standPat + margin < alpha) {
                 // If it is unlikely to raise alpha, skip the move
@@ -597,15 +617,11 @@ int negamax(Board& board,
 
     #pragma omp critical
     {
-        // Update hash tables
         if (PV.size() > 0) {
-            transpositionTable[board.hash()] = {bestEval, depth}; 
-            hashMoveTable[board.hash()] = PV[0];
+            tableInsert(board, depth, bestEval, PV[0]);
         }
     }
 
-    #pragma omp critical
-    clearTables();
 
     return bestEval;
 }
@@ -650,12 +666,6 @@ Move findBestMove(Board& board,
 
     omp_set_num_threads(numThreads);
 
-    // Clear transposition tables
-    #pragma omp critical
-    {
-        clearTables();
-    }
-    
     const int baseDepth = 1;
     int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
@@ -780,7 +790,7 @@ Move findBestMove(Board& board,
 
         #pragma omp critical
         {
-            transpositionTable[board.hash()] = {bestEval, depth};
+            tableInsert(board, depth, bestEval, bestMove);
         }
 
         moves = newMoves;
@@ -789,6 +799,7 @@ Move findBestMove(Board& board,
         std::string depthStr = "depth " +  std::to_string(PV.size());
         std::string scoreStr = "score cp " + std::to_string(color * bestEval);
         std::string nodeStr = "nodes " + std::to_string(nodeCount);
+        std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(tableHit) / nodeCount);
 
         auto iterationEndTime = std::chrono::high_resolution_clock::now();
         std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
@@ -799,7 +810,7 @@ Move findBestMove(Board& board,
             pvStr += uci::moveToUci(move) + " ";
         }
 
-        std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + " " + pvStr;
+        std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
         std::cout << analysis << std::endl;
 
         if (moves.size() == 1) {
@@ -835,11 +846,6 @@ Move findBestMove(Board& board,
             } 
             depth++;
         }
-    }
-    
-    #pragma omp critical
-    {
-        clearTables();
     }
 
     return bestMove; 
