@@ -195,10 +195,10 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     if (mopUp) {
         return depth - 1;
     }
-    
-    //int R = quietCount / 20;
-    int k = std::min(2, 25 / globalMaxDepth);
 
+
+    // Late move reduction
+    int k = std::min(2, 25 / globalMaxDepth);
 
     if (i <= k || depth <= 2) { 
         return depth - 1;
@@ -442,22 +442,17 @@ int negamax(Board& board,
     // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
     // Disable pruning for when alpha is very high to avoid missing checkmates
     
-    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4;
+    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4 && !leftMost;
     int standPat = Probe::eval(board.getFen().c_str());
 
     // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
-    if (depth <= 3 && pruningCondition && !isPV) {
-        int razorMargin = 350 + depth * 60; // Threshold increases slightly with depth
 
-        if (standPat + razorMargin < alpha) {
-            // If the position is too weak and unlikely to raise alpha, skip deep search
-            return quiescence(board, alpha, beta);
-        } 
-    }
+
+
 
     // Futility pruning outside move loop
-    if (depth <= 2 && pruningCondition && globalMaxDepth >= 10) {
-        int margin = depth * 200;
+    if (pruningCondition && depth <= 2 && globalMaxDepth >= 10) {
+        int margin = 200 + 50 * depth * depth;
         if (standPat - margin > beta) {
             // If the static evaluation - margin > beta, 
             // then it is considered to be too good and most likely a cutoff
@@ -477,7 +472,12 @@ int negamax(Board& board,
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
         board.unmakeNullMove();
 
-        if (nullEval >= beta) { 
+        int margin = 0;
+        if (isPV) {
+            margin = 100;
+        }
+
+        if (nullEval >= beta + margin) { 
             // Even if we skip our move and the evaluation is >= beta, this is a cutoff since it is
             // a fail high (too good for us)
             return beta;
@@ -508,8 +508,8 @@ int negamax(Board& board,
         }
 
         //  Futility pruning. If the move is quiet and late.
-        if (depth <= 2 && pruningCondition && quiet && quietCount >= 10 && globalMaxDepth >= 10) {
-            int margin = depth * 200;
+        if (depth <= 2 && quiet && quietCount >= 10 && globalMaxDepth >= 10) {
+            int margin = 200 + 50 * depth * depth;
             if (standPat + margin < alpha) {
                 // If it is unlikely to raise alpha, skip the move
                 return alpha;
