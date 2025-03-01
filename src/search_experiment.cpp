@@ -196,11 +196,6 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-    // Late move pruning
-    if (!board.inCheck() && !isPV && i > 10) {
-        return 0;
-    }
-    
     // Late move reduction
     int k = std::min(2, 25 / globalMaxDepth);
 
@@ -447,12 +442,16 @@ int negamax(Board& board,
     // Disable pruning for when alpha is very high to avoid missing checkmates
     
     bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4 && !leftMost;
-    int standPat = color * materialImbalance(board);
-    //Probe::eval(board.getFen().c_str());
+    int standPat = Probe::eval(board.getFen().c_str());
 
     // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
-    if (depth <= 3 && pruningCondition && !isPV) {
-        int razorMargin = 350 + depth * 100; // Threshold increases slightly with depth
+    if (depth <= 3 && pruningCondition) {
+        int razorMargin;
+        if (!isPV) {
+            razorMargin = 350 + depth * 80; // Threshold increases slightly with depth
+        } else {
+            razorMargin = 330 * depth;
+        }
 
         if (standPat + razorMargin < alpha) {
             // If the position is too weak and unlikely to raise alpha, skip deep search
