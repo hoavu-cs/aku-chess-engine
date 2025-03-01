@@ -31,7 +31,7 @@ void initializeNNUE() {
     Constants and global variables.
 --------------------------------------------------------------------------------------------*/
 
-const int maxTableSize = 20e6; // Maximum size of the transposition table
+const int maxTableSize = 10e6; // Maximum size of the transposition table
 
 struct tableEntry {
     U64 hash;
@@ -208,7 +208,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     }
 
     // Late move reduction
-    int k = std::min(2, 25 / globalMaxDepth);
+    int k = std::min(1, 25 / globalMaxDepth);
 
     if (i <= k || depth <= 2) { 
         return depth - 1;
