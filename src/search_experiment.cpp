@@ -446,31 +446,12 @@ int negamax(Board& board,
     int standPat = Probe::eval(board.getFen().c_str());
 
     // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
-    // if (pruningCondition && depth <= 3) {
-    //     // depth <= 3 && 
-    //     // int razorMargin;
-    //     // if (!isPV) {
-    //     //     razorMargin = 350 + depth * 80; // Threshold increases slightly with depth
-    //     // } else {
-    //     //     razorMargin = 330 * depth;
-    //     // }
-    //     int razorMargin = 0;
-    //     if (isPV) {
-    //         razorMargin = 350 * depth;
-    //     } else if (!isPV) {
-    //         razorMargin = 350 + depth * 80; // Threshold increases slightly with depth
-    //     }
 
-    //     if (standPat + razorMargin < alpha) {
-    //         // If the position is too weak and unlikely to raise alpha, skip deep search
-    //         return quiescence(board, alpha, beta);
-    //     } 
-    // }
 
 
 
     // Futility pruning outside move loop
-    if (pruningCondition && depth <= 4) {
+    if (pruningCondition && depth <= 3 && globalMaxDepth >= 10) {
         int margin = 200 + 50 * depth * depth;
         if (standPat - margin > beta) {
             // If the static evaluation - margin > beta, 
@@ -527,7 +508,7 @@ int negamax(Board& board,
         }
 
         //  Futility pruning. If the move is quiet and late.
-        if (pruningCondition && quiet && depth <= 4) {
+        if (depth <= 3 && quiet && quietCount >= 10 && globalMaxDepth >= 10) {
             int margin = 200 + 50 * depth * depth;
             if (standPat + margin < alpha) {
                 // If it is unlikely to raise alpha, skip the move
