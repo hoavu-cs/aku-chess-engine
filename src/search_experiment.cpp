@@ -208,7 +208,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     }
 
     // Late move reduction
-    int k = std::min(2, 25 / globalMaxDepth);
+    int k = std::min(1, 25 / globalMaxDepth);
 
     if (i <= k || depth <= 2) { 
         return depth - 1;
@@ -444,24 +444,36 @@ int negamax(Board& board,
         return quiescenceEval;
     }
 
-    // Only pruning if the position is not in check, mop up flag is not set, and it's not the endgame phase
-    // Disable pruning for when alpha is very high to avoid missing checkmates
+
     
-    bool pruningCondition = !board.inCheck() && !mopUp && !endGameFlag && alpha < INF/4 && alpha > -INF/4 && !leftMost;
+    bool pruningCondition = !board.inCheck() 
+                            && !mopUp
+                            && !endGameFlag 
+                            && alpha < INF/4 
+                            && alpha > -INF/4 
+                            && beta < INF/4
+                            && beta > -INF/4
+                            && !leftMost;
     int standPat = Probe::eval(board.getFen().c_str());
 
-
-    // Reverse futility pruning
-    if (pruningCondition && depth <= 2 && !isPV) {
-        int margin = 200 + 50 * depth * depth;
+    /*--------------------------------------------------------------------------------------------
+        Reverse futility pruning: We skip the search if the position is too good for us.
+        Avoid pruning in the endgame phase, when alpha is close to the mate score (to avoid missing 
+        checkmates). We also not do this in PV nodes.
+    --------------------------------------------------------------------------------------------*/
+    if (depth <= 2 && pruningCondition && !isPV) {
+        int margin = 350 * depth;
         if (standPat - margin > beta) {
             return standPat - margin;
         } 
     }
 
-    // Razoring: Skip deep search if the position is too weak. Only applied to non-PV nodes.
-    if (pruningCondition) {
-        int razorMargin = 550 + 300 * depth * depth;
+    /*--------------------------------------------------------------------------------------------
+        Razoring: Skip deep search if the position is too weak. This can really harm the search
+        if the margin is too low. So we keep the margin at value of the queen even for depth 1.
+    --------------------------------------------------------------------------------------------*/
+    if (pruningCondition && !leftMost) {
+        int razorMargin = 900 + 300 * depth * depth;
 
         if (standPat < alpha - razorMargin) {
             // If the position is too weak and unlikely to raise alpha, skip deep search
@@ -475,7 +487,7 @@ int negamax(Board& board,
     if (depth >= nullDepth && !endGameFlag && !leftMost && !board.inCheck() && !mopUp) {
         std::vector<Move> nullPV;
         int nullEval;
-        int reduction = 3 + depth / 4;
+        int reduction = 3 + depth / 5;
 
         board.makeNullMove();
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
@@ -516,22 +528,13 @@ int negamax(Board& board,
             quietCount++;
         }
 
-        // Probcut
-        // board.makeMove(move);
-        
-        // const int probCutDepth = 10;
-        // const 
-        // if (depth >= probCutDepth && pruningCondition && !isPV) {
-
-        // }
-
-        // board.unmakeMove(move);
-
-        //  Futility pruning. If the move is quiet and late.
-        if (depth <= 4 && quiet && pruningCondition) {
-            int margin = 200 + 50 * depth * depth;
+        /*--------------------------------------------------------------------------------------------
+            Futility pruning: prune if there is no hope of raising alpha.
+            For tactical stability, we only do this for quiet moves.
+        --------------------------------------------------------------------------------------------*/
+        if (depth <= 2 && quiet && pruningCondition && !leftMost) {
+            int margin = 350 * depth;
             if (standPat + margin < alpha) {
-                // If it is unlikely to raise alpha, skip the move
                 return alpha;
             } 
         }
