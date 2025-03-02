@@ -232,7 +232,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     // Late move reduction
     //int k = std::min(2, 25 / globalMaxDepth);
 
-    if (i <= 5 || depth <= 2) { 
+    if (i <= 4 || depth <= 2) { 
         return depth - 1;
     } else {
         return depth - log (depth) * log (i);
@@ -720,11 +720,13 @@ Move findBestMove(Board& board,
             aspiration = evals[depth - 1];
             std::vector<int> previousEvals = {evals[depth - 1], evals[depth - 2], evals[depth - 3]};
             double deviation = standardDeviation(previousEvals);
-            alpha = aspiration - static_cast<int>(deviation);
-            beta = aspiration + static_cast<int>(deviation);
+            alpha = aspiration - static_cast<int>(1.5 * deviation) - 50;
+            beta = aspiration + static_cast<int>(1.5 * deviation) + 50;
         }
 
         while (true) {
+
+            currentBestEval = -INF;
 
             #pragma omp parallel for schedule(dynamic, 1)
             for (int i = 0; i < moves.size(); i++) {
@@ -812,7 +814,8 @@ Move findBestMove(Board& board,
                 break;
             }
 
-            if (currentBestEval <= alpha || currentBestEval >= beta) {
+            if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
+                //std :: cout << "Current best eval: " << currentBestEval << " alpha: " << alpha << " beta: " << beta << std::endl;
                 alpha = -INF;
                 beta = INF;
             } else {
