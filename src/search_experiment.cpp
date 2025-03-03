@@ -11,7 +11,6 @@
 #include <stdlib.h>
 #include <cmath>
 #include <unordered_set>
-#include <numeric>  
 #include <queue>
 #include "../lib/stockfish_nnue_probe/probe.h"
 
@@ -45,45 +44,6 @@ struct tableEntry {
 std::vector<tableEntry> transpositionTable(maxTableSize); 
 std::unordered_map<U64, U64> historyTable; // History heuristic table
 
-
-// Bad moves table
-const int MAX_MOVES = 25;
-
-struct Compare {
-    bool operator() (const std::pair<int, int>& a, const std::pair<int, int>& b) {
-        return a.second > b.second;
-    }
-};
-
-std::unordered_map<int, std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, Compare>> badMoves;
-std::unordered_map<int, std::unordered_set<int>> moveSet;  // To track existing moves
-
-void addBadMove(int depth, int from, int to, int score) {
-    int move = from * 64 + to;  // Encode move
-    auto& pq = badMoves[depth]; // Get priority queue for this depth
-    auto& seen = moveSet[depth]; // Get set of moves for this depth
-
-    if (seen.find(move) != seen.end()) {
-        return; // Move already exists, ignore
-    }
-
-    if (pq.size() < MAX_MOVES) {
-        pq.emplace(move, score);
-        seen.insert(move);
-    } else if (score > pq.top().second) {  // If heap is full, remove least bad move
-        seen.erase(pq.top().first);  // Remove old move from the set
-        pq.pop();  // Remove least bad move
-        pq.emplace(move, score);
-        seen.insert(move);
-    }
-}
-
-bool isBadMoveInPQ(int depth, int from, int to) {
-    int move = from * 64 + to;
-    return moveSet[depth].find(move) != moveSet[depth].end();
-}
-
-
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
@@ -108,26 +68,6 @@ const int pieceValues[] = {
     900,  // Queen
     20000 // King
 };
-
-
-/*-------------------------------------------------------------------------------------------- 
-    Compute standard deviation of a vector of integers.
---------------------------------------------------------------------------------------------*/
-double standardDeviation(const std::vector<int>& data) {
-    if (data.empty()) {
-        throw std::invalid_argument("Data vector is empty.");
-    }
-
-    double mean = std::accumulate(data.begin(), data.end(), 0.0) / data.size();
-
-    double variance = 0.0;
-    for (int value : data) {
-        variance += (value - mean) * (value - mean);
-    }
-    variance /= data.size(); // Use data.size() for population SD, (data.size() - 1) for sample SD
-
-    return std::sqrt(variance);
-}
 
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and clear.
@@ -264,30 +204,10 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-    // Late move reduction
-    // int k = std::min(2, 25 / globalMaxDepth);
-    // int badMoveReduction = 0;
-
-    // #pragma omp critical
-    // {
-    //     if (!isPV && isBadMoveInPQ(depth, move.from().index(), move.to().index())) {
-    //         badMoveReduction = 1;
-    //     }
-    // }
-
-    int killerBonus = 0;
-
-    #pragma omp critical
-    {
-        if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
-            killerBonus = 1;
-        }
-    }
-
-    if (i <= 5 || depth <= 2) { 
+    if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        return std::max(depth - 1, static_cast<int>(depth - log (depth) * log (i) + killerBonus));
+        return depth - log (depth) - log (i);
     }
 }
 
@@ -365,10 +285,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 {
                     if (historyTable.count(moveIndex)) {
                         priority = 1000 + historyTable[moveIndex];
-                    } 
-                        
-                    //priority += moveScoreByTable(board, move);
-                    
+                    } else {
+                        priority = moveScoreByTable(board, move);
+                    }
+                                            
                 }
             }
         } 
@@ -473,14 +393,21 @@ int negamax(Board& board,
     if (currentTime >= hardDeadline) {
         return 0;
     }
+    
 
     #pragma omp critical
     nodeCount++;
+
+
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     bool endGameFlag = gamePhase(board) <= 12;
     int color = whiteTurn ? 1 : -1;
     bool isPV = (alpha < beta - 1); // Principal variation node flag
+
+    if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
+        return color * mopUpScore(board);
+    }
     
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
@@ -675,14 +602,6 @@ int negamax(Board& board,
                 PV.push_back(move);
             }
         } 
-        
-        // else if (eval < alpha - 300) {
-        //     // Add bad moves to the bad moves table
-        //     #pragma omp critical
-        //     {
-        //         addBadMove(ply, move.from().index(), move.to().index(), ply);
-        //     }
-        // }
 
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
@@ -758,8 +677,6 @@ Move findBestMove(Board& board,
     int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
     std::vector<Move> candidateMove (2 * ENGINE_DEPTH + 1, Move());
-    int leftWindowSize = 50;
-    int rightWindowSize = 50;
 
     while (depth <= maxDepth) {
         nodeCount = 0;
@@ -786,8 +703,8 @@ Move findBestMove(Board& board,
 
         if (depth > 6) {
             aspiration = evals[depth - 1];
-            alpha = aspiration - 300;
-            beta = aspiration + 300;
+            alpha = aspiration - 100;
+            beta = aspiration + 100;
         }
 
         while (true) {
