@@ -116,6 +116,44 @@ void updateKillerMoves(const Move& move, int ply) {
 }
 
 /*-------------------------------------------------------------------------------------------- 
+    mopUp Phase
+--------------------------------------------------------------------------------------------*/
+bool isMopUpPhase(Board& board) {
+    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
+    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
+
+    Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
+    Bitboard blackKnights = board.pieces(PieceType::KNIGHT, Color::BLACK);
+
+    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
+    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
+
+    Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
+    Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
+
+    Bitboard whiteQueens = board.pieces(PieceType::QUEEN, Color::WHITE);
+    Bitboard blackQueens = board.pieces(PieceType::QUEEN, Color::BLACK);
+
+    Bitboard whiteMinorPieces = whiteKnights | whiteBishops;
+    Bitboard blackMinorPieces = blackKnights | blackBishops;
+
+    Bitboard whiteMajorPieces = whiteRooks | whiteQueens;
+    Bitboard blackMajorPieces = blackRooks | blackQueens;
+
+    if (whitePawns.count() == 0 && whiteMajorPieces.count() == 0 && whiteMinorPieces.count() <= 1 
+        && blackMajorPieces.count() > 0) {    
+        return true;
+    }
+
+    if (blackPawns.count() == 0 && blackMajorPieces.count() == 0 && blackMinorPieces.count() <= 1 
+        && whiteMajorPieces.count() > 0) {
+        return true;
+    }
+
+    return false;
+}
+
+/*-------------------------------------------------------------------------------------------- 
     Check if the move involves a passed pawn push.
 --------------------------------------------------------------------------------------------*/
 bool promotionThreatMove(Board& board, Move move) {
@@ -191,12 +229,14 @@ int see(Board& board, Move move) {
     return materialGain + maxSubsequentGain;
 }
 
-
-
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
 int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount, bool leftMost) {
+
+    if (isMopUpPhase(board)) {
+        return depth - 1;
+    }
 
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
@@ -326,7 +366,9 @@ int quiescence(Board& board, int alpha, int beta) {
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     int standPat = 0;
 
-    if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
+    bool mopUp = false;
+
+    if (isMopUpPhase(board)) {
         return color * mopUpScore(board);
     }
 
