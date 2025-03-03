@@ -169,14 +169,11 @@ bool isPromotion(const Move& move) {
     Update the killer moves.
 --------------------------------------------------------------------------------------------*/
 void updateKillerMoves(const Move& move, int ply) {
-    #pragma omp critical
-    {
-        if (killerMoves[ply].size() < 2) {
-            killerMoves[ply].push_back(move);
-        } else {
-            killerMoves[ply][1] = killerMoves[ply][0];
-            killerMoves[ply][0] = move;
-        }
+    if (killerMoves[ply].size() < 2) {
+        killerMoves[ply].push_back(move);
+    } else {
+        killerMoves[ply][1] = killerMoves[ply][0];
+        killerMoves[ply][0] = move;
     }
 }
 
@@ -278,10 +275,19 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     //     }
     // }
 
+    int killerBonus = 0;
+
+    #pragma omp critical
+    {
+        if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
+            killerBonus = 1;
+        }
+    }
+
     if (i <= 5 || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth - log (depth) * log (i);
+        return std::max(depth - 1, static_cast<int>(depth - log (depth) * log (i) + killerBonus));
     }
 }
 
@@ -684,11 +690,12 @@ int negamax(Board& board,
 
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
-                updateKillerMoves(move, ply);
+                
 
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
                 #pragma omp critical
                 {
+                    updateKillerMoves(move, ply);
                     historyTable[moveIndex] += depth * depth;
                 }
             }
