@@ -12,6 +12,8 @@ void bitBoardVisualize(const Bitboard& board);
 
 int gamePhase(const Board& board);
 
+bool knownDraw(const Board& board);
+
 int materialImbalance(const Board& board);
 
 bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns);

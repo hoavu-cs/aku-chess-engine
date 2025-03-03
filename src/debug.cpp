@@ -89,6 +89,12 @@ int main() {
     // 5rk1/p1p2pp1/4pb1p/3b4/3P2Q1/q3P3/1r1NBPPP/2RR2K1 w - - 0 22 material blunder
     // r2qr2k/6pp/2P5/bN6/2QP2n1/2P3P1/PP5P/R1B2K1R b - - 0 19 (**Qf6** vs Rh8)
 
+    /* Mop up check
+    4Q3/p7/5k2/8/2p5/1p6/P2K4/8 w - - 1 60
+    8/5r2/3k4/3n4/8/4KB2/8/8 w - - 2 81
+    r7/1k6/8/8/8/4K3/8/8 w - - 2 81
+    */
+
     /* Important test cases
     5rk1/p1p2pp1/4pb1p/3b4/3P2Q1/q3P3/1r1NBPPP/2RR2K1 w - - 0 22
     r2qr2k/6pp/2P5/bN6/2QP2n1/2P3P1/PP5P/R1B2K1R b - - 0 19
