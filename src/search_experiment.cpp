@@ -12,6 +12,7 @@
 #include <cmath>
 #include <unordered_set>
 #include <numeric>  
+#include <queue>
 #include "../lib/stockfish_nnue_probe/probe.h"
 
 using namespace chess;
@@ -32,6 +33,7 @@ void initializeNNUE() {
     Constants and global variables.
 --------------------------------------------------------------------------------------------*/
 
+// Transposition table 
 const int maxTableSize = 10e6; // Maximum size of the transposition table
 
 struct tableEntry {
@@ -40,9 +42,47 @@ struct tableEntry {
     int depth;
     Move bestMove;
 };
-
 std::vector<tableEntry> transpositionTable(maxTableSize); 
 std::unordered_map<U64, U64> historyTable; // History heuristic table
+
+
+// Bad moves table
+const int MAX_MOVES = 25;
+
+struct Compare {
+    bool operator() (const std::pair<int, int>& a, const std::pair<int, int>& b) {
+        return a.second > b.second;
+    }
+};
+
+std::unordered_map<int, std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, Compare>> badMoves;
+std::unordered_map<int, std::unordered_set<int>> moveSet;  // To track existing moves
+
+void addBadMove(int depth, int from, int to, int score) {
+    int move = from * 64 + to;  // Encode move
+    auto& pq = badMoves[depth]; // Get priority queue for this depth
+    auto& seen = moveSet[depth]; // Get set of moves for this depth
+
+    if (seen.find(move) != seen.end()) {
+        return; // Move already exists, ignore
+    }
+
+    if (pq.size() < MAX_MOVES) {
+        pq.emplace(move, score);
+        seen.insert(move);
+    } else if (score > pq.top().second) {  // If heap is full, remove least bad move
+        seen.erase(pq.top().first);  // Remove old move from the set
+        pq.pop();  // Remove least bad move
+        pq.emplace(move, score);
+        seen.insert(move);
+    }
+}
+
+bool isBadMoveInPQ(int depth, int from, int to) {
+    int move = from * 64 + to;
+    return moveSet[depth].find(move) != moveSet[depth].end();
+}
+
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
@@ -89,8 +129,6 @@ double standardDeviation(const std::vector<int>& data) {
     return std::sqrt(variance);
 }
 
-
-
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and clear.
 --------------------------------------------------------------------------------------------*/
@@ -130,14 +168,14 @@ bool isPromotion(const Move& move) {
 /*-------------------------------------------------------------------------------------------- 
     Update the killer moves.
 --------------------------------------------------------------------------------------------*/
-void updateKillerMoves(const Move& move, int depth) {
+void updateKillerMoves(const Move& move, int ply) {
     #pragma omp critical
     {
-        if (killerMoves[depth].size() < 2) {
-            killerMoves[depth].push_back(move);
+        if (killerMoves[ply].size() < 2) {
+            killerMoves[ply].push_back(move);
         } else {
-            killerMoves[depth][1] = killerMoves[depth][0];
-            killerMoves[depth][0] = move;
+            killerMoves[ply][1] = killerMoves[ply][0];
+            killerMoves[ply][0] = move;
         }
     }
 }
@@ -223,16 +261,24 @@ int see(Board& board, Move move) {
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
-int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount) {
+int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount, bool leftMost) {
 
     if (mopUp) {
         return depth - 1;
     }
 
     // Late move reduction
-    //int k = std::min(2, 25 / globalMaxDepth);
+    // int k = std::min(2, 25 / globalMaxDepth);
+    // int badMoveReduction = 0;
 
-    if (i <= 4 || depth <= 2) { 
+    // #pragma omp critical
+    // {
+    //     if (!isPV && isBadMoveInPQ(depth, move.from().index(), move.to().index())) {
+    //         badMoveReduction = 1;
+    //     }
+    // }
+
+    if (i <= 5 || depth <= 2) { 
         return depth - 1;
     } else {
         return depth - log (depth) * log (i);
@@ -244,7 +290,9 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 --------------------------------------------------------------------------------------------*/
 std::vector<std::pair<Move, int>> orderedMoves(
     Board& board, 
-    int depth, std::vector<Move>& previousPV, 
+    int depth, 
+    int ply,
+    std::vector<Move>& previousPV, 
     bool leftMost) {
 
     Movelist moves;
@@ -290,7 +338,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             if (previousPV[ply] == move) {
                 priority = 10000; // PV move
             }
-        } else if (std::find(killerMoves[depth].begin(), killerMoves[depth].end(), move) != killerMoves[depth].end()) {
+        } else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
             priority = 4000; // Killer moves
         } else if (isPromotion(move)) {
             priority = 6000; 
@@ -527,7 +575,7 @@ int negamax(Board& board,
         } 
     }
 
-    std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, previousPV, leftMost);
+    std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, ply, previousPV, leftMost);
     int bestEval = -INF;
     int quietCount = 0;
 
@@ -561,14 +609,12 @@ int negamax(Board& board,
             } 
         }
 
-        int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, quietCount); 
-        
         if (i > 0) {
             leftMost = false;
         }
 
-        board.makeMove(move);
+        int eval = 0;
+        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, quietCount, leftMost); 
         
         /*--------------------------------------------------------------------------------------------
             PVS search: 
@@ -581,7 +627,9 @@ int negamax(Board& board,
 
         --------------------------------------------------------------------------------------------*/
 
+        board.makeMove(move);
         bool nullWindow = false;
+
         if (i == 0 || mopUp) {
             // full window & full depth search for the first few nodes
             // In an ideal world, with good move ordering, we only need to do this for i = 0
@@ -620,7 +668,15 @@ int negamax(Board& board,
             for (auto& move : childPV) {
                 PV.push_back(move);
             }
-        }
+        } 
+        
+        // else if (eval < alpha - 300) {
+        //     // Add bad moves to the bad moves table
+        //     #pragma omp critical
+        //     {
+        //         addBadMove(ply, move.from().index(), move.to().index(), ply);
+        //     }
+        // }
 
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
@@ -628,7 +684,7 @@ int negamax(Board& board,
 
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
-                updateKillerMoves(move, depth);
+                updateKillerMoves(move, ply);
 
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
                 #pragma omp critical
@@ -695,6 +751,8 @@ Move findBestMove(Board& board,
     int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
     std::vector<Move> candidateMove (2 * ENGINE_DEPTH + 1, Move());
+    int leftWindowSize = 50;
+    int rightWindowSize = 50;
 
     while (depth <= maxDepth) {
         nodeCount = 0;
@@ -708,7 +766,7 @@ Move findBestMove(Board& board,
         std::vector<Move> PV; // Principal variation
 
         if (depth == baseDepth) {
-            moves = orderedMoves(board, depth, previousPV, false);
+            moves = orderedMoves(board, depth, 0, previousPV, false);
         }
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
@@ -716,12 +774,13 @@ Move findBestMove(Board& board,
         int quietCount = 0;
         int aspiration, alpha, beta;
 
-        if (depth > 8) {
+        alpha = -INF;
+        beta = INF;
+
+        if (depth > 6) {
             aspiration = evals[depth - 1];
-            std::vector<int> previousEvals = {evals[depth - 1], evals[depth - 2], evals[depth - 3]};
-            double deviation = standardDeviation(previousEvals);
-            alpha = aspiration - static_cast<int>(1.5 * deviation) - 50;
-            beta = aspiration + static_cast<int>(1.5 * deviation) + 50;
+            alpha = aspiration - 300;
+            beta = aspiration + 300;
         }
 
         while (true) {
@@ -749,6 +808,7 @@ Move findBestMove(Board& board,
                 bool isCheck = localBoard.inCheck();
                 localBoard.unmakeMove(move);
                 bool isPromoThreat = promotionThreatMove(localBoard, move);
+                int ply = 0;
         
                 bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
                 if (quiet) {
@@ -756,11 +816,11 @@ Move findBestMove(Board& board,
                 }
 
                 bool newBestFlag = false;  
-                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount);
+                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount, leftMost);
                 int eval = -INF;
 
                 localBoard.makeMove(move);
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, 0);
+                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -780,7 +840,7 @@ Move findBestMove(Board& board,
 
                 if (newBestFlag && nextDepth < depth - 1) {
                     localBoard.makeMove(move);
-                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, 0);
+                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
                     localBoard.unmakeMove(move);
 
                     // Check if the time limit has been exceeded, if so the search 
@@ -815,7 +875,6 @@ Move findBestMove(Board& board,
             }
 
             if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
-                //std :: cout << "Current best eval: " << currentBestEval << " alpha: " << alpha << " beta: " << beta << std::endl;
                 alpha = -INF;
                 beta = INF;
             } else {
