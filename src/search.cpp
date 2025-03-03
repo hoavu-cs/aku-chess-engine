@@ -319,13 +319,13 @@ int quiescence(Board& board, int alpha, int beta) {
     nodeCount++;
 
 
+
     Movelist moves;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     int standPat = 0;
 
-    // Aid checkmate
     if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
         return color * mopUpScore(board);
     }
@@ -812,7 +812,7 @@ Move findBestMove(Board& board,
         previousPV = PV;
 
         std::string depthStr = "depth " +  std::to_string(PV.size());
-        std::string scoreStr = "score cp " + std::to_string(color * bestEval);
+        std::string scoreStr = "score cp " + std::to_string(bestEval);
         std::string nodeStr = "nodes " + std::to_string(nodeCount);
         std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(tableHit) / nodeCount);
 

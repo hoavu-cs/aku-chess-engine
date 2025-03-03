@@ -812,7 +812,7 @@ Move findBestMove(Board& board,
         previousPV = PV;
 
         std::string depthStr = "depth " +  std::to_string(PV.size());
-        std::string scoreStr = "score cp " + std::to_string(color * bestEval);
+        std::string scoreStr = "score cp " + std::to_string(bestEval);
         std::string nodeStr = "nodes " + std::to_string(nodeCount);
         std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(tableHit) / nodeCount);
 
