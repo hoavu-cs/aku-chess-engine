@@ -54,8 +54,6 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
 
 int globalMaxDepth = 0; // Maximum depth of current search
-bool mopUp = false; // Mop up flag
-
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
@@ -117,6 +115,8 @@ void updateKillerMoves(const Move& move, int ply) {
     }
 }
 
+
+
 /*-------------------------------------------------------------------------------------------- 
     Check if the move involves a passed pawn push.
 --------------------------------------------------------------------------------------------*/
@@ -137,44 +137,6 @@ bool promotionThreatMove(Board& board, Move move) {
                 return true;
             }
         }
-    }
-
-    return false;
-}
-
-/*-------------------------------------------------------------------------------------------- 
-    mopUp Phase
---------------------------------------------------------------------------------------------*/
-bool isMopUpPhase(Board& board) {
-    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
-    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
-
-    Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
-    Bitboard blackKnights = board.pieces(PieceType::KNIGHT, Color::BLACK);
-
-    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
-    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
-
-    Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
-    Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
-
-    Bitboard whiteQueens = board.pieces(PieceType::QUEEN, Color::WHITE);
-    Bitboard blackQueens = board.pieces(PieceType::QUEEN, Color::BLACK);
-
-    Bitboard whiteMinorPieces = whiteKnights | whiteBishops;
-    Bitboard blackMinorPieces = blackKnights | blackBishops;
-
-    Bitboard whiteMajorPieces = whiteRooks | whiteQueens;
-    Bitboard blackMajorPieces = blackRooks | blackQueens;
-
-    if (whitePawns.count() == 0 && whiteMajorPieces.count() == 0 && whiteMinorPieces.count() <= 1 
-        && blackMajorPieces.count() > 0) {    
-        return true;
-    }
-
-    if (blackPawns.count() == 0 && blackMajorPieces.count() == 0 && blackMinorPieces.count() <= 1 
-        && whiteMajorPieces.count() > 0) {
-        return true;
     }
 
     return false;
@@ -231,15 +193,18 @@ int see(Board& board, Move move) {
     return materialGain + maxSubsequentGain;
 }
 
-
-
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
 int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount, bool leftMost) {
 
-    if (mopUp) {
-        return depth - 1;
+    if (isMopUpPhase(board)) {
+        // Search more thoroughly in mop-up phase
+        if (i <= 10 || depth <= 2) { 
+            return depth - 1;
+        } else {
+            return depth - 2;
+        }
     }
 
     if (i <= 2 || depth <= 2) { 
@@ -362,13 +327,19 @@ int quiescence(Board& board, int alpha, int beta) {
     #pragma omp critical
     nodeCount++;
 
+    if (knownDraw(board)) {
+        return 0;
+    }
+
     Movelist moves;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     int standPat = 0;
 
-    if (mopUp) {
+    bool mopUp = isMopUpPhase(board);
+
+    if (isMopUpPhase(board)) {
         standPat = color * mopUpScore(board);
     } else {
         standPat = Probe::eval(board.getFen().c_str());
@@ -431,21 +402,16 @@ int negamax(Board& board,
     if (currentTime >= hardDeadline) {
         return 0;
     }
-    
 
     #pragma omp critical
     nodeCount++;
 
-
+    bool mopUp = isMopUpPhase(board);
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     bool endGameFlag = gamePhase(board) <= 12;
     int color = whiteTurn ? 1 : -1;
     bool isPV = (alpha < beta - 1); // Principal variation node flag
-
-    if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
-        return color * mopUpScore(board);
-    }
     
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
@@ -485,17 +451,17 @@ int negamax(Board& board,
         return quiescenceEval;
     }
 
-
-    
-    bool pruningCondition = !board.inCheck() 
-                            && !mopUp
-                            && !endGameFlag 
-                            && alpha < INF/4 
-                            && alpha > -INF/4 
-                            && beta < INF/4
-                            && beta > -INF/4
-                            && !leftMost;
     int standPat = Probe::eval(board.getFen().c_str());
+
+    bool pruningCondition = !board.inCheck() 
+                            && !endGameFlag 
+                            && alpha < 2000 
+                            && alpha > -2000 
+                            && beta < 2000
+                            && beta > -2000
+                            && !leftMost
+                            && !mopUp;
+    
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -601,7 +567,7 @@ int negamax(Board& board,
         board.makeMove(move);
         bool nullWindow = false;
 
-        if (i == 0 || mopUp) {
+        if (i == 0) {
             // full window & full depth search for the first few nodes
             // In an ideal world, with good move ordering, we only need to do this for i = 0
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
@@ -644,11 +610,8 @@ int negamax(Board& board,
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
 
-
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
-                
-
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
                 #pragma omp critical
                 {
@@ -702,12 +665,6 @@ Move findBestMove(Board& board,
 
     std::vector<std::pair<Move, int>> moves;
     std::vector<Move> globalPV (maxDepth);
-
-    if (board.us(Color::WHITE).count() == 1 || board.us(Color::BLACK).count() == 1) {
-        mopUp = true;
-    } else {
-        mopUp = false;
-    }
 
     omp_set_num_threads(numThreads);
 
@@ -867,7 +824,7 @@ Move findBestMove(Board& board,
         previousPV = PV;
 
         std::string depthStr = "depth " +  std::to_string(PV.size());
-        std::string scoreStr = "score cp " + std::to_string(color * bestEval);
+        std::string scoreStr = "score cp " + std::to_string(bestEval);
         std::string nodeStr = "nodes " + std::to_string(nodeCount);
         std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(tableHit) / nodeCount);
 

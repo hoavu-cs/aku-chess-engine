@@ -115,43 +115,7 @@ void updateKillerMoves(const Move& move, int ply) {
     }
 }
 
-/*-------------------------------------------------------------------------------------------- 
-    mopUp Phase
---------------------------------------------------------------------------------------------*/
-bool isMopUpPhase(Board& board) {
-    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
-    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
 
-    Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
-    Bitboard blackKnights = board.pieces(PieceType::KNIGHT, Color::BLACK);
-
-    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
-    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
-
-    Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
-    Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
-
-    Bitboard whiteQueens = board.pieces(PieceType::QUEEN, Color::WHITE);
-    Bitboard blackQueens = board.pieces(PieceType::QUEEN, Color::BLACK);
-
-    Bitboard whiteMinorPieces = whiteKnights | whiteBishops;
-    Bitboard blackMinorPieces = blackKnights | blackBishops;
-
-    Bitboard whiteMajorPieces = whiteRooks | whiteQueens;
-    Bitboard blackMajorPieces = blackRooks | blackQueens;
-
-    if (whitePawns.count() == 0 && whiteMajorPieces.count() == 0 && whiteMinorPieces.count() <= 1 
-        && blackMajorPieces.count() > 0) {    
-        return true;
-    }
-
-    if (blackPawns.count() == 0 && blackMajorPieces.count() == 0 && blackMinorPieces.count() <= 1 
-        && whiteMajorPieces.count() > 0) {
-        return true;
-    }
-
-    return false;
-}
 
 /*-------------------------------------------------------------------------------------------- 
     Check if the move involves a passed pawn push.
@@ -235,7 +199,12 @@ int see(Board& board, Move move) {
 int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, int quietCount, bool leftMost) {
 
     if (isMopUpPhase(board)) {
-        return depth - 1;
+        // Search more thoroughly in mop-up phase
+        if (i <= 10 || depth <= 2) { 
+            return depth - 1;
+        } else {
+            return depth - 2;
+        }
     }
 
     if (i <= 2 || depth <= 2) { 
@@ -358,6 +327,10 @@ int quiescence(Board& board, int alpha, int beta) {
     #pragma omp critical
     nodeCount++;
 
+    if (knownDraw(board)) {
+        return 0;
+    }
+
     Movelist moves;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
@@ -373,7 +346,6 @@ int quiescence(Board& board, int alpha, int beta) {
     }
 
     int bestScore = standPat;
-
     if (standPat >= beta) {
         return beta;
     }

@@ -323,35 +323,29 @@ int minDistance(const Square& sq, const Square& sq2) {
 }
 
 /*------------------------------------------------------------------------
-    Mop up score for KQ v K, KR v K
+    Mop up score. This function assume the board is in mop up phase.
 ------------------------------------------------------------------------*/
 int mopUpScore(const Board& board) {
-    if (board.us(Color::WHITE).count() == 1 && board.us(Color::BLACK).count() == 1) {
-        return 0; 
-    }
 
-    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
-    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
+    int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
+    int blackPawnsCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
 
-    Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
-    Bitboard blackKnights = board.pieces(PieceType::KNIGHT, Color::BLACK);
+    int whiteKnightsCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
+    int blackKnightsCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
 
-    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
-    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
+    int whiteBishopsCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
+    int blackBishopsCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
 
-    Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
-    Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
+    int whiteRooksCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
+    int blackRooksCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
 
-    Bitboard whiteQueens = board.pieces(PieceType::QUEEN, Color::WHITE);
-    Bitboard blackQueens = board.pieces(PieceType::QUEEN, Color::BLACK);
+    int whiteQueensCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
+    int blackQueensCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
 
-    Bitboard whiteMinorPieces = whiteKnights | whiteBishops;
-    Bitboard blackMinorPieces = blackKnights | blackBishops;
+    const int whiteMaterial = whitePawnsCount + whiteKnightsCount * 3 + whiteBishopsCount * 3 + whiteRooksCount * 5 + whiteQueensCount * 10;
+    const int blackMaterial = blackPawnsCount + blackKnightsCount * 3 + blackBishopsCount * 3 + blackRooksCount * 5 + blackQueensCount * 10;   
 
-    Bitboard whiteMajorPieces = whiteRooks | whiteQueens;
-    Bitboard blackMajorPieces = blackRooks | blackQueens;
-
-    Color winningColor = whiteMajorPieces.count() > 0 ? Color::WHITE : Color::BLACK;
+    Color winningColor = whiteMaterial > blackMaterial ? Color::WHITE : Color::BLACK;
 
     Bitboard pieces = board.pieces(PieceType::PAWN, winningColor) | board.pieces(PieceType::KNIGHT, winningColor) | 
                     board.pieces(PieceType::BISHOP, winningColor) | board.pieces(PieceType::ROOK, winningColor) | 
@@ -364,16 +358,21 @@ int mopUpScore(const Board& board) {
 
     int kingDist = manhattanDistance(winningKingSq, losingKingSq);
     int distToCenter = manhattanDistance(losingKingSq, E4);
-    int winningMaterial = 900 * board.pieces(PieceType::QUEEN, winningColor).count() + 
-                        500 * board.pieces(PieceType::ROOK, winningColor).count() + 
-                        300 * board.pieces(PieceType::BISHOP, winningColor).count() + 
-                        300 * board.pieces(PieceType::KNIGHT, winningColor).count() + 
-                        100 * board.pieces(PieceType::PAWN, winningColor).count(); // avoid throwing away pieces
-    int score = 5000 +  500 * distToCenter + 150 * (14 - kingDist);
+
+    int winningMaterialScore = winningColor == Color::WHITE ? whiteMaterial : blackMaterial;
+    int losingMaterialScore = winningColor == Color::WHITE ? blackMaterial : whiteMaterial;
+
+    int materialScore = 4 * (winningMaterialScore - losingMaterialScore);
+    
+    // materialScale * 900 * board.pieces(PieceType::QUEEN, winningColor).count() + 
+    //                     materialScale * 500 * board.pieces(PieceType::ROOK, winningColor).count() + 
+    //                     materialScale * 300 * board.pieces(PieceType::BISHOP, winningColor).count() + 
+    //                     materialScale * 300 * board.pieces(PieceType::KNIGHT, winningColor).count() + 
+    //                     materialScale * 100 * board.pieces(PieceType::PAWN, winningColor).count(); // avoid throwing away pieces
+    int score = 5000 +  500 * distToCenter + 150 * (14 - kingDist) + materialScore;
 
     return winningColor == Color::WHITE ? score : -score;
     
-
     return 0;
 }
 
@@ -407,4 +406,40 @@ int moveScoreByTable(const Board& board, Move move) {
 
     return 0;
 
+}
+
+
+/*-------------------------------------------------------------------------------------------- 
+    mopUp Phase
+--------------------------------------------------------------------------------------------*/
+bool isMopUpPhase(Board& board) {
+    int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
+    int blackPawnsCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
+
+    int whiteKnightsCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
+    int blackKnightsCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
+
+    int whiteBishopsCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
+    int blackBishopsCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
+
+    int whiteRooksCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
+    int blackRooksCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
+
+    int whiteQueensCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
+    int blackQueensCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
+
+    const int whiteMaterial = whitePawnsCount + whiteKnightsCount * 3 + whiteBishopsCount * 3 + whiteRooksCount * 5 + whiteQueensCount * 10;
+    const int blackMaterial = blackPawnsCount + blackKnightsCount * 3 + blackBishopsCount * 3 + blackRooksCount * 5 + blackQueensCount * 10;    
+
+    if (whitePawnsCount > 0 || blackPawnsCount > 0) {
+        // if there are pawns, it's not a settled
+        return false;
+    } else if (std::abs(whiteMaterial - blackMaterial) > 4) {
+        // This covers cases such as KQvK, KRvK, KQvKR, KBBvK
+        // Less obvious cases are also covered , KR+minor pieces v K+minor, 
+        return true;
+    }
+
+    // Otherwise, if we have K + a minor piece, or KR vs K + minor piece, it's drawish
+    return false;
 }
