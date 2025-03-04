@@ -8,7 +8,6 @@ using namespace chess;
 const int INF = 100000;
 
 // Function Declarations
-
 void initializeNNUE();
 
 Move findBestMove(

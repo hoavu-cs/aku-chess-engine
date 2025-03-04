@@ -13,6 +13,7 @@
 
 using namespace chess;
 
+
 void writePNGToFile(const std::vector<std::string>& pgnMoves, std::string filename) {
     std::ofstream pgnFile("game.pgn");
     if (pgnFile.is_open()) {
@@ -129,6 +130,8 @@ int main() {
     Move bestMove;
 
     int moveCount = 40;
+
+    //initializeFathom();
 
     for (int i = 0; i < moveCount; i++) {
 

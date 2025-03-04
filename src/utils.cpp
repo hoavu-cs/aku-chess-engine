@@ -9,6 +9,18 @@ const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
+const int mate[64] = {
+    200, 180, 160, 140, 140, 160, 180, 200,
+    180, 160, 140, 120, 120, 140, 160, 180,
+    160, 140, 120, 100, 100, 120, 140, 160,
+    140, 120, 100, 100, 100, 100, 120, 140,
+    140, 120, 100, 100, 100, 100, 120, 140,
+    160, 140, 120, 100, 100, 120, 140, 160,
+    180, 160, 140, 120, 120, 140, 160, 180,
+    200, 180, 160, 140, 140, 160, 180, 200
+};
+
+
 int midPawnTable[64] = {
     0,   0,   0,   0,   0,   0,  0,   0,
    98, 134,  61,  95,  68, 126, 34, -11,
@@ -354,6 +366,7 @@ int mopUpScore(const Board& board) {
 
     Square winningKingSq = Square(board.pieces(PieceType::KING, winningColor).lsb());
     Square losingKingSq = Square(board.pieces(PieceType::KING, !winningColor).lsb());
+    int losingKingSqIndex = losingKingSq.index();
     Square E4 = Square(28);
 
     int kingDist = manhattanDistance(winningKingSq, losingKingSq);
@@ -362,14 +375,14 @@ int mopUpScore(const Board& board) {
     int winningMaterialScore = winningColor == Color::WHITE ? whiteMaterial : blackMaterial;
     int losingMaterialScore = winningColor == Color::WHITE ? blackMaterial : whiteMaterial;
 
-    int materialScore = 4 * (winningMaterialScore - losingMaterialScore);
+    int materialScore = 100 * (winningMaterialScore - losingMaterialScore);
     
     // materialScale * 900 * board.pieces(PieceType::QUEEN, winningColor).count() + 
     //                     materialScale * 500 * board.pieces(PieceType::ROOK, winningColor).count() + 
     //                     materialScale * 300 * board.pieces(PieceType::BISHOP, winningColor).count() + 
     //                     materialScale * 300 * board.pieces(PieceType::KNIGHT, winningColor).count() + 
     //                     materialScale * 100 * board.pieces(PieceType::PAWN, winningColor).count(); // avoid throwing away pieces
-    int score = 5000 +  500 * distToCenter + 150 * (14 - kingDist) + materialScore;
+    int score = 5000 +  500 * distToCenter + 150 * (14 - kingDist) + materialScore + 10 * mate[losingKingSqIndex];
 
     return winningColor == Color::WHITE ? score : -score;
     

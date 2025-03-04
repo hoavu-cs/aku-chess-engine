@@ -19,6 +19,9 @@ using namespace Stockfish;
 
 typedef std::uint64_t U64;
 
+
+
+
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
 --------------------------------------------------------------------------------------------*/
@@ -200,11 +203,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 
     if (isMopUpPhase(board)) {
         // Search more thoroughly in mop-up phase
-        if (i <= 10 || depth <= 2) { 
-            return depth - 1;
-        } else {
-            return depth - 2;
-        }
+        return depth - 1;
     }
 
     if (i <= 2 || depth <= 2) { 
