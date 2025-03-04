@@ -342,6 +342,11 @@ int quiescence(Board& board, int alpha, int beta) {
         standPat = color * mopUpScore(board);
     } else {
         standPat = Probe::eval(board.getFen().c_str());
+        if (board.fullMoveNumber() < 200) {
+            // Avoid dragging out the game
+            standPat = standPat * static_cast<int>( (200 - board.fullMoveNumber()) / 00.0);
+        }
+        
     }
 
     int bestScore = standPat;
