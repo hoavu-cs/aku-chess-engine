@@ -342,11 +342,6 @@ int quiescence(Board& board, int alpha, int beta) {
         standPat = color * mopUpScore(board);
     } else {
         standPat = Probe::eval(board.getFen().c_str());
-        if (board.fullMoveNumber() < 200) {
-            // Avoid dragging out the game
-            standPat = standPat * static_cast<int>( (200 - board.fullMoveNumber()) / 200.0);
-        }
-        
     }
 
     int bestScore = standPat;
@@ -483,14 +478,14 @@ int negamax(Board& board,
         Razoring: Skip deep search if the position is too weak. This can really harm the search
         if the margin is too low. So we keep the margin at value of the queen even for depth 1.
     --------------------------------------------------------------------------------------------*/
-    if (pruningCondition && !leftMost) {
-        int razorMargin = 900 + 300 * depth * depth;
+    // if (pruningCondition && !leftMost) {
+    //     int razorMargin = 900 + 300 * depth * depth;
 
-        if (standPat < alpha - razorMargin) {
-            // If the position is too weak and unlikely to raise alpha, skip deep search
-            return quiescence(board, alpha, beta);
-        } 
-    }
+    //     if (standPat < alpha - razorMargin) {
+    //         // If the position is too weak and unlikely to raise alpha, skip deep search
+    //         return quiescence(board, alpha, beta);
+    //     } 
+    // }
 
     // Null move pruning. Avoid null move pruning in the endgame phase.
     const int nullDepth = 4; // Only apply null move pruning at depths >= 4
@@ -842,7 +837,10 @@ Move findBestMove(Board& board,
         }
 
         std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
-        std::cout << analysis << std::endl;
+
+        if (!quiet) {
+            std::cout << analysis << std::endl;
+        }
 
         if (moves.size() == 1) {
             return moves[0].first;

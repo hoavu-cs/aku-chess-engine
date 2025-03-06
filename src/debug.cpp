@@ -135,7 +135,7 @@ int main() {
 
     for (int i = 0; i < moveCount; i++) {
 
-        Move bestMove = findBestMove(board, numThreads, depth, timeLimit, true);
+        Move bestMove = findBestMove(board, numThreads, depth, timeLimit, false);
 
         if (bestMove == Move::NO_MOVE) {
             auto gameResult = board.isGameOver();
