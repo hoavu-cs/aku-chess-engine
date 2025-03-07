@@ -19,9 +19,6 @@ using namespace Stockfish;
 
 typedef std::uint64_t U64;
 
-
-
-
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
 --------------------------------------------------------------------------------------------*/
@@ -117,8 +114,6 @@ void updateKillerMoves(const Move& move, int ply) {
         killerMoves[ply][0] = move;
     }
 }
-
-
 
 /*-------------------------------------------------------------------------------------------- 
     Check if the move involves a passed pawn push.
@@ -493,7 +488,7 @@ int negamax(Board& board,
     if (depth >= nullDepth && !endGameFlag && !leftMost && !board.inCheck() && !mopUp) {
         std::vector<Move> nullPV;
         int nullEval;
-        int reduction = 3 + depth / 5;
+        int reduction = 3;
 
         board.makeNullMove();
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
@@ -534,6 +529,10 @@ int negamax(Board& board,
             quietCount++;
         }
 
+        if (quiet && quietCount > 10 && !isPV && depth <= 3) {
+            continue;
+        }
+
         /*--------------------------------------------------------------------------------------------
             Futility pruning: prune if there is no hope of raising alpha.
             For tactical stability, we only do this for quiet moves.
@@ -567,8 +566,7 @@ int negamax(Board& board,
         bool nullWindow = false;
 
         if (i == 0) {
-            // full window & full depth search for the first few nodes
-            // In an ideal world, with good move ordering, we only need to do this for i = 0
+            // Full window search for the first node in a PV node
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
         } else {
             // null window and potential reduced depth for the rest
@@ -845,7 +843,6 @@ Move findBestMove(Board& board,
         if (moves.size() == 1) {
             return moves[0].first;
         }
-
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();

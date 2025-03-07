@@ -19,9 +19,6 @@ using namespace Stockfish;
 
 typedef std::uint64_t U64;
 
-
-
-
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
 --------------------------------------------------------------------------------------------*/
@@ -117,8 +114,6 @@ void updateKillerMoves(const Move& move, int ply) {
         killerMoves[ply][0] = move;
     }
 }
-
-
 
 /*-------------------------------------------------------------------------------------------- 
     Check if the move involves a passed pawn push.
