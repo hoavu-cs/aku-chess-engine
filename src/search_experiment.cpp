@@ -417,6 +417,10 @@ int negamax(Board& board,
         return 0;
     }
 
+    if (board.isRepetition(1)) {
+        return 0;
+    }
+
     // Probe the transposition table
     bool found = false;
     Move tableMove;
@@ -529,10 +533,6 @@ int negamax(Board& board,
             quietCount++;
         }
 
-        if (quiet && quietCount > 10 && !isPV && depth <= 3) {
-            continue;
-        }
-
         /*--------------------------------------------------------------------------------------------
             Futility pruning: prune if there is no hope of raising alpha.
             For tactical stability, we only do this for quiet moves.
@@ -566,7 +566,8 @@ int negamax(Board& board,
         bool nullWindow = false;
 
         if (i == 0) {
-            // Full window search for the first node in a PV node
+            // full window & full depth search for the first few nodes
+            // In an ideal world, with good move ordering, we only need to do this for i = 0
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
         } else {
             // null window and potential reduced depth for the rest
@@ -731,6 +732,7 @@ Move findBestMove(Board& board,
                     quietCount++;
                 }
 
+
                 bool newBestFlag = false;  
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, quietCount, leftMost);
                 int eval = -INF;
@@ -843,6 +845,7 @@ Move findBestMove(Board& board,
         if (moves.size() == 1) {
             return moves[0].first;
         }
+
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
