@@ -198,7 +198,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 
     if (isMopUpPhase(board)) {
         // Search more thoroughly in mop-up phase
-        return depth - 1;
+        return depth - 1;      
     }
 
     if (i <= 2 || depth <= 2) { 
@@ -423,8 +423,10 @@ int negamax(Board& board,
 
     // Probe the transposition table
     bool found = false;
+    bool found1 = false;
     Move tableMove;
     int tableEval;
+    int tableEval1;
     
     #pragma omp critical
     {
@@ -432,11 +434,20 @@ int negamax(Board& board,
             tableHit++;
             found = true;
         }
+
+        // if (tableLookUp(board, depth - 1, tableEval1, tableMove)) {
+        //     tableHit++;
+        //     found1 = true;
+        // }
     }
 
     if (found && tableEval >= beta) {
         return tableEval;
     } 
+
+    // if (found1 && tableEval1 >= beta + 500 && !isPV) {
+    //     return tableEval1;
+    // } 
 
     if (depth <= 0) {
         int quiescenceEval = quiescence(board, alpha, beta);
@@ -493,6 +504,10 @@ int negamax(Board& board,
         std::vector<Move> nullPV;
         int nullEval;
         int reduction = 3;
+
+        if (depth >= 6) {
+            reduction = 4;
+        }
 
         board.makeNullMove();
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
