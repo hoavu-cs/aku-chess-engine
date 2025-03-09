@@ -113,6 +113,7 @@ int main() {
     rnbqkb1r/pp2pppp/5n2/2pp4/3P1B2/2N1P3/PPP2PPP/R2QKBNR b KQkq - 0 4
     r3nrk1/1bqpb1pp/p1n1p3/1p3p1Q/4P3/P1NRBN2/1PP1BPPP/3R2K1 b - - 3 16
     8/1pq1bpk1/p1b1pr2/3r2N1/1P5p/2P1QpP1/P1B2P1P/3RR1K1 b - - 1 30
+    2r2bk1/1bq2p1p/3p2p1/p1nP4/B1P1P3/Q3RNBP/5PPK/8 w - - 2 34
     */
     board = Board("1r4k1/pq2bppp/4b3/3r4/1PN1QB2/P7/5PpP/R3R1K1 w - - 0 21");
 

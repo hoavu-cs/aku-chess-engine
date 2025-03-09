@@ -1,3 +1,29 @@
+/*
+* Author: Hoa T. Vu
+* Created: December 1, 2024
+* 
+* Copyright (c) 2024 Hoa T. Vu
+* 
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+* 
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+* 
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*/
+
+
 #include "search.hpp"
 #include "chess.hpp"
 #include "utils.hpp"
@@ -14,10 +40,15 @@
 #include <queue>
 #include "../lib/stockfish_nnue_probe/probe.h"
 
+
 using namespace chess;
 using namespace Stockfish;
 
 typedef std::uint64_t U64;
+
+
+U64 trainingCount = 0;
+
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
@@ -240,7 +271,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
         bool hashMove = false;
 
         // Previous PV move > hash moves > captures/killer moves > checks > quiet moves
-
         #pragma omp critical
         {
             Move tableMove;
@@ -444,10 +474,10 @@ int negamax(Board& board,
     if (found && tableEval >= beta) {
         return tableEval;
     } 
-
-    // if (found1 && tableEval1 >= beta + 500 && !isPV) {
+    
+    // else if (found1 && tableEval1 >= beta + 500) {
     //     return tableEval1;
-    // } 
+    // }
 
     if (depth <= 0) {
         int quiescenceEval = quiescence(board, alpha, beta);
@@ -477,28 +507,17 @@ int negamax(Board& board,
         Avoid pruning in the endgame phase, when alpha is close to the mate score (to avoid missing 
         checkmates). We also not do this in PV nodes.
     --------------------------------------------------------------------------------------------*/
-    if (depth <= 2 && pruningCondition && !isPV) {
+    if (depth <= 2 && pruningCondition) {
         int margin = 350 * depth;
         if (standPat - margin > beta) {
             return standPat - margin;
         } 
     }
 
-    /*--------------------------------------------------------------------------------------------
-        Razoring: Skip deep search if the position is too weak. This can really harm the search
-        if the margin is too low. So we keep the margin at value of the queen even for depth 1.
+    /*-------------------------------------------------------------------------------------------- 
+        Null move pruning. Avoid null move pruning in the endgame phase.
     --------------------------------------------------------------------------------------------*/
-    // if (pruningCondition && !leftMost) {
-    //     int razorMargin = 900 + 300 * depth * depth;
-
-    //     if (standPat < alpha - razorMargin) {
-    //         // If the position is too weak and unlikely to raise alpha, skip deep search
-    //         return quiescence(board, alpha, beta);
-    //     } 
-    // }
-
-    // Null move pruning. Avoid null move pruning in the endgame phase.
-    const int nullDepth = 4; // Only apply null move pruning at depths >= 4
+    const int nullDepth = 4; 
 
     if (depth >= nullDepth && !endGameFlag && !leftMost && !board.inCheck() && !mopUp) {
         std::vector<Move> nullPV;
@@ -529,6 +548,33 @@ int negamax(Board& board,
     int bestEval = -INF;
     int quietCount = 0;
 
+    /*--------------------------------------------------------------------------------------------
+        Singular extension: If the hash move is much better than the other moves, extend the search.
+    --------------------------------------------------------------------------------------------*/
+    if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
+        bool singularExtension = true;
+        int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
+        int singularDepth = depth / 2;
+        int singularEval = -INF; 
+        int bestSingularEval = -INF;
+
+        for (int i = 0; i < moves.size(); i++) {
+            if (moves[i].first == tableMove) {
+                continue;
+            }
+            board.makeMove(moves[i].first);
+            singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, leftMost, ply + 1);
+            board.unmakeMove(moves[i].first);
+            bestSingularEval = std::max(bestSingularEval, singularEval);
+            if (bestSingularEval >= singularBeta) {
+                singularExtension = false;
+                break;
+            }
+        }
+        if (singularExtension) {
+            depth++;
+        }
+    }
 
     for (int i = 0; i < moves.size(); i++) {
 
@@ -552,7 +598,7 @@ int negamax(Board& board,
             Futility pruning: prune if there is no hope of raising alpha.
             For tactical stability, we only do this for quiet moves.
         --------------------------------------------------------------------------------------------*/
-        if (depth <= 2 && quiet && pruningCondition && !leftMost) {
+        if (depth <= 2 && quiet && pruningCondition) {
             int margin = 350 * depth;
             if (standPat + margin < alpha) {
                 return alpha;
@@ -581,8 +627,7 @@ int negamax(Board& board,
         bool nullWindow = false;
 
         if (i == 0) {
-            // full window & full depth search for the first few nodes
-            // In an ideal world, with good move ordering, we only need to do this for i = 0
+            // full window & full depth search for the first node
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
         } else {
             // null window and potential reduced depth for the rest
@@ -642,7 +687,6 @@ int negamax(Board& board,
             tableInsert(board, depth, bestEval, PV[0]);
         }
     }
-
 
     return bestEval;
 }
@@ -837,7 +881,7 @@ Move findBestMove(Board& board,
         moves = newMoves;
         previousPV = PV;
 
-        std::string depthStr = "depth " +  std::to_string(PV.size());
+        std::string depthStr = "depth " +  std::to_string(std::max(size_t(depth), PV.size()));
         std::string scoreStr = "score cp " + std::to_string(bestEval);
         std::string nodeStr = "nodes " + std::to_string(nodeCount);
         std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(tableHit) / nodeCount);

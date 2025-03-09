@@ -1,3 +1,28 @@
+/*
+* Author: Hoa T. Vu
+* Created: December 1, 2024
+* 
+* Copyright (c) 2024 Hoa T. Vu
+* 
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+* 
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+* 
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*/
+
 #include "chess.hpp"
 
 using namespace chess; 
@@ -153,10 +178,6 @@ int endKingTable[64] = {
   -53, -34, -21, -11, -28, -14, -24, -43
 };
 
-
-/*------------------------------------------------------------------------
-    Helper Functions
-------------------------------------------------------------------------*/
 
 /*------------------------------------------------------------------------
     Visualize a bitboard
@@ -324,17 +345,23 @@ bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
     return true;  
 }
 
-// Function to compute the Manhattan distance between two squares
+/*------------------------------------------------------------------------
+    Manhattan distance between two squares
+------------------------------------------------------------------------*/
 int manhattanDistance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
 }
 
-// Min distance between a square and a set of squares
+/*------------------------------------------------------------------------
+    Min distance between two squares
+------------------------------------------------------------------------*/
 int minDistance(const Square& sq, const Square& sq2) {
     return std::min(std::abs(sq.file() - sq2.file()), std::abs(sq.rank() - sq2.rank()));
 }
 
-// min distance to an edge
+/*------------------------------------------------------------------------
+    Min distance to the edge of the board
+------------------------------------------------------------------------*/
 int minDistanceToEdge(const Square& sq) {
     int file = sq.index() % 8;
     int rank = sq.index() / 8;
@@ -361,8 +388,16 @@ int mopUpScore(const Board& board) {
     int whiteQueensCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
     int blackQueensCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
 
-    const int whiteMaterial = whitePawnsCount + whiteKnightsCount * 3 + whiteBishopsCount * 3 + whiteRooksCount * 5 + whiteQueensCount * 10;
-    const int blackMaterial = blackPawnsCount + blackKnightsCount * 3 + blackBishopsCount * 3 + blackRooksCount * 5 + blackQueensCount * 10;   
+    const int whiteMaterial = whitePawnsCount 
+                            + whiteKnightsCount * 3 
+                            + whiteBishopsCount * 3 
+                            + whiteRooksCount * 5 
+                            + whiteQueensCount * 10;
+    const int blackMaterial = blackPawnsCount 
+                            + blackKnightsCount * 3 
+                            + blackBishopsCount * 3 
+                            + blackRooksCount * 5 
+                            + blackQueensCount * 10;   
 
     Color winningColor = whiteMaterial > blackMaterial ? Color::WHITE : Color::BLACK;
 
@@ -377,15 +412,12 @@ int mopUpScore(const Board& board) {
 
     int kingDist = manhattanDistance(winningKingSq, losingKingSq);
 
-    //Square E4 = Square(28);
-    //int distToCenter = manhattanDistance(losingKingSq, E4);
-
     int winningMaterialScore = winningColor == Color::WHITE ? whiteMaterial : blackMaterial;
     int losingMaterialScore = winningColor == Color::WHITE ? blackMaterial : whiteMaterial;
     int materialScore = 100 * (winningMaterialScore - losingMaterialScore);
 
     int score = 5000 + 160 * (14 - kingDist) + materialScore + 100 * mate[losingKingSqIndex];
-                // + 400 * distToCenter + 100 * edgeDistance  
+
 
     return winningColor == Color::WHITE ? score : -score;
     
@@ -421,7 +453,6 @@ int moveScoreByTable(const Board& board, Move move) {
     }
 
     return 0;
-
 }
 
 
