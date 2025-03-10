@@ -68,7 +68,7 @@ const int maxTableSize = 10e6; // Maximum size of the transposition table
 
 struct tableEntry {
     U64 hash;
-    int eval;
+    int eval; // an exact or lower bound evaluation of the position
     int depth;
     Move bestMove;
 };
