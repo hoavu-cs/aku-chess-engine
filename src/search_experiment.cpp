@@ -82,7 +82,7 @@ std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
-std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
+//std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
 
 int globalMaxDepth = 0; // Maximum depth of current search
 const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
@@ -137,14 +137,14 @@ bool isPromotion(const Move& move) {
 /*-------------------------------------------------------------------------------------------- 
     Update the killer moves.
 --------------------------------------------------------------------------------------------*/
-void updateKillerMoves(const Move& move, int ply) {
-    if (killerMoves[ply].size() < 2) {
-        killerMoves[ply].push_back(move);
-    } else {
-        killerMoves[ply][1] = killerMoves[ply][0];
-        killerMoves[ply][0] = move;
-    }
-}
+// void updateKillerMoves(const Move& move, int ply) {
+//     if (killerMoves[ply].size() < 2) {
+//         killerMoves[ply].push_back(move);
+//     } else {
+//         killerMoves[ply][1] = killerMoves[ply][0];
+//         killerMoves[ply][0] = move;
+//     }
+// }
 
 /*-------------------------------------------------------------------------------------------- 
     Check if the move involves a passed pawn push.
@@ -292,10 +292,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 priority = 10000; // PV move
             }
         }
-        
-        // else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
-        //     priority = 4000; // Killer moves
-        // } 
         
         else if (isPromotion(move)) {
             priority = 6000; 
@@ -673,7 +669,6 @@ int negamax(Board& board,
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
                 #pragma omp critical
                 {
-                    updateKillerMoves(move, ply);
                     historyTable[moveIndex] += depth * depth;
                 }
             }
