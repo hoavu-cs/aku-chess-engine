@@ -854,6 +854,9 @@ Move findBestMove(Board& board,
             if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
                 alpha = -INF;
                 beta = INF;
+
+                newMoves.clear();
+
             } else {
                 break;
             }
