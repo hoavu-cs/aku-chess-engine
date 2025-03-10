@@ -465,10 +465,6 @@ int negamax(Board& board,
             found = true;
         }
 
-        // if (tableLookUp(board, depth - 1, tableEval1, tableMove)) {
-        //     tableHit++;
-        //     found1 = true;
-        // }
     }
 
     if (found && tableEval >= beta) {

@@ -103,6 +103,7 @@ int main() {
     8/4k3/4b3/8/8/5KQ1/8/8 w - - 0 1
     */
 
+    
     /* Important test cases
     5rk1/p1p2pp1/4pb1p/3b4/3P2Q1/q3P3/1r1NBPPP/2RR2K1 w - - 0 22
     r2qr2k/6pp/2P5/bN6/2QP2n1/2P3P1/PP5P/R1B2K1R b - - 0 19
