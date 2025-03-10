@@ -38,7 +38,6 @@
 #include <cmath>
 #include <unordered_set>
 #include <queue>
-#include <set>
 #include "../lib/stockfish_nnue_probe/probe.h"
 
 
@@ -67,18 +66,13 @@ void initializeNNUE() {
 // Transposition table 
 const int maxTableSize = 10e6; // Maximum size of the transposition table
 
-struct TableEntry {
+struct tableEntry {
     U64 hash;
     int eval;
     int depth;
     Move bestMove;
 };
-
-std::vector<TableEntry> transpositionTableExact(maxTableSize); 
-std::vector<TableEntry> transpositionTableLower(maxTableSize); 
-std::vector<TableEntry> transpositionTableUpper(maxTableSize); 
-
-
+std::vector<tableEntry> transpositionTable(maxTableSize); 
 std::unordered_map<U64, U64> historyTable; // History heuristic table
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
@@ -107,12 +101,12 @@ const int pieceValues[] = {
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and clear.
 --------------------------------------------------------------------------------------------*/
-bool tableLookUp(Board& board, int& eval, int depth, Move& bestMove, std::vector<TableEntry>& table) {    
+bool tableLookUp(Board& board, int depth, int& eval, Move& bestMove) {    
     U64 hash = board.hash();
     U64 index = hash % maxTableSize;
     bool found = false;
 
-    TableEntry entry = table[index];
+    tableEntry entry = transpositionTable[index];
     if (entry.hash == hash && entry.depth >= depth) {
         eval = entry.eval;
         bestMove = entry.bestMove;
@@ -122,14 +116,13 @@ bool tableLookUp(Board& board, int& eval, int depth, Move& bestMove, std::vector
     return found;
 }
 
-void tableInsert(Board& board, int depth, int eval, Move bestMove, std::vector<TableEntry>& table) {
+void tableInsert(Board& board, int depth, int eval, Move bestMove) {
     U64 hash = board.hash();
     U64 index = hash % maxTableSize;
 
-    TableEntry entry = {hash, eval, depth, bestMove};
-    table[index] = entry;
+    tableEntry entry = {hash, eval, depth, bestMove};
+    transpositionTable[index] = entry;
 }
- 
  
 /*-------------------------------------------------------------------------------------------- 
     Check if the move is a queen promotion.
@@ -239,9 +232,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;      
     }
 
-    int k = std::max(2, 25 / depth);
-
-    if (i <= k || depth <= 2) { 
+    if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
         return depth - log (depth) - log (i);
@@ -282,22 +273,17 @@ std::vector<std::pair<Move, int>> orderedMoves(
         // Previous PV move > hash moves > captures/killer moves > checks > quiet moves
         #pragma omp critical
         {
-            Move tableMoveExact;
-            Move tableMoveLower;
+            Move tableMove;
             int tableEval;
-
-            if (tableLookUp(board, tableEval, 0, tableMoveExact, transpositionTableExact) ||
-                tableLookUp(board, tableEval, 0, tableMoveLower, transpositionTableExact)) {
-                if (tableMoveExact == move || tableMoveLower == move) {
+            if (tableLookUp(board, 0, tableEval, tableMove)) {
+                if (tableMove == move) {
                     tableHit++;
                     priority = 8000;
-                    candidatesPrimary.push_back({move, priority});
+                    candidatesPrimary.push_back({tableMove, priority});
                     hashMove = true;
                 }
             }
         }
-      
-        if (hashMove) continue;
       
         if (hashMove) continue;
         
@@ -305,9 +291,13 @@ std::vector<std::pair<Move, int>> orderedMoves(
             if (previousPV[ply] == move) {
                 priority = 10000; // PV move
             }
-        } else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
-            priority = 4000; // Killer moves
-        } else if (isPromotion(move)) {
+        }
+        
+        // else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
+        //     priority = 4000; // Killer moves
+        // } 
+        
+        else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move);
@@ -466,58 +456,37 @@ int negamax(Board& board,
     }
 
     // Probe the transposition table
+    bool found = false;
+    bool found1 = false;
     Move tableMove;
     int tableEval;
-   
-    // Probe the transposition table
-    bool foundExact = false;
-    bool foundLower = false;
-    bool foundUpper = false;
-
-    int tableEvalExact;
-    int tableEvalLower;
-    int tableEvalUpper;
+    int tableEval1;
     
     #pragma omp critical
     {
-        if (tableLookUp(board, tableEvalExact, depth, tableMove, transpositionTableExact)) {
+        if (tableLookUp(board, depth, tableEval, tableMove)) {
             tableHit++;
-            foundExact = true;
+            found = true;
         }
 
-        if (tableLookUp(board, tableEvalLower, depth, tableMove, transpositionTableLower)) {
-            tableHit++;
-            foundLower = true;
-        }
     }
 
-    // Beta cutoff based on the exact or lower bound from the transposition tables
-    if (foundExact && tableEvalExact >= beta) {
-        return beta;
-    } else if (foundLower && tableEvalLower >= beta) {
-        return beta;
-    }
-
-    if (!isPV) {
-        #pragma omp critical
-        {
-            if (tableLookUp(board, tableEvalUpper, depth, tableMove, transpositionTableUpper)) {
-                tableHit++;
-                foundUpper = true;
-            }
-        }
-
-        if (foundUpper && tableEvalUpper <= alpha) {
-            return tableEvalUpper;
-        }
-    }
+    if (found && tableEval >= beta) {
+        return tableEval;
+    } 
+    
+    // else if (found1 && tableEval1 >= beta + 500) {
+    //     return tableEval1;
+    // }
 
     if (depth <= 0) {
         int quiescenceEval = quiescence(board, alpha, beta);
+        
         #pragma omp critical
         {
-            tableInsert(board, 0, quiescenceEval, Move::NO_MOVE, transpositionTableExact);
+            tableInsert(board, 0, quiescenceEval, Move());
         }
+            
         return quiescenceEval;
     }
 
@@ -575,7 +544,6 @@ int negamax(Board& board,
         } 
     }
 
-    
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, ply, previousPV, leftMost);
     int bestEval = -INF;
     int quietCount = 0;
@@ -583,32 +551,30 @@ int negamax(Board& board,
     /*--------------------------------------------------------------------------------------------
         Singular extension: If the hash move is much better than the other moves, extend the search.
     --------------------------------------------------------------------------------------------*/
-    // if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
-    //     bool singularExtension = true;
-    //     int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
-    //     int singularDepth = depth / 2;
-    //     int singularEval = -INF; 
-    //     int bestSingularEval = -INF;
+    if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
+        bool singularExtension = true;
+        int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
+        int singularDepth = depth / 2;
+        int singularEval = -INF; 
+        int bestSingularEval = -INF;
 
-    //     for (int i = 0; i < moves.size(); i++) {
-    //         if (moves[i].first == tableMove) {
-    //             continue;
-    //         }
-    //         board.makeMove(moves[i].first);
-    //         singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, leftMost, ply + 1);
-    //         board.unmakeMove(moves[i].first);
-    //         bestSingularEval = std::max(bestSingularEval, singularEval);
-    //         if (bestSingularEval >= singularBeta) {
-    //             singularExtension = false;
-    //             break;
-    //         }
-    //     }
-    //     if (singularExtension) {
-    //         depth++;
-    //     }
-    // }
-
-    bool cutNode = false;
+        for (int i = 0; i < moves.size(); i++) {
+            if (moves[i].first == tableMove) {
+                continue;
+            }
+            board.makeMove(moves[i].first);
+            singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, leftMost, ply + 1);
+            board.unmakeMove(moves[i].first);
+            bestSingularEval = std::max(bestSingularEval, singularEval);
+            if (bestSingularEval >= singularBeta) {
+                singularExtension = false;
+                break;
+            }
+        }
+        if (singularExtension) {
+            depth++;
+        }
+    }
 
     for (int i = 0; i < moves.size(); i++) {
 
@@ -705,41 +671,30 @@ int negamax(Board& board,
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
-                cutNode = true;
                 #pragma omp critical
                 {
                     updateKillerMoves(move, ply);
                     historyTable[moveIndex] += depth * depth;
                 }
             }
+
+            #pragma omp critical
+            {
+                if (PV.size() > 0) {
+                    tableInsert(board, depth, bestEval, PV[0]);
+                }
+            }
+
             break;
         }
     }
 
     #pragma omp critical
     {
-        if (!cutNode) {
-            // if beta cutoff did not occur, store the exact score
-            if (PV.size() > 0) {
-                tableInsert(board, depth, bestEval, PV[0], transpositionTableExact);
-            } else {
-                tableInsert(board, depth, bestEval, Move::NO_MOVE, transpositionTableExact);
-            }
-        } else {
-            // if beta cutoff occurred, store the lower bound
-            if (PV.size() > 0) {
-                tableInsert(board, depth, bestEval, PV[0], transpositionTableLower);
-            } else {
-                tableInsert(board, depth, bestEval, Move::NO_MOVE, transpositionTableLower);
-            }
-        }
-
-        if (bestEval <= alpha) {
-            // if best eval <= alpha <= beta, store the upper bound
-            tableInsert(board, depth, bestEval, Move::NO_MOVE, transpositionTableUpper);
+        if (PV.size() > 0) {
+            tableInsert(board, depth, bestEval, PV[0]);
         }
     }
-
 
     return bestEval;
 }
@@ -769,7 +724,6 @@ Move findBestMove(Board& board,
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
 
-
     Move bestMove = Move(); 
     int bestEval = -INF;
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
@@ -783,7 +737,6 @@ Move findBestMove(Board& board,
     int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
     std::vector<Move> candidateMove (2 * ENGINE_DEPTH + 1, Move());
-    
 
     while (depth <= maxDepth) {
         nodeCount = 0;
@@ -799,7 +752,6 @@ Move findBestMove(Board& board,
         if (depth == baseDepth) {
             moves = orderedMoves(board, depth, 0, previousPV, false);
         }
-
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
         bool stopNow = false;
@@ -825,7 +777,6 @@ Move findBestMove(Board& board,
                 if (stopNow) {
                     continue;
                 }
-
 
                 bool leftMost = (i == 0);
 
@@ -935,7 +886,7 @@ Move findBestMove(Board& board,
 
         #pragma omp critical
         {
-            tableInsert(board, depth, bestEval, bestMove, transpositionTableExact);
+            tableInsert(board, depth, bestEval, bestMove);
         }
 
         moves = newMoves;
