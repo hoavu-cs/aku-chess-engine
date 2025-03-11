@@ -508,6 +508,7 @@ int negamax(Board& board,
         std::vector<Move> nullPV;
         int nullEval;
         int reduction = 3;
+        int margin = isPV ? 100 : 0;
 
         if (depth >= 6) {
             reduction = 4;
@@ -517,20 +518,14 @@ int negamax(Board& board,
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
         board.unmakeNullMove();
 
-        int margin = 0;
-        if (isPV) {
-            margin = 100;
-        }
-
         if (nullEval >= beta + margin) { 
-            // Even if we skip our move and the evaluation is >= beta, this is a cutoff since it is
-            // a fail high (too good for us)
             return beta;
         } 
     }
 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, ply, previousPV, leftMost);
     int bestEval = -INF;
+    Move bestMove = Move();
     int quietCount = 0;
 
     /*--------------------------------------------------------------------------------------------
@@ -643,6 +638,7 @@ int negamax(Board& board,
         }
 
         if (eval > alpha) {
+            alpha = eval;
             PV.clear();
             PV.push_back(move);
             for (auto& move : childPV) {
@@ -650,8 +646,10 @@ int negamax(Board& board,
             }
         } 
 
-        bestEval = std::max(bestEval, eval);
-        alpha = std::max(alpha, eval);
+        if (eval > bestEval) {
+            bestEval = eval;
+            bestMove = move;
+        }
 
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
@@ -659,17 +657,12 @@ int negamax(Board& board,
                 #pragma omp critical
                 {
                     historyTable[moveIndex] += depth * depth;
-                    if (historyTable[moveIndex] > 10000) {
-                        historyTable[moveIndex] /= 2;
-                    }
                 }
             }
 
             #pragma omp critical
             {
-                if (PV.size() > 0) {
-                    tableInsert(board, depth, bestEval, PV[0]);
-                }
+                tableInsert(board, depth, bestEval, bestMove);
             }
 
             break;
@@ -679,7 +672,7 @@ int negamax(Board& board,
     #pragma omp critical
     {
         if (PV.size() > 0) {
-            tableInsert(board, depth, bestEval, PV[0]);
+            tableInsert(board, depth, bestEval, bestMove);
         }
     }
 
