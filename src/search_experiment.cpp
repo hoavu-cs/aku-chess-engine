@@ -23,7 +23,6 @@
 * THE SOFTWARE.
 */
 
-
 #include "search.hpp"
 #include "chess.hpp"
 #include "utils.hpp"
@@ -470,19 +469,9 @@ int negamax(Board& board,
     if (found && tableEval >= beta) {
         return tableEval;
     } 
-    
-    // else if (found1 && tableEval1 >= beta + 500) {
-    //     return tableEval1;
-    // }
 
     if (depth <= 0) {
         int quiescenceEval = quiescence(board, alpha, beta);
-        
-        #pragma omp critical
-        {
-            tableInsert(board, 0, quiescenceEval, Move());
-        }
-            
         return quiescenceEval;
     }
 
@@ -670,6 +659,9 @@ int negamax(Board& board,
                 #pragma omp critical
                 {
                     historyTable[moveIndex] += depth * depth;
+                    if (historyTable[moveIndex] > 10000) {
+                        historyTable[moveIndex] /= 2;
+                    }
                 }
             }
 
@@ -718,6 +710,9 @@ Move findBestMove(Board& board,
     hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
+
+    historyTable.clear();
+    killerMoves.clear();
 
     Move bestMove = Move(); 
     int bestEval = -INF;
@@ -910,7 +905,6 @@ Move findBestMove(Board& board,
         if (moves.size() == 1) {
             return moves[0].first;
         }
-
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
