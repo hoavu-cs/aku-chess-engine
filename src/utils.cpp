@@ -34,7 +34,7 @@ const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
-int mate[64] = {
+const int mate[64] = {
     200, 180, 160, 140, 140, 160, 180, 200,
     180, 160, 140, 120, 120, 140, 160, 180,
     160, 140, 120, 100, 100, 120, 140, 160,
@@ -43,29 +43,6 @@ int mate[64] = {
     160, 140, 120, 100, 100, 120, 140, 160,
     180, 160, 140, 120, 120, 140, 160, 180,
     200, 180, 160, 140, 140, 160, 180, 200
-};
-
-int bnMateLightSquares[64] = {
-    0, 1, 2, 3, 4, 5, 6, 7,
-    1, 2, 3, 4, 5, 6, 7, 6,
-    2, 3, 4, 5, 6, 7, 6, 5,
-    3, 4, 5, 6, 7, 6, 5, 4,
-    4, 5, 6, 7, 6, 5, 4, 3,
-    5, 6, 7, 6, 5, 4, 3, 2,
-    6, 7, 6, 5, 4, 3, 2, 1,
-    7, 6, 5, 4, 3, 2, 1, 0
-};
-
-
-int bnMateDarkSquares[64] = {
-    7, 6, 5, 4, 3, 2, 1, 0,
-    6, 7, 6, 5, 4, 3, 2, 1,
-    5, 6, 7, 6, 5, 4, 3, 2,
-    4, 5, 6, 7, 6, 5, 4, 3,
-    3, 4, 5, 6, 7, 6, 5, 4,
-    2, 3, 4, 5, 6, 7, 6, 5,
-    1, 2, 3, 4, 5, 6, 7, 6,
-    0, 1, 2, 3, 4, 5, 6, 7
 };
 
 
@@ -389,42 +366,6 @@ int minDistanceToEdge(const Square& sq) {
     int file = sq.index() % 8;
     int rank = sq.index() / 8;
     return std::min(std::min(file, 7 - file), std::min(rank, 7 - rank));
-
-}
-
-/*-------------------------------------------------------------------------------------------- 
-    mopUp Phase: Check if the board is in mop up phase.
---------------------------------------------------------------------------------------------*/
-bool isMopUpPhase(Board& board) {
-    int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
-    int blackPawnsCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
-
-    int whiteKnightsCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
-    int blackKnightsCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
-
-    int whiteBishopsCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
-    int blackBishopsCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
-
-    int whiteRooksCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
-    int blackRooksCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
-
-    int whiteQueensCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
-    int blackQueensCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
-
-    const int whiteMaterial = whitePawnsCount + whiteKnightsCount * 3 + whiteBishopsCount * 3 + whiteRooksCount * 5 + whiteQueensCount * 10;
-    const int blackMaterial = blackPawnsCount + blackKnightsCount * 3 + blackBishopsCount * 3 + blackRooksCount * 5 + blackQueensCount * 10;    
-
-    if (whitePawnsCount > 0 || blackPawnsCount > 0) {
-        // if there are pawns, it's not a settled
-        return false;
-    } else if (std::abs(whiteMaterial - blackMaterial) > 4) {
-        // This covers cases such as KQvK, KRvK, KQvKR, KBBvK
-        // Less obvious cases are also covered , KR+minor pieces v K+minor, 
-        return true;
-    }
-
-    // Otherwise, if we have K + a minor piece, or KR vs K + minor piece, it's drawish
-    return false;
 }
 
 /*------------------------------------------------------------------------
@@ -464,6 +405,7 @@ int mopUpScore(const Board& board) {
                     board.pieces(PieceType::BISHOP, winningColor) | board.pieces(PieceType::ROOK, winningColor) | 
                     board.pieces(PieceType::QUEEN, winningColor);
 
+
     Square winningKingSq = Square(board.pieces(PieceType::KING, winningColor).lsb());
     Square losingKingSq = Square(board.pieces(PieceType::KING, !winningColor).lsb());
     int losingKingSqIndex = losingKingSq.index();
@@ -474,46 +416,14 @@ int mopUpScore(const Board& board) {
     int losingMaterialScore = winningColor == Color::WHITE ? blackMaterial : whiteMaterial;
     int materialScore = 100 * (winningMaterialScore - losingMaterialScore);
 
-    // Special case for KKB vs K
-    // if ((winningColor == Color::WHITE 
-    //     && whiteRooksCount == 0 
-    //     && whiteQueensCount == 0 
-    //     && whiteBishopsCount == 1
-    //     && whiteKnightsCount == 1) ||
-    //     (winningColor == Color::BLACK
-    //     && blackRooksCount == 0
-    //     && blackQueensCount == 0
-    //     && blackBishopsCount == 1
-    //     && blackKnightsCount == 1)) {
-
-    //     Bitboard bishop = (winningColor == Color::WHITE) ? board.pieces(PieceType::BISHOP, Color::WHITE) : board.pieces(PieceType::BISHOP, Color::BLACK);
-        
-    //     // Bitboard knight = (winningColor == Color::WHITE) ? board.pieces(PieceType::KNIGHT, Color::WHITE) : board.pieces(PieceType::KNIGHT, Color::BLACK);
-
-    //     int bishopRank = bishop.lsb() / 8;
-    //     int bishopFile = bishop.lsb() % 8;
-    //     //int knightDist = manhattanDistance(Square(knight.lsb()), losingKingSq);
-
-    //     bool darkSquareBishop = (bishopRank + bishopFile) % 2 == 0;
-    //     int score = 0;
-
-    //     if (darkSquareBishop) {
-    //         score = 5000 + 150 * (14 - kingDist)  + materialScore + 100 * bnMateDarkSquares[losingKingSqIndex];
-    //     } else {
-    //         score = 5000 + 150 * (14 - kingDist)  + materialScore + 100 * bnMateLightSquares[losingKingSqIndex];
-    //     }
-    //     return winningColor == Color::WHITE ? score : -score;
-    // } 
-    
     int score = 5000 + 160 * (14 - kingDist) + materialScore + 100 * mate[losingKingSqIndex];
-    return winningColor == Color::WHITE ? score : -score;
 
+
+    return winningColor == Color::WHITE ? score : -score;
+    
+    return 0;
 }
 
-
-/*------------------------------------------------------------------------
-    Move score by table
-------------------------------------------------------------------------*/
 int moveScoreByTable(const Board& board, Move move) {
     PieceType pieceType = board.at<Piece>(move.from()).type();
     Color color = board.at<Piece>(move.from()).color();
@@ -546,3 +456,37 @@ int moveScoreByTable(const Board& board, Move move) {
 }
 
 
+/*-------------------------------------------------------------------------------------------- 
+    mopUp Phase
+--------------------------------------------------------------------------------------------*/
+bool isMopUpPhase(Board& board) {
+    int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
+    int blackPawnsCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
+
+    int whiteKnightsCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
+    int blackKnightsCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
+
+    int whiteBishopsCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
+    int blackBishopsCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
+
+    int whiteRooksCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
+    int blackRooksCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
+
+    int whiteQueensCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
+    int blackQueensCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
+
+    const int whiteMaterial = whitePawnsCount + whiteKnightsCount * 3 + whiteBishopsCount * 3 + whiteRooksCount * 5 + whiteQueensCount * 10;
+    const int blackMaterial = blackPawnsCount + blackKnightsCount * 3 + blackBishopsCount * 3 + blackRooksCount * 5 + blackQueensCount * 10;    
+
+    if (whitePawnsCount > 0 || blackPawnsCount > 0) {
+        // if there are pawns, it's not a settled
+        return false;
+    } else if (std::abs(whiteMaterial - blackMaterial) > 4) {
+        // This covers cases such as KQvK, KRvK, KQvKR, KBBvK
+        // Less obvious cases are also covered , KR+minor pieces v K+minor, 
+        return true;
+    }
+
+    // Otherwise, if we have K + a minor piece, or KR vs K + minor piece, it's drawish
+    return false;
+}

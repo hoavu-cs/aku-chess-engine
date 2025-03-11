@@ -71,12 +71,12 @@ struct tableEntry {
     int depth;
     Move bestMove;
 };
+
 std::vector<tableEntry> transpositionTable(maxTableSize); 
 std::unordered_map<U64, U64> historyTable; // History heuristic table
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
-
 
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
@@ -228,7 +228,11 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 
     if (isMopUpPhase(board)) {
         // Search more thoroughly in mop-up phase
-        return depth - 1;      
+        if (i <= 5 || depth <= 2) { 
+            return depth - 1;
+        } else {
+            return depth - 2;
+        }     
     }
 
     if (i <= 2 || depth <= 2) { 
@@ -290,8 +294,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
             if (previousPV[ply] == move) {
                 priority = 10000; // PV move
             }
-        } else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
-            priority = 4000; // Killer moves
         } else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
@@ -306,6 +308,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 priority = 4000;
             } else {
                 secondary = true;
+                priority = 0;
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
                 #pragma omp critical
                 {
@@ -452,10 +455,8 @@ int negamax(Board& board,
 
     // Probe the transposition table
     bool found = false;
-    bool found1 = false;
     Move tableMove;
     int tableEval;
-    int tableEval1;
     
     #pragma omp critical
     {
@@ -463,7 +464,6 @@ int negamax(Board& board,
             tableHit++;
             found = true;
         }
-
     }
 
     if (found && tableEval >= beta) {
@@ -525,13 +525,12 @@ int negamax(Board& board,
 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, ply, previousPV, leftMost);
     int bestEval = -INF;
-    Move bestMove = Move();
     int quietCount = 0;
 
     /*--------------------------------------------------------------------------------------------
         Singular extension: If the hash move is much better than the other moves, extend the search.
     --------------------------------------------------------------------------------------------*/
-    if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
+    if (found && depth >= 10 && ply <= globalMaxDepth - 1 && !mopUp) {
         bool singularExtension = true;
         int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
         int singularDepth = depth / 2;
@@ -638,7 +637,6 @@ int negamax(Board& board,
         }
 
         if (eval > alpha) {
-            alpha = eval;
             PV.clear();
             PV.push_back(move);
             for (auto& move : childPV) {
@@ -646,10 +644,8 @@ int negamax(Board& board,
             }
         } 
 
-        if (eval > bestEval) {
-            bestEval = eval;
-            bestMove = move;
-        }
+        bestEval = std::max(bestEval, eval);
+        alpha = std::max(alpha, eval);
 
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
@@ -662,7 +658,7 @@ int negamax(Board& board,
 
             #pragma omp critical
             {
-                tableInsert(board, depth, bestEval, bestMove);
+                tableInsert(board, depth, bestEval, PV[0]);
             }
 
             break;
@@ -672,7 +668,7 @@ int negamax(Board& board,
     #pragma omp critical
     {
         if (PV.size() > 0) {
-            tableInsert(board, depth, bestEval, bestMove);
+            tableInsert(board, depth, bestEval, PV[0]);
         }
     }
 
@@ -705,7 +701,6 @@ Move findBestMove(Board& board,
     bool timeLimitExceeded = false;
 
     historyTable.clear();
-    killerMoves.clear();
 
     Move bestMove = Move(); 
     int bestEval = -INF;
