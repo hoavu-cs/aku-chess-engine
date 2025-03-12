@@ -45,6 +45,27 @@ const int mate[64] = {
     200, 180, 160, 140, 140, 160, 180, 200
 };
 
+const int bnMateDarkSquare[64] = {
+    99, 90, 80, 70, 60, 50, 40, 30,
+    90, 80, 70, 60, 50, 40, 30, 40,
+    80, 70, 60, 50, 40, 30, 40, 50,
+    70, 60, 50, 40, 30, 40, 50, 60,
+    60, 50, 40, 30, 40, 50, 60, 70,
+    50, 40, 30, 40, 50, 60, 70, 80,
+    40, 30, 40, 50, 60, 70, 80, 90,
+    30, 40, 50, 60, 70, 80, 90, 99
+  };
+  const int bnMateLightSquare[64] = {
+    30, 40, 50, 60, 70, 80, 90, 99,
+    40, 30, 40, 50, 60, 70, 80, 90,
+    50, 40, 30, 40, 50, 60, 70, 80,
+    60, 50, 40, 30, 40, 50, 60, 70,
+    70, 60, 50, 40, 30, 40, 50, 60,
+    80, 70, 60, 50, 40, 30, 40, 50,
+    90, 80, 70, 60, 50, 40, 30, 40,
+    99, 90, 80, 70, 60, 50, 40, 30
+  };
+
 
 int midPawnTable[64] = {
     0,   0,   0,   0,   0,   0,  0,   0,
@@ -416,8 +437,28 @@ int mopUpScore(const Board& board) {
     int losingMaterialScore = winningColor == Color::WHITE ? blackMaterial : whiteMaterial;
     int materialScore = 100 * (winningMaterialScore - losingMaterialScore);
 
-    int score = 5000 + 10 * (14 - kingDist) + materialScore + mate[losingKingSqIndex];
+    bool bnMate = (winningColor == Color::WHITE && whiteQueensCount == 0 && whiteRooksCount == 0 && whiteBishopsCount == 1 && whiteKnightsCount == 1) 
+                || (winningColor == Color::BLACK && blackQueensCount == 0 && blackRooksCount == 0 && blackBishopsCount == 1 && blackKnightsCount == 1);
+    
+    if (bnMate) {
+        Bitboard bishop;
+        if (winningColor == Color::WHITE) {
+            bishop = board.pieces(PieceType::BISHOP, Color::WHITE);
+        } else {
+            bishop = board.pieces(PieceType::BISHOP, Color::BLACK);
+        }
 
+        int bishopRank = bishop.lsb() / 8;
+        int bishopFile = bishop.lsb() % 8;
+
+        bool darkSquareBishop = (bishopRank + bishopFile) % 2 == 0;
+
+        int score = 5000 + 8 * (14 - kingDist) + materialScore + (darkSquareBishop ? bnMateDarkSquare[losingKingSqIndex] : bnMateLightSquare[losingKingSqIndex]);
+
+        return winningColor == Color::WHITE ? score : -score;
+    }
+
+    int score = 5000 + 10 * (14 - kingDist) + materialScore + mate[losingKingSqIndex];
     return winningColor == Color::WHITE ? score : -score;
     
     return 0;

@@ -23,6 +23,7 @@
 * THE SOFTWARE.
 */
 
+
 #include "search.hpp"
 #include "chess.hpp"
 #include "utils.hpp"
@@ -67,17 +68,19 @@ const int maxTableSize = 10e6; // Maximum size of the transposition table
 
 struct tableEntry {
     U64 hash;
-    int eval; // an exact or lower bound evaluation of the position
+    int eval;
     int depth;
     Move bestMove;
-    bool isPV;
 };
 
-std::vector<tableEntry> transpositionTable(maxTableSize); 
+std::vector<tableEntry> ttTable(maxTableSize); 
+std::vector<tableEntry> ttTableNonPV(maxTableSize); 
+
 std::unordered_map<U64, U64> historyTable; // History heuristic table
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
+
 
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
@@ -101,12 +104,12 @@ const int pieceValues[] = {
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and clear.
 --------------------------------------------------------------------------------------------*/
-bool tableLookUp(Board& board, int depth, int& eval, Move& bestMove) {    
+bool tableLookUp(Board& board, int depth, int& eval, Move& bestMove, std::vector<tableEntry>& table) {    
     U64 hash = board.hash();
     U64 index = hash % maxTableSize;
     bool found = false;
 
-    tableEntry entry = transpositionTable[index];
+    tableEntry entry = table[index];
     if (entry.hash == hash && entry.depth >= depth) {
         eval = entry.eval;
         bestMove = entry.bestMove;
@@ -116,17 +119,12 @@ bool tableLookUp(Board& board, int depth, int& eval, Move& bestMove) {
     return found;
 }
 
-void tableInsert(Board& board, int depth, int eval, Move bestMove, bool isPV) {
+void tableInsert(Board& board, int depth, int eval, Move bestMove, std::vector<tableEntry>& table) {
     U64 hash = board.hash();
     U64 index = hash % maxTableSize;
 
-    if (transpositionTable[index].isPV && !isPV) {
-        // Don't overwrite PV nodes with non-PV nodes
-        return;
-    }
-
     tableEntry entry = {hash, eval, depth, bestMove};
-    transpositionTable[index] = entry;
+    table[index] = entry;
 }
  
 /*-------------------------------------------------------------------------------------------- 
@@ -280,10 +278,17 @@ std::vector<std::pair<Move, int>> orderedMoves(
         {
             Move tableMove;
             int tableEval;
-            if (tableLookUp(board, 0, tableEval, tableMove)) {
+            if (tableLookUp(board, 0, tableEval, tableMove, ttTable)) {
                 if (tableMove == move) {
                     tableHit++;
                     priority = 8000;
+                    candidatesPrimary.push_back({tableMove, priority});
+                    hashMove = true;
+                }
+            } else if (tableLookUp(board, 0, tableEval, tableMove, ttTableNonPV)) {
+                if (tableMove == move) {
+                    tableHit++;
+                    priority = 7000;
                     candidatesPrimary.push_back({tableMove, priority});
                     hashMove = true;
                 }
@@ -296,10 +301,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
             if (previousPV[ply] == move) {
                 priority = 10000; // PV move
             }
+        } else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
+            priority = 4000; // Killer moves
         } else if (isPromotion(move)) {
             priority = 6000; 
-        } else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
-            priority = 4000;
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move);
             priority = 4000 + seeScore;
@@ -463,7 +468,7 @@ int negamax(Board& board,
     
     #pragma omp critical
     {
-        if (tableLookUp(board, depth, tableEval, tableMove)) {
+        if (tableLookUp(board, depth, tableEval, tableMove, ttTable)) {
             tableHit++;
             found = true;
         }
@@ -473,6 +478,22 @@ int negamax(Board& board,
     if (found && tableEval >= beta) {
         return tableEval;
     } 
+
+    #pragma omp critical
+    {
+        if (tableLookUp(board, depth, tableEval, tableMove, ttTableNonPV)) {
+            tableHit++;
+            found = true;
+        }
+    }
+
+    if (found && tableEval >= beta) {
+        return tableEval;
+    }
+    
+    // else if (found1 && tableEval1 >= beta + 500) {
+    //     return tableEval1;
+    // }
 
     if (depth <= 0) {
         int quiescenceEval = quiescence(board, alpha, beta);
@@ -512,7 +533,6 @@ int negamax(Board& board,
         std::vector<Move> nullPV;
         int nullEval;
         int reduction = 3;
-        int margin = isPV ? 100 : 0;
 
         if (depth >= 6) {
             reduction = 4;
@@ -522,7 +542,14 @@ int negamax(Board& board,
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
         board.unmakeNullMove();
 
+        int margin = 0;
+        if (isPV) {
+            margin = 100;
+        }
+
         if (nullEval >= beta + margin) { 
+            // Even if we skip our move and the evaluation is >= beta, this is a cutoff since it is
+            // a fail high (too good for us)
             return beta;
         } 
     }
@@ -641,7 +668,6 @@ int negamax(Board& board,
         }
 
         if (eval > alpha) {
-            alpha = eval;
             PV.clear();
             PV.push_back(move);
             for (auto& move : childPV) {
@@ -650,6 +676,7 @@ int negamax(Board& board,
         } 
 
         bestEval = std::max(bestEval, eval);
+        alpha = std::max(alpha, eval);
 
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
@@ -660,7 +687,6 @@ int negamax(Board& board,
                     historyTable[moveIndex] += depth * depth;
                 }
             }
-
             break;
         }
     }
@@ -668,7 +694,11 @@ int negamax(Board& board,
     #pragma omp critical
     {
         if (PV.size() > 0) {
-            tableInsert(board, depth, bestEval, PV[0], isPV);
+            if (isPV) {
+                tableInsert(board, depth, bestEval, PV[0], ttTable);
+            } else {
+                tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
+            }
         }
     }
 
@@ -699,9 +729,6 @@ Move findBestMove(Board& board,
     hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
-
-    historyTable.clear();
-    killerMoves.clear();
 
     Move bestMove = Move(); 
     int bestEval = -INF;
@@ -865,7 +892,7 @@ Move findBestMove(Board& board,
 
         #pragma omp critical
         {
-            tableInsert(board, depth, bestEval, bestMove, true);
+            tableInsert(board, depth, bestEval, bestMove, ttTable);
         }
 
         moves = newMoves;
@@ -894,6 +921,7 @@ Move findBestMove(Board& board,
         if (moves.size() == 1) {
             return moves[0].first;
         }
+
 
         auto currentTime = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
