@@ -416,8 +416,7 @@ int mopUpScore(const Board& board) {
     int losingMaterialScore = winningColor == Color::WHITE ? blackMaterial : whiteMaterial;
     int materialScore = 100 * (winningMaterialScore - losingMaterialScore);
 
-    int score = 5000 + 160 * (14 - kingDist) + materialScore + 100 * mate[losingKingSqIndex];
-
+    int score = 5000 + 10 * (14 - kingDist) + materialScore + mate[losingKingSqIndex];
 
     return winningColor == Color::WHITE ? score : -score;
     

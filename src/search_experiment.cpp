@@ -70,6 +70,7 @@ struct tableEntry {
     int eval; // an exact or lower bound evaluation of the position
     int depth;
     Move bestMove;
+    bool isPV;
 };
 
 std::vector<tableEntry> transpositionTable(maxTableSize); 
@@ -115,9 +116,14 @@ bool tableLookUp(Board& board, int depth, int& eval, Move& bestMove) {
     return found;
 }
 
-void tableInsert(Board& board, int depth, int eval, Move bestMove) {
+void tableInsert(Board& board, int depth, int eval, Move bestMove, bool isPV) {
     U64 hash = board.hash();
     U64 index = hash % maxTableSize;
+
+    if (transpositionTable[index].isPV && !isPV) {
+        // Don't overwrite PV nodes with non-PV nodes
+        return;
+    }
 
     tableEntry entry = {hash, eval, depth, bestMove};
     transpositionTable[index] = entry;
@@ -228,11 +234,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 
     if (isMopUpPhase(board)) {
         // Search more thoroughly in mop-up phase
-        if (i <= 5 || depth <= 2) { 
-            return depth - 1;
-        } else {
-            return depth - 2;
-        }     
+        return depth - 1;      
     }
 
     if (i <= 2 || depth <= 2) { 
@@ -296,6 +298,8 @@ std::vector<std::pair<Move, int>> orderedMoves(
             }
         } else if (isPromotion(move)) {
             priority = 6000; 
+        } else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
+            priority = 4000;
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move);
             priority = 4000 + seeScore;
@@ -308,7 +312,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 priority = 4000;
             } else {
                 secondary = true;
-                priority = 0;
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
                 #pragma omp critical
                 {
@@ -464,6 +467,7 @@ int negamax(Board& board,
             tableHit++;
             found = true;
         }
+
     }
 
     if (found && tableEval >= beta) {
@@ -530,7 +534,7 @@ int negamax(Board& board,
     /*--------------------------------------------------------------------------------------------
         Singular extension: If the hash move is much better than the other moves, extend the search.
     --------------------------------------------------------------------------------------------*/
-    if (found && depth >= 10 && ply <= globalMaxDepth - 1 && !mopUp) {
+    if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
         bool singularExtension = true;
         int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
         int singularDepth = depth / 2;
@@ -637,6 +641,7 @@ int negamax(Board& board,
         }
 
         if (eval > alpha) {
+            alpha = eval;
             PV.clear();
             PV.push_back(move);
             for (auto& move : childPV) {
@@ -645,20 +650,15 @@ int negamax(Board& board,
         } 
 
         bestEval = std::max(bestEval, eval);
-        alpha = std::max(alpha, eval);
 
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
                 #pragma omp critical
                 {
+                    updateKillerMoves(move, ply);
                     historyTable[moveIndex] += depth * depth;
                 }
-            }
-
-            #pragma omp critical
-            {
-                tableInsert(board, depth, bestEval, PV[0]);
             }
 
             break;
@@ -668,7 +668,7 @@ int negamax(Board& board,
     #pragma omp critical
     {
         if (PV.size() > 0) {
-            tableInsert(board, depth, bestEval, PV[0]);
+            tableInsert(board, depth, bestEval, PV[0], isPV);
         }
     }
 
@@ -701,6 +701,7 @@ Move findBestMove(Board& board,
     bool timeLimitExceeded = false;
 
     historyTable.clear();
+    killerMoves.clear();
 
     Move bestMove = Move(); 
     int bestEval = -INF;
@@ -864,7 +865,7 @@ Move findBestMove(Board& board,
 
         #pragma omp critical
         {
-            tableInsert(board, depth, bestEval, bestMove);
+            tableInsert(board, depth, bestEval, bestMove, true);
         }
 
         moves = newMoves;

@@ -616,17 +616,17 @@ int negamax(Board& board,
         bool alphaRaised = eval > alpha;
         bool reducedDepth = nextDepth < depth - 1;
 
-        if (alphaRaised && reducedDepth && nullWindow) {
-            // If alpha is raised and we reduced the depth, research with full depth but still with a null window
-            board.makeMove(move);
-            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, ply + 1);
-            board.unmakeMove(move);
-        } 
+        // if (alphaRaised && reducedDepth && nullWindow) {
+        //     // If alpha is raised and we reduced the depth, research with full depth but still with a null window
+        //     board.makeMove(move);
+        //     eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, ply + 1);
+        //     board.unmakeMove(move);
+        // } 
 
-        // After this, check if we have raised alpha
-        alphaRaised = eval > alpha;
+        // // After this, check if we have raised alpha
+        // alphaRaised = eval > alpha;
 
-        if (alphaRaised && nullWindow) {
+        if (alphaRaised && reducedDepth) {
             // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
             board.makeMove(move);
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
