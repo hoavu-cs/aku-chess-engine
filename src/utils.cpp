@@ -35,36 +35,40 @@ const int QUEEN_VALUE = 900;
 const int KING_VALUE = 5000;
 
 const int mate[64] = {
-    200, 180, 160, 140, 140, 160, 180, 200,
-    180, 160, 140, 120, 120, 140, 160, 180,
-    160, 140, 120, 100, 100, 120, 140, 160,
-    140, 120, 100, 100, 100, 100, 120, 140,
-    140, 120, 100, 100, 100, 100, 120, 140,
-    160, 140, 120, 100, 100, 120, 140, 160,
-    180, 160, 140, 120, 120, 140, 160, 180,
-    200, 180, 160, 140, 140, 160, 180, 200
+    600, 500, 500, 400, 400, 500, 500, 600,
+    500, 500, 150, 150, 150, 150, 200, 500,
+    500, 150, 50,  50,  50,  50,  150, 500,
+    400, 150, 50,  0,   0,   50,  150, 400,
+    400, 150, 50,  0,   0,   50,  150, 400,
+    500, 150, 50,  50,  50,  50,  150, 500,
+    500, 200, 150, 150, 150, 150, 200, 500,
+    600, 500, 500, 400, 400, 500, 500, 600
 };
 
-const int bnMateDarkSquare[64] = {
-    99, 90, 80, 70, 60, 50, 40, 30,
-    90, 80, 70, 60, 50, 40, 30, 40,
-    80, 70, 60, 50, 40, 30, 40, 50,
-    70, 60, 50, 40, 30, 40, 50, 60,
-    60, 50, 40, 30, 40, 50, 60, 70,
-    50, 40, 30, 40, 50, 60, 70, 80,
-    40, 30, 40, 50, 60, 70, 80, 90,
-    30, 40, 50, 60, 70, 80, 90, 99
-  };
-  const int bnMateLightSquare[64] = {
-    30, 40, 50, 60, 70, 80, 90, 99,
-    40, 30, 40, 50, 60, 70, 80, 90,
-    50, 40, 30, 40, 50, 60, 70, 80,
-    60, 50, 40, 30, 40, 50, 60, 70,
-    70, 60, 50, 40, 30, 40, 50, 60,
-    80, 70, 60, 50, 40, 30, 40, 50,
-    90, 80, 70, 60, 50, 40, 30, 40,
-    99, 90, 80, 70, 60, 50, 40, 30
-  };
+int bnMateLightSquares[64] = {
+    0, 10, 20, 30, 40, 50, 60, 70,
+    10, 20, 30, 40, 50, 60, 70, 60,
+    20, 30, 40, 50, 60, 70, 60, 50,
+    30, 40, 50, 60, 70, 60, 50, 40,
+    40, 50, 60, 70, 60, 50, 40, 30,
+    50, 60, 70, 60, 50, 40, 30, 20,
+    60, 70, 60, 50, 40, 30, 20, 10,
+    70, 60, 50, 40, 30, 20, 10, 0
+};
+
+
+int bnMateDarkSquares[64] = {
+    70, 60, 50, 40, 30, 20, 10, 0,
+    60, 70, 60, 50, 40, 30, 20, 10,
+    50, 60, 70, 60, 50, 40, 30, 20,
+    40, 50, 60, 70, 60, 50, 40, 30,
+    30, 40, 50, 60, 70, 60, 50, 40,
+    20, 30, 40, 50, 60, 70, 60, 50,
+    10, 20, 30, 40, 50, 60, 70, 60,
+    0, 10, 20, 30, 40, 50, 60, 70
+};
+
+
 
 
 int midPawnTable[64] = {
@@ -439,6 +443,12 @@ int mopUpScore(const Board& board) {
 
     bool bnMate = (winningColor == Color::WHITE && whiteQueensCount == 0 && whiteRooksCount == 0 && whiteBishopsCount == 1 && whiteKnightsCount == 1) 
                 || (winningColor == Color::BLACK && blackQueensCount == 0 && blackRooksCount == 0 && blackBishopsCount == 1 && blackKnightsCount == 1);
+
+    int e4 = 28;
+    int a1 = 0;
+    int h1 = 7;
+    int a8 = 56;
+    int h8 = 63;
     
     if (bnMate) {
         Bitboard bishop;
@@ -448,17 +458,29 @@ int mopUpScore(const Board& board) {
             bishop = board.pieces(PieceType::BISHOP, Color::BLACK);
         }
 
+        Square bishopSq = Square(bishop.lsb());
         int bishopRank = bishop.lsb() / 8;
         int bishopFile = bishop.lsb() % 8;
 
         bool darkSquareBishop = (bishopRank + bishopFile) % 2 == 0;
 
-        int score = 5000 + 8 * (14 - kingDist) + materialScore + (darkSquareBishop ? bnMateDarkSquare[losingKingSqIndex] : bnMateLightSquare[losingKingSqIndex]);
+        // int cornerDist;
+
+        // if (darkSquareBishop) {
+        //     cornerDist = manhattanDistance(losingKingSq, Square(a1));
+        // } else {
+        //     cornerDist = manhattanDistance(losingKingSq, Square(a8));
+        // }
+
+        const int *bnMateTable = darkSquareBishop ? bnMateDarkSquares : bnMateLightSquares;
+
+        int score = 5000 + materialScore + 150 * (14 - kingDist) + materialScore + 100 * bnMateTable[losingKingSqIndex];
 
         return winningColor == Color::WHITE ? score : -score;
     }
 
-    int score = 5000 + 10 * (14 - kingDist) + materialScore + mate[losingKingSqIndex];
+    int score = 5000 + 150 * (14 - kingDist) + materialScore + 400 * manhattanDistance(losingKingSq, Square(e4));
+    
     return winningColor == Color::WHITE ? score : -score;
     
     return 0;

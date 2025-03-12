@@ -278,21 +278,23 @@ std::vector<std::pair<Move, int>> orderedMoves(
         {
             Move tableMove;
             int tableEval;
-            if (tableLookUp(board, 0, tableEval, tableMove, ttTable)) {
+            if (tableLookUp(board, depth / 3, tableEval, tableMove, ttTable)) {
                 if (tableMove == move) {
                     tableHit++;
                     priority = 8000;
                     candidatesPrimary.push_back({tableMove, priority});
                     hashMove = true;
                 }
-            } else if (tableLookUp(board, 0, tableEval, tableMove, ttTableNonPV)) {
-                if (tableMove == move) {
-                    tableHit++;
-                    priority = 7000;
-                    candidatesPrimary.push_back({tableMove, priority});
-                    hashMove = true;
-                }
-            }
+            } 
+            
+            // else if (tableLookUp(board, depth, tableEval, tableMove, ttTableNonPV)) {
+            //     if (tableMove == move) {
+            //         tableHit++;
+            //         priority = 7000;
+            //         candidatesPrimary.push_back({tableMove, priority});
+            //         hashMove = true;
+            //     }
+            // }
         }
       
         if (hashMove) continue;
@@ -491,9 +493,6 @@ int negamax(Board& board,
         return tableEval;
     }
     
-    // else if (found1 && tableEval1 >= beta + 500) {
-    //     return tableEval1;
-    // }
 
     if (depth <= 0) {
         int quiescenceEval = quiescence(board, alpha, beta);
@@ -510,7 +509,6 @@ int negamax(Board& board,
                             && beta > -2000
                             && !leftMost
                             && !mopUp;
-    
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -548,8 +546,6 @@ int negamax(Board& board,
         }
 
         if (nullEval >= beta + margin) { 
-            // Even if we skip our move and the evaluation is >= beta, this is a cutoff since it is
-            // a fail high (too good for us)
             return beta;
         } 
     }
@@ -729,6 +725,9 @@ Move findBestMove(Board& board,
     hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
+
+    historyTable.clear();
+    killerMoves.clear();
 
     Move bestMove = Move(); 
     int bestEval = -INF;

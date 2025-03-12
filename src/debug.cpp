@@ -128,12 +128,9 @@ int main() {
     int depth = 30;
     int numThreads = 8;
     int timeLimit = 30000;
-
     Move bestMove;
-
     int moveCount = 40;
 
-    //initializeFathom();
 
     for (int i = 0; i < moveCount; i++) {
 
