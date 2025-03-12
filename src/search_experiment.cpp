@@ -278,23 +278,21 @@ std::vector<std::pair<Move, int>> orderedMoves(
         {
             Move tableMove;
             int tableEval;
-            if (tableLookUp(board, depth / 3, tableEval, tableMove, ttTable)) {
+            if (tableLookUp(board, 0, tableEval, tableMove, ttTable)) {
                 if (tableMove == move) {
                     tableHit++;
                     priority = 8000;
                     candidatesPrimary.push_back({tableMove, priority});
                     hashMove = true;
                 }
-            } 
-            
-            // else if (tableLookUp(board, depth, tableEval, tableMove, ttTableNonPV)) {
-            //     if (tableMove == move) {
-            //         tableHit++;
-            //         priority = 7000;
-            //         candidatesPrimary.push_back({tableMove, priority});
-            //         hashMove = true;
-            //     }
-            // }
+            } else if (tableLookUp(board, 0, tableEval, tableMove, ttTableNonPV)) {
+                if (tableMove == move) {
+                    tableHit++;
+                    priority = 7000;
+                    candidatesPrimary.push_back({tableMove, priority});
+                    hashMove = true;
+                }
+            }
         }
       
         if (hashMove) continue;
