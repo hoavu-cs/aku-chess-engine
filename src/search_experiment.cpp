@@ -63,7 +63,7 @@ void initializeNNUE() {
 --------------------------------------------------------------------------------------------*/
 
 // Transposition table 
-const int maxTableSize = 10e6; // Maximum size of the transposition table
+const int maxTableSize = 13e6; // Maximum size of the transposition table
 
 struct tableEntry {
     U64 hash;
@@ -79,7 +79,6 @@ std::unordered_map<U64, U64> historyTable; // History heuristic table
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
-
 
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
@@ -101,21 +100,22 @@ const int pieceValues[] = {
 };
 
 /*-------------------------------------------------------------------------------------------- 
-    Transposition table lookup and clear.
+    Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
-bool tableLookUp(Board& board, int depth, int& eval, Move& bestMove, std::vector<tableEntry>& table) {    
+bool tableLookUp(Board& board, int& depth, int& eval, Move& bestMove, std::vector<tableEntry>& table) {    
     U64 hash = board.hash();
     U64 index = hash % maxTableSize;
-    bool found = false;
 
     tableEntry entry = table[index];
-    if (entry.hash == hash && entry.depth >= depth) {
+
+    if (entry.hash == hash) {
+        depth = entry.depth;
         eval = entry.eval;
         bestMove = entry.bestMove;
-        found = true;
+        return true;
     }
 
-    return found;
+    return false;
 }
 
 void tableInsert(Board& board, int depth, int eval, Move bestMove, std::vector<tableEntry>& table) {
@@ -265,6 +265,20 @@ std::vector<std::pair<Move, int>> orderedMoves(
     Color color = board.sideToMove();
     U64 hash = board.hash();
 
+    // Move tableMove;
+    // Move tableMoveNonPV;
+    // int tableEval;
+    // int tableEvalNonPV;
+    // int tableDepth;
+    // int tableDepthNonPV;
+
+    // #pragma omp critical
+    // {
+    //     Move tableMove;
+    //     tableLookUp(board, tableDepth, tableEval, tableMove, ttTable);
+    //     tableLookUp(board, tableDepthNonPV, tableEvalNonPV, tableMoveNonPV, ttTableNonPV);
+    // }
+
     // Move ordering 1. promotion 2. captures 3. killer moves 4. hash 5. checks 6. quiet moves
     for (const auto& move : moves) {
         int priority = 0;
@@ -278,17 +292,18 @@ std::vector<std::pair<Move, int>> orderedMoves(
         {
             Move tableMove;
             int tableEval;
-            if (tableLookUp(board, 0, tableEval, tableMove, ttTable)) {
+            int tableDepth;
+            if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
                 if (tableMove == move) {
                     tableHit++;
-                    priority = 8000;
+                    priority = 8000 + tableDepth;
                     candidatesPrimary.push_back({tableMove, priority});
                     hashMove = true;
                 }
-            } else if (tableLookUp(board, 0, tableEval, tableMove, ttTableNonPV)) {
+            } else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
                 if (tableMove == move) {
                     tableHit++;
-                    priority = 7000;
+                    priority = 7000 + tableDepth;
                     candidatesPrimary.push_back({tableMove, priority});
                     hashMove = true;
                 }
@@ -465,14 +480,16 @@ int negamax(Board& board,
     bool found = false;
     Move tableMove;
     int tableEval;
+    int tableDepth;
     
     #pragma omp critical
     {
-        if (tableLookUp(board, depth, tableEval, tableMove, ttTable)) {
+        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
             tableHit++;
-            found = true;
+            if (tableDepth >= depth) {
+                found = true;
+            }
         }
-
     }
 
     if (found && tableEval >= beta) {
@@ -481,9 +498,11 @@ int negamax(Board& board,
 
     #pragma omp critical
     {
-        if (tableLookUp(board, depth, tableEval, tableMove, ttTableNonPV)) {
+        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
             tableHit++;
-            found = true;
+            if (tableDepth >= depth) {
+                found = true;
+            }
         }
     }
 
@@ -513,8 +532,8 @@ int negamax(Board& board,
         Avoid pruning in the endgame phase, when alpha is close to the mate score (to avoid missing 
         checkmates). We also not do this in PV nodes.
     --------------------------------------------------------------------------------------------*/
-    if (depth <= 2 && pruningCondition) {
-        int margin = 350 * depth;
+    if (depth <= 8 && pruningCondition) {
+        int margin = depth * 350;
         if (standPat - margin > beta) {
             return standPat - margin;
         } 
@@ -579,6 +598,38 @@ int negamax(Board& board,
             depth++;
         }
     }
+
+    /*--------------------------------------------------------------------------------------------
+        Simple multicut: look up in the table for the first few moves. If all moves lead to a
+        fail high, this is likely a cut node.
+        Current not doing well.
+    --------------------------------------------------------------------------------------------*/
+    // if (depth >= 8 && pruningCondition) {
+    //     int failHighCount = 0;
+    //     for (int i = 0; i < moves.size(); i++) {
+    //         Move move = moves[i].first;
+
+    //         int tableDepth;
+    //         int tableEval;
+    //         Move tableMove;
+
+    //         board.makeMove(move);
+    //         if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
+    //             if (tableEval >= beta && tableDepth >= depth - 2) {
+    //                 failHighCount++;
+    //             }
+    //         } else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+    //             if (tableEval >= beta && tableDepth >= depth - 2) {
+    //                 failHighCount++;
+    //             }
+    //         }
+    //         board.unmakeMove(move);
+
+    //         if (failHighCount >= 5) {
+    //             return beta;
+    //         }
+    //     }
+    // }
 
     for (int i = 0; i < moves.size(); i++) {
 
@@ -865,9 +916,7 @@ Move findBestMove(Board& board,
             if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
                 alpha = -INF;
                 beta = INF;
-
                 newMoves.clear();
-
             } else {
                 break;
             }
