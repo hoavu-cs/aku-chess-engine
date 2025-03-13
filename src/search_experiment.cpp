@@ -23,7 +23,6 @@
 * THE SOFTWARE.
 */
 
-
 #include "search.hpp"
 #include "chess.hpp"
 #include "utils.hpp"
@@ -232,13 +231,14 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
 
     if (isMopUpPhase(board)) {
         // Search more thoroughly in mop-up phase
-        return depth - 1;      
+        return depth - 1;
     }
 
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth - log (depth) - log (i);
+        int R = log (depth) + log (i);
+        return depth - std::max(1, R);
     }
 }
 
@@ -555,7 +555,7 @@ int negamax(Board& board,
     /*--------------------------------------------------------------------------------------------
         Singular extension: If the hash move is much better than the other moves, extend the search.
     --------------------------------------------------------------------------------------------*/
-    if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
+    if (found && depth >= 10 && ply <= globalMaxDepth - 1 && !mopUp) {
         bool singularExtension = true;
         int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
         int singularDepth = depth / 2;

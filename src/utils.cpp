@@ -479,7 +479,7 @@ int mopUpScore(const Board& board) {
         return winningColor == Color::WHITE ? score : -score;
     }
 
-    int score = 5000 + 150 * (14 - kingDist) + materialScore + 450 * manhattanDistance(losingKingSq, Square(e4));
+    int score = 5000 + 150 * (14 - kingDist) + materialScore + 475 * manhattanDistance(losingKingSq, Square(e4)) ;
     
     return winningColor == Color::WHITE ? score : -score;
     
