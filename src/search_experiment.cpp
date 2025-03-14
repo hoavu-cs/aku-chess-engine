@@ -242,11 +242,10 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        int R = sqrt(depth) + sqrt(i);
+        int R =  0.75 * sqrt(depth) * sqrt(i);
         return depth - std::max(1, R);
     }
 }
@@ -314,9 +313,13 @@ std::vector<std::pair<Move, int>> orderedMoves(
             if (previousPV[ply] == move) {
                 priority = 10000; // PV move
             }
-        } else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
-            priority = 4000; // Killer moves
-        } else if (isPromotion(move)) {
+        } 
+        
+        // else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
+        //     priority = 4000; // Killer moves
+        // } 
+        
+        else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move);
@@ -327,7 +330,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             board.unmakeMove(move);
 
             if (isCheck) {
-                priority = 4000;
+                priority = 3000;
             } else {
                 secondary = true;
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
@@ -694,8 +697,8 @@ int negamax(Board& board,
             if (!board.isCapture(move) && !isCheck) {
                 #pragma omp critical
                 {
-                    updateKillerMoves(move, ply);
-                    historyTable[moveIndex(move)] += depth * depth + depth;
+                    //updateKillerMoves(move, ply);
+                    historyTable[moveIndex(move)] += depth * depth;
                 }
             }
             break;
@@ -838,9 +841,9 @@ Move findBestMove(Board& board,
                     }
                 }
 
-                if (newBestFlag && nextDepth < depth - 3) {
+                if (newBestFlag && nextDepth < depth - 1) {
                     localBoard.makeMove(move);
-                    eval = -negamax(localBoard, depth - 3, -beta, -alpha, childPV, leftMost, ply + 1);
+                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
                     localBoard.unmakeMove(move);
 
                     // Check if the time limit has been exceeded, if so the search 
