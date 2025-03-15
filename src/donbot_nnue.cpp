@@ -37,6 +37,11 @@ using namespace chess;
 const std::string ENGINE_NAME = "DONBOT ENGINE";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
+/*----------------------------------------------
+    Global variables
+-----------------------------------------------*/
+int numThreads = 8;
+
 
 std::string getBookMove(Board& board) {
     std::vector<std::string> possibleMoves;
@@ -118,10 +123,10 @@ void processPosition(const std::string& command) {
     }
 }
 
-/*
+/*--------------------------------------------------------------------------------
     * Processes the "setoption" command and updates the engine options.
-    * @param command The full setoption command received from the GUI.
-*/
+    * @param command The full setoption command received from the GUI.   
+---------------------------------------------------------------------------------*/
 
 void processSetOption(const std::string& command) {
     std::istringstream iss(command);
@@ -141,7 +146,7 @@ void processSetOption(const std::string& command) {
         int hashSize = std::stoi(value);
         // Set hash table size
     } else if (optionName == "Threads") {
-        int threads = std::stoi(value);
+        numThreads = std::stoi(value);
         // Set number of threads
     } else if (optionName == "Ponder") {
         bool ponder = (value == "true");
@@ -159,7 +164,6 @@ void processGo(const std::vector<std::string>& tokens) {
 
     // Default settings
     int depth = 30;
-    int numThreads = 8;
     int timeLimit = 30000; // Default to 15 seconds
     bool quiet = false;
 
