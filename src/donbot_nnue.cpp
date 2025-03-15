@@ -41,7 +41,7 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
     Global variables
 -----------------------------------------------*/
 int numThreads = 8;
-
+int depth = 30;
 
 std::string getBookMove(Board& board) {
     std::vector<std::string> possibleMoves;
@@ -128,29 +128,17 @@ void processPosition(const std::string& command) {
     * @param command The full setoption command received from the GUI.   
 ---------------------------------------------------------------------------------*/
 
-void processSetOption(const std::string& command) {
-    std::istringstream iss(command);
-    std::string token, optionName, value;
+void processSetOption(const std::vector<std::string>& tokens) {
 
-    iss >> token; // Skip "setoption"
-    iss >> token; // Skip "name"
-    std::getline(iss, optionName, ' ');
+    std::string optionName = tokens[2];
+    std::string value = tokens[4];
 
-    size_t pos = optionName.find(" value ");
-    if (pos != std::string::npos) {
-        value = optionName.substr(pos + 7);
-        optionName = optionName.substr(0, pos);
-    }
 
-    if (optionName == "Hash") {
-        int hashSize = std::stoi(value);
-        // Set hash table size
-    } else if (optionName == "Threads") {
+    if (optionName == "Threads") {
         numThreads = std::stoi(value);
         // Set number of threads
-    } else if (optionName == "Ponder") {
-        bool ponder = (value == "true");
-        // Enable or disable pondering
+    } else if (optionName == "Depth") {
+        depth = std::stoi(value);
     } else {
         std::cerr << "Unknown option: " << optionName << std::endl;
     }
@@ -163,7 +151,7 @@ void processSetOption(const std::string& command) {
 void processGo(const std::vector<std::string>& tokens) {
 
     // Default settings
-    int depth = 30;
+    
     int timeLimit = 30000; // Default to 15 seconds
     bool quiet = false;
 
@@ -179,7 +167,6 @@ void processGo(const std::vector<std::string>& tokens) {
         std::cout << "bestmove " << bookMove << std::endl;
         return;
     }
-
 
     /*--------------------------------------------------------------
     Time control:
@@ -217,7 +204,6 @@ void processGo(const std::vector<std::string>& tokens) {
             timeLimit = static_cast<int>(baseTime * adjust) + binc;
         }
     }
-
     bestMove = findBestMove(board, numThreads, depth, timeLimit, quiet);
 
     if (bestMove != Move::NO_MOVE) {
@@ -233,6 +219,8 @@ void processGo(const std::vector<std::string>& tokens) {
 void processUci() {
     std::cout << "Engine's name: " << ENGINE_NAME << std::endl;
     std::cout << "Author:" << ENGINE_AUTHOR << std::endl;
+    std::cout << "option name Threads type spin default 8 min 1 max 8" << std::endl;
+    std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
     std::cout << "uciok" << std::endl;
 }
 
@@ -251,6 +239,15 @@ void uciLoop() {
             board = Board(); // Reset board to starting position
         } else if (line.find("position") == 0) {
             processPosition(line);
+        } else if (line.find("setoption") == 0) {
+            //std::cout << "set option being processed" << std::endl;
+            std::vector<std::string> tokens;
+            std::istringstream iss(line);
+            std::string token;
+            while (iss >> token) {
+                tokens.push_back(token);
+            }
+            processSetOption(tokens);
         } else if (line.find("go") == 0) {
             std::vector<std::string> tokens;
             std::istringstream iss(line);

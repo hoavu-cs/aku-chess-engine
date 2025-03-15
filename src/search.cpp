@@ -87,7 +87,7 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
 
 int globalMaxDepth = 0; // Maximum depth of current search
-const int ENGINE_DEPTH = 30; // Maximum search depth for the current engine version
+int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 
 // Basic piece values for move ordering, detection of sacrafices, etc.
 const int pieceValues[] = {

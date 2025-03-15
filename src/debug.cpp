@@ -10,6 +10,7 @@
 #include <chrono>
 #include <unordered_map>
 #include <unordered_set>
+#include "../lib/fathom/src/tbprobe.h"
 
 using namespace chess;
 
@@ -44,6 +45,13 @@ int main() {
 
     initializeNNUE();   
     
+    if (!tb_init("lib/Fathom/tables")) {
+        std::cerr << "Failed to initialize Fathom tablebase!" << std::endl;
+        return 1;
+    }
+
+    std::cout << "Fathom tablebase initialized successfully!" << std::endl;
+    return 0;
     
     Board board = Board("r2q1r1k/1b3p2/p2Ppn2/1p4Q1/8/3B4/PPP2PPP/R4RK1 w - - 1 22"); // tactical test
     // Tactical fen 
