@@ -12,6 +12,8 @@
 #include <unordered_set>
 #include "../lib/fathom/src/tbprobe.h"
 
+typedef std::uint64_t U64;
+
 using namespace chess;
 
 
@@ -38,6 +40,74 @@ void writePNGToFile(const std::vector<std::string>& pgnMoves, std::string filena
     }
 }
 
+#include <iostream>
+#include "tbprobe.h"  // Include Syzygy probing API
+
+void probeSyzygy(const Board& board) {
+    // Convert the board to bitboard representation
+    uint64_t white = board.us(Color::WHITE).getBits();
+    uint64_t black = board.us(Color::BLACK).getBits();
+    uint64_t kings = board.pieces(PieceType::KING).getBits();
+    uint64_t queens = board.pieces(PieceType::QUEEN).getBits();
+    uint64_t rooks = board.pieces(PieceType::ROOK).getBits();
+    uint64_t bishops = board.pieces(PieceType::BISHOP).getBits();
+    uint64_t knights = board.pieces(PieceType::KNIGHT).getBits();
+    uint64_t pawns = board.pieces(PieceType::PAWN).getBits();
+
+    // Extract rule50 (convert from half-moves to full moves)
+    unsigned rule50 = board.halfMoveClock() / 2;
+
+    // Extract castling rights as a bitmask
+    unsigned castling = board.castlingRights().hashIndex();
+
+    // Extract en passant square index (convert NO_SQ to 0)
+    unsigned ep = (board.enpassantSq() != Square::underlying::NO_SQ) ? board.enpassantSq().index() : 0;
+
+    // Determine whose turn it is
+    bool turn = (board.sideToMove() == Color::WHITE);
+
+    // Create structure to store root move suggestions
+    TbRootMoves results;
+
+    // Call tablebase probe function
+    int probeSuccess = tb_probe_root_dtz(
+        white, black, kings, queens, rooks, bishops, knights, pawns,
+        rule50, castling, ep, turn, 
+        board.isRepetition(), true, &results
+    );
+
+    // Handle probe failure
+    if (!probeSuccess) {
+        std::cout << "Tablebase probe failed, falling back to WDL." << std::endl;
+
+        probeSuccess = tb_probe_root_wdl(
+            white, black, kings, queens, rooks, bishops, knights, pawns,
+            rule50, castling, ep, turn, true, &results
+        );
+
+        if (!probeSuccess) {
+            std::cout << "WDL probing also failed." << std::endl;
+            return;
+        }
+    }
+
+    // Print the best move
+    if (results.size > 0) {
+        TbRootMove bestMove = results.moves[results.size - 1];
+        unsigned from = TB_MOVE_FROM(bestMove.move);
+        unsigned to = TB_MOVE_TO(bestMove.move);
+        unsigned promotes = TB_MOVE_PROMOTES(bestMove.move);
+
+        std::cout << "Best Move: " << from << " -> " << to;
+        if (promotes) std::cout << " Promotes to: " << promotes;
+        std::cout << "\n";
+        std::cout << "DTZ Score: " << bestMove.tbScore << " (lower is better)\n";
+    } else {
+        std::cout << "No legal moves found." << std::endl;
+    }
+}
+
+
 int main() {
     // Board board1 = Board("r4rk1/pp3ppp/2pp1q2/2P1p3/N1PnP3/P4N1P/2P2PP1/R2Q1RK1 b - - 0 14");
     // std::cout << "Eval = " << evaluate(board1) << std::endl;
@@ -45,15 +115,20 @@ int main() {
 
     initializeNNUE();   
     
-    if (!tb_init("lib/Fathom/tables")) {
+    if (!tb_init("tables/")) {
         std::cerr << "Failed to initialize Fathom tablebase!" << std::endl;
         return 1;
     }
 
     std::cout << "Fathom tablebase initialized successfully!" << std::endl;
-    return 0;
+
+    Board board = Board("4k3/8/4K3/8/8/8/8/2R5 w - - 0 1");
+
+    // Probe the tablebase
+    probeSyzygy(board);
     
-    Board board = Board("r2q1r1k/1b3p2/p2Ppn2/1p4Q1/8/3B4/PPP2PPP/R4RK1 w - - 1 22"); // tactical test
+
+
     // Tactical fen 
     //Board board = Board("2rq1rk1/pp3ppp/2p2n2/3p3P/3P1n2/2N2N2/PPPQ1PP1/1K1R3R b - - 2 16");
     std::vector<std::string> pgnMoves; // Store moves in PGN format
@@ -124,7 +199,51 @@ int main() {
     8/1pq1bpk1/p1b1pr2/3r2N1/1P5p/2P1QpP1/P1B2P1P/3RR1K1 b - - 1 30
     2r2bk1/1bq2p1p/3p2p1/p1nP4/B1P1P3/Q3RNBP/5PPK/8 w - - 2 34
     */
-    board = Board("1r4k1/pq2bppp/4b3/3r4/1PN1QB2/P7/5PpP/R3R1K1 w - - 0 21");
+
+
+    // U64 whitePieces = board.us(Color::WHITE).getBits();
+    // U64 blackPieces = board.us(Color::BLACK).getBits();
+
+    // U64 kings = board.pieces(PieceType::KING).getBits();
+    // U64 pawns = board.pieces(PieceType::PAWN).getBits();
+    // U64 knights = board.pieces(PieceType::KNIGHT).getBits();
+    // U64 bishops = board.pieces(PieceType::BISHOP).getBits();
+    // U64 rooks = board.pieces(PieceType::ROOK).getBits();
+    // U64 queens = board.pieces(PieceType::QUEEN).getBits();
+
+    // unsigned int rule50 = board.halfMoveClock() / 2;
+    // unsigned int castlingRights = board.castlingRights().hashIndex();
+    // unsigned int enPassant = (board.enpassantSq() != Square::underlying::NO_SQ) ? board.enpassantSq().index() : 0;
+    // bool turn = board.sideToMove() == Color::WHITE;
+
+    // unsigned results[TB_MAX_MOVES];
+
+    // unsigned tbResult =tb_probe_root(
+    //     whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns,
+    //     rule50, castlingRights, enPassant, turn, results
+    // );
+
+
+    // // Handle the probe result
+    // if (tbResult == TB_RESULT_FAILED) {
+    //     std::cout << "Tablebase probe failed." << std::endl;
+    //     return;
+    // }
+
+    // // Decode and display the results
+    // unsigned bestFrom = TB_MOVE_FROM(tb_result);
+    // unsigned bestTo = TB_MOVE_TO(tb_result);
+    // unsigned bestPromotes = TB_MOVE_PROMOTES(tb_result);
+    // int dtz = TB_GET_DTZ(tb_result);
+
+    // std::cout << "Tablebase Probe Result:" << std::endl;
+    // std::cout << "WDL Value: " << wdl << " (0 = Loss, 2 = Draw, 4 = Win)" << std::endl;
+    // std::cout << "Best Move: " << bestFrom << " -> " << bestTo << std::endl;
+    // if (bestPromotes) {
+    //     std::cout << "Promotes to: " << bestPromotes << std::endl;
+    // }
+    // std::cout << "DTZ Value: " << dtz << " moves" << std::endl;
+
 
     //5k2/2p5/1p6/1r2N3/p2K1PR1/6P1/6P1/8 w - - 6 45
     std::string startingFen;
