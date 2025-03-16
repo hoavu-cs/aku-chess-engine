@@ -66,7 +66,7 @@ std::string getExecutablePath() {
 #elif __APPLE__
     uint32_t size = sizeof(path);
     if (_NSGetExecutablePath(path, &size) != 0) {
-        throw std::filesystem::runtime_error("Buffer too small");
+        throw std::runtime_error("Buffer too small"); // Use std::runtime_error instead
     }
 #elif __linux__
     ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
