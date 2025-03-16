@@ -30,6 +30,7 @@
 #include <sstream>
 #include <string>
 #include <chrono>
+#include <filesystem>
 
 using namespace chess;
 
@@ -37,9 +38,46 @@ using namespace chess;
 const std::string ENGINE_NAME = "DONBOT ENGINE";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
-/*----------------------------------------------
+
+/*-------------------------------------------------------------------------------------------- 
+    Initialize endgame tablebases.
+--------------------------------------------------------------------------------------------*/
+#ifdef _WIN32
+    #include <windows.h>
+#elif __APPLE__
+    #include <mach-o/dyld.h>
+#elif __linux__
+    #include <unistd.h>
+#endif
+
+
+std::string getExecutablePath() {
+    char path[1024];
+
+#ifdef _WIN32
+    GetModuleFileNameA(nullptr, path, sizeof(path));
+#elif __APPLE__
+    uint32_t size = sizeof(path);
+    if (_NSGetExecutablePath(path, &size) != 0) {
+        throw std::filesystem::runtime_error("Buffer too small");
+    }
+#elif __linux__
+    ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (count == -1) {
+        throw std::filesystem::runtime_error("Failed to get executable path");
+    }
+    path[count] = '\0';  // Null-terminate the string
+#else
+    throw std::filesystem::runtime_error("Unsupported OS");
+#endif
+
+    return std::filesystem::canonical(std::filesystem::path(path)).parent_path().string();
+}
+
+
+/*-------------------------------------------------------------------------------------------- 
     Global variables
------------------------------------------------*/
+-------------------------------------------------------------------------------------------- */
 int numThreads = 8;
 int depth = 30;
 
@@ -263,7 +301,13 @@ void uciLoop() {
 }
 
 int main() {
+    
     initializeNNUE();
+
+    std::string path = getExecutablePath() + "\\tables\\";
+    initializeTB(path);
+
     uciLoop();
+
     return 0;
 }

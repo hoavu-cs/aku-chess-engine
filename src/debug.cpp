@@ -11,11 +11,25 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "../lib/fathom/src/tbprobe.h"
+#include <filesystem>
 
 typedef std::uint64_t U64;
 
 using namespace chess;
 
+namespace fs = std::filesystem;
+
+
+/*--------------------------------------------------------
+    Get the path of the executable's directory.
+--------------------------------------------------------*/
+#ifdef _WIN32
+    #include <windows.h>
+#elif __APPLE__
+    #include <mach-o/dyld.h>
+#elif __linux__
+    #include <unistd.h>
+#endif
 
 void writePNGToFile(const std::vector<std::string>& pgnMoves, std::string filename) {
     std::ofstream pgnFile("game.pgn");
@@ -40,8 +54,32 @@ void writePNGToFile(const std::vector<std::string>& pgnMoves, std::string filena
     }
 }
 
+std::string getExecutablePath() {
+    char path[1024];
+
+#ifdef _WIN32
+    GetModuleFileNameA(nullptr, path, sizeof(path));
+#elif __APPLE__
+    uint32_t size = sizeof(path);
+    if (_NSGetExecutablePath(path, &size) != 0) {
+        throw std::runtime_error("Buffer too small");
+    }
+#elif __linux__
+    ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (count == -1) {
+        throw std::runtime_error("Failed to get executable path");
+    }
+    path[count] = '\0';  // Null-terminate the string
+#else
+    throw std::runtime_error("Unsupported OS");
+#endif
+
+    return fs::canonical(fs::path(path)).parent_path().string();
+}
+
+
 #include <iostream>
-#include "tbprobe.h"  // Include Syzygy probing API
+//#include "tbprobe.h"  // Include Syzygy probing API
 
 void probeSyzygy(const Board& board) {
     // Convert the board to bitboard representation
@@ -76,6 +114,12 @@ void probeSyzygy(const Board& board) {
         board.isRepetition(), true, &results
     );
 
+    if (probeSuccess) {
+        std::cout << "Tablebase probe successful." << std::endl;
+    } else {
+        std::cout << "Tablebase probe failed." << std::endl;
+    }
+
     // Handle probe failure
     if (!probeSuccess) {
         std::cout << "Tablebase probe failed, falling back to WDL." << std::endl;
@@ -101,7 +145,7 @@ void probeSyzygy(const Board& board) {
         std::cout << "Best Move: " << from << " -> " << to;
         if (promotes) std::cout << " Promotes to: " << promotes;
         std::cout << "\n";
-        std::cout << "DTZ Score: " << bestMove.tbScore << " (lower is better)\n";
+        std::cout << "DTZ Score: " << bestMove.tbScore << " (larger is better)\n";
     } else {
         std::cout << "No legal moves found." << std::endl;
     }
@@ -113,18 +157,25 @@ int main() {
     // std::cout << "Eval = " << evaluate(board1) << std::endl;
     // https://www.wtharvey.com/anan.html
 
+    // print path
+    std::string path = getExecutablePath() + "\\tables\\";
+
+    std::cout << "Path: " << path << std::endl;
+
     initializeNNUE();   
     
-    if (!tb_init("tables/")) {
+    if (!tb_init(path.c_str())) {
         std::cerr << "Failed to initialize Fathom tablebase!" << std::endl;
-        return 1;
+    } else {
+        std::cout << "Fathom tablebase initialized successfully!" << std::endl;
     }
+    std::cout << "Test Syzygy" << std::endl;
 
-    std::cout << "Fathom tablebase initialized successfully!" << std::endl;
+    Board board = Board("4k3/8/4K3/1P6/8/8/8/8 w - - 0 1");
 
-    Board board = Board("4k3/8/4K3/8/8/8/8/2R5 w - - 0 1");
+    std::cout << "Test Syzygy" << std::endl;
 
-    // Probe the tablebase
+    // // Probe the tablebase
     probeSyzygy(board);
     
 
@@ -199,50 +250,6 @@ int main() {
     8/1pq1bpk1/p1b1pr2/3r2N1/1P5p/2P1QpP1/P1B2P1P/3RR1K1 b - - 1 30
     2r2bk1/1bq2p1p/3p2p1/p1nP4/B1P1P3/Q3RNBP/5PPK/8 w - - 2 34
     */
-
-
-    // U64 whitePieces = board.us(Color::WHITE).getBits();
-    // U64 blackPieces = board.us(Color::BLACK).getBits();
-
-    // U64 kings = board.pieces(PieceType::KING).getBits();
-    // U64 pawns = board.pieces(PieceType::PAWN).getBits();
-    // U64 knights = board.pieces(PieceType::KNIGHT).getBits();
-    // U64 bishops = board.pieces(PieceType::BISHOP).getBits();
-    // U64 rooks = board.pieces(PieceType::ROOK).getBits();
-    // U64 queens = board.pieces(PieceType::QUEEN).getBits();
-
-    // unsigned int rule50 = board.halfMoveClock() / 2;
-    // unsigned int castlingRights = board.castlingRights().hashIndex();
-    // unsigned int enPassant = (board.enpassantSq() != Square::underlying::NO_SQ) ? board.enpassantSq().index() : 0;
-    // bool turn = board.sideToMove() == Color::WHITE;
-
-    // unsigned results[TB_MAX_MOVES];
-
-    // unsigned tbResult =tb_probe_root(
-    //     whitePieces, blackPieces, kings, queens, rooks, bishops, knights, pawns,
-    //     rule50, castlingRights, enPassant, turn, results
-    // );
-
-
-    // // Handle the probe result
-    // if (tbResult == TB_RESULT_FAILED) {
-    //     std::cout << "Tablebase probe failed." << std::endl;
-    //     return;
-    // }
-
-    // // Decode and display the results
-    // unsigned bestFrom = TB_MOVE_FROM(tb_result);
-    // unsigned bestTo = TB_MOVE_TO(tb_result);
-    // unsigned bestPromotes = TB_MOVE_PROMOTES(tb_result);
-    // int dtz = TB_GET_DTZ(tb_result);
-
-    // std::cout << "Tablebase Probe Result:" << std::endl;
-    // std::cout << "WDL Value: " << wdl << " (0 = Loss, 2 = Draw, 4 = Win)" << std::endl;
-    // std::cout << "Best Move: " << bestFrom << " -> " << bestTo << std::endl;
-    // if (bestPromotes) {
-    //     std::cout << "Promotes to: " << bestPromotes << std::endl;
-    // }
-    // std::cout << "DTZ Value: " << dtz << " moves" << std::endl;
 
 
     //5k2/2p5/1p6/1r2N3/p2K1PR1/6P1/6P1/8 w - - 6 45

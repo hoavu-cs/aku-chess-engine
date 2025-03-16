@@ -918,27 +918,27 @@ bool tb_init(const char *path)
   }
 
   for (i = 0; i < 5; i++)
-    for (j = i; j < 5; j++) {
+    for (j = 0; j < 5; j++) {
       snprintf(str, 16, "K%cvK%c", pchr(i), pchr(j));
       init_tb(str);
     }
 
   for (i = 0; i < 5; i++)
-    for (j = i; j < 5; j++) {
+    for (j = 0; j < 5; j++) {
       snprintf(str, 16, "K%c%cvK", pchr(i), pchr(j));
       init_tb(str);
     }
 
   for (i = 0; i < 5; i++)
-    for (j = i; j < 5; j++)
+    for (j = 0; j < 5; j++)
       for (k = 0; k < 5; k++) {
         snprintf(str, 16, "K%c%cvK%c", pchr(i), pchr(j), pchr(k));
         init_tb(str);
       }
 
   for (i = 0; i < 5; i++)
-    for (j = i; j < 5; j++)
-      for (k = j; k < 5; k++) {
+    for (j = 0; j < 5; j++)
+      for (k = 0; k < 5; k++) {
         snprintf(str, 16, "K%c%c%cvK", pchr(i), pchr(j), pchr(k));
         init_tb(str);
       }

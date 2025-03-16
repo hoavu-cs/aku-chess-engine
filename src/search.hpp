@@ -10,6 +10,8 @@ const int INF = 100000;
 // Function Declarations
 void initializeNNUE();
 
+void initializeTB(std::string path);
+
 int negamax(Board& board, 
     int depth, 
     int alpha, 
