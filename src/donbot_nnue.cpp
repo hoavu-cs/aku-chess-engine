@@ -78,6 +78,14 @@ std::string getExecutablePath() {
     throw std::filesystem::runtime_error("Unsupported OS");
 #endif
 
+    // Convert to filesystem path and normalize
+    std::filesystem::path execPath = std::filesystem::canonical(std::filesystem::path(path));
+    std::cout << "Canonical Executable Path: " << execPath << std::endl;
+
+    std::filesystem::path parentPath = execPath.parent_path();
+    std::cout << "Executable Directory: " << parentPath << std::endl;
+
+
     return std::filesystem::canonical(std::filesystem::path(path)).parent_path().string();
 }
 
