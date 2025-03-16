@@ -5,14 +5,14 @@
 * Copyright (c) 2024 Hoa T. Vu
 * 
 * Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
+* of this software and associated documentation files (the "Software"), to use,
+* copy, modify, merge, publish, and distribute copies of the Software for 
+* **non-commercial purposes only**, provided that the following conditions are met:
 * 
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
+* 1. The above copyright notice and this permission notice shall be included in
+*    all copies or substantial portions of the Software.
+* 2. Any use of this Software for commercial purposes **requires prior written
+*    permission from the author, Hoa T. Vu**.
 * 
 * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -22,6 +22,7 @@
 * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 * THE SOFTWARE.
 */
+
 
 #include "search.hpp"
 #include "chess.hpp"

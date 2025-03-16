@@ -5,14 +5,14 @@
 * Copyright (c) 2024 Hoa T. Vu
 * 
 * Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
+* of this software and associated documentation files (the "Software"), to use,
+* copy, modify, merge, publish, and distribute copies of the Software for 
+* **non-commercial purposes only**, provided that the following conditions are met:
 * 
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
+* 1. The above copyright notice and this permission notice shall be included in
+*    all copies or substantial portions of the Software.
+* 2. Any use of this Software for commercial purposes **requires prior written
+*    permission from the author, Hoa T. Vu**.
 * 
 * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -23,6 +23,7 @@
 * THE SOFTWARE.
 */
 
+
 #include "chess.hpp"
 #include "openings.hpp"
 #include "search.hpp"
@@ -31,6 +32,9 @@
 #include <string>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
+#include <cstdio>  
+#include "eg_table_inc.hpp"
 
 using namespace chess;
 
@@ -42,6 +46,8 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 /*-------------------------------------------------------------------------------------------- 
     Initialize endgame tablebases.
 --------------------------------------------------------------------------------------------*/
+
+// Get the executable's directory path
 #ifdef _WIN32
     #include <windows.h>
 #elif __APPLE__
@@ -72,6 +78,43 @@ std::string getExecutablePath() {
 #endif
 
     return std::filesystem::canonical(std::filesystem::path(path)).parent_path().string();
+}
+
+// Extract tablebase files to the current directory if they don't already exist.
+void extractTablebaseFiles() {
+
+    std::string path = getExecutablePath();
+    std::filesystem::path tablesDir = std::filesystem::path(path) / "tables";
+
+    // Check if the "tables" folder exists, if not, create it
+    if (!std::filesystem::exists(tablesDir)) {
+        std::cout << "Creating directory: " << tablesDir << std::endl;
+        if (!std::filesystem::create_directories(tablesDir)) {
+            std::cerr << "Failed to create directory: " << tablesDir << std::endl;
+            return;
+        }
+    }
+
+    for (size_t i = 0; i < tablebaseFileCount; i++) {
+        std::string filePath = path + "/" + tablebaseFiles[i].name;
+
+        // Check if the file already exists
+        if (std::filesystem::exists(filePath)) {
+            std::cout << "info skipping: " << filePath << " (already exists)" << std::endl;
+            continue;
+        }
+
+        // Create and write file only if it doesn't exist
+        std::ofstream outFile(filePath, std::ios::binary);
+        if (!outFile) {
+            std::cerr << "info failed to create: " << filePath << std::endl;
+            continue;
+        }
+
+        outFile.write(reinterpret_cast<const char*>(tablebaseFiles[i].data), tablebaseFiles[i].size);
+        outFile.close();
+        std::cout << "info extracted: " << filePath << std::endl;
+    }
 }
 
 
@@ -305,6 +348,7 @@ int main() {
     initializeNNUE();
 
     std::string path = getExecutablePath() + "\\tables\\";
+    extractTablebaseFiles();
     initializeTB(path);
 
     uciLoop();

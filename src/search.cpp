@@ -5,14 +5,14 @@
 * Copyright (c) 2024 Hoa T. Vu
 * 
 * Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
+* of this software and associated documentation files (the "Software"), to use,
+* copy, modify, merge, publish, and distribute copies of the Software for 
+* **non-commercial purposes only**, provided that the following conditions are met:
 * 
-* The above copyright notice and this permission notice shall be included in
-* all copies or substantial portions of the Software.
+* 1. The above copyright notice and this permission notice shall be included in
+*    all copies or substantial portions of the Software.
+* 2. Any use of this Software for commercial purposes **requires prior written
+*    permission from the author, Hoa T. Vu**.
 * 
 * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -22,6 +22,7 @@
 * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 * THE SOFTWARE.
 */
+
 
 #include "search.hpp"
 #include "chess.hpp"
@@ -38,17 +39,15 @@
 #include <unordered_set>
 #include <queue>
 #include <set>
+#include <filesystem>
 #include "../lib/stockfish_nnue_probe/probe.h"
-
+#include "../lib/fathom/src/tbprobe.h"
 
 using namespace chess;
 using namespace Stockfish;
-
 typedef std::uint64_t U64;
 
-
 U64 trainingCount = 0;
-
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
@@ -57,6 +56,104 @@ void initializeNNUE() {
     std::cout << "Initializing NNUE." << std::endl;
 
     Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-b1a57edbea57.nnue");
+}
+
+/*-------------------------------------------------------------------------------------------- 
+    Initialize and look up endgame tablebases.
+--------------------------------------------------------------------------------------------*/
+void initializeTB(std::string path) {
+    if (!tb_init(path.c_str())) {
+        std::cerr << "Failed to initialize endgame table." << std::endl;
+    } else {
+        std::cout << "Endgame table initialized successfully!" << std::endl;
+    }
+}
+
+
+bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
+    // Convert the board to bitboard representation
+    U64 white = board.us(Color::WHITE).getBits();
+    U64 black = board.us(Color::BLACK).getBits();
+    U64 kings = board.pieces(PieceType::KING).getBits();
+    U64 queens = board.pieces(PieceType::QUEEN).getBits();
+    U64 rooks = board.pieces(PieceType::ROOK).getBits();
+    U64 bishops = board.pieces(PieceType::BISHOP).getBits();
+    U64 knights = board.pieces(PieceType::KNIGHT).getBits();
+    U64 pawns = board.pieces(PieceType::PAWN).getBits();
+
+
+    unsigned rule50 = board.halfMoveClock() / 2;
+    unsigned castling = board.castlingRights().hashIndex();
+    unsigned ep = (board.enpassantSq() != Square::underlying::NO_SQ) ? board.enpassantSq().index() : 0;
+    bool turn = (board.sideToMove() == Color::WHITE);
+
+    // Create structure to store root move suggestions
+    TbRootMoves results;
+
+    int probeSuccess = tb_probe_root_dtz(
+        white, black, kings, queens, rooks, bishops, knights, pawns,
+        rule50, castling, ep, turn, 
+        true, true, &results
+    );
+
+
+    // Handle probe failure
+    if (!probeSuccess) {
+        probeSuccess = tb_probe_root_wdl(
+            white, black, kings, queens, rooks, bishops, knights, pawns,
+            rule50, castling, ep, turn, true, &results
+        );
+
+        if (!probeSuccess) {
+            return false;
+        }
+    }
+
+    if (results.size > 0) {
+        TbRootMove *bestMove = std::max_element(results.moves, results.moves + results.size, 
+            [](const TbRootMove &a, const TbRootMove &b) {
+                return a.tbRank < b.tbRank; // Higher rank is better
+            });
+
+        unsigned from = TB_MOVE_FROM(bestMove->move);
+        unsigned to = TB_MOVE_TO(bestMove->move);
+        unsigned promotes = TB_MOVE_PROMOTES(bestMove->move);
+
+        int fromIndex = from;
+        int toIndex = to;
+
+        if (promotes) {
+            switch (promotes) {
+                case TB_PROMOTES_QUEEN:
+                    suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::QUEEN);
+                    break;
+                case TB_PROMOTES_ROOK:
+                    suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::ROOK);
+                    break;
+                case TB_PROMOTES_BISHOP:
+                    suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::BISHOP);
+                    break;
+                case TB_PROMOTES_KNIGHT:
+                    suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::KNIGHT);
+                    break;
+            }
+            
+        } else {
+            suggestedMove = Move::make<Move::NORMAL>(Square(fromIndex), Square(toIndex));
+        }
+
+        if (bestMove->tbScore > 0) {
+            wdl = 1;
+        } else if (bestMove->tbScore < 0) {
+            wdl = -1;
+        } else {
+            wdl = 0;
+        }
+
+        return true;
+    } else {
+        return false;
+    }
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -313,13 +410,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             if (previousPV[ply] == move) {
                 priority = 10000; // PV move
             }
-        } 
-        
-        // else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
-        //     priority = 4000; // Killer moves
-        // } 
-        
-        else if (isPromotion(move)) {
+        } else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move);
@@ -372,13 +463,30 @@ std::vector<std::pair<Move, int>> orderedMoves(
 /*-------------------------------------------------------------------------------------------- 
     Quiescence search for captures only.
 --------------------------------------------------------------------------------------------*/
-int quiescence(Board& board, int alpha, int beta) {
+int quiescence(Board& board, int alpha, int beta, int ply) {
     
     #pragma omp critical
     nodeCount++;
 
     if (knownDraw(board)) {
         return 0;
+    }
+
+    // Probe Syzygy tablebases
+    Move syzygyMove = Move::NO_MOVE;
+    int wdl = 0;
+    if (probeSyzygy(board, syzygyMove, wdl)) {
+        int score = 0;
+        if (wdl == 1) {
+            // get the fastest path to known win by subtracting the ply
+            score = 10000 - ply; 
+        } else if (wdl == -1) {
+            // delay the loss by adding the ply
+            score = -10000 + ply; 
+        } else if (wdl == 0) {
+            score = 0;
+        }
+        return score;
     }
 
     Movelist moves;
@@ -423,7 +531,7 @@ int quiescence(Board& board, int alpha, int beta) {
     for (const auto& [move, priority] : candidateMoves) {
         board.makeMove(move);
         int score = 0;
-        score = -quiescence(board, -beta, -alpha);
+        score = -quiescence(board, -beta, -alpha, ply + 1);
         board.unmakeMove(move);
 
         bestScore = std::max(bestScore, score);
@@ -470,7 +578,6 @@ int negamax(Board& board,
     auto gameOverResult = board.isGameOver();
     if (gameOverResult.first != GameResultReason::NONE) {
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
-            int ply = globalMaxDepth - depth;
             return -(INF/2 - ply); 
         }
         return 0;
@@ -479,6 +586,23 @@ int negamax(Board& board,
     // Avoid searching the same position multiple times in the same path
     if (board.isRepetition(1)) {
         return 0;
+    }
+
+    // Probe Syzygy tablebases
+    Move syzygyMove = Move::NO_MOVE;
+    int wdl = 0;
+    if (probeSyzygy(board, syzygyMove, wdl)) {
+        int score = 0;
+        if (wdl == 1) {
+            // get the fastest path to known win by subtracting the ply
+            score = 10000 - ply; 
+        } else if (wdl == -1) {
+            // delay the loss by adding the ply
+            score = -10000 + ply; 
+        } else if (wdl == 0) {
+            score = 0;
+        }
+        return score;
     }
 
     // Probe the transposition table
@@ -516,7 +640,7 @@ int negamax(Board& board,
     } 
 
     if (depth <= 0) {
-        int quiescenceEval = quiescence(board, alpha, beta);
+        int quiescenceEval = quiescence(board, alpha, beta, ply);
         return quiescenceEval;
     }
 
@@ -760,6 +884,35 @@ Move findBestMove(Board& board,
     int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
     std::vector<Move> candidateMove (2 * ENGINE_DEPTH + 1, Move());
+
+    /*--------------------------------------------------------------------------------------------
+        Check if the move position is in the endgame tablebase.
+    --------------------------------------------------------------------------------------------*/
+    Move syzygyMove;
+    int wdl = 0;
+
+    if (probeSyzygy(board, syzygyMove, wdl)) {
+        if (!quiet) {
+            int score = 0;
+            if (wdl == 1) {
+                score = 10000;
+            } else if (wdl == -1) {
+                score = -10000;
+            }
+            std::cout << "info depth 0 score cp " << score << " pv " << uci::moveToUci(syzygyMove) << std::endl;
+        }
+        
+        if (syzygyMove != Move::NO_MOVE) {
+            try {
+                Board boardCopy = board;
+                boardCopy.makeMove(syzygyMove);
+                return syzygyMove;  // Valid move, return it
+            } catch (const std::exception&) {
+                // In case somehow the move is invalid, continue with the search
+            }
+        }
+    }
+
 
     while (depth <= maxDepth) {
         nodeCount = 0;
