@@ -62,6 +62,7 @@ void initializeNNUE() {
     Initialize and look up endgame tablebases.
 --------------------------------------------------------------------------------------------*/
 void initializeTB(std::string path) {
+    std::cout << "Initializing endgame table at path: " << path << std::endl;
     if (!tb_init(path.c_str())) {
         std::cerr << "Failed to initialize endgame table." << std::endl;
     } else {

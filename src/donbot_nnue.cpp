@@ -71,15 +71,11 @@ std::string getExecutablePath() {
 #elif __linux__
     ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
     if (count == -1) {
-        std::cerr << "Failed to get executable path" << std::endl;
-        throw std::runtime_error("Failed to get executable path");
-    }
+        std::cerr << "Failed to get executable path" << std::endl;    }
     path[count] = '\0';  // Null-terminate the string
 #else
     throw std::filesystem::runtime_error("Unsupported OS");
 #endif
-
-
 
     return std::filesystem::canonical(std::filesystem::path(path)).parent_path().string();
 }
