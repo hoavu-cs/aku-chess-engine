@@ -347,7 +347,7 @@ int main() {
     
     initializeNNUE();
 
-    std::string path = getExecutablePath() + "\\tables\\";
+    std::string path = getExecutablePath() + "/tables/";
     extractTablebaseFiles();
     initializeTB(path);
 
