@@ -1,7 +1,7 @@
 # How to Play with the Engine in a GUI
 
 To play on a GUI, you can use any UCI-compatible GUI such as **Cute Chess**, **PyChess**, **Nibbler**, etc., and add the engine to the GUI program.  
-The binaries for **Windows** and **MacOS** can be downloaded from the [releases](#).
+The binaries for **Windows** and **MacOS** can be downloaded from the [releases](https://github.com/hoavu-cs/donbot-chess-engine/releases/).
 
 ## Strength and Performance
 
