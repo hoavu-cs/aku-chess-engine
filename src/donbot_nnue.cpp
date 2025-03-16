@@ -34,6 +34,7 @@
 #include <filesystem>
 #include <fstream>
 #include <cstdio>  
+#include <stdexcept> 
 #include "eg_table_inc.hpp"
 
 using namespace chess;
@@ -70,7 +71,7 @@ std::string getExecutablePath() {
 #elif __linux__
     ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
     if (count == -1) {
-        throw std::filesystem::runtime_error("Failed to get executable path");
+        throw std::runtime_error("Failed to get executable path");
     }
     path[count] = '\0';  // Null-terminate the string
 #else
