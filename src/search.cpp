@@ -900,7 +900,7 @@ Move findBestMove(Board& board,
             } else if (wdl == -1) {
                 score = -10000;
             }
-            std::cout << "info depth 1 score cp " << score << " pv " << uci::moveToUci(syzygyMove) << std::endl;
+            std::cout << "info depth 0 score cp " << score << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
         }
         
         if (syzygyMove != Move::NO_MOVE) {
