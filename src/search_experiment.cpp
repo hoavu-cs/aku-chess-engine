@@ -49,6 +49,8 @@ typedef std::uint64_t U64;
 
 U64 trainingCount = 0;
 
+std::vector<int> data (100);
+
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
 --------------------------------------------------------------------------------------------*/
@@ -423,13 +425,13 @@ std::vector<std::pair<Move, int>> orderedMoves(
         // } 
         
         else {
-            board.makeMove(move);
-            bool isCheck = board.inCheck();
-            board.unmakeMove(move);
+            // board.makeMove(move);
+            // bool isCheck = board.inCheck();
+            // board.unmakeMove(move);
 
-            if (isCheck) {
-                priority = 2000;
-            } else {
+            // if (isCheck) {
+            //     priority = 2000;
+            // } else {
                 secondary = true;
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
                 #pragma omp critical
@@ -441,7 +443,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                     }
                                             
                 }
-            }
+            //}
         } 
 
         if (!secondary) {
@@ -617,10 +619,10 @@ int negamax(Board& board,
     Move tableMove;
     int tableEval;
     int tableDepth;
-    
+
     #pragma omp critical
     {
-        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
+        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
             tableHit++;
             if (tableDepth >= depth) {
                 found = true;
@@ -631,10 +633,10 @@ int negamax(Board& board,
     if (found && tableEval >= beta) {
         return tableEval;
     } 
-
+    
     #pragma omp critical
     {
-        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
             tableHit++;
             if (tableDepth >= depth) {
                 found = true;
@@ -708,30 +710,30 @@ int negamax(Board& board,
     /*--------------------------------------------------------------------------------------------
         Singular extension: If the hash move is much better than the other moves, extend the search.
     --------------------------------------------------------------------------------------------*/
-    if (found && depth >= 8 && ply <= globalMaxDepth - 1 && !mopUp) {
-        bool singularExtension = true;
-        int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
-        int singularDepth = depth / 2;
-        int singularEval = -INF; 
-        int bestSingularEval = -INF;
+    // if (found && depth >= 8 && ply <= globalMaxDepth - 1 && !mopUp) {
+    //     bool singularExtension = true;
+    //     int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
+    //     int singularDepth = depth / 2;
+    //     int singularEval = -INF; 
+    //     int bestSingularEval = -INF;
 
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i].first == tableMove) {
-                continue;
-            }
-            board.makeMove(moves[i].first);
-            singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, leftMost, ply + 1);
-            board.unmakeMove(moves[i].first);
-            bestSingularEval = std::max(bestSingularEval, singularEval);
-            if (bestSingularEval >= singularBeta) {
-                singularExtension = false;
-                break;
-            }
-        }
-        if (singularExtension) {
-            depth++;
-        }
-    }
+    //     for (int i = 0; i < moves.size(); i++) {
+    //         if (moves[i].first == tableMove) {
+    //             continue;
+    //         }
+    //         board.makeMove(moves[i].first);
+    //         singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, leftMost, ply + 1);
+    //         board.unmakeMove(moves[i].first);
+    //         bestSingularEval = std::max(bestSingularEval, singularEval);
+    //         if (bestSingularEval >= singularBeta) {
+    //             singularExtension = false;
+    //             break;
+    //         }
+    //     }
+    //     if (singularExtension) {
+    //         depth++;
+    //     }
+    // }
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
@@ -823,13 +825,13 @@ int negamax(Board& board,
 
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
-
+        
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
                 #pragma omp critical
                 {
                     updateKillerMoves(move, ply);
-                    historyTable[moveIndex(move)] += depth * depth + (alpha - beta);
+                    historyTable[moveIndex(move)] +=  depth * depth + (alpha - beta) * (alpha - beta);
                 }
             }
             break;

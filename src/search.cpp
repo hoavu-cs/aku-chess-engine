@@ -617,10 +617,10 @@ int negamax(Board& board,
     Move tableMove;
     int tableEval;
     int tableDepth;
-    
+
     #pragma omp critical
     {
-        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
+        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
             tableHit++;
             if (tableDepth >= depth) {
                 found = true;
@@ -631,10 +631,10 @@ int negamax(Board& board,
     if (found && tableEval >= beta) {
         return tableEval;
     } 
-
+    
     #pragma omp critical
     {
-        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
             tableHit++;
             if (tableDepth >= depth) {
                 found = true;
