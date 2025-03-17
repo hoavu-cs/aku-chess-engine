@@ -829,7 +829,7 @@ int negamax(Board& board,
                 #pragma omp critical
                 {
                     updateKillerMoves(move, ply);
-                    historyTable[moveIndex(move)] += depth * depth + (alpha - beta);
+                    historyTable[moveIndex(move)] += depth * depth;
                 }
             }
             break;
