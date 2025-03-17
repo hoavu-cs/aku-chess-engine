@@ -28,3 +28,4 @@ int mopUpScore(const Board& board);
 int moveScoreByTable(const Board& board, Move move);
 
 bool isMopUpPhase(Board& board);
+

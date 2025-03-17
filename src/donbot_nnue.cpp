@@ -300,7 +300,7 @@ void processGo(const std::vector<std::string>& tokens) {
 void processUci() {
     std::cout << "Engine's name: " << ENGINE_NAME << std::endl;
     std::cout << "Author:" << ENGINE_AUTHOR << std::endl;
-    std::cout << "option name Threads type spin default 8 min 1 max 8" << std::endl;
+    std::cout << "option name Threads type spin default 10 min 1 max 10" << std::endl;
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
     std::cout << "uciok" << std::endl;
 }

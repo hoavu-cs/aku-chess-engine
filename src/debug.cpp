@@ -260,7 +260,7 @@ int main() {
 
     // Default settings
     int depth = 30;
-    int numThreads = 8;
+    int numThreads = 10;
     int timeLimit = 30000;
     Move bestMove;
     int moveCount = 40;

@@ -62,6 +62,7 @@ void initializeNNUE() {
     Initialize and look up endgame tablebases.
 --------------------------------------------------------------------------------------------*/
 void initializeTB(std::string path) {
+    std::cout << "Initializing endgame table at path: " << path << std::endl;
     if (!tb_init(path.c_str())) {
         std::cerr << "Failed to initialize endgame table." << std::endl;
     } else {
@@ -342,8 +343,8 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        int R =  0.75 * sqrt(depth) * sqrt(i);
-        return depth - std::max(1, R);
+        int R = log(depth) + log(i);
+        return depth - R;
     }
 }
 
@@ -415,13 +416,19 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move);
             priority = 4000 + seeScore;
-        } else {
+        } 
+        
+        // else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
+        //     priority = 3000;
+        // } 
+        
+        else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
             board.unmakeMove(move);
 
             if (isCheck) {
-                priority = 3000;
+                priority = 2000;
             } else {
                 secondary = true;
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
@@ -821,8 +828,8 @@ int negamax(Board& board,
             if (!board.isCapture(move) && !isCheck) {
                 #pragma omp critical
                 {
-                    //updateKillerMoves(move, ply);
-                    historyTable[moveIndex(move)] += depth * depth;
+                    updateKillerMoves(move, ply);
+                    historyTable[moveIndex(move)] += depth * depth + (alpha - beta);
                 }
             }
             break;
@@ -899,7 +906,7 @@ Move findBestMove(Board& board,
             } else if (wdl == -1) {
                 score = -10000;
             }
-            std::cout << "info depth 0 score cp " << score << " pv " << uci::moveToUci(syzygyMove) << std::endl;
+            std::cout << "info depth 0 score cp " << score << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
         }
         
         if (syzygyMove != Move::NO_MOVE) {
