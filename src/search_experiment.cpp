@@ -340,7 +340,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-    if (i <= 2 || depth <= 2) { 
+    if (i <= 3 || depth <= 2) { 
         return depth - 1;
     } else {
         int R = log(depth) + log(i);
