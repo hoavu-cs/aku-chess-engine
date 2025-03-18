@@ -863,7 +863,7 @@ int negamax(Board& board,
                   continue searching.
     - Case 3: If we are past the hard deadline, stop the search and return the best move.
 --------------------------------------------------------------------------------------------*/
-Move findBestMove(Board& board, 
+Move findBestMove(Board &board, 
                 int numThreads = 4, 
                 int maxDepth = 8, 
                 int timeLimit = 15000,
@@ -932,10 +932,13 @@ Move findBestMove(Board& board,
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
         
+        
 
         if (depth == baseDepth) {
             moves = orderedMoves(board, depth, 0, previousPV, false);
         }
+
+
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
         bool stopNow = false;
@@ -955,7 +958,7 @@ Move findBestMove(Board& board,
 
             #pragma omp parallel for schedule(dynamic, 1)
             for (int i = 0; i < moves.size(); i++) {
-
+                
                 if (stopNow) {
                     continue;
                 }
@@ -975,6 +978,8 @@ Move findBestMove(Board& board,
                 localBoard.unmakeMove(move);
                 bool isPromoThreat = promotionThreatMove(localBoard, move);
                 int ply = 0;
+
+                
         
                 bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
 
@@ -982,8 +987,11 @@ Move findBestMove(Board& board,
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost);
                 int eval = -INF;
 
+                
+
                 localBoard.makeMove(move);
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
+                std::cout << "here" << std::endl;
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
