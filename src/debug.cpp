@@ -11,12 +11,85 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "../lib/fathom/src/tbprobe.h"
+#include "eg_table_inc.hpp"
 #include <filesystem>
 
 typedef std::uint64_t U64;
 
 using namespace chess;
 
+/*-------------------------------------------------------------------------------------------- 
+    Initialize endgame tablebases.
+--------------------------------------------------------------------------------------------*/
+
+// Get the executable's directory path
+#ifdef _WIN32
+    #include <windows.h>
+#elif __APPLE__
+    #include <mach-o/dyld.h>
+#elif __linux__
+    #include <unistd.h>
+#endif
+
+
+std::string getExecutablePath() {
+    char path[1024];
+
+#ifdef _WIN32
+    GetModuleFileNameA(nullptr, path, sizeof(path));
+#elif __APPLE__
+    uint32_t size = sizeof(path);
+    if (_NSGetExecutablePath(path, &size) != 0) {
+        throw std::runtime_error("Buffer too small"); // Use std::runtime_error instead
+    }
+#elif __linux__
+    ssize_t count = readlink("/proc/self/exe", path, sizeof(path) - 1);
+    if (count == -1) {
+        std::cerr << "Failed to get executable path" << std::endl;    }
+    path[count] = '\0';  // Null-terminate the string
+#else
+    throw std::filesystem::runtime_error("Unsupported OS");
+#endif
+
+    return std::filesystem::canonical(std::filesystem::path(path)).parent_path().string();
+}
+
+// Extract tablebase files to the current directory if they don't already exist.
+void extractTablebaseFiles() {
+
+    std::string path = getExecutablePath();
+    std::filesystem::path tablesDir = std::filesystem::path(path) / "tables";
+
+    // Check if the "tables" folder exists, if not, create it
+    if (!std::filesystem::exists(tablesDir)) {
+        std::cout << "Creating directory: " << tablesDir << std::endl;
+        if (!std::filesystem::create_directories(tablesDir)) {
+            std::cerr << "Failed to create directory: " << tablesDir << std::endl;
+            return;
+        }
+    }
+
+    for (size_t i = 0; i < tablebaseFileCount; i++) {
+        std::string filePath = path + "/" + tablebaseFiles[i].name;
+
+        // Check if the file already exists
+        if (std::filesystem::exists(filePath)) {
+            std::cout << "info skipping: " << filePath << " (already exists)" << std::endl;
+            continue;
+        }
+
+        // Create and write file only if it doesn't exist
+        std::ofstream outFile(filePath, std::ios::binary);
+        if (!outFile) {
+            std::cerr << "info failed to create: " << filePath << std::endl;
+            continue;
+        }
+
+        outFile.write(reinterpret_cast<const char*>(tablebaseFiles[i].data), tablebaseFiles[i].size);
+        outFile.close();
+        std::cout << "info extracted: " << filePath << std::endl;
+    }
+}
 
 
 int main() {
@@ -65,20 +138,6 @@ int main() {
     //board = Board("8/8/3k4/8/8/8/3K4/4R3 w - - 0 1");
     // 5rk1/p1p2pp1/4pb1p/3b4/3P2Q1/q3P3/1r1NBPPP/2RR2K1 w - - 0 22 material blunder
     // r2qr2k/6pp/2P5/bN6/2QP2n1/2P3P1/PP5P/R1B2K1R b - - 0 19 (**Qf6** vs Rh8)
-
-    /* Mop up check
-    4Q3/p7/5k2/8/2p5/1p6/P2K4/8 w - - 1 60
-    8/5r2/3k4/3n4/8/4KB2/8/8 w - - 2 81
-    r7/1k6/8/8/8/4K3/8/8 w - - 2 81
-    8/8/8/4k3/8/8/3K4/3R4 w - - 0 1
-    4r3/4k3/8/8/8/8/3K4/8 w - - 0 1
-    8/8/8/4k3/8/8/3K4/3Q4 w - - 0 1
-    4q3/4k3/8/8/5K2/8/8/8 w - - 0 1
-    4q3/4k3/8/8/8/5KR1/8/8 w - - 0 1
-    4n3/4k3/8/8/8/5KQ1/8/8 w - - 0 1
-    8/4k3/4b3/8/8/5KQ1/8/8 w - - 0 1
-    */
-
     
     /* Important test cases
     5rk1/p1p2pp1/4pb1p/3b4/3P2Q1/q3P3/1r1NBPPP/2RR2K1 w - - 0 22
@@ -94,6 +153,15 @@ int main() {
     r4rk1/2qnbpp1/p1b1p3/3pP1pP/Np1N1P2/1P2B3/1PP1Q3/1K1R3R w - - 0 21
     */
 
+    initializeNNUE();
+
+    std::string path = getExecutablePath() + "/tables/";
+    extractTablebaseFiles();
+    initializeTB(path);
+
+    /*-------------------------------------------------------------------------------------------- 
+        Tactical test cases
+    --------------------------------------------------------------------------------------------*/
     std::vector<std::string> testFens = {
         "5rk1/p1p2pp1/4pb1p/3b4/3P2Q1/q3P3/1r1NBPPP/2RR2K1 w - - 0 22",
         "r2qr2k/6pp/2P5/bN6/2QP2n1/2P3P1/PP5P/R1B2K1R b - - 0 19",
@@ -108,12 +176,14 @@ int main() {
     };
 
     std::vector<std::vector<Move>> testMoves = {    
-        {Move::make(Square(Square::underlying::SQ_C2), Square(Square::underlying::SQ_C4))},
+        {Move::make(Square(Square::underlying::SQ_D2), Square(Square::underlying::SQ_C4))},
 
         {Move::make(Square(Square::underlying::SQ_D8), Square(Square::underlying::SQ_F6))},
 
         {Move::make(Square(Square::underlying::SQ_G4), Square(Square::underlying::SQ_G7)),
          Move::make(Square(Square::underlying::SQ_G4), Square(Square::underlying::SQ_G2))},
+
+        {Move::make(Square(Square::underlying::SQ_G5), Square(Square::underlying::SQ_H6))},
 
         {Move::make(Square(Square::underlying::SQ_F1), Square(Square::underlying::SQ_F6))},
 
@@ -133,35 +203,45 @@ int main() {
         Move::make(Square(Square::underlying::SQ_F4), Square(Square::underlying::SQ_G5))}
     };
 
+    /*-------------------------------------------------------------------------------------------- 
+        Normal test cases
+    --------------------------------------------------------------------------------------------*/
+    // std::vector<std::string> testFens = {
+    //     "1n1r2k1/4Rppp/2b5/1p6/2p5/3pP1P1/1P1P1P1P/2B1K1R1 w - - 2 18",
+    //     "r1b2rk1/5ppp/3np3/1pqpN1P1/p4P2/3B1P2/PP2Q2P/1K1R3R w - - 0 20",
+    //     "r3r1k1/pbp3pp/5n2/8/3N4/2P1B3/P4P1P/R3K1R1 w Q - 4 18",
+    //     "4rrk1/p2qp1bp/1pp2pp1/3p1b2/2PP1P2/1P1BP1Q1/PB4PP/2R2RK1 w - - 4 18",
+    //     "3r1rk1/p4ppp/1p2p3/2q1QP2/3p4/2P3P1/PP4KP/4RR2 w - - 0 20",
+    //     "1r6/3k2pp/2pb1p2/4p3/3n1P2/P1BB4/1P4PP/1K2R3 w - - 0 25",
+    //     "4r3/pkp3p1/1p3p2/5P1p/2r1P3/2P3P1/PKP2R1P/3R4 w - - 0 26",
+    //     "2r3k1/1p4p1/1Q3p2/1PPp1q1p/8/4P2P/6P1/R5K1 w - - 0 28",
+    //     "3k4/1pp2Rp1/p3P2p/8/7P/1P6/P1P3r1/2K5 w - - 0 28",
+    //     "2r5/pp4pp/3Rp1n1/5k2/8/2r3B1/PK3PPP/4R3 w - - 0 24",
+    //     "2r3k1/p4ppp/8/P1p5/8/4P3/3rQPPP/1qR3K1 w - - 0 25",
+    //     "r7/5ppk/2pp3p/rp4nP/4P1P1/PB1P4/1KP5/R6R w - - 4 26"
+    // };
 
- 
-    //5k2/2p5/1p6/1r2N3/p2K1PR1/6P1/6P1/8 w - - 6 45
-    // std::string startingFen;
-    // std::cout << "Starting FEN: " ;
-    // std::getline(std::cin, startingFen);
-    // board = Board(startingFen);
+    // std::vector<std::vector<Move>> testMoves (12, {Move::NO_MOVE});
 
     // Default settings
     int depth = 30;
     int numThreads = 8;
     int timeLimit = 20000;
 
-    Board board = Board(testFens[0]);
-    Move bestMove = findBestMove(board, numThreads, depth, timeLimit, false);
 
-    // for (int i = 0; i < testFens.size(); i++) {
-    //     Board board = Board(testFens[i]);
+    for (int i = 0; i < testFens.size(); i++) {
+        Board board = Board(testFens[i]);
 
-    //     std::cout << board.getFen() << std::endl;
+        std::cout << board.getFen() << std::endl;
 
-    //     Move bestMove = findBestMove(board, numThreads, depth, timeLimit, false);
+        Move bestMove = findBestMove(board, numThreads, depth, timeLimit, false);
 
-    //     if (std::find(testMoves[i].begin(), testMoves[i].end(), bestMove) != testMoves[i].end()) {
-    //         std::cout << "Test " << i + 1 << " passed." << std::endl;
-    //     } else {
-    //         std::cout << "Test " << i + 1 << " failed." << std::endl;
-    //     }
-    //}
+        if (std::find(testMoves[i].begin(), testMoves[i].end(), bestMove) != testMoves[i].end()) {
+            std::cout << "Test " << i + 1 << " passed." << std::endl;
+        } else {
+            std::cout << "Test " << i + 1 << " failed." << std::endl;
+        }
+    }
 
 
     return 0;

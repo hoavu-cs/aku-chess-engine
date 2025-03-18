@@ -828,7 +828,7 @@ int negamax(Board& board,
             if (!board.isCapture(move) && !isCheck) {
                 #pragma omp critical
                 {
-                    updateKillerMoves(move, ply);
+                    //updateKillerMoves(move, ply);
                     historyTable[moveIndex(move)] += depth * depth;
                 }
             }
@@ -863,7 +863,7 @@ int negamax(Board& board,
                   continue searching.
     - Case 3: If we are past the hard deadline, stop the search and return the best move.
 --------------------------------------------------------------------------------------------*/
-Move findBestMove(Board &board, 
+Move findBestMove(Board& board, 
                 int numThreads = 4, 
                 int maxDepth = 8, 
                 int timeLimit = 15000,
@@ -932,13 +932,10 @@ Move findBestMove(Board &board,
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
         
-        
 
         if (depth == baseDepth) {
             moves = orderedMoves(board, depth, 0, previousPV, false);
         }
-
-
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
         bool stopNow = false;
@@ -947,10 +944,15 @@ Move findBestMove(Board &board,
         alpha = -INF;
         beta = INF;
 
-        if (depth > 6) {
-            aspiration = evals[depth - 1];
-            alpha = aspiration - 150;
-            beta = aspiration + 150;
+        if (depth >= 8) {
+            std::vector<double> coeff = {0.74670994,  0.35902979, -0.01812311, -0.06369721,  1.03759056};
+            aspiration = evals[depth - 1] * coeff[0] 
+                        + evals[depth - 2] * coeff[1] 
+                        + evals[depth - 3] * coeff[2] 
+                        + evals[depth - 4] * coeff[3] 
+                        + depth * coeff[4];
+            alpha = aspiration - 50;
+            beta = aspiration + 50;
         }
 
         while (true) {
@@ -958,7 +960,7 @@ Move findBestMove(Board &board,
 
             #pragma omp parallel for schedule(dynamic, 1)
             for (int i = 0; i < moves.size(); i++) {
-                
+
                 if (stopNow) {
                     continue;
                 }
@@ -978,8 +980,6 @@ Move findBestMove(Board &board,
                 localBoard.unmakeMove(move);
                 bool isPromoThreat = promotionThreatMove(localBoard, move);
                 int ply = 0;
-
-                
         
                 bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
 
@@ -987,11 +987,8 @@ Move findBestMove(Board &board,
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost);
                 int eval = -INF;
 
-                
-
                 localBoard.makeMove(move);
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
-                std::cout << "here" << std::endl;
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -1079,6 +1076,9 @@ Move findBestMove(Board &board,
         std::string scoreStr = "score cp " + std::to_string(bestEval);
         std::string nodeStr = "nodes " + std::to_string(nodeCount);
         std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(tableHit) / nodeCount);
+        
+        // data for training
+        //std::string gamePhaseStr = "gamePhase " + std::to_string(gamePhase(board));
 
         auto iterationEndTime = std::chrono::high_resolution_clock::now();
         std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
