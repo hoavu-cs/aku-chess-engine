@@ -32,7 +32,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <omp.h> // Include OpenMP header
+#include <omp.h> 
 #include <chrono>
 #include <stdlib.h>
 #include <cmath>
@@ -40,6 +40,8 @@
 #include <queue>
 #include <set>
 #include <filesystem>
+#include <mutex>
+
 #include "../lib/stockfish_nnue_probe/probe.h"
 #include "../lib/fathom/src/tbprobe.h"
 
@@ -340,7 +342,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-    if (i <= 3 || depth <= 2) { 
+    if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
         int R = log(depth) + log(i);
@@ -828,7 +830,7 @@ int negamax(Board& board,
             if (!board.isCapture(move) && !isCheck) {
                 #pragma omp critical
                 {
-                    //updateKillerMoves(move, ply);
+                    updateKillerMoves(move, ply);
                     historyTable[moveIndex(move)] += depth * depth;
                 }
             }
@@ -944,51 +946,57 @@ Move findBestMove(Board& board,
         alpha = -INF;
         beta = INF;
 
-        if (depth >= 8) {
-            std::vector<double> coeff = {0.74670994,  0.35902979, -0.01812311, -0.06369721,  1.03759056};
-            aspiration = evals[depth - 1] * coeff[0] 
-                        + evals[depth - 2] * coeff[1] 
-                        + evals[depth - 3] * coeff[2] 
-                        + evals[depth - 4] * coeff[3] 
-                        + depth * coeff[4];
-            alpha = aspiration - 50;
-            beta = aspiration + 50;
-        }
+        #pragma omp parallel for schedule(dynamic, 1)
+        for (int i = 0; i < moves.size(); i++) {
 
-        while (true) {
-            currentBestEval = -INF;
+            if (stopNow) {
+                continue;
+            }
 
-            #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < moves.size(); i++) {
+            bool leftMost = (i == 0);
 
-                if (stopNow) {
-                    continue;
+            Move move = moves[i].first;
+
+            std::vector<Move> childPV; 
+            Board localBoard = board;
+
+            bool isCapture = localBoard.isCapture(move);
+            bool inCheck = localBoard.inCheck();
+            bool isPromo = isPromotion(move);
+            localBoard.makeMove(move);
+            bool isCheck = localBoard.inCheck();
+            localBoard.unmakeMove(move);
+            bool isPromoThreat = promotionThreatMove(localBoard, move);
+            int ply = 0;
+    
+            bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
+
+            bool newBestFlag = false;  
+            int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost);
+            int eval = -INF;
+
+            localBoard.makeMove(move);
+            eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
+            localBoard.unmakeMove(move);
+
+            // Check if the time limit has been exceeded, if so the search 
+            // has not finished. Return the best move so far.
+            if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
+                stopNow = true;
+            }
+
+            if (stopNow) continue;
+
+            #pragma omp critical
+            {
+                if (eval > currentBestEval) {
+                    newBestFlag = true;
                 }
+            }
 
-                bool leftMost = (i == 0);
-
-                Move move = moves[i].first;
-
-                std::vector<Move> childPV; 
-                Board localBoard = board;
-
-                bool isCapture = localBoard.isCapture(move);
-                bool inCheck = localBoard.inCheck();
-                bool isPromo = isPromotion(move);
+            if (newBestFlag && nextDepth < depth - 1) {
                 localBoard.makeMove(move);
-                bool isCheck = localBoard.inCheck();
-                localBoard.unmakeMove(move);
-                bool isPromoThreat = promotionThreatMove(localBoard, move);
-                int ply = 0;
-        
-                bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
-
-                bool newBestFlag = false;  
-                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost);
-                int eval = -INF;
-
-                localBoard.makeMove(move);
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
+                eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -996,58 +1004,25 @@ Move findBestMove(Board& board,
                 if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
                     stopNow = true;
                 }
+            }
 
-                if (stopNow) continue;
+            if (stopNow) continue;
 
-                #pragma omp critical
-                {
-                    if (eval > currentBestEval) {
-                        newBestFlag = true;
-                    }
-                }
+            #pragma omp critical
+            newMoves.push_back({move, eval});
 
-                if (newBestFlag && nextDepth < depth - 1) {
-                    localBoard.makeMove(move);
-                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
-                    localBoard.unmakeMove(move);
+            #pragma omp critical
+            {
+                if (eval > currentBestEval) {
+                    currentBestEval = eval;
+                    currentBestMove = move;
 
-                    // Check if the time limit has been exceeded, if so the search 
-                    // has not finished. Return the best move so far.
-                    if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
-                        stopNow = true;
-                    }
-                }
-
-                if (stopNow) continue;
-
-                #pragma omp critical
-                newMoves.push_back({move, eval});
-
-                #pragma omp critical
-                {
-                    if (eval > currentBestEval) {
-                        currentBestEval = eval;
-                        currentBestMove = move;
-
-                        PV.clear();
+                    PV.clear();
+                    PV.push_back(move);
+                    for (auto& move : childPV) {
                         PV.push_back(move);
-                        for (auto& move : childPV) {
-                            PV.push_back(move);
-                        }
                     }
                 }
-            }
-
-            if (stopNow) {
-                break;
-            }
-
-            if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
-                alpha = -INF;
-                beta = INF;
-                newMoves.clear();
-            } else {
-                break;
             }
         }
         
@@ -1076,9 +1051,6 @@ Move findBestMove(Board& board,
         std::string scoreStr = "score cp " + std::to_string(bestEval);
         std::string nodeStr = "nodes " + std::to_string(nodeCount);
         std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(tableHit) / nodeCount);
-        
-        // data for training
-        //std::string gamePhaseStr = "gamePhase " + std::to_string(gamePhase(board));
 
         auto iterationEndTime = std::chrono::high_resolution_clock::now();
         std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());

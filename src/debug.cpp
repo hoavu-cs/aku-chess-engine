@@ -230,6 +230,7 @@ int main() {
 
 
     for (int i = 0; i < testFens.size(); i++) {
+        std::cout << "------------------" << "Test " << i + 1 << "------------------" << std::endl;
         Board board = Board(testFens[i]);
 
         std::cout << board.getFen() << std::endl;
