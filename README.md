@@ -10,8 +10,8 @@ Support Windows, MacOS, and Linux.
 The engine currently plays **rapid chess** at an estimated **~3100-3400 ELO** (subject to further testing).  
 Some benchmark match results:
 
-- **Defeats Glaurung 2.2** with a score **5W-1D** in a 6-game match.
-- **Defeats Houdini 1.5a** with a score **4W-2D** in a 6-game match.
+- **Defeats Glaurung 2.2** with a score **5W-1D** in a 6-game match with time control 15/40.
+- **Defeats Houdini 1.5a** with a score **4W-4D** in a 8-game match time control 15/40.
 
 ## Evaluation Method
 

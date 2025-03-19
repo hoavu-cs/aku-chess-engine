@@ -293,13 +293,10 @@ int see(Board& board, Move move) {
     
     // Get victim and attacker piece values
     auto victim = board.at<Piece>(move.to());
-    auto attacker = board.at<Piece>(move.from());
-    
     int victimValue = pieceValues[static_cast<int>(victim.type())];
-    int attackerValue = pieceValues[static_cast<int>(attacker.type())];
 
     // Material gain from the first capture
-    int materialGain = victimValue - attackerValue;
+    int materialGain = victimValue;
 
     board.makeMove(move);
     Movelist subsequentCaptures;
@@ -309,6 +306,7 @@ int see(Board& board, Move move) {
     // Store attackers sorted by increasing value (weakest first)
     std::vector<Move> attackers;
     for (int i = 0; i < subsequentCaptures.size(); i++) {
+        // Only consider captures to the same square
         if (subsequentCaptures[i].to() == to) {
             attackers.push_back(subsequentCaptures[i]);
         }
@@ -414,8 +412,11 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
-            int seeScore = see(board, move);
-            priority = 4000 + seeScore;
+            //int seeScore = see(board, move);
+            // MVV-LVA
+            int victimValue = pieceValues[static_cast<int>(board.at<Piece>(move.to()).type())];
+            int attackerValue = pieceValues[static_cast<int>(board.at<Piece>(move.from()).type())];
+            priority = 4000 + victimValue - attackerValue;
         } 
         
         // else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
@@ -526,8 +527,9 @@ int quiescence(Board& board, int alpha, int beta, int ply) {
         int victimValue = pieceValues[static_cast<int>(victim.type())];
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
 
-        int priority = see(board, move);
-        candidateMoves.push_back({move, priority});
+        int priority = victimValue - attackerValue;
+        //see(board, move);
+        candidateMoves.push_back({move, priority}); // MVV-LVA
         
     }
 
