@@ -3,6 +3,8 @@
 To play on a GUI, you can use any UCI-compatible GUI such as **Cute Chess**, **PyChess**, **Nibbler**, etc., and add the engine to the GUI program.  
 The binaries for **Windows** and **MacOS** can be downloaded from the [releases](https://github.com/hoavu-cs/donbot-chess-engine/releases/).
 
+Support Windows, MacOS, and Linux.
+
 ## Strength and Performance
 
 The engine currently plays **rapid chess** at an estimated **~3100-3400 ELO** (subject to further testing).  
