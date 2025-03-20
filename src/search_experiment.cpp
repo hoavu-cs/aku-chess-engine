@@ -182,7 +182,7 @@ std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
-std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
+std::vector<std::vector<std::vector<Move>>> killerMoves(500, std::vector<std::vector<Move>>(1000)); // Killer moves
 
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
@@ -245,12 +245,12 @@ bool isPromotion(const Move& move) {
 /*-------------------------------------------------------------------------------------------- 
     Update the killer moves.
 --------------------------------------------------------------------------------------------*/
-void updateKillerMoves(const Move& move, int ply) {
-    if (killerMoves[ply].size() < 2) {
-        killerMoves[ply].push_back(move);
+void updateKillerMoves(const Move& move, int ply, int threadID) {
+    if (killerMoves[threadID][ply].size() < 2) {
+        killerMoves[threadID][ply].push_back(move);
     } else {
-        killerMoves[ply][1] = killerMoves[ply][0];
-        killerMoves[ply][0] = move;
+        killerMoves[threadID][ply][1] = killerMoves[threadID][ply][0];
+        killerMoves[threadID][ply][0] = move;
     }
 }
 
@@ -297,35 +297,29 @@ int see(Board& board, Move move) {
 
     // Material gain from the first capture
     int materialGain = victimValue;
-
+    int subsequentGain = 0;
+    
     board.makeMove(move);
     Movelist subsequentCaptures;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(subsequentCaptures, board);
-    int maxSubsequentGain = 0;
     
-    // Store attackers sorted by increasing value (weakest first)
-    std::vector<Move> attackers;
+    // Get all attackers to the destination square and get the least valuable attacker
+    Move nextCapture = Move::NO_MOVE;
+    int leastValuableAttacker = 1000000;
     for (int i = 0; i < subsequentCaptures.size(); i++) {
-        // Only consider captures to the same square
-        if (subsequentCaptures[i].to() == to) {
-            attackers.push_back(subsequentCaptures[i]);
+        if (subsequentCaptures[i].to() == to 
+            && pieceValues[static_cast<int>(board.at<Piece>(subsequentCaptures[i].from()).type())] < leastValuableAttacker) {
+            nextCapture = subsequentCaptures[i];
         }
     }
 
-    // Sort attackers by piece value (weakest attacker moves first)
-    std::sort(attackers.begin(), attackers.end(), [&](const Move& a, const Move& b) {
-        return pieceValues[static_cast<int>(board.at<Piece>(a.from()).type())] < 
-               pieceValues[static_cast<int>(board.at<Piece>(b.from()).type())];
-    });
-
-    // Recursively evaluate each attacker
-    for (const Move& nextCapture : attackers) {
-        maxSubsequentGain = -std::max(maxSubsequentGain, see(board, nextCapture));
+    if (nextCapture != Move::NO_MOVE) {
+        subsequentGain = -see(board, nextCapture);
     }
 
     // Undo the move before returning
     board.unmakeMove(move);
-    return materialGain + maxSubsequentGain;
+    return materialGain - subsequentGain;
 }
 
 /*--------------------------------------------------------------------------------------------
@@ -338,7 +332,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     }
 
-    if (i <= 2 || depth <= 2) { 
+    if (i <= 5 || depth <= 2) { 
         return depth - 1;
     } else {
         int R = log(depth) + log(i);
@@ -354,7 +348,8 @@ std::vector<std::pair<Move, int>> orderedMoves(
     int depth, 
     int ply,
     std::vector<Move>& previousPV, 
-    bool leftMost) {
+    bool leftMost,
+    int threadID) {
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -412,14 +407,11 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
-            //int seeScore = see(board, move);
-            // MVV-LVA
-            int victimValue = pieceValues[static_cast<int>(board.at<Piece>(move.to()).type())];
-            int attackerValue = pieceValues[static_cast<int>(board.at<Piece>(move.from()).type())];
-            priority = 4000 + victimValue - attackerValue;
+            int seeScore = see(board, move);
+            priority = 4000 + seeScore;
         } 
         
-        // else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
+        // else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
         //     priority = 3000;
         // } 
         
@@ -527,9 +519,8 @@ int quiescence(Board& board, int alpha, int beta, int ply) {
         int victimValue = pieceValues[static_cast<int>(victim.type())];
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
 
-        int priority = victimValue - attackerValue;
-        //see(board, move);
-        candidateMoves.push_back({move, priority}); // MVV-LVA
+        int priority = see(board, move);
+        candidateMoves.push_back({move, priority});
         
     }
 
@@ -563,7 +554,8 @@ int negamax(Board& board,
             int beta, 
             std::vector<Move>& PV,
             bool leftMost,
-            int ply) {
+            int ply,
+            int threadID) {
 
     // Stop the search if hard deadline is reached
     auto currentTime = std::chrono::high_resolution_clock::now();
@@ -691,7 +683,7 @@ int negamax(Board& board,
         }
 
         board.makeNullMove();
-        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
+        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1, threadID);
         board.unmakeNullMove();
 
         int margin = 0;
@@ -704,7 +696,7 @@ int negamax(Board& board,
         } 
     }
 
-    std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, ply, previousPV, leftMost);
+    std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, ply, previousPV, leftMost, threadID);
     int bestEval = -INF;
 
     /*--------------------------------------------------------------------------------------------
@@ -787,11 +779,11 @@ int negamax(Board& board,
 
         if (i == 0) {
             // full window & full depth search for the first node
-            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
+            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1, threadID);
         } else {
             // null window and potential reduced depth for the rest
             nullWindow = true;
-            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, ply + 1);
+            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, ply + 1, threadID);
         }
         
         board.unmakeMove(move);
@@ -801,7 +793,7 @@ int negamax(Board& board,
         if (alphaRaised && reducedDepth && nullWindow) {
             // If alpha is raised and we reduced the depth, research with full depth but still with a null window
             board.makeMove(move);
-            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, ply + 1);
+            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, ply + 1, threadID);
             board.unmakeMove(move);
         } 
 
@@ -811,7 +803,7 @@ int negamax(Board& board,
         if (alphaRaised && (nullWindow || reducedDepth)) {
             // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
             board.makeMove(move);
-            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
+            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1, threadID);
             board.unmakeMove(move);
         }
 
@@ -830,7 +822,7 @@ int negamax(Board& board,
             if (!board.isCapture(move) && !isCheck) {
                 #pragma omp critical
                 {
-                    updateKillerMoves(move, ply);
+                    //updateKillerMoves(move, ply, threadID);
                     historyTable[moveIndex(move)] += depth * depth + (alpha - beta);
                 }
             }
@@ -877,8 +869,9 @@ Move findBestMove(Board& board,
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
 
+    // reset history scores and killer moves
     historyTable.clear();
-    killerMoves.clear();
+    //killerMoves = std::vector<std::vector<std::vector<Move>>>(500, std::vector<std::vector<Move>>(1000));
 
     Move bestMove = Move(); 
     int bestEval = -INF;
@@ -936,7 +929,7 @@ Move findBestMove(Board& board,
         
 
         if (depth == baseDepth) {
-            moves = orderedMoves(board, depth, 0, previousPV, false);
+            moves = orderedMoves(board, depth, 0, previousPV, false, 0);
         }
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
@@ -986,7 +979,7 @@ Move findBestMove(Board& board,
                 int eval = -INF;
 
                 localBoard.makeMove(move);
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
+                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1, i);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -1006,7 +999,7 @@ Move findBestMove(Board& board,
 
                 if (newBestFlag && nextDepth < depth - 1) {
                     localBoard.makeMove(move);
-                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
+                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1, i);
                     localBoard.unmakeMove(move);
 
                     // Check if the time limit has been exceeded, if so the search 
