@@ -293,13 +293,10 @@ int see(Board& board, Move move) {
     
     // Get victim and attacker piece values
     auto victim = board.at<Piece>(move.to());
-    auto attacker = board.at<Piece>(move.from());
-    
     int victimValue = pieceValues[static_cast<int>(victim.type())];
-    int attackerValue = pieceValues[static_cast<int>(attacker.type())];
 
     // Material gain from the first capture
-    int materialGain = victimValue - attackerValue;
+    int materialGain = victimValue;
 
     board.makeMove(move);
     Movelist subsequentCaptures;
