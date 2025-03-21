@@ -175,6 +175,7 @@ std::vector<tableEntry> ttTable(maxTableSize);
 std::vector<tableEntry> ttTableNonPV(maxTableSize); 
 
 std::unordered_map<U64, U64> historyTable; // History heuristic table
+std::vector<std::vector<std::vector<Move>>> killerMoves; // Killer moves
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
@@ -182,7 +183,6 @@ std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
-std::vector<std::vector<std::vector<Move>>> killerMoves(500, std::vector<std::vector<Move>>(1000)); // Killer moves
 
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
@@ -335,7 +335,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        int R = log(depth) + log(i);
+        int R = log(depth) * log(i);
         return depth - std::max(R, 1);
     }
 }
@@ -409,31 +409,16 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move);
             priority = 4000 + seeScore;
-        } 
-        
-        // else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
-        //     priority = 3000;
-        // } 
-        
-        else {
-            board.makeMove(move);
-            bool isCheck = board.inCheck();
-            board.unmakeMove(move);
+        } else {
+            secondary = true;
+            U64 moveIndex = move.from().index() * 64 + move.to().index();
 
-            if (isCheck) {
+            if (historyTable.count(moveIndex)) {
+                priority = 3000 + historyTable[moveIndex];
+            } else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
                 priority = 2000;
             } else {
-                secondary = true;
-                U64 moveIndex = move.from().index() * 64 + move.to().index();
-                #pragma omp critical
-                {
-                    if (historyTable.count(moveIndex)) {
-                        priority = 1000 + historyTable[moveIndex];
-                    } else {
-                        priority = moveScoreByTable(board, move);
-                    }
-                                            
-                }
+                priority = moveScoreByTable(board, move);
             }
         } 
 
@@ -686,11 +671,6 @@ int negamax(Board& board,
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1, threadID);
         board.unmakeNullMove();
 
-        int margin = 0;
-        if (isPV) {
-            margin = 100;
-        }
-
         if (nullEval >= beta) { 
             return beta;
         } 
@@ -822,7 +802,7 @@ int negamax(Board& board,
             if (!board.isCapture(move) && !isCheck) {
                 #pragma omp critical
                 {
-                    //updateKillerMoves(move, ply, threadID);
+                    updateKillerMoves(move, ply, threadID);
                     historyTable[moveIndex(move)] += depth * depth + (alpha - beta);
                 }
             }
@@ -871,8 +851,7 @@ Move findBestMove(Board& board,
 
     // reset history scores and killer moves
     historyTable.clear();
-    //killerMoves = std::vector<std::vector<std::vector<Move>>>(500, std::vector<std::vector<Move>>(1000));
-
+    killerMoves = std::vector<std::vector<std::vector<Move>>>(500, std::vector<std::vector<Move>>(maxDepth, std::vector<Move>()));
     Move bestMove = Move(); 
     int bestEval = -INF;
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
@@ -939,11 +918,11 @@ Move findBestMove(Board& board,
         alpha = -INF;
         beta = INF;
 
-
         if (depth >= 6) {
+            int windowSize = static_cast<int>(555.84 * exp(-0.1684 * depth));
             aspiration = evals[depth - 1];
-            alpha = aspiration - 150;
-            beta = aspiration + 150;
+            alpha = aspiration - windowSize;
+            beta = aspiration + windowSize;
         }
 
         while (true) {
