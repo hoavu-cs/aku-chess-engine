@@ -680,30 +680,30 @@ int negamax(Board& board,
     /*--------------------------------------------------------------------------------------------
         Singular extension: If the hash move is much better than the other moves, extend the search.
     --------------------------------------------------------------------------------------------*/
-    if (found && depth >= 8 && ply <= globalMaxDepth - 1 && !mopUp) {
-        bool singularExtension = true;
-        int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
-        int singularDepth = depth / 2;
-        int singularEval = -INF; 
-        int bestSingularEval = -INF;
+    // if (found && depth >= 8 && ply <= globalMaxDepth - 1 && !mopUp) {
+    //     bool singularExtension = true;
+    //     int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
+    //     int singularDepth = depth / 2;
+    //     int singularEval = -INF; 
+    //     int bestSingularEval = -INF;
 
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i].first == tableMove) {
-                continue;
-            }
-            board.makeMove(moves[i].first);
-            singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, leftMost, ply + 1, threadID);
-            board.unmakeMove(moves[i].first);
-            bestSingularEval = std::max(bestSingularEval, singularEval);
-            if (bestSingularEval >= singularBeta) {
-                singularExtension = false;
-                break;
-            }
-        }
-        if (singularExtension) {
-            depth++;
-        }
-    }
+    //     for (int i = 0; i < moves.size(); i++) {
+    //         if (moves[i].first == tableMove) {
+    //             continue;
+    //         }
+    //         board.makeMove(moves[i].first);
+    //         singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, leftMost, ply + 1, threadID);
+    //         board.unmakeMove(moves[i].first);
+    //         bestSingularEval = std::max(bestSingularEval, singularEval);
+    //         if (bestSingularEval >= singularBeta) {
+    //             singularExtension = false;
+    //             break;
+    //         }
+    //     }
+    //     if (singularExtension) {
+    //         depth++;
+    //     }
+    // }
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
