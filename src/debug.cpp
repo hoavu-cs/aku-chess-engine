@@ -228,21 +228,26 @@ int main() {
     int numThreads = 8;
     int timeLimit = 20000;
 
+    std::cout << "Enter fen: ";
+    std::string inputFen;
+    std::getline(std::cin, inputFen);
+    Board board = Board(inputFen);
+    Move bestMove = findBestMove(board, numThreads, depth, timeLimit, false);
 
-    for (int i = 0; i < testFens.size(); i++) {
-        std::cout << "------------------" << "Test " << i + 1 << "------------------" << std::endl;
-        Board board = Board(testFens[i]);
+    // for (int i = 0; i < testFens.size(); i++) {
+    //     std::cout << "------------------" << "Test " << i + 1 << "------------------" << std::endl;
+    //     Board board = Board(testFens[i]);
 
-        std::cout << board.getFen() << std::endl;
+    //     std::cout << board.getFen() << std::endl;
 
-        Move bestMove = findBestMove(board, numThreads, depth, timeLimit, false);
+    //     Move bestMove = findBestMove(board, numThreads, depth, timeLimit, false);
 
-        if (std::find(testMoves[i].begin(), testMoves[i].end(), bestMove) != testMoves[i].end()) {
-            std::cout << "Test " << i + 1 << " passed." << std::endl;
-        } else {
-            std::cout << "Test " << i + 1 << " failed." << std::endl;
-        }
-    }
+    //     if (std::find(testMoves[i].begin(), testMoves[i].end(), bestMove) != testMoves[i].end()) {
+    //         std::cout << "Test " << i + 1 << " passed." << std::endl;
+    //     } else {
+    //         std::cout << "Test " << i + 1 << " failed." << std::endl;
+    //     }
+    // }
 
 
     return 0;

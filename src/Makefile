@@ -2,10 +2,10 @@ UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S), Darwin)
     CXX = /opt/homebrew/opt/llvm/bin/clang++
-    CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp
+    CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp -static
 else
     CXX = g++
-    CXXFLAGS = -std=c++17 -O3 -march=native -fopenmp -pthread -Wall -Wextra -Wshadow -w
+    CXXFLAGS = -std=c++17 -O3 -march=native -fopenmp -pthread -Wall -Wextra -Wshadow -w -static
 endif
 
 all: donbot_nnue debug_nnue donbot_nn_experiment debug_nn_experiment
