@@ -335,7 +335,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        int R = log(depth) * log(i);
+        int R = log(depth) + log(i);
         return depth - std::max(R, 1);
     }
 }
@@ -415,8 +415,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
 
             if (historyTable.count(moveIndex)) {
                 priority = 3000 + historyTable[moveIndex];
-            } else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
-                priority = 2000;
             } else {
                 priority = moveScoreByTable(board, move);
             }
@@ -682,30 +680,30 @@ int negamax(Board& board,
     /*--------------------------------------------------------------------------------------------
         Singular extension: If the hash move is much better than the other moves, extend the search.
     --------------------------------------------------------------------------------------------*/
-    // if (found && depth >= 8 && ply <= globalMaxDepth - 1 && !mopUp) {
-    //     bool singularExtension = true;
-    //     int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
-    //     int singularDepth = depth / 2;
-    //     int singularEval = -INF; 
-    //     int bestSingularEval = -INF;
+    if (found && depth >= 8 && ply <= globalMaxDepth - 1 && !mopUp) {
+        bool singularExtension = true;
+        int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
+        int singularDepth = depth / 2;
+        int singularEval = -INF; 
+        int bestSingularEval = -INF;
 
-    //     for (int i = 0; i < moves.size(); i++) {
-    //         if (moves[i].first == tableMove) {
-    //             continue;
-    //         }
-    //         board.makeMove(moves[i].first);
-    //         singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, leftMost, ply + 1);
-    //         board.unmakeMove(moves[i].first);
-    //         bestSingularEval = std::max(bestSingularEval, singularEval);
-    //         if (bestSingularEval >= singularBeta) {
-    //             singularExtension = false;
-    //             break;
-    //         }
-    //     }
-    //     if (singularExtension) {
-    //         depth++;
-    //     }
-    // }
+        for (int i = 0; i < moves.size(); i++) {
+            if (moves[i].first == tableMove) {
+                continue;
+            }
+            board.makeMove(moves[i].first);
+            singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, leftMost, ply + 1, threadID);
+            board.unmakeMove(moves[i].first);
+            bestSingularEval = std::max(bestSingularEval, singularEval);
+            if (bestSingularEval >= singularBeta) {
+                singularExtension = false;
+                break;
+            }
+        }
+        if (singularExtension) {
+            depth++;
+        }
+    }
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
@@ -795,6 +793,14 @@ int negamax(Board& board,
             }
         } 
 
+        if (!alphaRaised) {
+            #pragma omp critical
+            {
+                //updateKillerMoves(move, ply, threadID);
+                historyTable[moveIndex(move)] -= depth * depth;
+            }
+        }
+
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
 
@@ -802,8 +808,8 @@ int negamax(Board& board,
             if (!board.isCapture(move) && !isCheck) {
                 #pragma omp critical
                 {
-                    updateKillerMoves(move, ply, threadID);
-                    historyTable[moveIndex(move)] += depth * depth + (alpha - beta);
+                    //updateKillerMoves(move, ply, threadID);
+                    historyTable[moveIndex(move)] += depth * depth;
                 }
             }
             break;
@@ -851,7 +857,8 @@ Move findBestMove(Board& board,
 
     // reset history scores and killer moves
     historyTable.clear();
-    killerMoves = std::vector<std::vector<std::vector<Move>>>(500, std::vector<std::vector<Move>>(maxDepth, std::vector<Move>()));
+    //killerMoves = std::vector<std::vector<std::vector<Move>>>(500, std::vector<std::vector<Move>>(maxDepth, std::vector<Move>()));
+
     Move bestMove = Move(); 
     int bestEval = -INF;
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
@@ -919,7 +926,7 @@ Move findBestMove(Board& board,
         beta = INF;
 
         if (depth >= 6) {
-            int windowSize = static_cast<int>(555.84 * exp(-0.1684 * depth));
+            int windowSize = 150;
             aspiration = evals[depth - 1];
             alpha = aspiration - windowSize;
             beta = aspiration + windowSize;
