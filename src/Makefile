@@ -2,7 +2,7 @@ UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S), Darwin)
     CXX = /opt/homebrew/opt/llvm/bin/clang++
-    CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp -static
+    CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp 
 else
     CXX = g++
     CXXFLAGS = -std=c++17 -O3 -march=native -fopenmp -pthread -Wall -Wextra -Wshadow -w -static

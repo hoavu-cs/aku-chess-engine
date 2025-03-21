@@ -162,7 +162,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 
 // Transposition table 
-const int maxTableSize = 12e6; // Maximum size of the transposition table
+const int maxTableSize = 15e6; // Maximum size of the transposition table
 
 struct tableEntry {
     U64 hash;
@@ -285,9 +285,7 @@ bool promotionThreatMove(Board& board, Move move) {
 int see(Board& board, Move move) {
 
     #pragma omp critical
-    {
-        nodeCount++;
-    }
+    nodeCount++;
 
     int to = move.to().index();
     
@@ -295,7 +293,6 @@ int see(Board& board, Move move) {
     auto victim = board.at<Piece>(move.to());
     int victimValue = pieceValues[static_cast<int>(victim.type())];
 
-    // Material gain from the first capture
     int materialGain = victimValue;
 
     board.makeMove(move);
@@ -319,10 +316,9 @@ int see(Board& board, Move move) {
 
     // Recursively evaluate each attacker
     for (const Move& nextCapture : attackers) {
-        maxSubsequentGain = -std::max(maxSubsequentGain, see(board, nextCapture));
+        maxSubsequentGain = std::max(maxSubsequentGain, -see(board, nextCapture));
     }
 
-    // Undo the move before returning
     board.unmakeMove(move);
     return materialGain + maxSubsequentGain;
 }
@@ -413,13 +409,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move);
             priority = 4000 + seeScore;
-        } 
-        
-        // else if (std::find(killerMoves[ply].begin(), killerMoves[ply].end(), move) != killerMoves[ply].end()) {
-        //     priority = 3000;
-        // } 
-        
-        else {
+        } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
             board.unmakeMove(move);
@@ -436,7 +426,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
                     } else {
                         priority = moveScoreByTable(board, move);
                     }
-                                            
                 }
             }
         } 
@@ -614,10 +603,10 @@ int negamax(Board& board,
     Move tableMove;
     int tableEval;
     int tableDepth;
-    
+
     #pragma omp critical
     {
-        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
+        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
             tableHit++;
             if (tableDepth >= depth) {
                 found = true;
@@ -631,7 +620,7 @@ int negamax(Board& board,
 
     #pragma omp critical
     {
-        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
             tableHit++;
             if (tableDepth >= depth) {
                 found = true;
@@ -689,10 +678,10 @@ int negamax(Board& board,
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
         board.unmakeNullMove();
 
-        int margin = 0;
-        if (isPV) {
-            margin = 100;
-        }
+        // int margin = 0;
+        // if (isPV) {
+        //     margin = 100;
+        // }
 
         if (nullEval >= beta) { 
             return beta;
@@ -825,8 +814,7 @@ int negamax(Board& board,
             if (!board.isCapture(move) && !isCheck) {
                 #pragma omp critical
                 {
-                    updateKillerMoves(move, ply);
-                    historyTable[moveIndex(move)] += depth * depth + (alpha - beta);
+                    historyTable[moveIndex(move)] += depth * depth;
                 }
             }
             break;
@@ -873,7 +861,7 @@ Move findBestMove(Board& board,
     bool timeLimitExceeded = false;
 
     historyTable.clear();
-    killerMoves.clear();
+    //killerMoves.clear();
 
     Move bestMove = Move(); 
     int bestEval = -INF;

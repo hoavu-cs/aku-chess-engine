@@ -74,7 +74,7 @@ void extractTablebaseFiles() {
 
         // Check if the file already exists
         if (std::filesystem::exists(filePath)) {
-            std::cout << "info skipping: " << filePath << " (already exists)" << std::endl;
+            //std::cout << "info skipping: " << filePath << " (already exists)" << std::endl;
             continue;
         }
 
@@ -151,6 +151,7 @@ int main() {
     8/1pq1bpk1/p1b1pr2/3r2N1/1P5p/2P1QpP1/P1B2P1P/3RR1K1 b - - 1 30
     2r2bk1/1bq2p1p/3p2p1/p1nP4/B1P1P3/Q3RNBP/5PPK/8 w - - 2 34
     r4rk1/2qnbpp1/p1b1p3/3pP1pP/Np1N1P2/1P2B3/1PP1Q3/1K1R3R w - - 0 21
+    1rb5/5pk1/p1p5/3pbPp1/5qPr/PBNQ4/1PP5/1K1R3R w - - 7 27
     */
 
     initializeNNUE();
