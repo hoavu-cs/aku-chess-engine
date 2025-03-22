@@ -47,8 +47,6 @@ using namespace chess;
 using namespace Stockfish;
 typedef std::uint64_t U64;
 
-U64 trainingCount = 0;
-
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
 --------------------------------------------------------------------------------------------*/
@@ -70,7 +68,6 @@ void initializeTB(std::string path) {
     }
 }
 
-
 bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
     // Convert the board to bitboard representation
     U64 white = board.us(Color::WHITE).getBits();
@@ -81,7 +78,6 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
     U64 bishops = board.pieces(PieceType::BISHOP).getBits();
     U64 knights = board.pieces(PieceType::KNIGHT).getBits();
     U64 pawns = board.pieces(PieceType::PAWN).getBits();
-
 
     unsigned rule50 = board.halfMoveClock() / 2;
     unsigned castling = board.castlingRights().hashIndex();
@@ -187,7 +183,7 @@ std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 
-// Basic piece values for move ordering, detection of sacrafices, etc.
+// Basic piece values for move ordering
 const int pieceValues[] = {
     0,    // No piece
     100,  // Pawn
@@ -201,7 +197,11 @@ const int pieceValues[] = {
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
-bool tableLookUp(Board& board, int& depth, int& eval, Move& bestMove, std::vector<tableEntry>& table) {    
+bool tableLookUp(Board& board, 
+                int& depth, 
+                int& eval, 
+                Move& bestMove, 
+                std::vector<tableEntry>& table) {    
     U64 hash = board.hash();
     U64 index = hash % maxTableSize;
 
@@ -217,7 +217,11 @@ bool tableLookUp(Board& board, int& depth, int& eval, Move& bestMove, std::vecto
     return false;
 }
 
-void tableInsert(Board& board, int depth, int eval, Move bestMove, std::vector<tableEntry>& table) {
+void tableInsert(Board& board, 
+                int depth, 
+                int eval, 
+                Move bestMove, 
+                std::vector<tableEntry>& table) {
     U64 hash = board.hash();
     U64 index = hash % maxTableSize;
 
@@ -243,7 +247,7 @@ bool isPromotion(const Move& move) {
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Update the killer moves.
+    Update the killer moves. Currently not used.
 --------------------------------------------------------------------------------------------*/
 void updateKillerMoves(const Move& move, int ply) {
     if (killerMoves[ply].size() < 2) {
@@ -293,12 +297,11 @@ int see(Board& board, Move move) {
     auto victim = board.at<Piece>(move.to());
     int victimValue = pieceValues[static_cast<int>(victim.type())];
 
-    int materialGain = victimValue;
-
     board.makeMove(move);
     Movelist subsequentCaptures;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(subsequentCaptures, board);
-    int maxSubsequentGain = 0;
+
+    int opponentGain = 0;
     
     // Store attackers sorted by increasing value (weakest first)
     std::vector<Move> attackers;
@@ -316,11 +319,11 @@ int see(Board& board, Move move) {
 
     // Recursively evaluate each attacker
     for (const Move& nextCapture : attackers) {
-        maxSubsequentGain = std::max(maxSubsequentGain, -see(board, nextCapture));
+        opponentGain = std::max(opponentGain, see(board, nextCapture));
     }
 
     board.unmakeMove(move);
-    return materialGain + maxSubsequentGain;
+    return victimValue - opponentGain;
 }
 
 /*--------------------------------------------------------------------------------------------
@@ -677,11 +680,6 @@ int negamax(Board& board,
         board.makeNullMove();
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
         board.unmakeNullMove();
-
-        // int margin = 0;
-        // if (isPV) {
-        //     margin = 100;
-        // }
 
         if (nullEval >= beta) { 
             return beta;
