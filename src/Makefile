@@ -22,10 +22,10 @@ debug_nnue: debug.cpp search.cpp utils.cpp ../lib/stockfish_nnue_probe/bitboard.
 aku_experiment: aku.cpp search_experiment.cpp utils.cpp ../lib/stockfish_nnue_probe/bitboard.cpp ../lib/stockfish_nnue_probe/evaluate.cpp ../lib/stockfish_nnue_probe/misc.cpp ../lib/stockfish_nnue_probe/position.cpp ../lib/stockfish_nnue_probe/probe.cpp ../lib/stockfish_nnue_probe/nnue/evaluate_nnue.cpp ../lib/stockfish_nnue_probe/nnue/features/half_ka_v2_hm.cpp ../lib/fathom/src/tbprobe.c  | ../bin
 	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/stockfish_nnue_probe -I ../lib/fathom/src -o ../bin/aku_experiment $^ -lm
 
-debug_experiment: debug.cpp search_experiment.cpp utils.cpp ../lib/stockfish_nnue_probe/bitboard.cpp ../lib/stockfish_nnue_probe/evaluate.cpp ../lib/stockfish_nnue_probe/misc.cpp ../lib/stockfish_nnue_probe/position.cpp ../lib/stockfish_nnue_probe/probe.cpp ../lib/stockfish_nnue_probe/nnue/evaluate_nnue.cpp ../lib/stockfish_nnue_probe/nnue/features/half_ka_v2_hm.cpp ../lib/fathom/src/tbprobe.c  | ../bin
-	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/stockfish_nnue_probe -I ../lib/fathom/src -o ../bin/debug_experiment $^ -lm
+debug: debug.cpp search_experiment.cpp utils.cpp ../lib/stockfish_nnue_probe/bitboard.cpp ../lib/stockfish_nnue_probe/evaluate.cpp ../lib/stockfish_nnue_probe/misc.cpp ../lib/stockfish_nnue_probe/position.cpp ../lib/stockfish_nnue_probe/probe.cpp ../lib/stockfish_nnue_probe/nnue/evaluate_nnue.cpp ../lib/stockfish_nnue_probe/nnue/features/half_ka_v2_hm.cpp ../lib/fathom/src/tbprobe.c  | ../bin
+	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/stockfish_nnue_probe -I ../lib/fathom/src -o ../bin/debug $^ -lm
 
 clean:
 	rm -rf ../bin ../lib/Fathom/src/*.o
 
-.PHONY: all aku debug_nnue aku_experiment debug_experiment clean
+.PHONY: all aku debug_nnue aku_experiment debug clean
