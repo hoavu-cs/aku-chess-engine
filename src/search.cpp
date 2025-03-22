@@ -297,12 +297,11 @@ int see(Board& board, Move move) {
     auto victim = board.at<Piece>(move.to());
     int victimValue = pieceValues[static_cast<int>(victim.type())];
 
-    int materialGain = victimValue;
-
     board.makeMove(move);
     Movelist subsequentCaptures;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(subsequentCaptures, board);
-    int maxSubsequentGain = 0;
+
+    int opponentGain = 0;
     
     // Store attackers sorted by increasing value (weakest first)
     std::vector<Move> attackers;
@@ -318,13 +317,13 @@ int see(Board& board, Move move) {
                pieceValues[static_cast<int>(board.at<Piece>(b.from()).type())];
     });
 
-    // Recursively evaluate each attacker
+    // Find the maximum gain for the opponent
     for (const Move& nextCapture : attackers) {
-        maxSubsequentGain = std::max(maxSubsequentGain, -see(board, nextCapture));
+        opponentGain = std::max(opponentGain, see(board, nextCapture));
     }
 
     board.unmakeMove(move);
-    return materialGain + maxSubsequentGain;
+    return victimValue - opponentGain;
 }
 
 /*--------------------------------------------------------------------------------------------
@@ -649,7 +648,7 @@ int negamax(Board& board,
                             && alpha > -2000 
                             && beta < 2000
                             && beta > -2000
-                            //&& !leftMost
+                            && !leftMost
                             && !mopUp;
 
     /*--------------------------------------------------------------------------------------------
@@ -689,34 +688,6 @@ int negamax(Board& board,
 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, ply, previousPV, leftMost);
     int bestEval = -INF;
-
-    /*--------------------------------------------------------------------------------------------
-        Singular extension: If the hash move is much better than the other moves, extend the search.
-    --------------------------------------------------------------------------------------------*/
-    if (found && depth >= 8 && ply <= globalMaxDepth - 1 && !mopUp) {
-        bool singularExtension = true;
-        int singularBeta = tableEval - 50; // 80 - 80 * (!isPV) * depth / 60;
-        int singularDepth = depth / 2;
-        int singularEval = -INF; 
-        int bestSingularEval = -INF;
-
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i].first == tableMove) {
-                continue;
-            }
-            board.makeMove(moves[i].first);
-            singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, leftMost, ply + 1);
-            board.unmakeMove(moves[i].first);
-            bestSingularEval = std::max(bestSingularEval, singularEval);
-            if (bestSingularEval >= singularBeta) {
-                singularExtension = false;
-                break;
-            }
-        }
-        if (singularExtension) {
-            depth++;
-        }
-    }
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
@@ -860,7 +831,6 @@ Move findBestMove(Board& board,
     bool timeLimitExceeded = false;
 
     historyTable.clear();
-    //killerMoves.clear();
 
     Move bestMove = Move(); 
     int bestEval = -INF;
@@ -1057,7 +1027,8 @@ Move findBestMove(Board& board,
         std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(tableHit) / nodeCount);
 
         auto iterationEndTime = std::chrono::high_resolution_clock::now();
-        std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
+        std::string timeStr = "time " 
+                            + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
 
 
         std::string pvStr = "pv ";
@@ -1065,7 +1036,11 @@ Move findBestMove(Board& board,
             pvStr += uci::moveToUci(move) + " ";
         }
 
-        std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
+        std::string analysis = "info " + depthStr + " " 
+                                    + scoreStr + " " 
+                                    + nodeStr + " " 
+                                    + timeStr + " " 
+                                    + pvStr;
 
         if (!quiet) {
             std::cout << analysis << std::endl;
