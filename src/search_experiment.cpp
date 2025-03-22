@@ -317,7 +317,7 @@ int see(Board& board, Move move) {
                pieceValues[static_cast<int>(board.at<Piece>(b.from()).type())];
     });
 
-    // Recursively evaluate each attacker
+    // Find the maximum gain for the opponent
     for (const Move& nextCapture : attackers) {
         opponentGain = std::max(opponentGain, see(board, nextCapture));
     }
