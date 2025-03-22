@@ -859,7 +859,6 @@ Move findBestMove(Board& board,
     bool timeLimitExceeded = false;
 
     historyTable.clear();
-    //killerMoves.clear();
 
     Move bestMove = Move(); 
     int bestEval = -INF;
@@ -1056,7 +1055,8 @@ Move findBestMove(Board& board,
         std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(tableHit) / nodeCount);
 
         auto iterationEndTime = std::chrono::high_resolution_clock::now();
-        std::string timeStr = "time " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
+        std::string timeStr = "time " 
+                            + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
 
 
         std::string pvStr = "pv ";
@@ -1064,7 +1064,11 @@ Move findBestMove(Board& board,
             pvStr += uci::moveToUci(move) + " ";
         }
 
-        std::string analysis = "info " + depthStr + " " + scoreStr + " " +  nodeStr + " " + timeStr + " " + pvStr;
+        std::string analysis = "info " + depthStr + " " 
+                                    + scoreStr + " " 
+                                    + nodeStr + " " 
+                                    + timeStr + " " 
+                                    + pvStr;
 
         if (!quiet) {
             std::cout << analysis << std::endl;
