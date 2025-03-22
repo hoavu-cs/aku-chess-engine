@@ -53,7 +53,7 @@ typedef std::uint64_t U64;
 void initializeNNUE() {
     std::cout << "Initializing NNUE." << std::endl;
 
-    Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-b1a57edbea57.nnue");
+    Stockfish::Probe::init("nn-1c0000000000.nnue", "nn-1c0000000000.nnue");
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -158,7 +158,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 
 // Transposition table 
-const int maxTableSize = 15e6; // Maximum size of the transposition table
+int maxTableSize = 15e6; // Maximum size of the transposition table
 
 struct tableEntry {
     U64 hash;
