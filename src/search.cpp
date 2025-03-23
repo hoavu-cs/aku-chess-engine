@@ -170,7 +170,6 @@ struct tableEntry {
 std::vector<tableEntry> ttTable(maxTableSize); 
 std::vector<tableEntry> ttTableNonPV(maxTableSize); 
 
-std::unordered_map<U64, U64> historyTable; // History heuristic table
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
@@ -178,10 +177,16 @@ std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 U64 nodeCount; // Node count for each thread
 U64 tableHit;
 std::vector<Move> previousPV; // Principal variation from the previous iteration
-std::vector<std::vector<Move>> killerMoves(1000); // Killer moves
+
 
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
+const int maxThreadsID = 500;
+
+std::vector<std::vector<std::vector<Move>>> killerMoves(maxThreadsID, std::vector<std::vector<Move>> (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); // Killer moves for each thread and ply
+
+std::unordered_map<U64, U64> historyTable (maxThreadsID); // History heuristic table
+
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -247,15 +252,10 @@ bool isPromotion(const Move& move) {
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Update the killer moves. Currently not used.
+    Update the killer moves. Currently using only 1 slot per ply.
 --------------------------------------------------------------------------------------------*/
-void updateKillerMoves(const Move& move, int ply) {
-    if (killerMoves[ply].size() < 2) {
-        killerMoves[ply].push_back(move);
-    } else {
-        killerMoves[ply][1] = killerMoves[ply][0];
-        killerMoves[ply][0] = move;
-    }
+void updateKillerMoves(const Move& move, int ply, int threadID) {
+    killerMoves[threadID][ply][0] = move;
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -352,7 +352,8 @@ std::vector<std::pair<Move, int>> orderedMoves(
     int depth, 
     int ply,
     std::vector<Move>& previousPV, 
-    bool leftMost) {
+    bool leftMost,
+    int threadID) {
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -412,7 +413,13 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move);
             priority = 4000 + seeScore;
-        } else {
+        } 
+        
+        else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
+            priority = 3000; // Killer move
+        } 
+        
+        else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
             board.unmakeMove(move);
@@ -424,7 +431,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
                 #pragma omp critical
                 {
-                    if (historyTable.count(moveIndex)) {
+                    if (historyTable.find(moveIndex) != historyTable.end()) {
                         priority = 1000 + historyTable[moveIndex];
                     } else {
                         priority = moveScoreByTable(board, move);
@@ -550,7 +557,9 @@ int negamax(Board& board,
             int beta, 
             std::vector<Move>& PV,
             bool leftMost,
-            int ply) {
+            int ply,
+            int extensions, 
+            int threadID) {
 
     // Stop the search if hard deadline is reached
     auto currentTime = std::chrono::high_resolution_clock::now();
@@ -678,7 +687,7 @@ int negamax(Board& board,
         }
 
         board.makeNullMove();
-        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1);
+        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, false, ply + 1, extensions, threadID);
         board.unmakeNullMove();
 
         if (nullEval >= beta) { 
@@ -686,7 +695,7 @@ int negamax(Board& board,
         } 
     }
 
-    std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, ply, previousPV, leftMost);
+    std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, ply, previousPV, leftMost, threadID);
     int bestEval = -INF;
 
     /*--------------------------------------------------------------------------------------------
@@ -739,13 +748,18 @@ int negamax(Board& board,
         board.makeMove(move);
         bool nullWindow = false;
 
+        if (extensions && board.inCheck()) {
+            nextDepth++;
+            extensions--;
+        }
+
         if (i == 0) {
             // full window & full depth search for the first node
-            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
+            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1, extensions, threadID);
         } else {
             // null window and potential reduced depth for the rest
             nullWindow = true;
-            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, ply + 1);
+            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, leftMost, ply + 1, extensions, threadID);
         }
         
         board.unmakeMove(move);
@@ -755,7 +769,7 @@ int negamax(Board& board,
         if (alphaRaised && reducedDepth && nullWindow) {
             // If alpha is raised and we reduced the depth, research with full depth but still with a null window
             board.makeMove(move);
-            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, ply + 1);
+            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, leftMost, ply + 1, extensions, threadID);
             board.unmakeMove(move);
         } 
 
@@ -765,7 +779,7 @@ int negamax(Board& board,
         if (alphaRaised && (nullWindow || reducedDepth)) {
             // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
             board.makeMove(move);
-            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
+            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1, extensions, threadID);
             board.unmakeMove(move);
         }
 
@@ -784,6 +798,7 @@ int negamax(Board& board,
             if (!board.isCapture(move) && !isCheck) {
                 #pragma omp critical
                 {
+                    updateKillerMoves(move, ply, threadID);
                     historyTable[moveIndex(move)] += depth * depth;
                 }
             }
@@ -830,7 +845,15 @@ Move findBestMove(Board& board,
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
 
+    // Reset history table and killer moves
     historyTable.clear();
+
+    for (int i = 0; i < maxThreadsID; i++) {
+        for (int j = 0; j < ENGINE_DEPTH; j++) {
+            killerMoves[i][j].clear();
+            killerMoves[i][j].push_back(Move::NO_MOVE);
+        }
+    }
 
     Move bestMove = Move(); 
     int bestEval = -INF;
@@ -888,7 +911,7 @@ Move findBestMove(Board& board,
         
 
         if (depth == baseDepth) {
-            moves = orderedMoves(board, depth, 0, previousPV, false);
+            moves = orderedMoves(board, depth, 0, previousPV, false, 0);
         }
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
@@ -937,7 +960,7 @@ Move findBestMove(Board& board,
                 int eval = -INF;
 
                 localBoard.makeMove(move);
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1);
+                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1, 1, i);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -957,7 +980,7 @@ Move findBestMove(Board& board,
 
                 if (newBestFlag && nextDepth < depth - 1) {
                     localBoard.makeMove(move);
-                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1);
+                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1, 1, i);
                     localBoard.unmakeMove(move);
 
                     // Check if the time limit has been exceeded, if so the search 
