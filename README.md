@@ -12,11 +12,24 @@ A few interesting features
 
 ## Strength and Performance
 
-The engine currently plays **rapid chess** at an estimated **~3100-3400 ELO** (subject to further testing).  
+The engine currently plays **rapid chess** at an estimated **~3100-3400 ELO** (subject to further testing). The main goal is to improve the strength through new ideas.
+
+Currently, the engine is pretty strong and based on some simple concepts: 
+
+- Alpha-beta search, iterative deepening, and transposition tables
+- Futility pruning
+- Reverse futility pruning
+- Null move pruning
+- History score 
+- Killer move (1 slot per ply)
+- Principle variation search
+- There are 2 transposition tables for PV and non-PV nodes
+- Late move reduction
+
 Some benchmark match results:
 
-- **vs Glaurung 2.2** with a score **5W-1D** in a 6-game match with time control 15/40.
-- **vs Houdini 1.5a** with a score **4W-4D** in a 8-game match time control 15/40.
+- **vs Glaurung 2.2**: **5W-1D** in a 6-game match with time control 15/40.
+- **vs Houdini 1.5a**: **5W-1L** in a 6-game match with time control 15/40.
 
 ## Evaluation Method
 
