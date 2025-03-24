@@ -159,7 +159,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 
 // Transposition table 
-int maxTableSize = 10e6; // Maximum size of the transposition table
+int maxTableSize = 7e6; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 500;

@@ -159,7 +159,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 
 // Transposition table 
-int maxTableSize = 10e6; // Maximum size of the transposition table
+int maxTableSize = 7e6; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 500;
@@ -218,7 +218,7 @@ bool tableLookUp(Board& board,
 
     LockedTableEntry& lockedEntry = table[index];
 
-    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  // Lock only this entry
+    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
 
     if (lockedEntry.entry.hash == hash) {
         depth = lockedEntry.entry.depth;
@@ -240,7 +240,7 @@ void tableInsert(Board& board,
     U64 index = hash % maxTableSize;
     LockedTableEntry& lockedEntry = table[index];
 
-    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  // Lock only this entry
+    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
     lockedEntry.entry = {hash, eval, depth, bestMove};
 }
 
@@ -392,6 +392,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
         int tableDepth;
 
         if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
+            // Hash move from the PV transposition table should be searched first (after previous PV move)
             if (tableMove == move) {
                 tableHit[threadID]++;
                 priority = 8000 + tableDepth;
@@ -399,8 +400,17 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 hashMove = true;
                 hashMoveFound = true;
             }
+        } else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+            // Hash move from the non-PV transposition table indicates a moves that raises alpha 
+            // which should also be a good candidate to search early
+            if (tableMove == move) {
+                tableHit[threadID]++;
+                priority = 7000 + tableDepth;
+                candidatesPrimary.push_back({tableMove, priority});
+                hashMove = true;
+                hashMoveFound = true;
+            }
         }
-  
       
         if (hashMove) continue;
         
@@ -568,6 +578,11 @@ int negamax(Board& board,
     auto gameOverResult = board.isGameOver();
     if (gameOverResult.first != GameResultReason::NONE) {
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
+            if (beta == INF/2 - ply) {
+                // If another mate with the same distance to the root is found, return 0.
+                // This is to avoid strange lazysmp behavior that switches back and forth between mate lines.
+                return 0;
+            }
             return -(INF/2 - ply); 
         }
         return 0;
@@ -601,6 +616,17 @@ int negamax(Board& board,
     int tableEval;
     int tableDepth;
 
+    if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+        tableHit[threadID]++;
+        if (tableDepth >= depth) {
+            found = true;
+        }
+    }
+
+    if (found && tableEval >= beta) {
+        return tableEval;
+    } 
+
     if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
         tableHit[threadID]++;
         if (tableDepth >= depth) {
@@ -608,7 +634,7 @@ int negamax(Board& board,
         }
     }
 
-    if (found && tableEval >= beta && abs(alpha) < 2000 && abs(beta) < 2000) {
+    if (found && tableEval >= beta) {
         return tableEval;
     } 
 
@@ -774,18 +800,18 @@ int negamax(Board& board,
                 updateKillerMoves(move, ply, threadID);
                 int index = moveIndex(move);
                 #pragma omp atomic
-                historyTable[index] += depth * depth;
+                historyTable[index] += depth * (depth + (alpha - beta) / 50.0);
             }
             break;
         }
     }
 
     if (PV.size() > 0) {
-        //if (isPV) {
-        tableInsert(board, depth, bestEval, PV[0], ttTable);
-        //} else {
-        //    tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
-        //}
+        if (isPV) {
+            tableInsert(board, depth, bestEval, PV[0], ttTable);
+        } else {
+           tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
+        }
     }
     
     return bestEval;
