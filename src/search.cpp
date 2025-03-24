@@ -23,7 +23,6 @@
 * THE SOFTWARE.
 */
 
-
 #include "search.hpp"
 #include "chess.hpp"
 #include "utils.hpp"
@@ -40,6 +39,10 @@
 #include <queue>
 #include <set>
 #include <filesystem>
+#include <mutex>
+#include <atomic>
+
+
 #include "../lib/stockfish_nnue_probe/probe.h"
 #include "../lib/fathom/src/tbprobe.h"
 
@@ -52,7 +55,6 @@ typedef std::uint64_t U64;
 --------------------------------------------------------------------------------------------*/
 void initializeNNUE() {
     std::cout << "Initializing NNUE." << std::endl;
-
     Stockfish::Probe::init("nn-1c0000000000.nnue", "nn-1c0000000000.nnue");
 }
 
@@ -92,7 +94,6 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
         rule50, castling, ep, turn, 
         true, true, &results
     );
-
 
     // Handle probe failure
     if (!probeSuccess) {
@@ -158,7 +159,10 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 
 // Transposition table 
-int maxTableSize = 15e6; // Maximum size of the transposition table
+int maxTableSize = 10e6; // Maximum size of the transposition table
+int globalMaxDepth = 0; // Maximum depth of current search
+int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
+const int maxThreadsID = 500;
 
 struct tableEntry {
     U64 hash;
@@ -167,26 +171,28 @@ struct tableEntry {
     Move bestMove;
 };
 
-std::vector<tableEntry> ttTable(maxTableSize); 
-std::vector<tableEntry> ttTableNonPV(maxTableSize); 
 
+struct LockedTableEntry {
+    std::mutex mtx;
+    tableEntry entry;
+};
+
+
+std::vector<LockedTableEntry> ttTable(maxTableSize); 
+std::vector<LockedTableEntry> ttTableNonPV(maxTableSize); 
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
-U64 nodeCount; // Node count for each thread
-U64 tableHit;
+std::vector<U64> nodeCount (maxThreadsID); // Node count for each thread
+std::vector<U64> tableHit (maxThreadsID); // Table hit count for each thread
 std::vector<Move> previousPV; // Principal variation from the previous iteration
 
 
-int globalMaxDepth = 0; // Maximum depth of current search
-int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
-const int maxThreadsID = 500;
+std::vector<std::vector<std::vector<Move>>> killerMoves(maxThreadsID, std::vector<std::vector<Move>> 
+    (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); // Killer moves for each thread and ply
 
-std::vector<std::vector<std::vector<Move>>> killerMoves(maxThreadsID, std::vector<std::vector<Move>> (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); // Killer moves for each thread and ply
-
-std::unordered_map<U64, U64> historyTable (maxThreadsID); // History heuristic table
-
+std::vector<U64> historyTable(64 * 64); // History heuristic table
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -203,19 +209,21 @@ const int pieceValues[] = {
     Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
 bool tableLookUp(Board& board, 
-                int& depth, 
-                int& eval, 
-                Move& bestMove, 
-                std::vector<tableEntry>& table) {    
+    int& depth, 
+    int& eval, 
+    Move& bestMove, 
+    std::vector<LockedTableEntry>& table) {    
     U64 hash = board.hash();
     U64 index = hash % maxTableSize;
 
-    tableEntry entry = table[index];
+    LockedTableEntry& lockedEntry = table[index];
 
-    if (entry.hash == hash) {
-        depth = entry.depth;
-        eval = entry.eval;
-        bestMove = entry.bestMove;
+    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  // Lock only this entry
+
+    if (lockedEntry.entry.hash == hash) {
+        depth = lockedEntry.entry.depth;
+        eval = lockedEntry.entry.eval;
+        bestMove = lockedEntry.entry.bestMove;
         return true;
     }
 
@@ -223,15 +231,17 @@ bool tableLookUp(Board& board,
 }
 
 void tableInsert(Board& board, 
-                int depth, 
-                int eval, 
-                Move bestMove, 
-                std::vector<tableEntry>& table) {
+    int depth, 
+    int eval, 
+    Move bestMove, 
+    std::vector<LockedTableEntry>& table) {
+
     U64 hash = board.hash();
     U64 index = hash % maxTableSize;
+    LockedTableEntry& lockedEntry = table[index];
 
-    tableEntry entry = {hash, eval, depth, bestMove};
-    table[index] = entry;
+    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  // Lock only this entry
+    lockedEntry.entry = {hash, eval, depth, bestMove};
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -286,10 +296,9 @@ bool promotionThreatMove(Board& board, Move move) {
 /*-------------------------------------------------------------------------------------------- 
   SEE (Static Exchange Evaluation) function.
  -------------------------------------------------------------------------------------------*/
-int see(Board& board, Move move) {
+int see(Board& board, Move move, int threadID) {
 
-    #pragma omp critical
-    nodeCount++;
+    nodeCount[threadID]++;
 
     int to = move.to().index();
     
@@ -319,7 +328,7 @@ int see(Board& board, Move move) {
 
     // Find the maximum gain for the opponent
     for (const Move& nextCapture : attackers) {
-        opponentGain = std::max(opponentGain, see(board, nextCapture));
+        opponentGain = std::max(opponentGain, see(board, nextCapture, threadID));
     }
 
     board.unmakeMove(move);
@@ -340,7 +349,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     } else {
         int R = log(depth) + log(i);
-        return depth - R;
+        return std::min(depth - R, depth - 1);
     }
 }
 
@@ -378,29 +387,20 @@ std::vector<std::pair<Move, int>> orderedMoves(
         bool hashMove = false;
 
         // Previous PV move > hash moves > captures/killer moves > checks > quiet moves
-        #pragma omp critical
-        {
-            Move tableMove;
-            int tableEval;
-            int tableDepth;
-            if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
-                if (tableMove == move) {
-                    tableHit++;
-                    priority = 8000 + tableDepth;
-                    candidatesPrimary.push_back({tableMove, priority});
-                    hashMove = true;
-                    hashMoveFound = true;
-                }
-            } else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
-                if (tableMove == move) {
-                    tableHit++;
-                    priority = 7000 + tableDepth;
-                    candidatesPrimary.push_back({tableMove, priority});
-                    hashMove = true;
-                    hashMoveFound = true;
-                }
+        Move tableMove;
+        int tableEval;
+        int tableDepth;
+
+        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
+            if (tableMove == move) {
+                tableHit[threadID]++;
+                priority = 8000 + tableDepth;
+                candidatesPrimary.push_back({tableMove, priority});
+                hashMove = true;
+                hashMoveFound = true;
             }
         }
+  
       
         if (hashMove) continue;
         
@@ -411,7 +411,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (isPromotion(move)) {
             priority = 6000; 
         } else if (board.isCapture(move)) { 
-            int seeScore = see(board, move);
+            int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
         } 
         
@@ -429,14 +429,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             } else {
                 secondary = true;
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
-                #pragma omp critical
-                {
-                    if (historyTable.find(moveIndex) != historyTable.end()) {
-                        priority = 1000 + historyTable[moveIndex];
-                    } else {
-                        priority = moveScoreByTable(board, move);
-                    }
-                }
+                priority = historyTable[moveIndex];
             }
         } 
 
@@ -466,11 +459,9 @@ std::vector<std::pair<Move, int>> orderedMoves(
 /*-------------------------------------------------------------------------------------------- 
     Quiescence search for captures only.
 --------------------------------------------------------------------------------------------*/
-int quiescence(Board& board, int alpha, int beta, int ply) {
+int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     
-    #pragma omp critical
-    nodeCount++;
-
+    nodeCount[threadID]++;
     if (knownDraw(board)) {
         return 0;
     }
@@ -497,7 +488,6 @@ int quiescence(Board& board, int alpha, int beta, int ply) {
 
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     int standPat = 0;
-
     bool mopUp = isMopUpPhase(board);
 
     if (isMopUpPhase(board)) {
@@ -522,7 +512,7 @@ int quiescence(Board& board, int alpha, int beta, int ply) {
         int victimValue = pieceValues[static_cast<int>(victim.type())];
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
 
-        int priority = see(board, move);
+        int priority = see(board, move, threadID);
         candidateMoves.push_back({move, priority});
         
     }
@@ -534,7 +524,7 @@ int quiescence(Board& board, int alpha, int beta, int ply) {
     for (const auto& [move, priority] : candidateMoves) {
         board.makeMove(move);
         int score = 0;
-        score = -quiescence(board, -beta, -alpha, ply + 1);
+        score = -quiescence(board, -beta, -alpha, ply + 1, threadID);
         board.unmakeMove(move);
 
         bestScore = std::max(bestScore, score);
@@ -567,12 +557,7 @@ int negamax(Board& board,
         return 0;
     }
 
-    #pragma omp critical
-    {
-        nodeCount++;
-    }
-
-
+    nodeCount[threadID]++;
     bool mopUp = isMopUpPhase(board);
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     bool endGameFlag = gamePhase(board) <= 12;
@@ -616,36 +601,19 @@ int negamax(Board& board,
     int tableEval;
     int tableDepth;
 
-    #pragma omp critical
-    {
-        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
-            tableHit++;
-            if (tableDepth >= depth) {
-                found = true;
-            }
+    if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
+        tableHit[threadID]++;
+        if (tableDepth >= depth) {
+            found = true;
         }
     }
 
-    if (found && tableEval >= beta) {
-        return tableEval;
-    } 
-
-    #pragma omp critical
-    {
-        if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
-            tableHit++;
-            if (tableDepth >= depth) {
-                found = true;
-            }
-        }
-    }
-
-    if (found && tableEval >= beta) {
+    if (found && tableEval >= beta && abs(alpha) < 2000 && abs(beta) < 2000) {
         return tableEval;
     } 
 
     if (depth <= 0) {
-        int quiescenceEval = quiescence(board, alpha, beta, ply);
+        int quiescenceEval = quiescence(board, alpha, beta, ply, threadID);
         return quiescenceEval;
     }
 
@@ -791,32 +759,35 @@ int negamax(Board& board,
             }
         } 
 
+        // if (!alphaRaised) {
+        //     if (historyTable[moveIndex(move)] >= depth) {
+        //         #pragma omp atomic
+        //         historyTable[moveIndex(move)] -= depth;
+        //     }       
+        // }   
+
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
 
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
-                #pragma omp critical
-                {
-                    updateKillerMoves(move, ply, threadID);
-                    historyTable[moveIndex(move)] += depth * depth;
-                }
+                updateKillerMoves(move, ply, threadID);
+                int index = moveIndex(move);
+                #pragma omp atomic
+                historyTable[index] += depth * depth;
             }
             break;
         }
     }
 
-    #pragma omp critical
-    {
-        if (PV.size() > 0) {
-            if (isPV) {
-                tableInsert(board, depth, bestEval, PV[0], ttTable);
-            } else {
-                tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
-            }
-        }
+    if (PV.size() > 0) {
+        //if (isPV) {
+        tableInsert(board, depth, bestEval, PV[0], ttTable);
+        //} else {
+        //    tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
+        //}
     }
-
+    
     return bestEval;
 }
 
@@ -845,9 +816,12 @@ Move findBestMove(Board& board,
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
 
-    // Reset history table and killer moves
-    historyTable.clear();
+    // Reset history scores
+    for (int i = 0; i < 64 * 64; i++) {
+        historyTable[i] = 0;
+    }
 
+    // Reset killer moves for each thread and ply
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < ENGINE_DEPTH; j++) {
             killerMoves[i][j].clear();
@@ -899,9 +873,18 @@ Move findBestMove(Board& board,
 
 
     while (depth <= maxDepth) {
-        nodeCount = 0;
         globalMaxDepth = depth;
-        tableHit = 0;
+
+        // reset node count for each thread
+        for (int i = 0; i < maxThreadsID; i++) {
+            nodeCount[i] = 0;
+        }
+
+        // reset table hit count for each thread
+        for (int i = 0; i < maxThreadsID; i++) {
+            tableHit[i] = 0;
+        }
+
         
         // Track the best move for the current depth
         Move currentBestMove = Move();
@@ -1036,18 +1019,27 @@ Move findBestMove(Board& board,
             return a.second > b.second;
         });
 
-        #pragma omp critical
-        {
-            tableInsert(board, depth, bestEval, bestMove, ttTable);
-        }
+        tableInsert(board, depth, bestEval, bestMove, ttTable);
 
         moves = newMoves;
         previousPV = PV;
 
         std::string depthStr = "depth " +  std::to_string(std::max(size_t(depth), PV.size()));
         std::string scoreStr = "score cp " + std::to_string(bestEval);
-        std::string nodeStr = "nodes " + std::to_string(nodeCount);
-        std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(tableHit) / nodeCount);
+
+        U64 totalNodeCount = 0;
+        for (int i = 0; i < maxThreadsID; i++) {
+            totalNodeCount += nodeCount[i];
+        }
+
+        U64 totalTableHit = 0;
+        for (int i = 0; i < maxThreadsID; i++) {
+            totalTableHit += tableHit[i];
+        }
+
+        std::string nodeStr = "nodes " + std::to_string(totalNodeCount);
+
+        std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(totalTableHit) / totalNodeCount);
 
         auto iterationEndTime = std::chrono::high_resolution_clock::now();
         std::string timeStr = "time " 

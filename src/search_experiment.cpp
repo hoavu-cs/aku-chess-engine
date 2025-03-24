@@ -400,17 +400,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 hashMoveFound = true;
             }
         }
-        
-        // else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
-        //     if (tableMove == move) {
-        //         tableHit[threadID]++;
-        //         priority = 7000 + tableDepth;
-        //         candidatesPrimary.push_back({tableMove, priority});
-        //         hashMove = true;
-        //         hashMoveFound = true;
-        //     }
-        // }
-    
+  
       
         if (hashMove) continue;
         
@@ -611,17 +601,6 @@ int negamax(Board& board,
     int tableEval;
     int tableDepth;
 
-    // if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
-    //     tableHit[threadID]++;
-    //     if (tableDepth >= depth) {
-    //         found = true;
-    //     }
-    // }
-
-    // if (found && tableEval >= beta) {
-    //     return tableEval;
-    // } 
-
     if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
         tableHit[threadID]++;
         if (tableDepth >= depth) {
@@ -629,7 +608,7 @@ int negamax(Board& board,
         }
     }
 
-    if (found && tableEval >= beta) {
+    if (found && tableEval >= beta && abs(alpha) < 2000 && abs(beta) < 2000) {
         return tableEval;
     } 
 
