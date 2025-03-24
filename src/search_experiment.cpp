@@ -399,8 +399,15 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 hashMove = true;
                 hashMoveFound = true;
             }
+        } else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+            if (tableMove == move) {
+                tableHit[threadID]++;
+                priority = 7000 + tableDepth;
+                candidatesPrimary.push_back({tableMove, priority});
+                hashMove = true;
+                hashMoveFound = true;
+            }
         }
-  
       
         if (hashMove) continue;
         
@@ -601,6 +608,17 @@ int negamax(Board& board,
     int tableEval;
     int tableDepth;
 
+    if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+        tableHit[threadID]++;
+        if (tableDepth >= depth) {
+            found = true;
+        }
+    }
+
+    if (found && tableEval >= beta) {
+        return tableEval;
+    } 
+
     if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
         tableHit[threadID]++;
         if (tableDepth >= depth) {
@@ -774,18 +792,18 @@ int negamax(Board& board,
                 updateKillerMoves(move, ply, threadID);
                 int index = moveIndex(move);
                 #pragma omp atomic
-                historyTable[index] += depth * depth;
+                historyTable[index] += depth * (depth + (alpha - beta) / 50.0);
             }
             break;
         }
     }
 
     if (PV.size() > 0) {
-        //if (isPV) {
-        tableInsert(board, depth, bestEval, PV[0], ttTable);
-        //} else {
-        //    tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
-        //}
+        if (isPV) {
+            tableInsert(board, depth, bestEval, PV[0], ttTable);
+        } else {
+            tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
+        }
     }
     
     return bestEval;
