@@ -179,7 +179,7 @@ struct LockedTableEntry {
 
 
 std::vector<LockedTableEntry> ttTable(maxTableSize); 
-//std::vector<LockedTableEntry> ttTableNonPV(maxTableSize); 
+std::vector<LockedTableEntry> ttTableNonPV(maxTableSize); 
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
@@ -392,6 +392,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
         int tableDepth;
 
         if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
+            // Hash move from the PV transposition table should be searched first (after previous PV move)
             if (tableMove == move) {
                 tableHit[threadID]++;
                 priority = 8000 + tableDepth;
@@ -399,17 +400,17 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 hashMove = true;
                 hashMoveFound = true;
             }
-        } 
-        
-        // else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
-        //     if (tableMove == move) {
-        //         tableHit[threadID]++;
-        //         priority = 7000 + tableDepth;
-        //         candidatesPrimary.push_back({tableMove, priority});
-        //         hashMove = true;
-        //         hashMoveFound = true;
-        //     }
-        // }
+        } else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+            // Hash move from the non-PV transposition table indicates a moves that raises alpha 
+            // which should also be a good candidate to search early
+            if (tableMove == move) {
+                tableHit[threadID]++;
+                priority = 7000 + tableDepth;
+                candidatesPrimary.push_back({tableMove, priority});
+                hashMove = true;
+                hashMoveFound = true;
+            }
+        }
       
         if (hashMove) continue;
         
@@ -579,8 +580,7 @@ int negamax(Board& board,
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
             if (beta == INF/2 - ply) {
                 // If another mate with the same distance to the root is found, return 0.
-                // This is to avoid strange lazysmp behavior to switch back and forth between mates
-                // lines and delay the mate.
+                // This is to avoid strange lazysmp behavior that switches back and forth between mate lines.
                 return 0;
             }
             return -(INF/2 - ply); 
@@ -616,16 +616,16 @@ int negamax(Board& board,
     int tableEval;
     int tableDepth;
 
-    // if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
-    //     tableHit[threadID]++;
-    //     if (tableDepth >= depth) {
-    //         found = true;
-    //     }
-    // }
+    if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+        tableHit[threadID]++;
+        if (tableDepth >= depth) {
+            found = true;
+        }
+    }
 
-    // if (found && tableEval >= beta) {
-    //     return tableEval;
-    // } 
+    if (found && tableEval >= beta) {
+        return tableEval;
+    } 
 
     if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
         tableHit[threadID]++;
@@ -807,11 +807,11 @@ int negamax(Board& board,
     }
 
     if (PV.size() > 0) {
-        //if (isPV) {
-        tableInsert(board, depth, bestEval, PV[0], ttTable);
-        //} else {
-        //    tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
-        //}
+        if (isPV) {
+            tableInsert(board, depth, bestEval, PV[0], ttTable);
+        } else {
+           tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
+        }
     }
     
     return bestEval;
