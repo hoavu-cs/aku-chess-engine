@@ -57,7 +57,6 @@ int bnMateLightSquares[64] = {
     70, 60, 50, 40, 30, 20, 10, 0
 };
 
-
 int bnMateDarkSquares[64] = {
     70, 60, 50, 40, 30, 20, 10, 0,
     60, 70, 60, 50, 40, 30, 20, 10,
@@ -68,9 +67,6 @@ int bnMateDarkSquares[64] = {
     10, 20, 30, 40, 50, 60, 70, 60,
     0, 10, 20, 30, 40, 50, 60, 70
 };
-
-
-
 
 int midPawnTable[64] = {
     0,   0,   0,   0,   0,   0,  0,   0,
@@ -464,14 +460,6 @@ int mopUpScore(const Board& board) {
         int bishopFile = bishop.lsb() % 8;
 
         bool darkSquareBishop = (bishopRank + bishopFile) % 2 == 0;
-
-        // int cornerDist;
-
-        // if (darkSquareBishop) {
-        //     cornerDist = manhattanDistance(losingKingSq, Square(a1));
-        // } else {
-        //     cornerDist = manhattanDistance(losingKingSq, Square(a8));
-        // }
 
         const int *bnMateTable = darkSquareBishop ? bnMateDarkSquares : bnMateLightSquares;
 
