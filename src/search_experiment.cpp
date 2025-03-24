@@ -159,7 +159,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 
 // Transposition table 
-int maxTableSize = 7e6; // Maximum size of the transposition table
+int maxTableSize = 8e6; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 500;
@@ -423,13 +423,9 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
-        } 
-        
-        else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
+        } else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
             priority = 3000; // Killer move
-        } 
-        
-        else {
+        } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
             board.unmakeMove(move);
@@ -800,7 +796,7 @@ int negamax(Board& board,
                 updateKillerMoves(move, ply, threadID);
                 int index = moveIndex(move);
                 #pragma omp atomic
-                historyTable[index] += depth * (depth + (alpha - beta) / 50.0);
+                historyTable[index] += depth * depth;
             }
             break;
         }
