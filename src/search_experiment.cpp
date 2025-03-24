@@ -179,7 +179,7 @@ struct LockedTableEntry {
 
 
 std::vector<LockedTableEntry> ttTable(maxTableSize); 
-std::vector<LockedTableEntry> ttTableNonPV(maxTableSize); 
+//std::vector<LockedTableEntry> ttTableNonPV(maxTableSize); 
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
@@ -218,7 +218,7 @@ bool tableLookUp(Board& board,
 
     LockedTableEntry& lockedEntry = table[index];
 
-    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  // Lock only this entry
+    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
 
     if (lockedEntry.entry.hash == hash) {
         depth = lockedEntry.entry.depth;
@@ -240,7 +240,7 @@ void tableInsert(Board& board,
     U64 index = hash % maxTableSize;
     LockedTableEntry& lockedEntry = table[index];
 
-    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  // Lock only this entry
+    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
     lockedEntry.entry = {hash, eval, depth, bestMove};
 }
 
@@ -399,15 +399,17 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 hashMove = true;
                 hashMoveFound = true;
             }
-        } else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
-            if (tableMove == move) {
-                tableHit[threadID]++;
-                priority = 7000 + tableDepth;
-                candidatesPrimary.push_back({tableMove, priority});
-                hashMove = true;
-                hashMoveFound = true;
-            }
-        }
+        } 
+        
+        // else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+        //     if (tableMove == move) {
+        //         tableHit[threadID]++;
+        //         priority = 7000 + tableDepth;
+        //         candidatesPrimary.push_back({tableMove, priority});
+        //         hashMove = true;
+        //         hashMoveFound = true;
+        //     }
+        // }
       
         if (hashMove) continue;
         
@@ -575,6 +577,12 @@ int negamax(Board& board,
     auto gameOverResult = board.isGameOver();
     if (gameOverResult.first != GameResultReason::NONE) {
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
+            if (beta == INF/2 - ply) {
+                // If another mate with the same distance to the root is found, return 0.
+                // This is to avoid strange lazysmp behavior to switch back and forth between mates
+                // lines and delay the mate.
+                return 0;
+            }
             return -(INF/2 - ply); 
         }
         return 0;
@@ -608,16 +616,16 @@ int negamax(Board& board,
     int tableEval;
     int tableDepth;
 
-    if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
-        tableHit[threadID]++;
-        if (tableDepth >= depth) {
-            found = true;
-        }
-    }
+    // if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+    //     tableHit[threadID]++;
+    //     if (tableDepth >= depth) {
+    //         found = true;
+    //     }
+    // }
 
-    if (found && tableEval >= beta) {
-        return tableEval;
-    } 
+    // if (found && tableEval >= beta) {
+    //     return tableEval;
+    // } 
 
     if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
         tableHit[threadID]++;
@@ -626,7 +634,7 @@ int negamax(Board& board,
         }
     }
 
-    if (found && tableEval >= beta && abs(alpha) < 2000 && abs(beta) < 2000) {
+    if (found && tableEval >= beta) {
         return tableEval;
     } 
 
@@ -799,11 +807,11 @@ int negamax(Board& board,
     }
 
     if (PV.size() > 0) {
-        if (isPV) {
-            tableInsert(board, depth, bestEval, PV[0], ttTable);
-        } else {
-            tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
-        }
+        //if (isPV) {
+        tableInsert(board, depth, bestEval, PV[0], ttTable);
+        //} else {
+        //    tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
+        //}
     }
     
     return bestEval;
