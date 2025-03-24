@@ -12,7 +12,7 @@ A few interesting features
 
 ## Strength and Performance
 
-The engine currently plays **rapid chess** at an estimated **~3100-3400 ELO** (subject to further testing). The main goal is to improve the strength through **exploring new ideas** rather than through heavy finetuning and hacky solutions. In my opinion, there should be a much cleaner search algorithm to replace or encapsulate multiple heuristics (e.g., probcut, internal iterative deepening, multicut, extensions) and circumvent all the heavy finetuning. 
+The engine currently plays **rapid chess** at an estimated **~3100-3400 ELO** (subject to further testing). The main goal is to improve the strength through **exploring new ideas** rather than through heavy finetuning and hacky solutions. In my opinion, there should be a much cleaner search algorithm to replace or encapsulate multiple heuristics (e.g., probcut, internal iterative deepening, multicut, extensions, and move ordering heuristics) and circumvent all the heavy finetuning. 
 
 Currently, the engine is pretty strong and based on some simple concepts: 
 
