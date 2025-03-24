@@ -55,7 +55,7 @@ typedef std::uint64_t U64;
 --------------------------------------------------------------------------------------------*/
 void initializeNNUE() {
     std::cout << "Initializing NNUE." << std::endl;
-    Stockfish::Probe::init("nn-b1a57edbea57.nnue", "nn-b1a57edbea57.nnue");
+    Stockfish::Probe::init("nn-1c0000000000.nnue", "nn-1c0000000000.nnue");
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -159,7 +159,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 
 // Transposition table 
-int maxTableSize = 15e6; // Maximum size of the transposition table
+int maxTableSize = 10e6; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 500;
@@ -192,7 +192,7 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<std::vector<Move>>> killerMoves(maxThreadsID, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); // Killer moves for each thread and ply
 
-std::vector<std::atomic<U64>> historyTable(64 * 64); // History heuristic table
+std::vector<U64> historyTable(64 * 64); // History heuristic table
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -349,7 +349,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         return depth - 1;
     } else {
         int R = log(depth) + log(i);
-        return depth - R;
+        return std::min(depth - R, depth - 1);
     }
 }
 
@@ -390,6 +390,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
         Move tableMove;
         int tableEval;
         int tableDepth;
+
         if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
             if (tableMove == move) {
                 tableHit[threadID]++;
@@ -398,15 +399,17 @@ std::vector<std::pair<Move, int>> orderedMoves(
                 hashMove = true;
                 hashMoveFound = true;
             }
-        } else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
-            if (tableMove == move) {
-                tableHit[threadID]++;
-                priority = 7000 + tableDepth;
-                candidatesPrimary.push_back({tableMove, priority});
-                hashMove = true;
-                hashMoveFound = true;
-            }
         }
+        
+        // else if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+        //     if (tableMove == move) {
+        //         tableHit[threadID]++;
+        //         priority = 7000 + tableDepth;
+        //         candidatesPrimary.push_back({tableMove, priority});
+        //         hashMove = true;
+        //         hashMoveFound = true;
+        //     }
+        // }
     
       
         if (hashMove) continue;
@@ -436,13 +439,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             } else {
                 secondary = true;
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
-                U64 histScore = historyTable[moveIndex].load(std::memory_order_relaxed);
-
-                if (histScore > 0) {
-                    priority = 1000 + histScore;
-                } else {
-                    priority = moveScoreByTable(board, move);
-                }
+                priority = historyTable[moveIndex];
             }
         } 
 
@@ -614,16 +611,16 @@ int negamax(Board& board,
     int tableEval;
     int tableDepth;
 
-    if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
-        tableHit[threadID]++;
-        if (tableDepth >= depth) {
-            found = true;
-        }
-    }
+    // if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTableNonPV)) {
+    //     tableHit[threadID]++;
+    //     if (tableDepth >= depth) {
+    //         found = true;
+    //     }
+    // }
 
-    if (found && tableEval >= beta) {
-        return tableEval;
-    } 
+    // if (found && tableEval >= beta) {
+    //     return tableEval;
+    // } 
 
     if (tableLookUp(board, tableDepth, tableEval, tableMove, ttTable)) {
         tableHit[threadID]++;
@@ -783,24 +780,33 @@ int negamax(Board& board,
             }
         } 
 
+        // if (!alphaRaised) {
+        //     if (historyTable[moveIndex(move)] >= depth) {
+        //         #pragma omp atomic
+        //         historyTable[moveIndex(move)] -= depth;
+        //     }       
+        // }   
+
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
 
         if (beta <= alpha) {
             if (!board.isCapture(move) && !isCheck) {
                 updateKillerMoves(move, ply, threadID);
-                historyTable[moveIndex(move)].fetch_add(depth * depth, std::memory_order_relaxed);
+                int index = moveIndex(move);
+                #pragma omp atomic
+                historyTable[index] += depth * depth;
             }
             break;
         }
     }
 
     if (PV.size() > 0) {
-        if (isPV) {
-            tableInsert(board, depth, bestEval, PV[0], ttTable);
-        } else {
-            tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
-        }
+        //if (isPV) {
+        tableInsert(board, depth, bestEval, PV[0], ttTable);
+        //} else {
+        //    tableInsert(board, depth, bestEval, PV[0], ttTableNonPV);
+        //}
     }
     
     return bestEval;
@@ -833,7 +839,7 @@ Move findBestMove(Board& board,
 
     // Reset history scores
     for (int i = 0; i < 64 * 64; i++) {
-        historyTable[i].store(0, std::memory_order_relaxed);
+        historyTable[i] = 0;
     }
 
     // Reset killer moves for each thread and ply
