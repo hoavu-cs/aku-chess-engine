@@ -100,7 +100,7 @@ void extractTablebaseFiles() {
 
         // Check if the file already exists
         if (std::filesystem::exists(filePath)) {
-            // std::cout << "info skipping: " << filePath << " (already exists)" << std::endl;
+            //std::cout << "info skipping: " << filePath << " (already exists)" << std::endl;
             continue;
         }
 
@@ -123,8 +123,6 @@ void extractTablebaseFiles() {
 -------------------------------------------------------------------------------------------- */
 int numThreads = 8;
 int depth = 30;
-int moveOverhead = 0;
-std::string szPath = "";
 
 std::string getBookMove(Board& board) {
     std::vector<std::string> possibleMoves;
@@ -210,24 +208,18 @@ void processPosition(const std::string& command) {
     * Processes the "setoption" command and updates the engine options.
     * @param command The full setoption command received from the GUI.   
 ---------------------------------------------------------------------------------*/
+
 void processSetOption(const std::vector<std::string>& tokens) {
 
     std::string optionName = tokens[2];
     std::string value = tokens[4];
+
 
     if (optionName == "Threads") {
         numThreads = std::stoi(value);
         // Set number of threads
     } else if (optionName == "Depth") {
         depth = std::stoi(value);
-    } else if (optionName == "Move" && value == "Overhead") {
-        value = tokens[5];
-        moveOverhead = std::stoi(value);
-    } else if (optionName == "Hash") {
-        int mb = std::stoi(value);
-        maxTableSize  = static_cast<int>(mb * 15e6 / 900.0);
-    } else if (optionName == "SyzygyPath") {
-        szPath = value;
     } else {
         std::cerr << "Unknown option: " << optionName << std::endl;
     }
@@ -307,13 +299,9 @@ void processGo(const std::vector<std::string>& tokens) {
  */
 void processUci() {
     std::cout << "Engine's name: " << ENGINE_NAME << std::endl;
-    std::cout << "Author: " << ENGINE_AUTHOR << std::endl;
+    std::cout << "Author:" << ENGINE_AUTHOR << std::endl;
     std::cout << "option name Threads type spin default 8 min 1 max 8" << std::endl;
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
-    std::cout << "option name Move Overhead type spin default 100 min 100 max 2000" << std::endl;
-    std::cout << "option name Hash type spin default 600 min 300 max 600" << std::endl;
-    std::cout << "option name SyzygyPath type string default tables/" << std::endl;
-
     std::cout << "uciok" << std::endl;
 }
 
