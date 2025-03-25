@@ -29,7 +29,7 @@ Currently, the engine is pretty strong and based on some simple concepts:
 Some benchmark match results:
 
 - **vs Glaurung 2.2**: **5W-1D** in a 6-game match with time control 15/40.
-- **vs Houdini 1.5a**: **5W-1L** in a 6-game match with time control 15/40.
+- **vs Houdini 1.5a**: **4W-4D** in a 6-game match with time control 15/40.
 
 ## Evaluation Method
 

@@ -424,7 +424,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
         } else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
-            priority = 3000; // Killer move
+             priority = 3000; // Killer move
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
@@ -734,10 +734,10 @@ int negamax(Board& board,
         board.makeMove(move);
         bool nullWindow = false;
 
-        if (extensions && board.inCheck()) {
-            nextDepth++;
-            extensions--;
-        }
+        // if (extensions && board.inCheck()) {
+        //     nextDepth++;
+        //     extensions--;
+        // }
 
         if (i == 0) {
             // full window & full depth search for the first node
@@ -939,23 +939,12 @@ Move findBestMove(Board& board,
                 }
 
                 bool leftMost = (i == 0);
-
                 Move move = moves[i].first;
 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
 
-                bool isCapture = localBoard.isCapture(move);
-                bool inCheck = localBoard.inCheck();
-                bool isPromo = isPromotion(move);
-                localBoard.makeMove(move);
-                bool isCheck = localBoard.inCheck();
-                localBoard.unmakeMove(move);
-                bool isPromoThreat = promotionThreatMove(localBoard, move);
                 int ply = 0;
-        
-                bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
-
                 bool newBestFlag = false;  
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost);
                 int eval = -INF;
