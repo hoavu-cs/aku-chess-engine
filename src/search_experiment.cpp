@@ -737,7 +737,18 @@ int negamax(Board& board,
         // if (extensions && board.inCheck()) {
         //     nextDepth++;
         //     extensions--;
+        // } else if (extensions && isCapture) {
+        //     nextDepth++;
+        //     extensions--;
         // }
+
+        // random extensions
+        if (extensions) {
+            if (nodeCount[threadID] % 7 == 0) {
+                nextDepth++;
+                extensions--;
+            }
+        }
 
         if (i == 0) {
             // full window & full depth search for the first node
@@ -948,9 +959,10 @@ Move findBestMove(Board& board,
                 bool newBestFlag = false;  
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost);
                 int eval = -INF;
+                int extensions = 3;
 
                 localBoard.makeMove(move);
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1, 1, i);
+                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1, extensions, i);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -970,7 +982,7 @@ Move findBestMove(Board& board,
 
                 if (newBestFlag && nextDepth < depth - 1) {
                     localBoard.makeMove(move);
-                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1, 1, i);
+                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1, extensions, i);
                     localBoard.unmakeMove(move);
 
                     // Check if the time limit has been exceeded, if so the search 
