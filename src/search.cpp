@@ -574,11 +574,6 @@ int negamax(Board& board,
     auto gameOverResult = board.isGameOver();
     if (gameOverResult.first != GameResultReason::NONE) {
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
-            if (beta == INF/2 - ply) {
-                // If another mate with the same distance to the root is found, return 0.
-                // This is to avoid strange lazysmp behavior that switches back and forth between mate lines.
-                return 0;
-            }
             return -(INF/2 - ply); 
         }
         return 0;
@@ -603,6 +598,7 @@ int negamax(Board& board,
         } else if (wdl == 0) {
             score = 0;
         }
+        //std::cout << "Fen: " << board.getFen() << " Syzygy score: " << score << std::endl;
         return score;
     }
 
@@ -978,7 +974,7 @@ Move findBestMove(Board& board,
 
                 #pragma omp critical
                 {
-                    if (eval > currentBestEval) {
+                    if (eval >= currentBestEval) {
                         newBestFlag = true;
                     }
                 }
@@ -1010,6 +1006,19 @@ Move findBestMove(Board& board,
                         PV.push_back(move);
                         for (auto& move : childPV) {
                             PV.push_back(move);
+                        }
+                    } else if (eval == currentBestEval) {
+                        // This is mostly for Syzygy tablebase.
+                        // Prefer the move that is a capture or a pawn move.
+                        if (localBoard.isCapture(move) || localBoard.at<Piece>(move.from()).type() == PieceType::PAWN) {
+                            currentBestEval = eval;
+                            currentBestMove = move;
+    
+                            PV.clear();
+                            PV.push_back(move);
+                            for (auto& move : childPV) {
+                                PV.push_back(move);
+                            }
                         }
                     }
                 }
@@ -1066,7 +1075,6 @@ Move findBestMove(Board& board,
         auto iterationEndTime = std::chrono::high_resolution_clock::now();
         std::string timeStr = "time " 
                             + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
-
 
         std::string pvStr = "pv ";
         for (const auto& move : PV) {
