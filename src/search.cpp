@@ -162,7 +162,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 int maxTableSize = 8e6; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
-const int maxThreadsID = 500;
+const int maxThreadsID = 20;
 
 struct tableEntry {
     U64 hash;
@@ -180,6 +180,7 @@ struct LockedTableEntry {
 
 std::vector<LockedTableEntry> ttTable(maxTableSize); 
 std::vector<LockedTableEntry> ttTableNonPV(maxTableSize); 
+//std::vector<LockedTableEntry> qTable(maxTableSize / 4); // Quiescence search transposition table
 
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; // Search hardDeadline
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
@@ -192,7 +193,7 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<std::vector<Move>>> killerMoves(maxThreadsID, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); // Killer moves for each thread and ply
 
-std::vector<U64> historyTable(64 * 64); // History heuristic table
+std::vector<std::vector<U64>> historyTable(maxThreadsID, std::vector<U64>(64 * 64, 0)); // History table for move ordering
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -214,7 +215,7 @@ bool tableLookUp(Board& board,
     Move& bestMove, 
     std::vector<LockedTableEntry>& table) {    
     U64 hash = board.hash();
-    U64 index = hash % maxTableSize;
+    U64 index = hash % table.size();
 
     LockedTableEntry& lockedEntry = table[index];
 
@@ -237,7 +238,7 @@ void tableInsert(Board& board,
     std::vector<LockedTableEntry>& table) {
 
     U64 hash = board.hash();
-    U64 index = hash % maxTableSize;
+    U64 index = hash % table.size();
     LockedTableEntry& lockedEntry = table[index];
 
     std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
@@ -338,17 +339,22 @@ int see(Board& board, Move move, int threadID) {
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
-int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, bool leftMost) {
+int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, bool leftMost, int threadID) {
 
     if (isMopUpPhase(board)) {
         // Search more thoroughly in mop-up phase
         return depth - 1;
     }
 
-    if (i <= 2 || depth <= 2) { 
+    if (i <= 3 || depth <= 2) { 
         return depth - 1;
     } else {
-        int R = log(depth) + log(i);
+        int R = 2;
+    
+        if (!board.inCheck() && !board.isCapture(move)) {
+            R += i/5;
+        }
+
         return std::min(depth - R, depth - 1);
     }
 }
@@ -424,7 +430,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
         } else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
-            priority = 3000; // Killer move
+             priority = 4000; // Killer move
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
@@ -435,7 +441,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             } else {
                 secondary = true;
                 U64 moveIndex = move.from().index() * 64 + move.to().index();
-                priority = historyTable[moveIndex];
+                priority = historyTable[threadID][moveIndex];
             }
         } 
 
@@ -629,7 +635,7 @@ int negamax(Board& board,
     if (found && tableEval >= beta) {
         return tableEval;
     } 
-
+    
     if (depth <= 0) {
         int quiescenceEval = quiescence(board, alpha, beta, ply, threadID);
         return quiescenceEval;
@@ -718,7 +724,7 @@ int negamax(Board& board,
         }
 
         int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost); 
+        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost, threadID); 
         
         /*--------------------------------------------------------------------------------------------
             PVS search: 
@@ -737,7 +743,7 @@ int negamax(Board& board,
         if (extensions && board.inCheck()) {
             nextDepth++;
             extensions--;
-        }
+        } 
 
         if (i == 0) {
             // full window & full depth search for the first node
@@ -791,11 +797,17 @@ int negamax(Board& board,
             if (!board.isCapture(move) && !isCheck) {
                 updateKillerMoves(move, ply, threadID);
                 int index = moveIndex(move);
-                #pragma omp atomic
-                historyTable[index] += depth * depth;
+                historyTable[threadID][index] += depth * depth;
             }
+
+            for (int j = 0; j < i; j++) {
+                // Reduce history score for moves before that did not cause a beta cutoff
+                int index = moveIndex(moves[j].first);
+                historyTable[threadID][index] -= depth;
+            }
+
             break;
-        }
+        } 
     }
 
     if (PV.size() > 0) {
@@ -835,8 +847,15 @@ Move findBestMove(Board& board,
     bool timeLimitExceeded = false;
 
     // Reset history scores
-    for (int i = 0; i < 64 * 64; i++) {
-        historyTable[i] = 0;
+    // for (int i = 0; i < 64 * 64; i++) {
+    //     historyTable[i] = 0;
+    // }
+
+    // Reset history scores 
+    for (int i = 0; i < maxThreadsID; i++) {
+        for (int j = 0; j < 64 * 64; j++) {
+            historyTable[i][j] = 0;
+        }
     }
 
     // Reset killer moves for each thread and ply
@@ -939,29 +958,19 @@ Move findBestMove(Board& board,
                 }
 
                 bool leftMost = (i == 0);
-
                 Move move = moves[i].first;
 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
 
-                bool isCapture = localBoard.isCapture(move);
-                bool inCheck = localBoard.inCheck();
-                bool isPromo = isPromotion(move);
-                localBoard.makeMove(move);
-                bool isCheck = localBoard.inCheck();
-                localBoard.unmakeMove(move);
-                bool isPromoThreat = promotionThreatMove(localBoard, move);
                 int ply = 0;
-        
-                bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
-
                 bool newBestFlag = false;  
-                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost);
+                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost, omp_get_thread_num());
                 int eval = -INF;
+                int extensions = 1;
 
                 localBoard.makeMove(move);
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1, 1, i);
+                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, leftMost, ply + 1, extensions, omp_get_thread_num());
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -981,7 +990,7 @@ Move findBestMove(Board& board,
 
                 if (newBestFlag && nextDepth < depth - 1) {
                     localBoard.makeMove(move);
-                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1, 1, i);
+                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, leftMost, ply + 1, extensions, omp_get_thread_num());
                     localBoard.unmakeMove(move);
 
                     // Check if the time limit has been exceeded, if so the search 
@@ -1086,6 +1095,10 @@ Move findBestMove(Board& board,
                                     + nodeStr + " " 
                                     + timeStr + " " 
                                     + pvStr;
+
+        // for (int j = 0; j < PV.size(); j++) {
+        //     std::cout << "PV[" << j << "]: " << uci::moveToUci(PV[j]) <<  " history: " << historyTable[moveIndex(PV[j])] << std::endl;
+        // }
 
         if (!quiet) {
             std::cout << analysis << std::endl;
