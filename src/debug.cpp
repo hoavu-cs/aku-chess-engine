@@ -186,7 +186,11 @@ int main() {
 
         "1nbqkb1r/5p1p/p2Pr1p1/1pp1p1B1/4N1n1/5N2/PP2QPPP/R3KB1R b KQk - 2 14", // fix asap
 
-        "2br4/r1q1bpk1/2pp2pp/p3p3/P3P3/1BQRN2P/1PP2PP1/3R2K1 b - - 6 22"}; // fix asap}
+        "2br4/r1q1bpk1/2pp2pp/p3p3/P3P3/1BQRN2P/1PP2PP1/3R2K1 b - - 6 22",
+
+        "2rbr1k1/p2n1pp1/4P2p/1p6/q1p1R3/5NB1/P1R1QPPP/5K2 b - - 0 27"
+    
+    }; // fix asap}
 
     std::vector<std::vector<Move>> testMoves = {    
         {Move::make(Square(Square::underlying::SQ_D2), Square(Square::underlying::SQ_C4))},
