@@ -193,7 +193,7 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<std::vector<Move>>> killerMoves(maxThreadsID, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); // Killer moves for each thread and ply
 
-std::vector<std::vector<U64>> historyTable(maxThreadsID, std::vector<U64>(64 * 64, 0)); // History table for move ordering
+std::vector<std::vector<float>> historyTable(maxThreadsID, std::vector<float>(64 * 64, 0)); // History table for move ordering
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -783,27 +783,22 @@ int negamax(Board& board,
             }
         } 
 
-        // if (!alphaRaised) {
-        //     if (historyTable[moveIndex(move)] >= depth) {
-        //         #pragma omp atomic
-        //         historyTable[moveIndex(move)] -= depth;
-        //     }       
-        // }   
-
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
 
         if (beta <= alpha) {
+            const float epsilon = 0.05;
             if (!board.isCapture(move) && !isCheck) {
                 updateKillerMoves(move, ply, threadID);
                 int index = moveIndex(move);
-                historyTable[threadID][index] += depth * depth;
+                historyTable[threadID][index] = (1 + epsilon * depth) * historyTable[threadID][index];
             }
 
             for (int j = 0; j < i; j++) {
                 // Reduce history score for moves before that did not cause a beta cutoff
                 int index = moveIndex(moves[j].first);
-                historyTable[threadID][index] -= depth;
+                historyTable[threadID][index] = (1 - epsilon * depth) * historyTable[threadID][index];
+                historyTable[threadID][index] = std::max(5.0f, historyTable[threadID][index]);
             }
 
             break;
@@ -854,7 +849,7 @@ Move findBestMove(Board& board,
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < 64 * 64; j++) {
-            historyTable[i][j] = 0;
+            historyTable[i][j] = 10.0;
         }
     }
 
