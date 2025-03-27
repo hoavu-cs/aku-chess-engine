@@ -352,7 +352,7 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
         int R = 2;
     
         if (!board.inCheck() && !board.isCapture(move)) {
-            R += i/5;
+            R += i/8;
         }
 
         return std::min(depth - R, depth - 1);
