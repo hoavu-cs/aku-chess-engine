@@ -573,7 +573,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool mopUp = isMopUpPhase(board);
     bool endGameFlag = gamePhase(board) <= 12;
     int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
-    bool isPV = (alpha < beta - 1); // Principal variation node flag
+    bool isPV = (alpha < beta - 1);
     int alpha0 = alpha;
     
     // Check if the game is over
@@ -609,45 +609,45 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Probe the transposition table
     bool found = false;
+    int tableEval, tableDepth;
     Move tableMove;
-    int tableEval;
-    int tableDepth;
     EntryType tableType;
 
     if (tableLookUp(board, tableDepth, tableEval, tableMove, tableType, ttTable)) {
         tableHit[threadID]++;
-        if (tableDepth >= depth) {
-            found = true;
-        }
+        if (tableDepth >= depth) found = true;
     }
 
+    // If the entry found is exact or a lower bound with value >= beta, we have a cutoff.
     if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
-    } else if (found && tableEval <= alpha && !isPV && tableType == EntryType::UPPERBOUND) {
+    }  
+    
+    // If we are in a non-PV node and the entry's evaluation is <= alpha, that means we can return the value
+    // since this node won't raise alpha.
+    if (found && tableEval <= alpha && !isPV && tableType == EntryType::UPPERBOUND) {
         return tableEval;
     }
     
     if (depth <= 0) {
-        int quiescenceEval = quiescence(board, alpha, beta, ply, threadID);
-        return quiescenceEval;
+        return quiescence(board, alpha, beta, ply, threadID);
     }
 
     int standPat = Probe::eval(board.getFen().c_str());
-
-    bool pruningCondition = !board.inCheck() 
-                            && !endGameFlag 
-                            && alpha < 2000 
-                            && alpha > -2000 
-                            && beta < 2000
-                            && beta > -2000
-                            && !leftMost
-                            && !mopUp;
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
         Avoid pruning in the endgame phase, when alpha is close to the mate score (to avoid missing 
         checkmates). We also not do this in PV nodes.
     --------------------------------------------------------------------------------------------*/
+
+    bool pruningCondition = !board.inCheck() 
+                            && !endGameFlag 
+                            && std::abs(alpha) < 2000
+                            && std::abs(beta) < 2000
+                            && !leftMost
+                            && !mopUp;
+
     if (depth <= 2 && pruningCondition) {
         int margin = depth * 350;
         if (standPat - margin > beta) {
@@ -661,22 +661,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     const int nullDepth = 4; 
 
     if (depth >= nullDepth && !endGameFlag && !leftMost && !board.inCheck() && !mopUp) {
-        std::vector<Move> nullPV;
+        std::vector<Move> nullPV; // dummy PV
         int nullEval;
-        int reduction = 3;
-
-        if (depth >= 6) {
-            reduction = 4;
-        }
+        int reduction = (depth >= 6) ? 4 : 3;
 
         NodeInfo nullNodeInfo = {ply + 1, false, extensions, threadID};
         board.makeNullMove();
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, nullNodeInfo);
         board.unmakeNullMove();
 
-        if (nullEval >= beta) { 
-            return beta;
-        } 
+        if (nullEval >= beta) return beta;
     }
 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, depth, ply, previousPV, leftMost, threadID);
@@ -692,14 +686,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         std::vector<Move> childPV;
 
         bool isCapture = board.isCapture(move);
-        bool inCheck = board.inCheck();
+        //bool inCheck = board.inCheck();
         bool isPromo = isPromotion(move);
-        board.makeMove(move);
-        bool isCheck = board.inCheck();
-        board.unmakeMove(move);
+        // board.makeMove(move);
+        // bool isCheck = board.inCheck();
+        // board.unmakeMove(move);
         bool isPromoThreat = promotionThreatMove(board, move);
 
-        bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
+        bool quiet = !isCapture && !isPromo && !isPromoThreat;
+
+
+        //bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
 
         /*--------------------------------------------------------------------------------------------
             Futility pruning: prune if there is no hope of raising alpha.
@@ -733,16 +730,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.makeMove(move);
         bool nullWindow = false;
 
-        // if (extensions && board.inCheck()) {
-        //     nextDepth++;
-        //     extensions--;
-        // } 
-
         NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, threadID};
 
         if (i == 0) {
             // full window & full depth search for the first node
-            
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeInfo);
         } else {
             // null window and potential reduced depth for the rest
@@ -791,7 +782,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 searchAllFlag = true;
             }
 
-            if (!board.isCapture(move) && !isCheck) {
+            if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
                 int mvIndex = moveIndex(move);
                 historyTable[threadID][mvIndex] += depth * depth;
