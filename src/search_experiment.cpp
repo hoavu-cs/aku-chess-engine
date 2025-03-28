@@ -350,11 +350,9 @@ int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool i
     if (i <= 3 || depth <= 2) { 
         return depth - 1;
     } else {
-        int R = 0.85 * log (depth) * log (i);
+        int R = log (depth) * log (i);
         float historyScore = historyTable[threadID][moveIndex(move)];
-
         if (historyScore >= 500.0) R--;
-        if (ply > 4 && historyScore < 40) R++;
         
         return std::min(depth - static_cast<int>(R), depth - 1);
     }
