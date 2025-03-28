@@ -160,6 +160,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 
 // Transposition table 
 int maxTableSize = 5e6; // Maximum size of the transposition table
+int prime = 5000011;
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 20;
@@ -192,7 +193,7 @@ bool tableLookUp(Board& board,
     EntryType& type,
     std::vector<LockedTableEntry>& table) {    
     U64 hash = board.hash();
-    U64 index = hash % table.size();
+    U64 index = (hash % prime) % table.size();
 
     LockedTableEntry& lockedEntry = table[index];
     std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
@@ -216,7 +217,7 @@ void tableInsert(Board& board,
     std::vector<LockedTableEntry>& table) {
 
     U64 hash = board.hash();
-    U64 index = hash % table.size();
+    U64 index = (hash % prime) % table.size();
     LockedTableEntry& lockedEntry = table[index];
 
     std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
@@ -354,7 +355,7 @@ int lateMoveReduction(Board& board,
 
     if (isMopUpPhase(board)) return depth - 1;
 
-    if (i <= 1 || depth <= 2) { 
+    if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
         int R = std::floor(0.77 + log(i) * log(depth) / 2.36);
@@ -372,13 +373,9 @@ int lateMoveReduction(Board& board,
             R++;
         }
 
-        if (!board.isCapture(move) && i >= 15) {
+        if (historyScore < -500.0) {
             R++;
-        }
-
-        if (historyScore < -250.0) {
-            R++;
-        }
+        } 
 
         return std::min(depth - R, depth - 1);
     }
@@ -856,7 +853,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (isPV) {
 
         EntryType type;
-        
+
         if (bestEval >= alpha0 && bestEval <= beta && searchAllFlag) {
             type = EXACT;
         } else if (bestEval < alpha0) {
@@ -870,7 +867,22 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } else {
             tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
         }
-    } 
+    } else {
+        // In PV node, since beta is artificial, we can't tell if the score is exact or not.
+        EntryType type;
+
+        if (bestEval < alpha0) {
+            type = UPPERBOUND;
+        } else {
+            type = LOWERBOUND;
+        } 
+
+        if (PV.size() > 0) {
+            tableInsert(board, depth, bestEval, PV[0], type, ttTable);
+        } else {
+            tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
+        }
+    }
 
     return bestEval;
 }
