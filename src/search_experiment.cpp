@@ -853,10 +853,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     }
 
-
-
     if (isPV) {
+
         EntryType type;
+        
         if (bestEval >= alpha0 && bestEval <= beta && searchAllFlag) {
             type = EXACT;
         } else if (bestEval < alpha0) {
@@ -871,25 +871,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
         }
     } 
-    
-    // else {
 
-    //     EntryType type;
-        
-    //     if (bestEval < alpha0) {
-    //         type = UPPERBOUND;
-    //     } else {
-    //         type = LOWERBOUND;
-    //     } 
-
-    //     if (PV.size() > 0) {
-    //         tableInsert(board, depth, bestEval, PV[0], type, ttTable);
-    //     } else {
-    //         tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
-    //     }
-
-    // }
-    
     return bestEval;
 }
 
