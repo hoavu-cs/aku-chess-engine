@@ -220,7 +220,7 @@ void tableInsert(Board& board,
     LockedTableEntry& lockedEntry = table[index];
 
     std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
-    lockedEntry.entry = {hash, eval, depth, bestMove, type};
+    lockedEntry.entry = {hash, eval, depth, bestMove, type}; 
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -343,18 +343,40 @@ int see(Board& board, Move move, int threadID) {
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
-int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, bool leftMost, int threadID) {
+int lateMoveReduction(Board& board, 
+                    Move move, 
+                    int i, 
+                    int depth, 
+                    int ply, 
+                    bool isPV, 
+                    bool leftMost, 
+                    int threadID) {
 
     if (isMopUpPhase(board)) return depth - 1;
 
-    if (i <= 3 || depth <= 2) { 
+    if (i <= 1 || depth <= 3) { 
         return depth - 1;
     } else {
-        int R = log (depth) * log (i);
-        float historyScore = historyTable[threadID][moveIndex(move)];
-        if (historyScore >= 500.0) R--;
-        
-        return std::min(depth - static_cast<int>(R), depth - 1);
+        int R = std::floor(0.77 + log(i) * log(depth) / 2.36);
+        int historyScore = historyTable[threadID][moveIndex(move)];
+
+        if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
+            R--;
+        }
+
+        if (board.inCheck()) {
+            R--;
+        }
+    
+        if (!board.isCapture(move) && i >= 5) {
+            R++;
+        }
+
+        if (historyScore < -1000.0) {
+            R++;
+        }
+
+        return std::min(depth - R, depth - 1);
     }
 }
 
@@ -426,7 +448,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
         } else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
-             priority = 4000; // Killer move
+              priority = 4000; // Killer move
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
@@ -615,6 +637,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
     }  
+
+    // If the exact evaluation is found, return the evaluation.
+    if (found && tableType == EntryType::EXACT) {
+        return tableEval;
+    }
     
     // If we are in a non-PV node and the entry's evaluation is <= alpha, that means we can return the value
     // since this node won't raise alpha.
@@ -625,6 +652,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (depth <= 0) return quiescence(board, alpha, beta, ply, threadID);
     
     int standPat = Probe::eval(board.getFen().c_str());
+
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -639,8 +667,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !leftMost
                             && !mopUp;
 
-    if (depth <= 2 && pruningCondition) {
-        int margin = 300 * depth;
+    if (depth < 5 && pruningCondition) {
+        int margin = 330 * depth;
         if (standPat - margin > beta) {
             return standPat - margin;
         } 
@@ -656,7 +684,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int nullEval;
         int reduction = (depth >= 6) ? 4 : 3;
 
-        NodeInfo nullNodeInfo = {ply + 1, false, extensions, threadID};
+        NodeInfo nullNodeInfo = {ply + 1, false, extensions, threadID}; // Update node info for null move search
         board.makeNullMove();
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, nullNodeInfo);
         board.unmakeNullMove();
@@ -690,8 +718,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             Futility pruning: prune if there is no hope of raising alpha.
             For tactical stability, we only do this for quiet moves.
         --------------------------------------------------------------------------------------------*/
-        if (depth <= 2 && quiet && pruningCondition) {
-            int margin = 300 * depth;
+        if (depth <= 3 && quiet && pruningCondition) {
+            int margin = 330 * depth;
             if (standPat + margin < alpha) {
                  return alpha;
             } 
@@ -716,7 +744,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.makeMove(move);
         bool nullWindow = false;
 
-        NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, threadID};
+
+        NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, threadID}; 
+
+        if (extensions && board.inCheck()) {
+            nextDepth++;
+            childNodeInfo.extensions--; 
+        }
 
         if (i == 0) {
             // full window & full depth search for the first node
@@ -772,13 +806,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 updateKillerMoves(move, ply, threadID);
                 int mvIndex = moveIndex(move);
                 historyTable[threadID][mvIndex] += depth * depth;
+                historyTable[threadID][mvIndex] = std::clamp(historyTable[threadID][mvIndex], -5000.0f, 5000.0f); // Clamp to avoid overflow
             }
 
             for (int j = 0; j < i; j++) {
                 // Reduce history score for moves before that did not cause a beta cutoff
                 int mvIndex = moveIndex(moves[j].first);
-                historyTable[threadID][mvIndex] *= 0.5;
-                historyTable[threadID][mvIndex] = std::max(historyTable[threadID][mvIndex], 5.0f); 
+                historyTable[threadID][mvIndex] -= depth * depth; 
+                historyTable[threadID][mvIndex] = std::clamp(historyTable[threadID][mvIndex], -5000.0f, 5000.0f); // Clamp to avoid negative values
             }
 
             break;
@@ -885,6 +920,7 @@ Move findBestMove(Board& board,
         }
     }
 
+    int standPat = Probe::eval(board.getFen().c_str()); 
 
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
@@ -930,10 +966,8 @@ Move findBestMove(Board& board,
             #pragma omp parallel for schedule(dynamic, 1)
             for (int i = 0; i < moves.size(); i++) {
 
-                if (stopNow) {
-                    continue;
-                }
-
+                if (stopNow) continue;
+                
                 bool leftMost = (i == 0);
                 Move move = moves[i].first;
 
@@ -946,7 +980,7 @@ Move findBestMove(Board& board,
                 int eval = -INF;
                 int extensions = 1;
 
-                NodeInfo childNodeInfo = {1, leftMost, extensions, omp_get_thread_num()};
+                NodeInfo childNodeInfo = {1, leftMost, extensions,  omp_get_thread_num()};
 
                 localBoard.makeMove(move);
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
@@ -1115,3 +1149,4 @@ Move findBestMove(Board& board,
 
     return bestMove; 
 }
+

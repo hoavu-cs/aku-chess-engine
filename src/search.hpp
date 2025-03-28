@@ -49,4 +49,5 @@ struct NodeInfo {
 
 int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeInfo& nodeInfo);
 
-Move findBestMove(Board &board, int numThreads, int maxDepth,int timeLimit,bool quiet);
+Move findBestMove(Board &board, int numThreads, int maxDepth, int timeLimit, bool quiet);
+
