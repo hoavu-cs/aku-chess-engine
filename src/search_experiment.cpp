@@ -354,7 +354,7 @@ int lateMoveReduction(Board& board,
 
     if (isMopUpPhase(board)) return depth - 1;
 
-    if (i <= 1 || depth <= 3) { 
+    if (i <= 1 || depth <= 2) { 
         return depth - 1;
     } else {
         int R = std::floor(0.77 + log(i) * log(depth) / 2.36);
@@ -372,7 +372,11 @@ int lateMoveReduction(Board& board,
             R++;
         }
 
-        if (historyScore < -1000.0) {
+        if (!board.isCapture(move) && i >= 15) {
+            R++;
+        }
+
+        if (historyScore < -250.0) {
             R++;
         }
 
@@ -569,6 +573,34 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
 }
 
 /*-------------------------------------------------------------------------------------------- 
+    PVS function.
+--------------------------------------------------------------------------------------------*/
+int pvSearch(Board& board, int depth, int alpha, int beta, int threadID) {
+
+    if (depth <= 0) {
+        return quiescence(board, alpha, beta, 0, threadID); 
+    } 
+
+    std::vector<Move> previousPV; // dummy 
+    std::vector<std::pair<Move,int>> moves = orderedMoves(board, depth, 0, previousPV, false, threadID); 
+    int bestEval = -INF; 
+
+    for (int i = 0; i < moves.size(); i++) {
+        Move move = moves[i].first;
+
+        board.makeMove(move);
+        int eval = -pvSearch(board, depth - 1, -beta, -alpha, threadID); 
+        board.unmakeMove(move);
+
+        if (eval >= beta) return beta;
+        alpha = std::max(alpha, eval);
+        bestEval = std::max(bestEval, eval);
+    }
+
+    return bestEval;
+}
+
+/*-------------------------------------------------------------------------------------------- 
     Negamax with alpha-beta pruning.
 --------------------------------------------------------------------------------------------*/
 int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeInfo& nodeInfo) {
@@ -747,10 +779,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, threadID}; 
 
-        if (extensions && board.inCheck()) {
-            nextDepth++;
-            childNodeInfo.extensions--; 
-        }
+        // if (extensions && board.inCheck()) {
+        //     nextDepth++;
+        //     childNodeInfo.extensions--; 
+        // }
 
         if (i == 0) {
             // full window & full depth search for the first node
@@ -758,6 +790,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } else {
             // null window and potential reduced depth for the rest
             nullWindow = true;
+            //eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, childNodeInfo);
             eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, childNodeInfo);
         }
         
@@ -820,20 +853,42 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     }
 
-    EntryType type;
-    if (bestEval >= alpha0 && bestEval <= beta && searchAllFlag) {
-        type = EXACT;
-    } else if (bestEval < alpha0) {
-        type = UPPERBOUND;
-    } else {
-        type = LOWERBOUND;
-    } 
 
-    if (PV.size() > 0) {
-        tableInsert(board, depth, bestEval, PV[0], type, ttTable);
-    } else {
-        tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
-    }
+
+    if (isPV) {
+        EntryType type;
+        if (bestEval >= alpha0 && bestEval <= beta && searchAllFlag) {
+            type = EXACT;
+        } else if (bestEval < alpha0) {
+            type = UPPERBOUND;
+        } else {
+            type = LOWERBOUND;
+        } 
+
+        if (PV.size() > 0) {
+            tableInsert(board, depth, bestEval, PV[0], type, ttTable);
+        } else {
+            tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
+        }
+    } 
+    
+    // else {
+
+    //     EntryType type;
+        
+    //     if (bestEval < alpha0) {
+    //         type = UPPERBOUND;
+    //     } else {
+    //         type = LOWERBOUND;
+    //     } 
+
+    //     if (PV.size() > 0) {
+    //         tableInsert(board, depth, bestEval, PV[0], type, ttTable);
+    //     } else {
+    //         tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
+    //     }
+
+    // }
     
     return bestEval;
 }
