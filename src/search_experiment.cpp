@@ -159,7 +159,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 
 // Transposition table 
-int maxTableSize = 8e6; // Maximum size of the transposition table
+int maxTableSize = 5e6; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 20;
@@ -237,7 +237,7 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<std::vector<Move>>> killerMoves(maxThreadsID, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); // Killer moves for each thread and ply
 
-std::vector<std::vector<U64>> historyTable(maxThreadsID, std::vector<U64>(64 * 64, 0)); // History table for move ordering
+std::vector<std::vector<float>> historyTable(maxThreadsID, std::vector<float>(64 * 64, 0)); // History table for move ordering
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -305,7 +305,6 @@ bool promotionThreatMove(Board& board, Move move) {
 int see(Board& board, Move move, int threadID) {
 
     nodeCount[threadID]++;
-
     int to = move.to().index();
     
     // Get victim and attacker piece values
@@ -346,22 +345,18 @@ int see(Board& board, Move move, int threadID) {
 --------------------------------------------------------------------------------------------*/
 int lateMoveReduction(Board& board, Move move, int i, int depth, int ply, bool isPV, bool leftMost, int threadID) {
 
-    if (isMopUpPhase(board)) {
-        // Search more thoroughly in mop-up phase
-        return depth - 1;
-    }
+    if (isMopUpPhase(board)) return depth - 1;
 
-    if (i <= 2 || depth <= 2) { 
+    if (i <= 3 || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth / 3;
-        //int R = 2;
-    
-        // if (!board.inCheck() && !board.isCapture(move)) {
-        //     R += i/5;
-        // }
+        int R = 0.85 * log (depth) * log (i);
+        float historyScore = historyTable[threadID][moveIndex(move)];
 
-        // return std::min(depth - R, depth - 1);
+        if (historyScore >= 500.0) R--;
+        if (ply > 4 && historyScore < 40) R++;
+        
+        return std::min(depth - static_cast<int>(R), depth - 1);
     }
 }
 
@@ -629,10 +624,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return tableEval;
     }
     
-    if (depth <= 0) {
-        return quiescence(board, alpha, beta, ply, threadID);
-    }
-
+    if (depth <= 0) return quiescence(board, alpha, beta, ply, threadID);
+    
     int standPat = Probe::eval(board.getFen().c_str());
 
     /*--------------------------------------------------------------------------------------------
@@ -649,7 +642,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !mopUp;
 
     if (depth <= 2 && pruningCondition) {
-        int margin = depth * 350;
+        int margin = 300 * depth;
         if (standPat - margin > beta) {
             return standPat - margin;
         } 
@@ -686,33 +679,28 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         std::vector<Move> childPV;
 
         bool isCapture = board.isCapture(move);
-        //bool inCheck = board.inCheck();
         bool isPromo = isPromotion(move);
-        // board.makeMove(move);
-        // bool isCheck = board.inCheck();
-        // board.unmakeMove(move);
         bool isPromoThreat = promotionThreatMove(board, move);
+        bool inCheck = board.inCheck();
+        board.makeMove(move); 
+        bool isCheck = board.inCheck(); 
+        board.unmakeMove(move); 
 
-        bool quiet = !isCapture && !isPromo && !isPromoThreat;
-
-
-        //bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
+        bool quiet = !isCapture && !isCheck && !isPromo && !inCheck && !isPromoThreat;
 
         /*--------------------------------------------------------------------------------------------
             Futility pruning: prune if there is no hope of raising alpha.
             For tactical stability, we only do this for quiet moves.
         --------------------------------------------------------------------------------------------*/
         if (depth <= 2 && quiet && pruningCondition) {
-            int margin = 350 * depth;
+            int margin = 300 * depth;
             if (standPat + margin < alpha) {
-                return alpha;
+                 return alpha;
             } 
         }
 
-        if (i > 0) {
-            leftMost = false;
-        }
-
+        if (i > 0) leftMost = false;
+        
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost, threadID); 
         
@@ -792,9 +780,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 // Reduce history score for moves before that did not cause a beta cutoff
                 int mvIndex = moveIndex(moves[j].first);
                 historyTable[threadID][mvIndex] *= 0.5;
-                if (historyTable[threadID][mvIndex] < 1) {
-                    historyTable[threadID][mvIndex] = 1;
-                }
+                historyTable[threadID][mvIndex] = std::max(historyTable[threadID][mvIndex], 5.0f); 
             }
 
             break;
@@ -847,7 +833,7 @@ Move findBestMove(Board& board,
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < 64 * 64; j++) {
-            historyTable[i][j] = 1;
+            historyTable[i][j] = 5.0;
         }
     }
 
