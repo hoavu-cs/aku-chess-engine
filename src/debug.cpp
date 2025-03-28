@@ -190,7 +190,7 @@ int main() {
 
         "2rbr1k1/p2n1pp1/4P2p/1p6/q1p1R3/5NB1/P1R1QPPP/5K2 b - - 0 27"
     
-    }; // fix asap}
+    }; 
 
     std::vector<std::vector<Move>> testMoves = {    
         {Move::make(Square(Square::underlying::SQ_D2), Square(Square::underlying::SQ_C4))},
