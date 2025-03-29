@@ -358,7 +358,7 @@ int lateMoveReduction(Board& board,
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        int R = std::floor(0.77 + log(i) * log(depth) / 2.36);
+        int R = std::floor(0.77 + log(i) * log(depth) / 2.0);
         int historyScore = historyTable[threadID][moveIndex(move)];
 
         if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
@@ -671,9 +671,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (found && tableType == EntryType::EXACT) {
         return tableEval;
     }
-    
-    // If we are in a non-PV node and the entry's evaluation is <= alpha, that means we can return the value
-    // since this node won't raise alpha.
+
+    // If we are in a nonPV node and can't raise alpha, we can prune the search.
     if (found && tableEval <= alpha && !isPV && tableType == EntryType::UPPERBOUND) {
         return tableEval;
     }
@@ -733,6 +732,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         Move move = moves[i].first;
         std::vector<Move> childPV;
 
+
         bool isCapture = board.isCapture(move);
         bool isPromo = isPromotion(move);
         bool isPromoThreat = promotionThreatMove(board, move);
@@ -776,7 +776,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, threadID}; 
 
-        // if (extensions && board.inCheck()) {
+        // if (extensions && nodeCount[threadID] % 7 == 0) {
         //     nextDepth++;
         //     childNodeInfo.extensions--; 
         // }
@@ -795,15 +795,15 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool alphaRaised = eval > alpha;
         bool reducedDepth = nextDepth < depth - 1;
 
-        if (alphaRaised && reducedDepth && nullWindow) {
-            // If alpha is raised and we reduced the depth, research with full depth but still with a null window
-            board.makeMove(move);
-            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, childNodeInfo);
-            board.unmakeMove(move);
-        } 
+        // if (alphaRaised && reducedDepth && nullWindow) {
+        //     // If alpha is raised and we reduced the depth, research with full depth but still with a null window
+        //     board.makeMove(move);
+        //     eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, childNodeInfo);
+        //     board.unmakeMove(move);
+        // } 
 
-        // After this, check if we have raised alpha
-        alphaRaised = eval > alpha;
+        // // After this, check if we have raised alpha
+        // alphaRaised = eval > alpha;
 
         if (alphaRaised && (nullWindow || reducedDepth)) {
             // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
@@ -1003,14 +1003,15 @@ Move findBestMove(Board& board,
         alpha = -INF;
         beta = INF;
 
-        if (depth > 6) {
-            aspiration = evals[depth - 1];
-            alpha = aspiration - 150;
-            beta = aspiration + 150;
-        }
+        // if (depth > 6) {
+        //     aspiration = evals[depth - 1];
+        //     alpha = aspiration - 150;
+        //     beta = aspiration + 150;
+        // }
 
-        while (true) {
+        // while (true) {
             currentBestEval = -INF;
+
 
             #pragma omp parallel for schedule(dynamic, 1)
             for (int i = 0; i < moves.size(); i++) {
@@ -1066,7 +1067,7 @@ Move findBestMove(Board& board,
 
                 #pragma omp critical
                 newMoves.push_back({move, eval});
-
+                
                 #pragma omp critical
                 {
                     if (eval > currentBestEval) {
@@ -1095,18 +1096,18 @@ Move findBestMove(Board& board,
                 }
             }
 
-            if (stopNow) {
-                break;
-            }
+            // if (stopNow) {
+            //     break;
+            // }
 
-            if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
-                alpha = -INF;
-                beta = INF;
-                newMoves.clear();
-            } else {
-                break;
-            }
-        }
+            // if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
+            //     alpha = -INF;
+            //     beta = INF;
+            //     newMoves.clear();
+            // } else {
+            //     break;
+            // }
+        //}
         
         if (stopNow) {
             break;
