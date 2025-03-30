@@ -189,6 +189,8 @@ int main() {
         "2br4/r1q1bpk1/2pp2pp/p3p3/P3P3/1BQRN2P/1PP2PP1/3R2K1 b - - 6 22",
 
         "2rbr1k1/p2n1pp1/4P2p/1p6/q1p1R3/5NB1/P1R1QPPP/5K2 b - - 0 27"
+
+        //r1bq1rk1/pp1pppbp/5np1/n3P3/3N4/1BN1B3/PPP2PPP/R2QK2R b KQ - 0 9
     
     }; 
 

@@ -187,10 +187,10 @@ float HISTDEC3 = 20.0;
     Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
 
-int maxTableSize = 10e6; // Maximum size of the transposition table
+int maxTableSize = 12e6; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
-const int maxThreadsID = 20;
+const int maxThreadsID = 50;
 
 std::vector<float> maxHistoryScore (maxThreadsID, 0); // Maximum history score for each thread
 std::vector<float> minHistoryScore (maxThreadsID, 0); // Minimum history score for each thread
@@ -390,13 +390,13 @@ int lateMoveReduction(Board& board,
         return depth - 1;
     } else {
         float histScore = historyTable[threadID][moveIndex(move)];
-        int R = 1 + static_cast<int> (log(depth) * log (i));
+        int R = 0.75 + static_cast<int> (log(depth) * log (i));
 
-        if (histScore > maxHistoryScore[threadID] / 2) {
+        if (histScore > maxHistoryScore[threadID] * 0.5) {
             R--;
         }
 
-        return depth - R;
+        return std::min(depth - R, depth - 1);
     }
 }
 
@@ -659,9 +659,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (tableDepth >= depth) found = true;
     }
 
-    if (found && tableType == EXACT) {
-        return tableEval;
-    }  
+    // if (found && tableType == EXACT) {
+    //     return tableEval;
+    // }  
 
     if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
@@ -672,7 +672,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     
-    if (depth <= 0 && !board.inCheck() || ply >= globalMaxDepth) {
+    if (depth <= 0 && (!board.inCheck() || ply == globalMaxDepth)) {
         return quiescence(board, alpha, beta, ply, threadID);
     } else if (depth <= 0) {
         depth++;
@@ -694,8 +694,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !leftMost
                             && !mopUp;
 
-    if (depth <= 2 && pruningCondition) {
-        int margin = 350 * depth;
+    if (depth < 4 && pruningCondition) {
+        int margin = 310 * depth;
         if (standPat - margin > beta) {
             return standPat - margin;
         } 
@@ -778,12 +778,20 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
 
-        // Check extensions
+        
         // if (extensions && board.inCheck()) {
+        //     // Check extensions
         //     nextDepth++;
         //     childNodeInfo.extensions--;
         //     childNodeInfo.ply++;
-        // }
+        // } else 
+        
+        if (extensions && moves.size() <= 1) {
+            // forced move extensions
+            nextDepth++;
+            childNodeInfo.extensions--;
+            childNodeInfo.ply++;
+        } 
 
         if (i == 0) {
             // full window & full depth search for the first node
