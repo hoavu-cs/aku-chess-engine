@@ -35,12 +35,8 @@
 #include <chrono>
 #include <stdlib.h>
 #include <cmath>
-#include <unordered_set>
-#include <queue>
-#include <set>
 #include <filesystem>
 #include <mutex>
-#include <atomic>
 
 
 #include "../lib/stockfish_nnue_probe/probe.h"
@@ -49,6 +45,7 @@
 using namespace chess;
 using namespace Stockfish;
 typedef std::uint64_t U64;
+
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
@@ -155,15 +152,48 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 }
 
 /*-------------------------------------------------------------------------------------------- 
+    Parameters for pruning, later move reduction, etc.
+    These are tuned using annealing.
+--------------------------------------------------------------------------------------------*/
+
+// Late move reduction parameters
+// float LMR1 = 1.89661;
+// float LMR2 = 1.0;
+// float LMR3 = 0.365942;
+
+// Reverse futility pruning parameters
+float RFPDEPTH = 3.66226;
+float RFP1 = 100.0;
+float RFP2 = 100.0;
+float RFP3 = 34.7692;
+
+// Futility pruning parameters
+float FPDEPTH = 3.0;
+float FP1 = 100.0;
+float FP2 = 158.829;
+float FP3 = 53.2613;
+
+// History heuristic parameters
+float HISTINC1 = 20;
+float HISTINC2 = 13.8752;
+float HISTINC3 = 18.6874;
+
+float HISTDEC1 = 20.0;
+float HISTDEC2 = 20.0;
+float HISTDEC3 = 20.0;
+
+
+/*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
 
-// Transposition table 
-int maxTableSize = 5e6; // Maximum size of the transposition table
-int prime = 5000011;
+int maxTableSize = 10e6; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 20;
+
+std::vector<float> maxHistoryScore (maxThreadsID, 0); // Maximum history score for each thread
+std::vector<float> minHistoryScore (maxThreadsID, 0); // Minimum history score for each thread
 
 enum EntryType {
     EXACT,
@@ -179,6 +209,7 @@ struct TableEntry {
     EntryType type;
 };
 
+
 struct LockedTableEntry {
     std::mutex mtx;
     TableEntry entry;
@@ -193,7 +224,7 @@ bool tableLookUp(Board& board,
     EntryType& type,
     std::vector<LockedTableEntry>& table) {    
     U64 hash = board.hash();
-    U64 index = (hash % prime) % table.size();
+    U64 index = hash % table.size();
 
     LockedTableEntry& lockedEntry = table[index];
     std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
@@ -217,10 +248,10 @@ void tableInsert(Board& board,
     std::vector<LockedTableEntry>& table) {
 
     U64 hash = board.hash();
-    U64 index = (hash % prime) % table.size();
+    U64 index = hash % table.size();
     LockedTableEntry& lockedEntry = table[index];
 
-    std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
+    std::lock_guard<std::mutex> lock(lockedEntry.mtx); 
     lockedEntry.entry = {hash, eval, depth, bestMove, type}; 
 }
 
@@ -238,7 +269,7 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<std::vector<Move>>> killerMoves(maxThreadsID, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); // Killer moves for each thread and ply
 
-std::vector<std::vector<float>> historyTable(maxThreadsID, std::vector<float>(64 * 64, 0)); 
+std::vector<std::vector<float>> historyTable (maxThreadsID, std::vector<float>(64 * 64, 0)); 
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -252,14 +283,14 @@ const int pieceValues[] = {
 };
 
 /*-------------------------------------------------------------------------------------------- 
-    Compute the index of a move to store in set, map, etc.
+    Compute the index of a move to be used in history table and others
 --------------------------------------------------------------------------------------------*/
 U64 moveIndex(const Move& move) {
     return move.from().index() * 64 + move.to().index();
 }
  
 /*-------------------------------------------------------------------------------------------- 
-    Check if the move is a queen promotion.
+    Check if the move is a promotion.
 --------------------------------------------------------------------------------------------*/
 bool isPromotion(const Move& move) {
     if (move.typeOf() & Move::PROMOTION) {
@@ -286,7 +317,6 @@ bool promotionThreatMove(Board& board, Move move) {
         int destinationIndex = move.to().index();
         int rank = destinationIndex / 8;
         Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-
         bool isPassedPawnFlag = isPassedPawn(destinationIndex, color, theirPawns);
 
         if (isPassedPawnFlag) {
@@ -344,6 +374,7 @@ int see(Board& board, Move move, int threadID) {
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
+
 int lateMoveReduction(Board& board, 
                     Move move, 
                     int i, 
@@ -355,10 +386,17 @@ int lateMoveReduction(Board& board,
 
     if (isMopUpPhase(board)) return depth - 1;
 
-    if (i <= 1 || depth <= 2) { 
+    if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth / 3;
+        float histScore = historyTable[threadID][moveIndex(move)];
+        int R = 1 + static_cast<int> (log(depth) * log (i));
+
+        if (histScore > maxHistoryScore[threadID] / 2) {
+            R--;
+        }
+
+        return depth - R;
     }
 }
 
@@ -400,19 +438,18 @@ std::vector<std::pair<Move, int>> orderedMoves(
         int tableEval;
         int tableDepth;
         EntryType tableType;
+        TableEntry entry;
 
         if (tableLookUp(board, tableDepth, tableEval, tableMove, tableType, ttTable)) {
             // Hash move from the PV transposition table should be searched first 
             // These are best moves or moves that cause beta cutoffs
             if (tableMove == move && tableType == EntryType::EXACT) {
-                tableHit[threadID]++;
-                priority = 8000 + tableDepth;
+                priority = 9000 + tableEval;
                 candidatesPrimary.push_back({tableMove, priority});
                 hashMove = true;
                 hashMoveFound = true;
             } else if (tableMove == move && tableType == EntryType::LOWERBOUND) {
-                tableHit[threadID]++;
-                priority = 7000 + tableDepth;
+                priority = 8000 + tableEval;
                 candidatesPrimary.push_back({tableMove, priority});
                 hashMove = true;
                 hashMoveFound = true;
@@ -574,6 +611,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
     bool isPV = (alpha < beta - 1);
     int alpha0 = alpha;
+    bool whiteTurn = (board.sideToMove() == Color::WHITE);
     
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
@@ -611,28 +649,35 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int tableEval, tableDepth;
     Move tableMove;
     EntryType tableType;
+    TableEntry entry;
 
+    /*-------------------------------------------------------------------------------------------- 
+    Transposition table lookup.
+    --------------------------------------------------------------------------------------------*/
     if (tableLookUp(board, tableDepth, tableEval, tableMove, tableType, ttTable)) {
         tableHit[threadID]++;
         if (tableDepth >= depth) found = true;
     }
 
-    // If the entry found is exact or a lower bound with value >= beta, we have a cutoff.
+    if (found && tableType == EXACT) {
+        return tableEval;
+    }  
+
     if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
     }  
 
-    // If the exact evaluation is found, return the evaluation.
-    if (found && tableType == EntryType::EXACT) {
-        return tableEval;
-    }
-
-    // If we are in a nonPV node and can't raise alpha, we can prune the search.
     if (found && tableEval <= alpha && !isPV && tableType == EntryType::UPPERBOUND) {
         return tableEval;
     }
+
     
-    if (depth <= 0) return quiescence(board, alpha, beta, ply, threadID);
+    if (depth <= 0 && !board.inCheck() || ply >= globalMaxDepth) {
+        return quiescence(board, alpha, beta, ply, threadID);
+    } else if (depth <= 0) {
+        depth++;
+        return negamax(board, depth, alpha, beta, PV, nodeInfo);
+    }
     
     int standPat = Probe::eval(board.getFen().c_str());
 
@@ -642,7 +687,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         Avoid pruning in the endgame phase, when alpha is close to the mate score (to avoid missing 
         checkmates). We also not do this in PV nodes.
     --------------------------------------------------------------------------------------------*/
-
     bool pruningCondition = !board.inCheck() 
                             && !endGameFlag 
                             && std::abs(alpha) < 2000
@@ -651,7 +695,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !mopUp;
 
     if (depth <= 2 && pruningCondition) {
-        int margin = 330 * depth;
+        int margin = 350 * depth;
         if (standPat - margin > beta) {
             return standPat - margin;
         } 
@@ -693,7 +737,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         Move move = moves[i].first;
         std::vector<Move> childPV;
 
-
         bool isCapture = board.isCapture(move);
         bool isPromo = isPromotion(move);
         bool isPromoThreat = promotionThreatMove(board, move);
@@ -709,7 +752,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             For tactical stability, we only do this for quiet moves.
         --------------------------------------------------------------------------------------------*/
         if (depth <= 2 && quiet && pruningCondition) {
-            int margin = 330 * depth;
+            int margin = 350 * depth;
             if (standPat + margin < alpha) {
                  return alpha;
             } 
@@ -730,12 +773,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             - Then, if alpha is raised, re-search with a full window & full depth. 
 
         --------------------------------------------------------------------------------------------*/
-
         board.makeMove(move);
         bool nullWindow = false;
 
-
         NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
+
+        // Check extensions
+        // if (extensions && board.inCheck()) {
+        //     nextDepth++;
+        //     childNodeInfo.extensions--;
+        //     childNodeInfo.ply++;
+        // }
 
         if (i == 0) {
             // full window & full depth search for the first node
@@ -775,7 +823,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         } 
 
-
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
 
@@ -790,15 +837,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
                 int mvIndex = moveIndex(move);
-                historyTable[threadID][mvIndex] += depth * depth;
-                //historyTable[threadID][mvIndex] = std::clamp(historyTable[threadID][mvIndex], -15000.0f, 15000.0f); // Clamp to avoid overflow
+                historyTable[threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
+                historyTable[threadID][mvIndex] = std::clamp(historyTable[threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
+                maxHistoryScore[threadID] = std::max(maxHistoryScore[threadID], historyTable[threadID][mvIndex]);
             }
 
             for (int j = 0; j < i; j++) {
-                // Reduce history score for moves before that did not cause a beta cutoff
                 int mvIndex = moveIndex(moves[j].first);
-                historyTable[threadID][mvIndex] -= depth * depth; 
-                //historyTable[threadID][mvIndex] = std::clamp(historyTable[threadID][mvIndex], -15000.0f, 15000.0f); // Clamp to avoid negative values
+                historyTable[threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
+                historyTable[threadID][mvIndex] = std::clamp(historyTable[threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
+                minHistoryScore[threadID] = std::min(minHistoryScore[threadID], historyTable[threadID][mvIndex]);
             }
 
             break;
@@ -818,27 +866,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (PV.size() > 0) {
             tableInsert(board, depth, bestEval, PV[0], type, ttTable);
-            historyTable[threadID][moveIndex(PV[0])] += depth * depth;
         } else {
             tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
         }
-    } else {
-        // In PV node, since beta is artificial, we can't tell if the score is exact or not.
-        EntryType type;
 
-        if (bestEval < alpha0) {
-            type = UPPERBOUND;
-        } else {
-            type = LOWERBOUND;
-        } 
-
-        if (PV.size() > 0) {
-            tableInsert(board, depth, bestEval, PV[0], type, ttTable);
-        } else {
-            tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
-        }
-    }
-
+    } 
+    
     return bestEval;
 }
 
@@ -861,18 +894,21 @@ Move findBestMove(Board& board,
                 int timeLimit = 15000,
                 bool quiet = false) {
 
-
     auto startTime = std::chrono::high_resolution_clock::now();
     hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
 
     // Reset history scores 
+
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < 64 * 64; j++) {
-            historyTable[i][j] = 5.0;
+            historyTable[i][j] = 0.0;
+            maxHistoryScore[i] = 0.0;
+            minHistoryScore[i] = 0.0;
         }
     }
+    
 
     // Reset killer moves for each thread and ply
     for (int i = 0; i < maxThreadsID; i++) {
@@ -881,7 +917,6 @@ Move findBestMove(Board& board,
             killerMoves[i][j].push_back(Move::NO_MOVE);
         }
     }
-
 
     Move bestMove = Move(); 
     int bestEval = -INF;
@@ -940,14 +975,12 @@ Move findBestMove(Board& board,
             tableHit[i] = 0;
         }
 
-        
         // Track the best move for the current depth
         Move currentBestMove = Move();
         int currentBestEval = -INF;
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
         
-
         if (depth == baseDepth) {
             moves = orderedMoves(board, depth, 0, previousPV, false, Move::NO_MOVE, 0);
         }
@@ -962,13 +995,12 @@ Move findBestMove(Board& board,
 
         if (depth > 6) {
             aspiration = evals[depth - 1];
-            alpha = aspiration - 150;
-            beta = aspiration + 150;
+            alpha = aspiration - 50;
+            beta = aspiration + 50;
         }
 
         while (true) {
             currentBestEval = -INF;
-
 
             #pragma omp parallel for schedule(dynamic, 1)
             for (int i = 0; i < moves.size(); i++) {
@@ -977,6 +1009,10 @@ Move findBestMove(Board& board,
                 
                 bool leftMost = (i == 0);
                 Move move = moves[i].first;
+
+                if (depth > 8 && i > 9) {
+                    move = moves[i % 9].first;
+                }
 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
@@ -1053,9 +1089,7 @@ Move findBestMove(Board& board,
                 }
             }
 
-            if (stopNow) {
-                break;
-            }
+            if (stopNow) break;
 
             if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
                 alpha = -INF;
@@ -1152,6 +1186,6 @@ Move findBestMove(Board& board,
         }
     }
 
+
     return bestMove; 
 }
-
