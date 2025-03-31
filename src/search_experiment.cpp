@@ -372,14 +372,16 @@ int lateMoveReduction(Board& board,
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        //float histScore = historyTable[threadID][moveIndex(move)];
+        // return depth / 3;
+        // float histScore = historyTable[threadID][moveIndex(move)];
         int R = 0.5 + static_cast<int> (log(depth) * log (i));
-
+        
         // if (histScore > maxHistoryScore[threadID] * 0.5) {
         //     R--;
         // }
 
         return std::min(depth - R, depth - 1);
+        
     }
 }
 
@@ -451,7 +453,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
 
-            if (seeScore < -500 * depth && depth <= 2) {
+            if (seeScore < -600 * depth && depth <= 2) {
                 secondary = true;
                 priority = seeScore;
             }
@@ -550,15 +552,8 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
         auto attacker = board.at<Piece>(move.from());
         int victimValue = pieceValues[static_cast<int>(victim.type())];
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
-
         int priority = see(board, move, threadID);
-
-        if (priority < -300 && ply > 4) {
-            continue; // Skip moves with low SEE score
-        }
-
         candidateMoves.push_back({move, priority});
-        
     }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
@@ -624,7 +619,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Probe Syzygy tablebases
     Move syzygyMove = Move::NO_MOVE;
     int wdl = 0;
-    if (probeSyzygy(board, syzygyMove, wdl)) {
+    if (probeSyzygy(board, syzygyMove, wdl)) { 
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
@@ -683,13 +678,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     ------------------------------------------------------------- -------------------------------*/
     bool pruningCondition = !board.inCheck() 
                             && !endGameFlag 
-                            && std::abs(alpha) < 2000
-                            && std::abs(beta) < 2000
+                            && std::abs(alpha) < 8000
+                            && std::abs(beta) < 8000
                             && !leftMost
                             && !mopUp;
 
     if (depth <= 2 && pruningCondition) {
-        int margin = 310 * depth;
+        int margin = 330 * depth;
         if (standPat - margin > beta) {
             return standPat - margin;
         } 
@@ -780,12 +775,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         //     childNodeInfo.ply++;
         // } else 
         
-        if (extensions && moves.size() <= 1) {
-            // forced move extensions
-            nextDepth++;
-            childNodeInfo.extensions--;
-            childNodeInfo.ply++;
-        } 
+        // if (extensions && moves.size() <= 1) {
+        //     // forced move extensions
+        //     nextDepth++;
+        //     childNodeInfo.extensions--;
+        //     childNodeInfo.ply++;
+        // } 
 
         if (i == 0) {
             // full window & full depth search for the first node
@@ -872,7 +867,19 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
         }
 
-    } 
+    } else {
+        
+        if (bestEval > alpha0) {
+            EntryType type = LOWERBOUND;
+
+            if (PV.size() > 0) {
+                tableInsert(board, depth, bestEval, PV[0], type, ttTable);
+            } else {
+                tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
+            }  
+        } 
+
+    }
     
     return bestEval;
 }
@@ -915,8 +922,7 @@ Move findBestMove(Board& board,
     // Reset killer moves for each thread and ply
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < ENGINE_DEPTH; j++) {
-            killerMoves[i][j].clear();
-            killerMoves[i][j].push_back(Move::NO_MOVE);
+            killerMoves[i][j] = {};
         }
     }
 
@@ -997,8 +1003,8 @@ Move findBestMove(Board& board,
 
         if (depth > 6) {
             aspiration = evals[depth - 1];
-            alpha = aspiration - 50;
-            beta = aspiration + 50;
+            alpha = aspiration - 150;
+            beta = aspiration + 150;
         }
 
         while (true) {
