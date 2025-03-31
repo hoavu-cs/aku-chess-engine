@@ -369,19 +369,17 @@ int lateMoveReduction(Board& board,
 
     if (isMopUpPhase(board)) return depth - 1;
 
-    if (i <= 3 || depth <= 2) { 
+    if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        return depth / 2;
-        // float histScore = historyTable[threadID][moveIndex(move)];
-        // int R = 0.5 + static_cast<int> (log(depth) * log (i));
+        float histScore = historyTable[threadID][moveIndex(move)];
+        int R = 0.75 + static_cast<int> (0.75 * log(depth) * log (i));
         
-        // if (histScore > maxHistoryScore[threadID] * 0.5) {
-        //     R--;
-        // }
+        if (histScore > maxHistoryScore[threadID] * 0.5) {
+            R--;
+        }
 
-        // return std::min(depth - R, depth - 1);
-        
+        return std::min(depth - R, depth - 1);
     }
 }
 
@@ -871,7 +869,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         
         if (bestEval > alpha0) {
             EntryType type = LOWERBOUND;
-
             if (PV.size() > 0) {
                 tableInsert(board, depth, bestEval, PV[0], type, ttTable);
             } else {
