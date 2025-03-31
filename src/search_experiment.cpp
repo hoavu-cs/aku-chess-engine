@@ -451,9 +451,9 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
 
-            if (seeScore < -500 * depth && depth <= 2) {
-                continue; // Skip moves with high negative SEE score near leaf nodes
-            }
+            // if (seeScore < -500 * depth && depth <= 2) {
+            //     continue; // Skip moves with high negative SEE score near leaf nodes
+            // }
 
         } else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
               priority = 4000; // Killer move
@@ -551,10 +551,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
 
         int priority = see(board, move, threadID);
-
-        if (priority < -300) {
-            continue; // Skip moves with high negative SEE score
-        }
 
         candidateMoves.push_back({move, priority});
         
