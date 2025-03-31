@@ -369,18 +369,18 @@ int lateMoveReduction(Board& board,
 
     if (isMopUpPhase(board)) return depth - 1;
 
-    if (i <= 2 || depth <= 2) { 
+    if (i <= 3 || depth <= 2) { 
         return depth - 1;
     } else {
-        // return depth / 3;
+        return depth / 2;
         // float histScore = historyTable[threadID][moveIndex(move)];
-        int R = 0.5 + static_cast<int> (log(depth) * log (i));
+        // int R = 0.5 + static_cast<int> (log(depth) * log (i));
         
         // if (histScore > maxHistoryScore[threadID] * 0.5) {
         //     R--;
         // }
 
-        return std::min(depth - R, depth - 1);
+        // return std::min(depth - R, depth - 1);
         
     }
 }
@@ -453,10 +453,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
 
-            if (seeScore < -600 * depth && depth <= 2) {
-                secondary = true;
-                priority = seeScore;
-            }
+            // if (seeScore < -600 * depth && depth <= 2) {
+            //     secondary = true;
+            //     priority = seeScore;
+            // }
 
         } else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
               priority = 4000; // Killer move
