@@ -156,23 +156,6 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
     These are tuned using annealing.
 --------------------------------------------------------------------------------------------*/
 
-// Late move reduction parameters
-// float LMR1 = 1.89661;
-// float LMR2 = 1.0;
-// float LMR3 = 0.365942;
-
-// Reverse futility pruning parameters
-float RFPDEPTH = 3.66226;
-float RFP1 = 100.0;
-float RFP2 = 100.0;
-float RFP3 = 34.7692;
-
-// Futility pruning parameters
-float FPDEPTH = 3.0;
-float FP1 = 100.0;
-float FP2 = 158.829;
-float FP3 = 53.2613;
-
 // History heuristic parameters
 float HISTINC1 = 20;
 float HISTINC2 = 13.8752;
@@ -467,6 +450,11 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
+
+            if (seeScore < -500 * depth && depth <= 2) {
+                continue; // Skip moves with high negative SEE score near leaf nodes
+            }
+
         } else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
               priority = 4000; // Killer move
         } else {
@@ -563,6 +551,11 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
         int attackerValue = pieceValues[static_cast<int>(attacker.type())];
 
         int priority = see(board, move, threadID);
+
+        if (priority < -300) {
+            continue; // Skip moves with high negative SEE score
+        }
+
         candidateMoves.push_back({move, priority});
         
     }
@@ -686,7 +679,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         Reverse futility pruning: We skip the search if the position is too good for us.
         Avoid pruning in the endgame phase, when alpha is close to the mate score (to avoid missing 
         checkmates). We also not do this in PV nodes.
-    --------------------------------------------------------------------------------------------*/
+    ------------------------------------------------------------- -------------------------------*/
     bool pruningCondition = !board.inCheck() 
                             && !endGameFlag 
                             && std::abs(alpha) < 2000
@@ -694,7 +687,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !leftMost
                             && !mopUp;
 
-    if (depth < 4 && pruningCondition) {
+    if (depth <= 2 && pruningCondition) {
         int margin = 310 * depth;
         if (standPat - margin > beta) {
             return standPat - margin;
@@ -806,17 +799,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool alphaRaised = eval > alpha;
         bool reducedDepth = nextDepth < depth - 1;
 
-        if (alphaRaised && reducedDepth && nullWindow) {
-            // If alpha is raised and we reduced the depth, research with full depth but still with a null window
-            board.makeMove(move);
-            eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, childNodeInfo);
-            board.unmakeMove(move);
-        } 
+        // if (alphaRaised && reducedDepth && nullWindow && isPV) {
+        //     // If alpha is raised and we reduced the depth, research with full depth but still with a null window
+        //     board.makeMove(move);
+        //     eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, childNodeInfo);
+        //     board.unmakeMove(move);
+        // } 
 
-        // After this, check if we have raised alpha
-        alphaRaised = eval > alpha;
+        // // After this, check if we have raised alpha
+        // alphaRaised = eval > alpha;
 
-        if (alphaRaised && (nullWindow || reducedDepth)) {
+        if (alphaRaised && (nullWindow || reducedDepth)  && isPV) {
             // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
             board.makeMove(move);
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
