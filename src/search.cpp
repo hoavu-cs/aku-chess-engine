@@ -167,6 +167,26 @@ float HISTDEC3 = 20.0;
 
 
 /*-------------------------------------------------------------------------------------------- 
+    Late move reduction parameters.
+--------------------------------------------------------------------------------------------*/
+std::vector<std::vector<int>> lmrTable1;
+
+void precomputeLRM1(int maxDepth, int maxI) {
+    static bool isPrecomputed = false;
+    if (isPrecomputed) return; // Only compute once
+
+    lmrTable1.resize(maxDepth + 1, std::vector<int>(maxI + 1));
+
+    for (int depth = maxDepth; depth >= 1; --depth) {
+        for (int i = maxI; i >= 1; --i) {
+            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
+        }
+    }
+
+    isPrecomputed = true;
+}
+
+/*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
 
@@ -357,7 +377,6 @@ int see(Board& board, Move move, int threadID) {
 /*--------------------------------------------------------------------------------------------
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
-
 int lateMoveReduction(Board& board, 
                     Move move, 
                     int i, 
@@ -373,7 +392,7 @@ int lateMoveReduction(Board& board,
         return depth - 1;
     } else {
         float histScore = historyTable[threadID][moveIndex(move)];
-        int R = 0.75 + static_cast<int> (0.75 * log(depth) * log (i));
+        int R = lmrTable1[depth][i];
         
         if (histScore > maxHistoryScore[threadID] * 0.5) {
             R--;
@@ -905,8 +924,10 @@ Move findBestMove(Board& board,
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
 
-    // Reset history scores 
+    // Precompute late move reduction table
+    precomputeLRM1(100, 500);
 
+    // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < 64 * 64; j++) {
             historyTable[i][j] = 0.0;
@@ -1180,7 +1201,8 @@ Move findBestMove(Board& board,
             stableEval = false;
         }
 
-        // Break out of the loop if the time limit is exceeded and the evaluation is stable.
+        // Break out of the loop if the time limit is exceeded and the evaluation is stable. 
+        //
         if (!timeLimitExceeded) {
             depth++;
         } else if (stableEval) {
@@ -1192,5 +1214,5 @@ Move findBestMove(Board& board,
     }
 
 
-    return bestMove; 
+    return bestMove;  
 }
