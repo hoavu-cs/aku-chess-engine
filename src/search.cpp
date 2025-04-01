@@ -1201,7 +1201,8 @@ Move findBestMove(Board& board,
             stableEval = false;
         }
 
-        // Break out of the loop if the time limit is exceeded and the evaluation is stable.
+        // Break out of the loop if the time limit is exceeded and the evaluation is stable. 
+        //
         if (!timeLimitExceeded) {
             depth++;
         } else if (stableEval) {
@@ -1213,5 +1214,5 @@ Move findBestMove(Board& board,
     }
 
 
-    return bestMove; 
+    return bestMove;  
 }
