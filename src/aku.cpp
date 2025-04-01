@@ -100,7 +100,6 @@ void extractTablebaseFiles() {
 
         // Check if the file already exists
         if (std::filesystem::exists(filePath)) {
-            //std::cout << "info skipping: " << filePath << " (already exists)" << std::endl;
             continue;
         }
 
@@ -278,11 +277,11 @@ void processGo(const std::vector<std::string>& tokens) {
     } else {
         // Determine the time limit based on the current player's time and increment
         if (board.sideToMove() == Color::WHITE && wtime > 0) {
-            int baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 40); 
-            timeLimit = static_cast<int>(baseTime * adjust) + winc;
+            int baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 20); 
+            timeLimit = static_cast<int>(baseTime * adjust) + winc / 3;
         } else if (board.sideToMove() == Color::BLACK && btime > 0) {
-            int baseTime = btime / (movestogo > 0 ? movestogo + 2 : 40); 
-            timeLimit = static_cast<int>(baseTime * adjust) + binc;
+            int baseTime = btime / (movestogo > 0 ? movestogo + 2 : 20); 
+            timeLimit = static_cast<int>(baseTime * adjust) + binc / 3;
         }
     }
     bestMove = findBestMove(board, numThreads, depth, timeLimit, quiet);

@@ -174,7 +174,7 @@ std::vector<std::vector<int>> lmrTable2;
 
 void precomputeLRM1(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
-    if (isPrecomputed) return; // Only compute once
+    if (isPrecomputed) return;
 
     lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
 
@@ -189,13 +189,13 @@ void precomputeLRM1(int maxDepth, int maxI) {
 
 void precomputeLRM2(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
-    if (isPrecomputed) return; // Only compute once
+    if (isPrecomputed) return;
 
-    lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
+    lmrTable2.resize(100 + 1, std::vector<int>(maxI + 1));
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable1[depth][i] =  static_cast<int>(1.0 + 0.5 * log(depth) * log(i));
+            lmrTable2[depth][i] =  static_cast<int>(1.0 + 0.75 * log(depth) * log(i));
         }
     }
 
@@ -285,10 +285,10 @@ std::vector<U64> nodeCount (maxThreadsID); // Node count for each thread
 std::vector<U64> tableHit (maxThreadsID); // Table hit count for each thread
 std::vector<Move> previousPV; // Principal variation from the previous iteration
 
-std::vector<std::vector<std::vector<Move>>> killerMoves(maxThreadsID, std::vector<std::vector<Move>> 
+std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); // Killer moves for each thread and ply
 
-std::vector<std::vector<float>> historyTable (maxThreadsID, std::vector<float>(64 * 64, 0)); 
+std::vector<std::vector<float>> histTable (maxThreadsID, std::vector<float>(64 * 64, 0)); 
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -322,7 +322,7 @@ bool isPromotion(const Move& move) {
     Update the killer moves. Currently using only 1 slot per ply.
 --------------------------------------------------------------------------------------------*/
 void updateKillerMoves(const Move& move, int ply, int threadID) {
-    killerMoves[threadID][ply][0] = move;
+    killer[threadID][ply][0] = move;
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -404,16 +404,14 @@ int lateMoveReduction(Board& board,
 
     if (isMopUpPhase(board)) return depth - 1;
 
-    if (i <= 2 || depth <= 2) { 
+    if (i <= 1 || depth <= 2) { 
         return depth - 1;
     } else {
-        float histScore = historyTable[threadID][moveIndex(move)];
+        float histScore = histTable[threadID][moveIndex(move)];
         int R1 = lmrTable1[depth][i];
-        //int R2 = lmrTable2[depth][i];
-        
+
         if (histScore > maxHistoryScore[threadID] * 0.5) {
             R1--;
-            //R2--;
         }
 
         return std::min(depth - R1, depth - 1);
@@ -435,11 +433,11 @@ std::vector<std::pair<Move, int>> orderedMoves(
     Movelist moves;
     movegen::legalmoves(moves, board);
 
-    std::vector<std::pair<Move, int>> candidatesPrimary;
-    std::vector<std::pair<Move, int>> candidatesSecondary;
+    std::vector<std::pair<Move, int>> nonQuiet;
+    std::vector<std::pair<Move, int>> quiet;
 
-    candidatesPrimary.reserve(moves.size());
-    candidatesSecondary.reserve(moves.size());
+    nonQuiet.reserve(moves.size());
+    quiet.reserve(moves.size());
 
     bool whiteTurn = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
@@ -465,12 +463,12 @@ std::vector<std::pair<Move, int>> orderedMoves(
             // These are best moves or moves that cause beta cutoffs
             if (tableMove == move && tableType == EntryType::EXACT) {
                 priority = 9000 + tableEval;
-                candidatesPrimary.push_back({tableMove, priority});
+                nonQuiet.push_back({tableMove, priority});
                 hashMove = true;
                 hashMoveFound = true;
             } else if (tableMove == move && tableType == EntryType::LOWERBOUND) {
                 priority = 8000 + tableEval;
-                candidatesPrimary.push_back({tableMove, priority});
+                nonQuiet.push_back({tableMove, priority});
                 hashMove = true;
                 hashMoveFound = true;
             }
@@ -488,12 +486,12 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
 
-            // if (seeScore < -600 * depth && depth <= 2) {
-            //     secondary = true;
-            //     priority = seeScore;
-            // }
+            if (seeScore < -600 * depth && depth <= 2) {
+                secondary = true;
+                priority = seeScore;
+            }
 
-        } else if (std::find(killerMoves[threadID][ply].begin(), killerMoves[threadID][ply].end(), move) != killerMoves[threadID][ply].end()) {
+        } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
               priority = 4000; // Killer move
         } else {
             board.makeMove(move);
@@ -505,31 +503,31 @@ std::vector<std::pair<Move, int>> orderedMoves(
             } else {
                 secondary = true;
                 U64 mvIndex = moveIndex(move);
-                priority = historyTable[threadID][mvIndex];
+                priority = histTable[threadID][mvIndex];
             }
         } 
 
         if (!secondary) {
-            candidatesPrimary.push_back({move, priority});
+            nonQuiet.push_back({move, priority});
         } else {
-            candidatesSecondary.push_back({move, priority});
+            quiet.push_back({move, priority});
         }
     }
 
     // Sort capture, promotion, checks by priority
-    std::sort(candidatesPrimary.begin(), candidatesPrimary.end(), [](const auto& a, const auto& b) {
+    std::sort(nonQuiet.begin(), nonQuiet.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
-    std::sort(candidatesSecondary.begin(), candidatesSecondary.end(), [](const auto& a, const auto& b) {
+    std::sort(quiet.begin(), quiet.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
-    for (const auto& move : candidatesSecondary) {
-        candidatesPrimary.push_back(move);
+    for (const auto& move : quiet) {
+        nonQuiet.push_back(move);
     }
 
-    return candidatesPrimary;
+    return nonQuiet;
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -844,16 +842,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
                 int mvIndex = moveIndex(move);
-                historyTable[threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
-                historyTable[threadID][mvIndex] = std::clamp(historyTable[threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
-                maxHistoryScore[threadID] = std::max(maxHistoryScore[threadID], historyTable[threadID][mvIndex]);
+                histTable[threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
+                histTable[threadID][mvIndex] = std::clamp(histTable[threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
+                maxHistoryScore[threadID] = std::max(maxHistoryScore[threadID], histTable[threadID][mvIndex]);
             }
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
-                historyTable[threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
-                historyTable[threadID][mvIndex] = std::clamp(historyTable[threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
-                minHistoryScore[threadID] = std::min(minHistoryScore[threadID], historyTable[threadID][mvIndex]);
+                histTable[threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
+                histTable[threadID][mvIndex] = std::clamp(histTable[threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
+                minHistoryScore[threadID] = std::min(minHistoryScore[threadID], histTable[threadID][mvIndex]);
             }
 
             break;
@@ -908,7 +906,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 --------------------------------------------------------------------------------------------*/
 Move findBestMove(Board& board, 
                 int numThreads = 4, 
-                int maxDepth = 8, 
+                int maxDepth = 30, 
                 int timeLimit = 15000,
                 bool quiet = false) {
 
@@ -924,7 +922,7 @@ Move findBestMove(Board& board,
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < 64 * 64; j++) {
-            historyTable[i][j] = 0.0;
+            histTable[i][j] = 0.0;
             maxHistoryScore[i] = 0.0;
             minHistoryScore[i] = 0.0;
         }
@@ -934,7 +932,7 @@ Move findBestMove(Board& board,
     // Reset killer moves for each thread and ply
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < ENGINE_DEPTH; j++) {
-            killerMoves[i][j] = {};
+            killer[i][j] = {};
         }
     }
 
