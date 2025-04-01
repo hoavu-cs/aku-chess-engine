@@ -404,7 +404,7 @@ int lateMoveReduction(Board& board,
 
     if (isMopUpPhase(board)) return depth - 1;
 
-    if (i <= 1 || depth <= 2) { 
+    if (i <= 5 || depth <= 2) { 
         return depth - 1;
     } else {
         float histScore = histTable[threadID][moveIndex(move)];
