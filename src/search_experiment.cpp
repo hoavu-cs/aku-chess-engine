@@ -170,16 +170,32 @@ float HISTDEC3 = 20.0;
     Late move reduction parameters.
 --------------------------------------------------------------------------------------------*/
 std::vector<std::vector<int>> lmrTable1;
+std::vector<std::vector<int>> lmrTable2;
 
 void precomputeLRM1(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return; // Only compute once
 
-    lmrTable1.resize(maxDepth + 1, std::vector<int>(maxI + 1));
+    lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
             lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
+        }
+    }
+
+    isPrecomputed = true;
+}
+
+void precomputeLRM2(int maxDepth, int maxI) {
+    static bool isPrecomputed = false;
+    if (isPrecomputed) return; // Only compute once
+
+    lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
+
+    for (int depth = maxDepth; depth >= 1; --depth) {
+        for (int i = maxI; i >= 1; --i) {
+            lmrTable1[depth][i] =  static_cast<int>(1.0 + 0.5 * log(depth) * log(i));
         }
     }
 
@@ -392,13 +408,15 @@ int lateMoveReduction(Board& board,
         return depth - 1;
     } else {
         float histScore = historyTable[threadID][moveIndex(move)];
-        int R = lmrTable1[depth][i];
+        int R1 = lmrTable1[depth][i];
+        //int R2 = lmrTable2[depth][i];
         
         if (histScore > maxHistoryScore[threadID] * 0.5) {
-            R--;
+            R1--;
+            //R2--;
         }
 
-        return std::min(depth - R, depth - 1);
+        return std::min(depth - R1, depth - 1);
     }
 }
 
@@ -784,21 +802,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
 
-        
-        // if (extensions && board.inCheck()) {
-        //     // Check extensions
-        //     nextDepth++;
-        //     childNodeInfo.extensions--;
-        //     childNodeInfo.ply++;
-        // } else 
-        
-        // if (extensions && moves.size() <= 1) {
-        //     // forced move extensions
-        //     nextDepth++;
-        //     childNodeInfo.extensions--;
-        //     childNodeInfo.ply++;
-        // } 
-
         if (i == 0) {
             // full window & full depth search for the first node
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeInfo);
@@ -811,16 +814,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.unmakeMove(move);
         bool alphaRaised = eval > alpha;
         bool reducedDepth = nextDepth < depth - 1;
-
-        // if (alphaRaised && reducedDepth && nullWindow && isPV) {
-        //     // If alpha is raised and we reduced the depth, research with full depth but still with a null window
-        //     board.makeMove(move);
-        //     eval = -negamax(board, depth - 1, -(alpha + 1), -alpha, childPV, childNodeInfo);
-        //     board.unmakeMove(move);
-        // } 
-
-        // // After this, check if we have raised alpha
-        // alphaRaised = eval > alpha;
 
         if (alphaRaised && (nullWindow || reducedDepth)  && isPV) {
             // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
@@ -926,6 +919,7 @@ Move findBestMove(Board& board,
 
     // Precompute late move reduction table
     precomputeLRM1(100, 500);
+    precomputeLRM2(100, 500);
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
