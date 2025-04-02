@@ -5,7 +5,7 @@ Command for Mac/Linux ./fastchess-ubuntu-22.04  -engine cmd=aku_experiment name=
 
 
 ```
-**Check and forced move extension SPRT Test **
+**Check and forced move extension SPRT Test**
 Results of NewAku vs OldAku (15+0.1, 10t, NULL, 8moves_v3.pgn):
 Elo: 27.17 +/- 15.93, nElo: 31.68 +/- 18.48
 LOS: 99.96 %, DrawRatio: 34.02 %, PairsRatio: 1.38
