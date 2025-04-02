@@ -56,6 +56,20 @@ void initializeNNUE() {
 }
 
 /*-------------------------------------------------------------------------------------------- 
+    Parameters for pruning, later move reduction, etc.
+    These are tuned using annealing.
+--------------------------------------------------------------------------------------------*/
+
+// History heuristic parameters
+float HISTINC1 = 20;
+float HISTINC2 = 13.8752;
+float HISTINC3 = 18.6874;
+
+float HISTDEC1 = 20.0;
+float HISTDEC2 = 20.0;
+float HISTDEC3 = 20.0;
+
+/*-------------------------------------------------------------------------------------------- 
     Initialize and look up endgame tablebases.
 --------------------------------------------------------------------------------------------*/
 void initializeTB(std::string path) {
@@ -152,21 +166,6 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Parameters for pruning, later move reduction, etc.
-    These are tuned using annealing.
---------------------------------------------------------------------------------------------*/
-
-// History heuristic parameters
-float HISTINC1 = 20;
-float HISTINC2 = 13.8752;
-float HISTINC3 = 18.6874;
-
-float HISTDEC1 = 20.0;
-float HISTDEC2 = 20.0;
-float HISTDEC3 = 20.0;
-
-
-/*-------------------------------------------------------------------------------------------- 
     Late move reduction parameters.
 --------------------------------------------------------------------------------------------*/
 std::vector<std::vector<int>> lmrTable1;
@@ -211,8 +210,8 @@ int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 50;
 
-std::vector<float> maxHistoryScore (maxThreadsID, 0); // Maximum history score for each thread
-std::vector<float> minHistoryScore (maxThreadsID, 0); // Minimum history score for each thread
+std::vector<float> maxHistScore (maxThreadsID, 0); // Maximum history score for each thread
+std::vector<float> minHistScore (maxThreadsID, 0); // Minimum history score for each thread
 
 enum EntryType {
     EXACT,
@@ -404,13 +403,13 @@ int lateMoveReduction(Board& board,
 
     if (isMopUpPhase(board)) return depth - 1;
 
-    if (i <= 5 || depth <= 2) { 
+    if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
         float histScore = histTable[threadID][moveIndex(move)];
         int R1 = lmrTable1[depth][i];
 
-        if (histScore > maxHistoryScore[threadID] * 0.5) {
+        if (histScore > maxHistScore[threadID] * 0.5) {
             R1--;
         }
 
@@ -485,12 +484,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
-
-            if (seeScore < -600 * depth && depth <= 2) {
-                secondary = true;
-                priority = seeScore;
-            }
-
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
               priority = 4000; // Killer move
         } else {
@@ -800,6 +793,15 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
 
+        // ~  Elo
+        if (extensions && board.inCheck()) { // check extension
+            nextDepth++;
+            childNodeInfo.extensions--; 
+        } else if (extensions && moves.size() == 1) { // forced move extension
+            nextDepth++;
+            childNodeInfo.extensions--;
+        }
+
         if (i == 0) {
             // full window & full depth search for the first node
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeInfo);
@@ -844,14 +846,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 int mvIndex = moveIndex(move);
                 histTable[threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
                 histTable[threadID][mvIndex] = std::clamp(histTable[threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
-                maxHistoryScore[threadID] = std::max(maxHistoryScore[threadID], histTable[threadID][mvIndex]);
+                maxHistScore[threadID] = std::max(maxHistScore[threadID], histTable[threadID][mvIndex]);
             }
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
                 histTable[threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
                 histTable[threadID][mvIndex] = std::clamp(histTable[threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
-                minHistoryScore[threadID] = std::min(minHistoryScore[threadID], histTable[threadID][mvIndex]);
+                minHistScore[threadID] = std::min(minHistScore[threadID], histTable[threadID][mvIndex]);
             }
 
             break;
@@ -911,23 +913,22 @@ Move findBestMove(Board& board,
                 bool quiet = false) {
 
     auto startTime = std::chrono::high_resolution_clock::now();
-    hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
-    softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
 
+    hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
+    softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
+    
     // Precompute late move reduction table
     precomputeLRM1(100, 500);
-    precomputeLRM2(100, 500);
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < 64 * 64; j++) {
             histTable[i][j] = 0.0;
-            maxHistoryScore[i] = 0.0;
-            minHistoryScore[i] = 0.0;
+            maxHistScore[i] = 0.0;
+            minHistScore[i] = 0.0;
         }
     }
-    
 
     // Reset killer moves for each thread and ply
     for (int i = 0; i < maxThreadsID; i++) {

@@ -307,7 +307,6 @@ bool knownDraw(const Board& board) {
 
 }
 
-
 /*------------------------------------------------------------------------
     Calculate material imbalance in centipawn
 ------------------------------------------------------------------------*/
@@ -534,42 +533,9 @@ bool isMopUpPhase(Board& board) {
         return false;
     } else if (std::abs(whiteMaterial - blackMaterial) > 4) {
         // This covers cases such as KQvK, KRvK, KQvKR, KBBvK
-        // Less obvious cases are also covered , KR+minor pieces v K+minor, 
         return true;
     }
 
     // Otherwise, if we have K + a minor piece, or KR vs K + minor piece, it's drawish
-    return false;
-}
-
-
-/*-------------------------------------------------------------------------------------------- 
-    Check for tactical threats beside the obvious checks, captures, and promotions.
-    To be expanded. 
---------------------------------------------------------------------------------------------*/
-bool mateThreatMove(Board& board, Move move) {
-    Color color = board.sideToMove();
-    PieceType type = board.at<Piece>(move.from()).type();
-
-    Bitboard theirKing = board.pieces(PieceType::KING, !color);
-
-    int destinationIndex = move.to().index();   
-    int destinationFile = destinationIndex % 8;
-    int destinationRank = destinationIndex / 8;
-
-    int theirKingFile = theirKing.lsb() % 8;
-    int theirKingRank = theirKing.lsb() / 8;
-
-    if (manhattanDistance(move.to(), Square(theirKing.lsb())) <= 3) {
-        return true;
-    }
-
-    if (type == PieceType::ROOK || type == PieceType::QUEEN) {
-        if (abs(destinationFile - theirKingFile) <= 1 && 
-            abs(destinationRank - theirKingRank) <= 1) {
-            return true;
-        }
-    }
-
     return false;
 }
