@@ -417,10 +417,6 @@ int lateMoveReduction(Board& board,
             R1--;
         }
 
-        if (isPV) { // testing
-            R1--;
-        }
-
         return std::min(depth - R1, depth - 1);
     }
 }
@@ -682,9 +678,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (tableDepth >= depth) found = true;
     }
 
-    // if (found && tableType == EXACT) {
-    //     return tableEval;
-    // }  
+    if (found && tableType == EXACT) {
+        return tableEval;
+    }  
 
     if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
