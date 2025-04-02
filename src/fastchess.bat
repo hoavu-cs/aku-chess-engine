@@ -1,1 +1,20 @@
-./fastchess.exe -engine cmd=aku_experiment_new.exe name=NewAku -engine cmd=aku_experiment_old.exe name=OldAku -each tc=15+0.1 -rounds 10000 -repeat -concurrency 4 -openings file=8moves_v3.pgn format=pgn -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05
+./fastchess -engine cmd=aku_experiment name=NewAku -engine cmd=aku name=OldAku -each tc=15+0.1 -rounds 10000 -repeat -concurrency 4 -openings file=8moves_v3.pgn format=pgn -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05
+
+
+Check and forced move extension SPRT Test 
+
+Results of NewAku vs OldAku (15+0.1, 10t, NULL, 8moves_v3.pgn):
+Elo: 27.17 +/- 15.93, nElo: 31.68 +/- 18.48
+LOS: 99.96 %, DrawRatio: 34.02 %, PairsRatio: 1.38
+Games: 1358, Wins: 544, Losses: 438, Draws: 376, Points: 732.0 (53.90 %)
+Ptnml(0-2): [77, 111, 231, 149, 111], WL/DD Ratio: 2.98
+LLR: 2.97 (100.8%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+SPRT ([0.00, 10.00]) completed - H1 was accepted
+
+Player: NewAku
+  Timeouts: 64
+  Crashed: 0
+Player: OldAku
+  Timeouts: 68
+  Crashed: 0
