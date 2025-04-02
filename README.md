@@ -26,6 +26,8 @@ Currently, the engine is pretty strong and based on some simple concepts:
 - There are 2 transposition tables for PV and non-PV nodes
 - Late move reduction
 
+Progress is currently tracked using Sequential Probability Ratio Test [SPRT LOG](https://github.com/hoavu-cs/aku-chess-engine/tree/main/sprt).
+
 Some benchmark match results:
 
 - **vs Glaurung 2.2**: **+5 -0 =1** in a 6-game match with time control 15/40.
