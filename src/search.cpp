@@ -49,6 +49,7 @@ typedef std::uint64_t U64;
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
+    Utility function to convert board to pieces array for fast evaluation.
 --------------------------------------------------------------------------------------------*/
 void initializeNNUE() {
     std::cout << "Initializing NNUE." << std::endl;

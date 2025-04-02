@@ -49,6 +49,7 @@ typedef std::uint64_t U64;
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
+    Utility function to convert board to pieces array for fast evaluation.
 --------------------------------------------------------------------------------------------*/
 void initializeNNUE() {
     std::cout << "Initializing NNUE." << std::endl;
@@ -696,7 +697,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
     int standPat = Probe::eval(board.getFen().c_str());
 
-
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
         Avoid pruning in the endgame phase, when alpha is close to the mate score (to avoid missing 
@@ -743,6 +743,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         threadID);
     int bestEval = -INF;
     bool searchAllFlag = false;
+
+    // Randomly exchange the 2nd and 3rd moves with a small probability
+    if (nodeCount[threadID] % 4 == 0 && moves.size() > 2) {
+        std::swap(moves[1], moves[2]);
+    }
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
@@ -1031,6 +1036,8 @@ Move findBestMove(Board& board,
                 Move move = moves[i].first;
 
                 if (depth > 8 && i > 9) {
+                    // Ignore late moves after a certain depth
+                    // Repeatedly search the top moves instead (lazySMP style)
                     move = moves[i % 9].first;
                 }
 

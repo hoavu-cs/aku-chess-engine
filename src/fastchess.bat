@@ -1,4 +1,4 @@
-./fastchess -engine cmd=aku_experiment name=NewAku -engine cmd=aku name=OldAku -each tc=15+0.1 -rounds 10000 -repeat -concurrency 4 -openings file=8moves_v3.pgn format=pgn -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05
+./fastchess -engine cmd=aku_experiment name=NewAku -engine cmd=aku name=OldAku -each tc=15+0.1 -rounds 10000 -repeat -concurrency 4 -openings file=8moves_v3.pgn format=pgn -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05
 
 
 Check and forced move extension SPRT Test 

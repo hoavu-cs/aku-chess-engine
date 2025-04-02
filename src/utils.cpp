@@ -474,6 +474,10 @@ int mopUpScore(const Board& board) {
     return 0;
 }
 
+/*-------------------------------------------------------------------------------------------- 
+    Return the score of a move based on the piece type and the destination square.
+    Currently not used.
+--------------------------------------------------------------------------------------------*/
 int moveScoreByTable(const Board& board, Move move) {
     PieceType pieceType = board.at<Piece>(move.from()).type();
     Color color = board.at<Piece>(move.from()).color();
