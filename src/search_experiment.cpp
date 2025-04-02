@@ -847,7 +847,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
 
             if (!board.isCapture(move)) {
-                updateKillerMoves(move, ply, threadID);
+                if (isPV) {
+                    updateKillerMoves(move, ply, threadID);
+                }
+
                 int mvIndex = moveIndex(move);
                 histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
                 histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
