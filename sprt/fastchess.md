@@ -5,6 +5,7 @@ Command for Mac/Linux ./fastchess-ubuntu-22.04  -engine cmd=aku_experiment name=
 
 **Check and forced move extension SPRT Test**
 ```
+--------------------------------------------------
 Results of NewAku vs OldAku (15+0.1, 10t, NULL, 8moves_v3.pgn):
 Elo: 27.17 +/- 15.93, nElo: 31.68 +/- 18.48
 LOS: 99.96 %, DrawRatio: 34.02 %, PairsRatio: 1.38
@@ -24,10 +25,20 @@ Player: OldAku
 
 **Changes history score from (from, to) to (side to move, from, to)**
 ```
+--------------------------------------------------
 Results of NewAku vs OldAku (15+0.1, 10t, NULL, imbalanced_book.epd):
 Elo: 20.93 +/- 13.75, nElo: 23.29 +/- 15.25
 LOS: 99.86 %, DrawRatio: 43.53 %, PairsRatio: 1.29
 Games: 1994, Wins: 942, Losses: 822, Draws: 230, Points: 1057.0 (53.01 %)
 Ptnml(0-2): [152, 94, 434, 116, 201], WL/DD Ratio: 42.40
 LLR: 3.00 (102.0%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+SPRT ([0.00, 10.00]) completed - H1 was accepted
+
+Player: OldAku
+  Timeouts: 219
+  Crashed: 0
+Player: NewAku
+  Timeouts: 181
+  Crashed: 0
 ```
