@@ -786,18 +786,19 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             - If the depth is reduced and alpha is raised, research with full depth but still 
             with a null window.
             - Then, if alpha is raised, re-search with a full window & full depth. 
-
         --------------------------------------------------------------------------------------------*/
         board.makeMove(move);
         bool nullWindow = false;
 
         NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
 
-        // ~  Elo
-        if (extensions && board.inCheck()) { // check extension
+        // ~ 35 Elo
+        if (extensions && board.inCheck()) { 
+            // check extension
             nextDepth++;
             childNodeInfo.extensions--; 
-        } else if (extensions && moves.size() == 1) { // forced move extension
+        } else if (extensions && moves.size() == 1) { 
+            // forced move extension
             nextDepth++;
             childNodeInfo.extensions--;
         }
