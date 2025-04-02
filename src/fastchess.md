@@ -3,9 +3,8 @@ Command for windows ./fastchess -engine cmd=aku_experiment.exe name=NewAku -engi
 Command for Mac/Linux ./fastchess-ubuntu-22.04  -engine cmd=aku_experiment name=NewAku -engine cmd=aku name=OldAku -each tc=15+0.1 -rounds 10000 -repeat -concurrency 4 -openings file=imbalanced_book.epd format=epd -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05
 
 
-
-```
 **Check and forced move extension SPRT Test**
+```
 Results of NewAku vs OldAku (15+0.1, 10t, NULL, 8moves_v3.pgn):
 Elo: 27.17 +/- 15.93, nElo: 31.68 +/- 18.48
 LOS: 99.96 %, DrawRatio: 34.02 %, PairsRatio: 1.38
