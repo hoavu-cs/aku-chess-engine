@@ -744,10 +744,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
-    // Randomly exchange the 2nd and 3rd moves with a small probability
-    if (nodeCount[threadID] % 4 == 0 && moves.size() > 2) {
-        std::swap(moves[1], moves[2]);
-    }
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
@@ -1182,6 +1178,7 @@ Move findBestMove(Board& board,
         }
 
         if (moves.size() == 1) {
+            // If there is only one move, return it immediately.
             return moves[0].first;
         }
 
@@ -1193,6 +1190,11 @@ Move findBestMove(Board& board,
 
         evals[depth] = bestEval;
         candidateMove[depth] = bestMove; 
+
+        for (int j = 0; j < maxThreadsID; j++) {
+            // increment the history score for the best move
+            histTable[j][moveIndex(bestMove)] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
+        }
 
         // Check for stable evaluation
         bool stableEval = true;
