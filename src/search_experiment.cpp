@@ -417,6 +417,10 @@ int lateMoveReduction(Board& board,
             R1--;
         }
 
+        if (isPV) { // testing
+            R1--;
+        }
+
         return std::min(depth - R1, depth - 1);
     }
 }
@@ -847,9 +851,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
 
             if (!board.isCapture(move)) {
-                if (isPV) {
-                    updateKillerMoves(move, ply, threadID);
-                }
+                updateKillerMoves(move, ply, threadID);
 
                 int mvIndex = moveIndex(move);
                 histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
