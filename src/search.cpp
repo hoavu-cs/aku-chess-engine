@@ -211,8 +211,8 @@ int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 50;
 
-std::vector<float> maxHistScore (maxThreadsID, 0); // Maximum history score for each thread
-std::vector<float> minHistScore (maxThreadsID, 0); // Minimum history score for each thread
+std::vector<std::vector<float>> maxHistScore(2, std::vector<float>(maxThreadsID, 0)); // Maximum history score for each thread, for each side
+std::vector<std::vector<float>> minHistScore(2, std::vector<float>(maxThreadsID, 0)); // Minimum history score for each thread, for each side
 
 enum EntryType {
     EXACT,
@@ -285,10 +285,12 @@ std::vector<U64> nodeCount (maxThreadsID); // Node count for each thread
 std::vector<U64> tableHit (maxThreadsID); // Table hit count for each thread
 std::vector<Move> previousPV; // Principal variation from the previous iteration
 
+// Killer moves for each thread and ply
 std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std::vector<Move>> 
-    (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); // Killer moves for each thread and ply
+    (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
 
-std::vector<std::vector<float>> histTable (maxThreadsID, std::vector<float>(64 * 64, 0)); 
+// History table for move ordering (side to move, thread ID, move index)
+std::vector<std::vector<std::vector<float>>> histTable(2, std::vector<std::vector<float>>(maxThreadsID, std::vector<float>(64 * 64, 0)));
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -403,14 +405,15 @@ int lateMoveReduction(Board& board,
                     int threadID) {
 
     if (isMopUpPhase(board)) return depth - 1;
+    bool stm = board.sideToMove() == Color::WHITE;
 
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        float histScore = histTable[threadID][moveIndex(move)];
+        float histScore = histTable[stm][threadID][moveIndex(move)];
         int R1 = lmrTable1[depth][i];
 
-        if (histScore > maxHistScore[threadID] * 0.5) {
+        if (histScore > maxHistScore[stm][threadID] * 0.5) {
             R1--;
         }
 
@@ -439,7 +442,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
     nonQuiet.reserve(moves.size());
     quiet.reserve(moves.size());
 
-    bool whiteTurn = board.sideToMove() == Color::WHITE;
+    bool stm = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
     U64 hash = board.hash();
     bool hashMoveFound = false;
@@ -497,7 +500,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             } else {
                 secondary = true;
                 U64 mvIndex = moveIndex(move);
-                priority = histTable[threadID][mvIndex];
+                priority = histTable[stm][threadID][mvIndex];
             }
         } 
 
@@ -627,7 +630,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
     bool isPV = (alpha < beta - 1);
     int alpha0 = alpha;
-    bool whiteTurn = (board.sideToMove() == Color::WHITE);
+    bool stm = (board.sideToMove() == Color::WHITE);
     
     // Check if the game is over
     auto gameOverResult = board.isGameOver();
@@ -697,7 +700,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
     int standPat = Probe::eval(board.getFen().c_str());
 
-
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
         Avoid pruning in the endgame phase, when alpha is close to the mate score (to avoid missing 
@@ -744,6 +746,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         threadID);
     int bestEval = -INF;
     bool searchAllFlag = false;
+
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
@@ -846,16 +849,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
                 int mvIndex = moveIndex(move);
-                histTable[threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
-                histTable[threadID][mvIndex] = std::clamp(histTable[threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
-                maxHistScore[threadID] = std::max(maxHistScore[threadID], histTable[threadID][mvIndex]);
+                histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
+                maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
-                histTable[threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
-                histTable[threadID][mvIndex] = std::clamp(histTable[threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
-                minHistScore[threadID] = std::min(minHistScore[threadID], histTable[threadID][mvIndex]);
+                histTable[stm][threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
+                minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
             break;
@@ -926,9 +929,10 @@ Move findBestMove(Board& board,
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < 64 * 64; j++) {
-            histTable[i][j] = 0.0;
-            maxHistScore[i] = 0.0;
-            minHistScore[i] = 0.0;
+            histTable[0][i][j] = 0.0;
+            histTable[1][i][j] = 0.0;
+            maxHistScore[0][i] = 0.0;
+            minHistScore[1][i] = 0.0;
         }
     }
 
@@ -1032,6 +1036,8 @@ Move findBestMove(Board& board,
                 Move move = moves[i].first;
 
                 if (depth > 8 && i > 9) {
+                    // Ignore late moves after a certain depth
+                    // Repeatedly search the top moves instead (lazySMP style)
                     move = moves[i % 9].first;
                 }
 
@@ -1176,6 +1182,7 @@ Move findBestMove(Board& board,
         }
 
         if (moves.size() == 1) {
+            // If there is only one move, return it immediately.
             return moves[0].first;
         }
 
