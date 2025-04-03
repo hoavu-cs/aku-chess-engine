@@ -169,33 +169,17 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 /*-------------------------------------------------------------------------------------------- 
     Late move reduction parameters.
 --------------------------------------------------------------------------------------------*/
-std::vector<std::vector<int>> lmrTable1;
-std::vector<std::vector<int>> lmrTable2;
+std::vector<std::vector<int>> lmrTable;
 
 void precomputeLRM1(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
 
-    lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
+    lmrTable.resize(100 + 1, std::vector<int>(maxI + 1));
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
-        }
-    }
-
-    isPrecomputed = true;
-}
-
-void precomputeLRM2(int maxDepth, int maxI) {
-    static bool isPrecomputed = false;
-    if (isPrecomputed) return;
-
-    lmrTable2.resize(100 + 1, std::vector<int>(maxI + 1));
-
-    for (int depth = maxDepth; depth >= 1; --depth) {
-        for (int i = maxI; i >= 1; --i) {
-            lmrTable2[depth][i] =  static_cast<int>(1.0 + 0.75 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
         }
     }
 
@@ -206,10 +190,12 @@ void precomputeLRM2(int maxDepth, int maxI) {
     Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
 
-int tableSize = 12582912; // Maximum size of the transposition table
+int tableSize = 8388608; // Maximum size of the transposition table. Default 512MB.
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 50;
+
+std::vector<std::vector<int>> counterMoves(maxThreadsID, std::vector<int>(64 * 64, 0)); // Counter moves for each thread
 
 std::vector<std::vector<float>> maxHistScore(2, std::vector<float>(maxThreadsID, 0)); // Maximum history score for each thread, for each side
 std::vector<std::vector<float>> minHistScore(2, std::vector<float>(maxThreadsID, 0)); // Minimum history score for each thread, for each side
@@ -411,7 +397,7 @@ int lateMoveReduction(Board& board,
         return depth - 1;
     } else {
         float histScore = histTable[stm][threadID][moveIndex(move)];
-        int R1 = lmrTable1[depth][i];
+        int R1 = lmrTable[depth][i];
 
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
             R1--;
@@ -490,8 +476,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 4000 + seeScore;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000; // Killer move
+        } else if (counterMoves[threadID][moveIndex(lastMove)] == moveIndex(move)) {
+            priority = 3800; // Counter move
         } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
-            priority = 3700;  
+            priority = 3700; // Killer move from 2 plies ago
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
@@ -853,14 +841,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
                 int mvIndex = moveIndex(move);
                 histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-1000), static_cast<float>(1000));
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
+
+                // Update counter move
+                counterMoves[threadID][moveIndex(lastMove)] = moveIndex(move);
             }
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
                 histTable[stm][threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-1000), static_cast<float>(1000));
                 minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
