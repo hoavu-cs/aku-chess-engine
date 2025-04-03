@@ -206,7 +206,7 @@ void precomputeLRM2(int maxDepth, int maxI) {
     Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
 
-int maxTableSize = 12e6; // Maximum size of the transposition table
+int tableSize = 12582912; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 50;
@@ -234,7 +234,7 @@ struct LockedTableEntry {
     TableEntry entry;
 };
 
-std::vector<LockedTableEntry> ttTable(maxTableSize); 
+std::vector<LockedTableEntry> ttTable(tableSize); 
 
 bool tableLookUp(Board& board, 
     int& depth, 
@@ -678,9 +678,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (tableDepth >= depth) found = true;
     }
 
-    if (found && tableType == EXACT) {
-        return tableEval;
-    }  
+    // if (found && tableType == EXACT) {
+    //     return tableEval;
+    // }  
 
     if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
@@ -917,6 +917,11 @@ Move findBestMove(Board& board,
                 int maxDepth = 30, 
                 int timeLimit = 15000,
                 bool quiet = false) {
+
+    // Update if the size for the transposition table changes.
+    if (ttTable.size() != tableSize) {
+        std::cout << "Update table size" << std::endl;
+    }
 
     auto startTime = std::chrono::high_resolution_clock::now();
     bool timeLimitExceeded = false;

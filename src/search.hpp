@@ -32,8 +32,7 @@ using namespace chess;
 
 // Constants & global variables
 const int INF = 100000;
-extern int maxTableSize; // Maximum size of the transposition table
-
+extern int tableSize; // Maximum size of the transposition table
 
 // Function Declarations
 void initializeNNUE();

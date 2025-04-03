@@ -219,6 +219,8 @@ void processSetOption(const std::vector<std::string>& tokens) {
         // Set number of threads
     } else if (optionName == "Depth") {
         depth = std::stoi(value);
+    } else if (optionName == "Hash") {
+        tableSize = std::stoi(value) * 1024 * 1024 / 64;
     } else {
         std::cerr << "Unknown option: " << optionName << std::endl;
     }
@@ -297,10 +299,11 @@ void processGo(const std::vector<std::string>& tokens) {
  * Handles the "uci" command and sends engine information.
  */
 void processUci() {
-    std::cout << "Engine's name: " << ENGINE_NAME << std::endl;
-    std::cout << "Author:" << ENGINE_AUTHOR << std::endl;
+    std::cout << "id name " << ENGINE_NAME << std::endl;
+    std::cout << "id author " << ENGINE_AUTHOR << std::endl;
     std::cout << "option name Threads type spin default 10 min 1 max 10" << std::endl;
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
+    std::cout << "option name Hash type spin default 768 min 128 max 1024" << std::endl;
     std::cout << "uciok" << std::endl;
 }
 
@@ -343,9 +346,7 @@ void uciLoop() {
 }
 
 int main() {
-    
     initializeNNUE();
-
     std::string path = getExecutablePath() + "/tables/";
     extractTablebaseFiles();
     initializeTB(path);
