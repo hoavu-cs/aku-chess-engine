@@ -489,7 +489,9 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
-              priority = 4000; // Killer move
+            priority = 4000; // Killer move
+        } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
+            priority = 3700;  
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
