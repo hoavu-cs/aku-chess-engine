@@ -400,9 +400,7 @@ int lateMoveReduction(Board& board,
 
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
             R--;
-        } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
-            R--;
-        }
+        } 
 
         if (seeScore <= -300) {
             R++;
