@@ -276,10 +276,6 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // History table for move ordering (side to move, thread ID, move index)
 std::vector<std::vector<std::vector<float>>> histTable(2, std::vector<std::vector<float>>(maxThreadsID, std::vector<float>(64 * 64, 0)));
 
-// Evaluations for each depth on the current path
-std::vector<std::vector<int>> pathEvals(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0));
-
-
 // Basic piece values for move ordering
 const int pieceValues[] = {
     0,    // No piece
@@ -694,7 +690,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     int standPat = Probe::eval(board.getFen().c_str());
-    pathEvals[threadID][ply] = standPat;
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -1059,8 +1054,6 @@ Move findBestMove(Board& board,
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, 0, leftMost, omp_get_thread_num());
                 int eval = -INF;
                 int extensions = 1;
-
-                pathEvals[omp_get_thread_num()][0] = Probe::eval(localBoard.getFen().c_str());
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
 
