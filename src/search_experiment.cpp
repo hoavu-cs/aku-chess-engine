@@ -841,7 +841,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
                 int mvIndex = moveIndex(move);
                 histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-1000), static_cast<float>(1000));
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-10e6), static_cast<float>(10e6));
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
 
                 // Update counter move
@@ -851,7 +851,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
                 histTable[stm][threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-1000), static_cast<float>(1000));
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-10e6), static_cast<float>(10e6));
                 minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
