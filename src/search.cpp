@@ -206,7 +206,7 @@ void precomputeLRM2(int maxDepth, int maxI) {
     Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
 
-int tableSize = 8454144; // Maximum size of the transposition table
+int tableSize = 8388608; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 50;

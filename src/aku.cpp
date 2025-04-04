@@ -303,7 +303,7 @@ void processUci() {
     std::cout << "id author " << ENGINE_AUTHOR << std::endl;
     std::cout << "option name Threads type spin default 10 min 1 max 10" << std::endl;
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
-    std::cout << "option name Hash type spin default 516 min 128 max 1024" << std::endl;
+    std::cout << "option name Hash type spin default 512 min 128 max 1024" << std::endl;
     std::cout << "uciok" << std::endl;
 }
 
