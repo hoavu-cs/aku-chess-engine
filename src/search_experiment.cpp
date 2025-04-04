@@ -396,13 +396,17 @@ int lateMoveReduction(Board& board,
         return depth - 1;
     } else {
         float histScore = histTable[stm][threadID][moveIndex(move)];
-        int R1 = lmrTable[depth][i];
+        int R = lmrTable[depth][i];
 
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
-            R1--;
-        }
+            R--;
+        } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
+            R--;
+        } else if (std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
+            R--;
+        } 
 
-        return std::min(depth - R1, depth - 1);
+        return std::min(depth - R, depth - 1);
     }
 }
 
@@ -477,8 +481,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 4000; // Killer move
         } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
             priority = 3700;  
-        } else if (ply < ENGINE_DEPTH - 2 && std::find(killer[threadID][ply + 2].begin(), killer[threadID][ply + 2].end(), move) != killer[threadID][ply + 2].end()) {
-            priority = 3650; 
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
