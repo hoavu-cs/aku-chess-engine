@@ -477,6 +477,8 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 4000; // Killer move
         } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
             priority = 3700;  
+        } else if (ply < ENGINE_DEPTH - 2 && std::find(killer[threadID][ply + 2].begin(), killer[threadID][ply + 2].end(), move) != killer[threadID][ply + 2].end()) {
+            priority = 3650; 
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
@@ -1041,7 +1043,7 @@ Move findBestMove(Board& board,
                 bool newBestFlag = false;  
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost, omp_get_thread_num());
                 int eval = -INF;
-                int extensions = 2;
+                int extensions = 1;
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
 
