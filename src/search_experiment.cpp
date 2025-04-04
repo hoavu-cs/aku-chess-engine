@@ -171,7 +171,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 std::vector<std::vector<int>> lmrTable;
 
-void precomputeLRM(int maxDepth, int maxI) {
+void precomputeLRM1(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
 
@@ -185,7 +185,6 @@ void precomputeLRM(int maxDepth, int maxI) {
 
     isPrecomputed = true;
 }
-
 
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and insert.
@@ -276,6 +275,10 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 
 // History table for move ordering (side to move, thread ID, move index)
 std::vector<std::vector<std::vector<float>>> histTable(2, std::vector<std::vector<float>>(maxThreadsID, std::vector<float>(64 * 64, 0)));
+
+// Evaluations for each depth on the current path
+std::vector<std::vector<int>> pathEvals(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0));
+
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -400,11 +403,11 @@ int lateMoveReduction(Board& board,
 
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
             R--;
-        } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
-            R--;
-        } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
-            R--;
         } 
+
+        if (ply >= 2 && pathEvals[threadID][ply] - pathEvals[threadID][ply - 2] > 100) {
+            R--; // reduce less if improving
+        }
 
         return std::min(depth - R, depth - 1);
     }
@@ -690,6 +693,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     int standPat = Probe::eval(board.getFen().c_str());
+    pathEvals[threadID][ply] = standPat;
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -921,7 +925,7 @@ Move findBestMove(Board& board,
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
     // Precompute late move reduction table
-    precomputeLRM(100, 500);
+    precomputeLRM1(100, 500);
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
@@ -1046,6 +1050,8 @@ Move findBestMove(Board& board,
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost, omp_get_thread_num());
                 int eval = -INF;
                 int extensions = 1;
+
+                pathEvals[omp_get_thread_num()][0] = Probe::eval(localBoard.getFen().c_str());
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
 
