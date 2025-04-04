@@ -389,6 +389,7 @@ int lateMoveReduction(Board& board,
                     int depth, 
                     int ply, 
                     bool isPV, 
+                    int seeScore,
                     bool leftMost, 
                     int threadID) {
 
@@ -403,8 +404,10 @@ int lateMoveReduction(Board& board,
 
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
             R--;
-        } else if (ply >= 2 && pathEvals[threadID][ply] - pathEvals[threadID][ply - 2] > 100) {
-            R--; // reduce less if improving
+        }
+
+        if (seeScore <= -100) {
+            R++;
         }
 
         return std::min(depth - R, depth - 1);
@@ -773,7 +776,15 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (i > 0) leftMost = false;
         
         int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost, threadID); 
+        int seeScore = 0;
+        
+        if (isCapture) {
+            // see score will be negative if the move is a bad capture
+            // if the move is a hash move or leftmost path move, then see > 6000 - 4000 = 2000 > 0.
+            seeScore = moves[i].second - 4000;
+        }
+
+        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, seeScore, leftMost, threadID); 
         
         /*--------------------------------------------------------------------------------------------
             PVS search: 
@@ -1045,7 +1056,7 @@ Move findBestMove(Board& board,
 
                 int ply = 0;
                 bool newBestFlag = false;  
-                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost, omp_get_thread_num());
+                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, 0, leftMost, omp_get_thread_num());
                 int eval = -INF;
                 int extensions = 1;
 
