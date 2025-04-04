@@ -186,20 +186,6 @@ void precomputeLRM(int maxDepth, int maxI) {
     isPrecomputed = true;
 }
 
-void precomputeLRM2(int maxDepth, int maxI) {
-    static bool isPrecomputed = false;
-    if (isPrecomputed) return;
-
-    lmrTable2.resize(100 + 1, std::vector<int>(maxI + 1));
-
-    for (int depth = maxDepth; depth >= 1; --depth) {
-        for (int i = maxI; i >= 1; --i) {
-            lmrTable2[depth][i] =  static_cast<int>(1.0 + 0.75 * log(depth) * log(i));
-        }
-    }
-
-    isPrecomputed = true;
-}
 
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and insert.
@@ -1055,7 +1041,7 @@ Move findBestMove(Board& board,
                 bool newBestFlag = false;  
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost, omp_get_thread_num());
                 int eval = -INF;
-                int extensions = 1;
+                int extensions = 2;
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
 
