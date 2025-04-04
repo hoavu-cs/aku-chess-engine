@@ -402,7 +402,7 @@ int lateMoveReduction(Board& board,
             R--;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             R--;
-        } else if (std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
+        } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
             R--;
         } 
 
