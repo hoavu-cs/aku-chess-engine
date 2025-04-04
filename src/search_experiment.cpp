@@ -403,9 +403,7 @@ int lateMoveReduction(Board& board,
 
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
             R--;
-        } 
-
-        if (ply >= 2 && pathEvals[threadID][ply] - pathEvals[threadID][ply - 2] > 100) {
+        } else if (ply >= 2 && pathEvals[threadID][ply] - pathEvals[threadID][ply - 2] > 100) {
             R--; // reduce less if improving
         }
 
