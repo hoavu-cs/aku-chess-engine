@@ -190,7 +190,7 @@ void precomputeLRM1(int maxDepth, int maxI) {
     Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
 
-int tableSize = 8388608; // Maximum size of the transposition table. Default 512MB.
+int tableSize = 12582912; // Maximum size of the transposition table. Default 512MB.
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 50;
@@ -476,10 +476,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 4000 + seeScore;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000; // Killer move
-        } else if (counterMoves[threadID][moveIndex(lastMove)] == moveIndex(move)) {
-            priority = 3800; // Counter move
         } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
-            priority = 3700; // Killer move from 2 plies ago
+            priority = 3980; // Killer move from 2 plies ago
+        } else if (counterMoves[threadID][moveIndex(lastMove)] == moveIndex(move)) {
+            priority = 3920; // Counter move
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
