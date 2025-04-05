@@ -169,33 +169,17 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 /*-------------------------------------------------------------------------------------------- 
     Late move reduction parameters.
 --------------------------------------------------------------------------------------------*/
-std::vector<std::vector<int>> lmrTable1;
-std::vector<std::vector<int>> lmrTable2;
+std::vector<std::vector<int>> lmrTable;
 
 void precomputeLRM1(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
 
-    lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
+    lmrTable.resize(100 + 1, std::vector<int>(maxI + 1));
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
-        }
-    }
-
-    isPrecomputed = true;
-}
-
-void precomputeLRM2(int maxDepth, int maxI) {
-    static bool isPrecomputed = false;
-    if (isPrecomputed) return;
-
-    lmrTable2.resize(100 + 1, std::vector<int>(maxI + 1));
-
-    for (int depth = maxDepth; depth >= 1; --depth) {
-        for (int i = maxI; i >= 1; --i) {
-            lmrTable2[depth][i] =  static_cast<int>(1.0 + 0.75 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
         }
     }
 
@@ -401,6 +385,7 @@ int lateMoveReduction(Board& board,
                     int depth, 
                     int ply, 
                     bool isPV, 
+                    int seeScore,
                     bool leftMost, 
                     int threadID) {
 
@@ -411,13 +396,17 @@ int lateMoveReduction(Board& board,
         return depth - 1;
     } else {
         float histScore = histTable[stm][threadID][moveIndex(move)];
-        int R1 = lmrTable1[depth][i];
+        int R = lmrTable[depth][i];
 
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
-            R1--;
+            R--;
+        } 
+
+        if (seeScore <= -300) {
+            R++;
         }
 
-        return std::min(depth - R1, depth - 1);
+        return std::min(depth - R, depth - 1);
     }
 }
 
@@ -782,7 +771,15 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (i > 0) leftMost = false;
         
         int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost, threadID); 
+        int seeScore = 0;
+        
+        if (isCapture) {
+            // see score will be negative if the move is a bad capture
+            // if the move is a hash move or leftmost path move, then see > 6000 - 4000 = 2000 > 0.
+            seeScore = moves[i].second - 4000;
+        }
+
+        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, seeScore, leftMost, threadID); 
         
         /*--------------------------------------------------------------------------------------------
             PVS search: 
@@ -1054,7 +1051,7 @@ Move findBestMove(Board& board,
 
                 int ply = 0;
                 bool newBestFlag = false;  
-                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, leftMost, omp_get_thread_num());
+                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, 0, leftMost, omp_get_thread_num());
                 int eval = -INF;
                 int extensions = 1;
 
