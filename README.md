@@ -40,7 +40,7 @@ For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/h
 
 ## Online Version
 
-Play online at: [donbotchess.org](https://donbotchess.org/)
+Play online at: [donbotchess.org](https://donbotchess.org/) and at [Lichess](https://lichess.org/@/AkuBot)
 
 ## Acknowledgements
 
