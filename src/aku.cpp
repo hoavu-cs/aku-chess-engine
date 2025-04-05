@@ -279,10 +279,10 @@ void processGo(const std::vector<std::string>& tokens) {
     } else {
         // Determine the time limit based on the current player's time and increment
         if (board.sideToMove() == Color::WHITE && wtime > 0) {
-            int baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 20); 
+            int baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 22); 
             timeLimit = static_cast<int>(baseTime * adjust) + winc / 3;
         } else if (board.sideToMove() == Color::BLACK && btime > 0) {
-            int baseTime = btime / (movestogo > 0 ? movestogo + 2 : 20); 
+            int baseTime = btime / (movestogo > 0 ? movestogo + 2 : 22); 
             timeLimit = static_cast<int>(baseTime * adjust) + binc / 3;
         }
     }
@@ -304,6 +304,8 @@ void processUci() {
     std::cout << "option name Threads type spin default 10 min 1 max 10" << std::endl;
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
     std::cout << "option name Hash type spin default 512 min 128 max 1024" << std::endl;
+    std::cout << "option name SyzygyPath type string default " << getExecutablePath() << "/tables" << std::endl;
+    std::cout << "option name Move Overhead type spin default 10 min 0 max 5000" << std::endl;
     std::cout << "uciok" << std::endl;
 }
 
