@@ -401,11 +401,6 @@ int lateMoveReduction(Board& board,
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
             R--;
         } 
-
-        int randomNum = rand() % 5;
-        if (randomNum == 0 && histScore < minHistScore[stm][threadID] * 1.25) {
-            return 0; // Prune move with low history score with 20% chance
-        }
         
         if (seeScore <= -300) {
             R++;
@@ -710,7 +705,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (standPat - margin > beta) {
             return standPat - margin;
         } 
+    } else if (depth <= 5 && pruningCondition) {
+        int margin = 330 * depth;
+        if ((standPat - margin) > beta && rand() % 2 == 0) {
+            return standPat - margin;
+        }
     }
+
+
 
     /*-------------------------------------------------------------------------------------------- 
         Null move pruning. Avoid null move pruning in the endgame phase.
