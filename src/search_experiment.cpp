@@ -402,9 +402,9 @@ int lateMoveReduction(Board& board,
             R--;
         } 
 
-        int randomNum = rand() % 10;
-        if (randomNum == 0) {
-            R--;
+        int randomNum = rand() % 5;
+        if (randomNum == 0 && histScore < minHistScore[stm][threadID] * 1.25) {
+            return 0; // Prune move with low history score with 20% chance
         }
         
         if (seeScore <= -300) {
