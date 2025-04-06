@@ -678,8 +678,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return tableEval;
     }
 
-
-
+    // Simplified probcut
+    if (depth == 7  && tableDepth == 4 && tableEval >= beta + 350 && !isPV) {
+        return tableEval;
+    }
     
     if (depth <= 0 && (!board.inCheck() || ply == globalMaxDepth)) {
         return quiescence(board, alpha, beta, 0, threadID);
@@ -739,35 +741,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         threadID);
     int bestEval = -INF;
     bool searchAllFlag = false;
-
-
-    // Singular extension: check if the move is a singular move
-    if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
-        bool singularExtension = true;
-        int singularBeta = tableEval - 50; 
-        int singularDepth = depth / 2;
-        int singularEval = -INF; 
-        int bestSingularEval = -INF;
-
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i].first == tableMove) continue;
-            
-            Move move = moves[i].first;
-            board.makeMove(move);
-            NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
-            singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, nodeInfo);
-            board.unmakeMove(move);
-
-            bestSingularEval = std::max(bestSingularEval, singularEval);
-            if (bestSingularEval >= singularBeta) {
-                singularExtension = false;
-                break;
-            }
-        }
-
-        if (singularExtension) depth++;
-    }
-
 
 
     /*--------------------------------------------------------------------------------------------
