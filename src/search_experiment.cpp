@@ -403,15 +403,11 @@ int lateMoveReduction(Board& board,
         } 
 
         if (histScore < 0) {
-            if (rand() % 3 < 2) R ++; // reduce with 2/3 probability
+            R ++; // reduce with 2/3 probability
         } 
         
         if (seeScore <= -100) {
-            if (rand() % 3 < 2) R ++; // reduce with 2/3 probability
-        }
-
-        if (!board.inCheck() && i > 3 && depth <= 3) {
-            if (rand() % 3 < 2) R ++; // reduce with 2/3 probability
+            R ++; // reduce with 2/3 probability
         }
 
         if (!board.inCheck() && i > 5 && depth <= 3) {
