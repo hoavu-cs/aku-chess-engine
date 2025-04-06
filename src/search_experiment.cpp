@@ -179,7 +179,7 @@ void precomputeLRM1(int maxDepth, int maxI) {
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.55 * log(depth) * log(i));
         }
     }
 
@@ -401,9 +401,17 @@ int lateMoveReduction(Board& board,
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
             R--;
         } 
+
+        if (histScore < 0) {
+            R++;
+        } 
         
         if (seeScore <= -300) {
             R++;
+        }
+
+        if (!board.isCapture(move) && !isPromotion(move) && !board.inCheck() && i > 5) {
+            if (rand() % 2 == 0) R ++;
         }
 
         return std::min(depth - R, depth - 1);
@@ -735,6 +743,35 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool searchAllFlag = false;
 
 
+    /*-------------------------------------------------------------------------------------------- 
+        Singular extension.currentTime
+    --------------------------------------------------------------------------------------------*/
+    if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
+        bool singularExtension = true;
+        int singularBeta = tableEval - 50; 
+        int singularDepth = depth / 2;
+        int singularEval = -INF; 
+        int bestSingularEval = -INF;
+
+        for (int i = 0; i < moves.size(); i++) {
+            if (moves[i].first == tableMove) continue;
+            
+            Move move = moves[i].first;
+            board.makeMove(move);
+            NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
+            singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, nodeInfo);
+            board.unmakeMove(move);
+
+            bestSingularEval = std::max(bestSingularEval, singularEval);
+            if (bestSingularEval >= singularBeta) {
+                singularExtension = false;
+                break;
+            }
+        }
+
+        if (singularExtension) depth++;
+    }
+
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
     --------------------------------------------------------------------------------------------*/
@@ -844,14 +881,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
                 int mvIndex = moveIndex(move);
-                histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
+                histTable[stm][threadID][mvIndex] += static_cast<int>(pow(2, depth));
                 histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-10e9), static_cast<int>(10e9));
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
-                histTable[stm][threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
+                histTable[stm][threadID][mvIndex] -= static_cast<int>(pow(2, depth));
                 histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-10e9), static_cast<int>(10e9));
                 minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
