@@ -677,11 +677,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (found && tableEval <= alpha && !isPV && tableType == EntryType::UPPERBOUND) {
         return tableEval;
     }
-
-    // Simplified probcut
-    if (depth == 7  && tableDepth == 4 && tableEval >= beta + 350 && !isPV) {
-        return tableEval;
-    }
     
     if (depth <= 0 && (!board.inCheck() || ply == globalMaxDepth)) {
         return quiescence(board, alpha, beta, 0, threadID);
@@ -710,9 +705,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             return standPat - margin;
         } 
     } 
-
-
-
 
     /*-------------------------------------------------------------------------------------------- 
         Null move pruning. Avoid null move pruning in the endgame phase.
@@ -922,7 +914,8 @@ Move findBestMove(Board& board,
 
     // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
-        std::cout << "Update table size" << std::endl;
+        ttTable = std::vector<LockedTableEntry>(tableSize);
+        std::cout << "Update table size to " << tableSize << std::endl;
     }
 
     auto startTime = std::chrono::high_resolution_clock::now();

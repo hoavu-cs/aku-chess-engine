@@ -17,9 +17,9 @@ The engine currently plays rapid chess at an estimated **~3100-3400 ELO** (subje
 Though my current focus for this engine is the search algorithm, I'd like to train my own NNUE at some point. 
 
 Current ideas I would like to explore:
-- Instead of finetuning parameters heavily, can we use some sort of ensemble methods? Say one formula for LMR works 95% of the times then we may try a few of them and take the majority outcome. This will lower the chance the engine makes a mistakes.
-- The current history heuristics seems to be too crude. Is there a more refined history scores that we can use?
-- Probabilistic pruning: pruning can be risky. Can we adopt some probabilistic method to reduce the risk and the amount of tuning?
+- Instead of finetuning parameters heavily, can we use some sort of ensemble methods?
+- ML-based move ordering.
+- Probabilistic pruning.
 
 I'm new to chess development so any suggestion is welcome.
 
