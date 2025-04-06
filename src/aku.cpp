@@ -304,8 +304,6 @@ void processUci() {
     std::cout << "option name Threads type spin default 10 min 1 max 10" << std::endl;
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
     std::cout << "option name Hash type spin default 512 min 128 max 1024" << std::endl;
-    std::cout << "option name SyzygyPath type string default " << getExecutablePath() << "/tables" << std::endl;
-    std::cout << "option name Move Overhead type spin default 10 min 0 max 5000" << std::endl;
     std::cout << "uciok" << std::endl;
 }
 
