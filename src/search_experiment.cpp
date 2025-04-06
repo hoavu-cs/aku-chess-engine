@@ -62,13 +62,13 @@ void initializeNNUE() {
 --------------------------------------------------------------------------------------------*/
 
 // History heuristic parameters
-float HISTINC1 = 20;
-float HISTINC2 = 13.8752;
-float HISTINC3 = 18.6874;
+int HISTINC1 = 20;
+int HISTINC2 = 14;
+int HISTINC3 = 18;
 
-float HISTDEC1 = 20.0;
-float HISTDEC2 = 20.0;
-float HISTDEC3 = 20.0;
+int HISTDEC1 = 20;
+int HISTDEC2 = 20;
+int HISTDEC3 = 20;
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize and look up endgame tablebases.
@@ -400,10 +400,13 @@ int lateMoveReduction(Board& board,
 
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
             R--;
-        } else if (board.inCheck()) {
+        } 
+
+        int randomNum = rand() % 10;
+        if (randomNum == 0) {
             R--;
         }
-
+        
         if (seeScore <= -300) {
             R++;
         }
