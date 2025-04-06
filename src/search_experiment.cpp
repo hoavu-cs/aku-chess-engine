@@ -678,6 +678,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return tableEval;
     }
 
+
+
     
     if (depth <= 0 && (!board.inCheck() || ply == globalMaxDepth)) {
         return quiescence(board, alpha, beta, 0, threadID);
@@ -708,6 +710,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     } 
 
 
+
+
     /*-------------------------------------------------------------------------------------------- 
         Null move pruning. Avoid null move pruning in the endgame phase.
     --------------------------------------------------------------------------------------------*/
@@ -735,6 +739,25 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         threadID);
     int bestEval = -INF;
     bool searchAllFlag = false;
+
+    // Multicut
+    if (pruningCondition && depth >= 6 && !isPV) {
+        const int R = 3;
+        int cutoffCount = 0; // Number of cutoffs of reduced depth searches of some first moves
+        for (int i = 0; i < 4; i++) {
+            Move move = moves[i].first;
+            board.makeMove(move);
+            int reducedDepthEval = -negamax(board, depth - 3, -alpha, -beta, PV, nodeInfo);
+            board.unmakeMove(move);
+            if (reducedDepthEval >= beta) {
+                cutoffCount++;
+            }
+
+            if (cutoffCount >= 3) {
+                return beta;
+            }
+        }
+    }
 
 
     /*--------------------------------------------------------------------------------------------
@@ -845,15 +868,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
-
                 int mvIndex = moveIndex(move);
                 histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
                 histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-10e9), static_cast<int>(10e9));
-
-                if (rand() % 5 == 0) {
-                    histTable[stm][threadID][mvIndex] = static_cast<int>(histTable[stm][threadID][mvIndex]  * 0.80);
-                }
-
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
