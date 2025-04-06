@@ -740,24 +740,34 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
-    // Multicut
-    if (pruningCondition && depth >= 6 && !isPV) {
-        const int R = 3;
-        int cutoffCount = 0; // Number of cutoffs of reduced depth searches of some first moves
-        for (int i = 0; i < 4; i++) {
+
+    // Singular extension: check if the move is a singular move
+    if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
+        bool singularExtension = true;
+        int singularBeta = tableEval - 50; 
+        int singularDepth = depth / 2;
+        int singularEval = -INF; 
+        int bestSingularEval = -INF;
+
+        for (int i = 0; i < moves.size(); i++) {
+            if (moves[i].first == tableMove) continue;
+            
             Move move = moves[i].first;
             board.makeMove(move);
-            int reducedDepthEval = -negamax(board, depth - 3, -alpha, -beta, PV, nodeInfo);
+            NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
+            singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, nodeInfo);
             board.unmakeMove(move);
-            if (reducedDepthEval >= beta) {
-                cutoffCount++;
-            }
 
-            if (cutoffCount >= 3) {
-                return beta;
+            bestSingularEval = std::max(bestSingularEval, singularEval);
+            if (bestSingularEval >= singularBeta) {
+                singularExtension = false;
+                break;
             }
         }
+
+        if (singularExtension) depth++;
     }
+
 
 
     /*--------------------------------------------------------------------------------------------
