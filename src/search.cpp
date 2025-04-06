@@ -532,10 +532,10 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
-            score = 10000 - ply; 
+            score = SZYZYGY_INF - ply; 
         } else if (wdl == -1) {
             // delay the loss by adding the ply
-            score = -10000 + ply; 
+            score = -SZYZYGY_INF + ply; 
         } else if (wdl == 0) {
             score = 0;
         }
@@ -641,10 +641,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
-            score = 10000 - ply; 
+            score = SZYZYGY_INF - ply; 
         } else if (wdl == -1) {
             // delay the loss by adding the ply
-            score = -10000 + ply; 
+            score = -SZYZYGY_INF + ply; 
         } else if (wdl == 0) {
             score = 0;
         }
@@ -679,7 +679,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     if (depth <= 0 && (!board.inCheck() || ply == globalMaxDepth)) {
-        return quiescence(board, alpha, beta, 0, threadID);
+        return quiescence(board, alpha, beta, ply + 1, threadID);
     } else if (depth <= 0) {
         depth++;
         return negamax(board, depth, alpha, beta, PV, nodeInfo);
@@ -968,9 +968,9 @@ Move findBestMove(Board& board,
         if (!quiet) {
             int score = 0;
             if (wdl == 1) {
-                score = 10000;
+                score = SZYZYGY_INF;
             } else if (wdl == -1) {
-                score = -10000;
+                score = -SZYZYGY_INF;
             }
             std::cout << "info depth 0 score cp " << score << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
         }
