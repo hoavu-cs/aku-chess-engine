@@ -705,13 +705,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (standPat - margin > beta) {
             return standPat - margin;
         } 
-    } else if (depth <= 5 && pruningCondition) {
-        int margin = 330 * depth;
-        if ((standPat - margin) > beta && rand() % 2 == 0) {
-            return standPat - margin;
-        }
-    }
-
+    } 
 
 
     /*-------------------------------------------------------------------------------------------- 
@@ -855,6 +849,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 int mvIndex = moveIndex(move);
                 histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
                 histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-10e9), static_cast<int>(10e9));
+
+                if (rand() % 5 == 0) {
+                    histTable[stm][threadID][mvIndex] = static_cast<int>(histTable[stm][threadID][mvIndex]  * 0.80);
+                }
+
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
