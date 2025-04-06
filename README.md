@@ -3,7 +3,7 @@ This engine was renamed from **Donbot** to **Aku**
 # How to Play with the Engine in a GUI
 
 To play on a GUI, you can use any UCI-compatible GUI such as **Cute Chess**, **PyChess**, **Nibbler**, etc., and add the engine to the GUI program.  
-The binaries for **Windows** and **MacOS** can be downloaded from the [releases](https://github.com/hoavu-cs/donbot-chess-engine/releases/).
+The binaries for **Windows** and **MacOS** can be downloaded from the [releases](https://github.com/hoavu-cs/donbot-chess-engine/releases/) or just download the repository and call "make aku" from inside the src folder.
 
 A few interesting features
 - Support Windows, MacOS, and Linux.
@@ -12,7 +12,13 @@ A few interesting features
 
 ## Strength and Performance
 
-The engine currently plays **rapid chess** at an estimated **~3100-3400 ELO** (subject to further testing). The main goal is to improve the strength through **exploring new ideas** mainly in the search algorithm. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible).
+The engine currently plays rapid chess at an estimated **~3100-3400 ELO** (subject to further testing). The main goal is to improve the strength through **exploring new ideas** mainly in the **search algorithm**. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible).
+
+Though my current focus for this engine is the search algorithm, I'd like to train my own NNUE at some point. 
+
+Current ideas I would like to explore:
+- Instead of finetuning parameters heavily, can we use some sort of ensemble methods? Say one formula for LMR works 95% of the times then we may try a few of them and take the majority outcome. This will lower the chance the engine makes a mistakes.
+- The current history heuristics seems to be too crude. Is there a more refined history scores that we can use?
 
 I'm new to chess development so any suggestion is welcome.
 
