@@ -179,7 +179,7 @@ void precomputeLRM1(int maxDepth, int maxI) {
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.55 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.60 * log(depth) * log(i));
         }
     }
 
@@ -403,15 +403,19 @@ int lateMoveReduction(Board& board,
         } 
 
         if (histScore < 0) {
-            R++;
+            if (rand() % 3 < 2) R ++; // reduce with 2/3 probability
         } 
         
-        if (seeScore <= -300) {
-            R++;
+        if (seeScore <= -100) {
+            if (rand() % 3 < 2) R ++; // reduce with 2/3 probability
         }
 
-        if (!board.isCapture(move) && !isPromotion(move) && !board.inCheck() && i > 5) {
-            if (rand() % 2 == 0) R ++;
+        if (!board.inCheck() && i > 3 && depth <= 3) {
+            if (rand() % 3 < 2) R ++; // reduce with 2/3 probability
+        }
+
+        if (!board.inCheck() && i > 5 && depth <= 3) {
+            if (rand() % 3 < 2) return 0; // prune with 2/3 probability
         }
 
         return std::min(depth - R, depth - 1);
@@ -746,31 +750,31 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     /*-------------------------------------------------------------------------------------------- 
         Singular extension.currentTime
     --------------------------------------------------------------------------------------------*/
-    if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
-        bool singularExtension = true;
-        int singularBeta = tableEval - 50; 
-        int singularDepth = depth / 2;
-        int singularEval = -INF; 
-        int bestSingularEval = -INF;
+    // if (found && depth >= 10 && ply <= globalMaxDepth - 1) {
+    //     bool singularExtension = true;
+    //     int singularBeta = tableEval - 100; 
+    //     int singularDepth = depth / 2;
+    //     int singularEval = -INF; 
+    //     int bestSingularEval = -INF;
 
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i].first == tableMove) continue;
+    //     for (int i = 0; i < moves.size(); i++) {
+    //         if (moves[i].first == tableMove) continue;
             
-            Move move = moves[i].first;
-            board.makeMove(move);
-            NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
-            singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, nodeInfo);
-            board.unmakeMove(move);
+    //         Move move = moves[i].first;
+    //         board.makeMove(move);
+    //         NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
+    //         singularEval = -negamax(board, singularDepth, -(singularBeta + 1), -singularBeta, PV, nodeInfo);
+    //         board.unmakeMove(move);
 
-            bestSingularEval = std::max(bestSingularEval, singularEval);
-            if (bestSingularEval >= singularBeta) {
-                singularExtension = false;
-                break;
-            }
-        }
+    //         bestSingularEval = std::max(bestSingularEval, singularEval);
+    //         if (bestSingularEval >= singularBeta) {
+    //             singularExtension = false;
+    //             break;
+    //         }
+    //     }
 
-        if (singularExtension) depth++;
-    }
+    //     if (singularExtension) depth++;
+    // }
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
