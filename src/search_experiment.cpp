@@ -402,16 +402,12 @@ int lateMoveReduction(Board& board,
             R--;
         } 
 
-        if (histScore < 0) {
-            R ++; // reduce with 2/3 probability
+        if (histScore < 0 && depth <= 2) {
+            R ++; 
         } 
         
         if (seeScore <= -100) {
             R ++; // reduce with 2/3 probability
-        }
-
-        if (!board.inCheck() && i > 5 && depth <= 3) {
-            if (rand() % 3 < 2) return 0; // prune with 2/3 probability
         }
 
         return std::min(depth - R, depth - 1);
