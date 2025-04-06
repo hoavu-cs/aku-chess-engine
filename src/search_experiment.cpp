@@ -195,8 +195,8 @@ int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 50;
 
-std::vector<std::vector<float>> maxHistScore(2, std::vector<float>(maxThreadsID, 0)); // Maximum history score for each thread, for each side
-std::vector<std::vector<float>> minHistScore(2, std::vector<float>(maxThreadsID, 0)); // Minimum history score for each thread, for each side
+std::vector<std::vector<int>> maxHistScore(2, std::vector<int>(maxThreadsID, 0)); // Maximum history score for each thread, for each side
+std::vector<std::vector<int>> minHistScore(2, std::vector<int>(maxThreadsID, 0)); // Minimum history score for each thread, for each side
 
 enum EntryType {
     EXACT,
@@ -274,7 +274,7 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
 
 // History table for move ordering (side to move, thread ID, move index)
-std::vector<std::vector<std::vector<float>>> histTable(2, std::vector<std::vector<float>>(maxThreadsID, std::vector<float>(64 * 64, 0)));
+std::vector<std::vector<std::vector<int>>> histTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -395,12 +395,14 @@ int lateMoveReduction(Board& board,
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        float histScore = histTable[stm][threadID][moveIndex(move)];
+        int histScore = histTable[stm][threadID][moveIndex(move)];
         int R = lmrTable[depth][i];
 
         if (histScore > maxHistScore[stm][threadID] * 0.5) {
             R--;
-        } 
+        } else if (board.inCheck()) {
+            R--;
+        }
 
         if (seeScore <= -300) {
             R++;
@@ -524,9 +526,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
 int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     
     nodeCount[threadID]++;
-    if (knownDraw(board)) {
-        return 0;
-    }
 
     // Probe Syzygy tablebases
     Move syzygyMove = Move::NO_MOVE;
@@ -850,14 +849,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
                 int mvIndex = moveIndex(move);
                 histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-10e9), static_cast<int>(10e9));
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
                 histTable[stm][threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<float>(-10e9), static_cast<float>(10e9));
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-10e9), static_cast<int>(10e9));
                 minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
@@ -934,10 +933,10 @@ Move findBestMove(Board& board,
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < 64 * 64; j++) {
-            histTable[0][i][j] = 0.0;
-            histTable[1][i][j] = 0.0;
-            maxHistScore[0][i] = 0.0;
-            minHistScore[1][i] = 0.0;
+            histTable[0][i][j] = 0;
+            histTable[1][i][j] = 0;
+            maxHistScore[0][i] = 0;
+            minHistScore[1][i] = 0;
         }
     }
 
