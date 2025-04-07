@@ -914,7 +914,6 @@ Move findBestMove(Board& board,
     // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
         ttTable = std::vector<LockedTableEntry>(tableSize);
-        std::cout << "Update table size to " << ttTable.size() << std::endl;
     }
 
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -1048,7 +1047,7 @@ Move findBestMove(Board& board,
                 bool newBestFlag = false;  
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, 0, leftMost, omp_get_thread_num());
                 int eval = -INF;
-                int extensions = 1;
+                int extensions = 2;
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
 
