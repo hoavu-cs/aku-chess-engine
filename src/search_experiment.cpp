@@ -827,7 +827,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 searchAllFlag = true;
             }
 
-            const int maxHistory = 32768; // capped history score ~ 10 Elo
+            const int maxHistory = 256; // capped history score ~ 10 Elo
 
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
