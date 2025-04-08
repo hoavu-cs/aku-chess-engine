@@ -42,3 +42,14 @@ Player: NewAku
   Timeouts: 181
   Crashed: 0
 ```
+
+**Tapering history score with maximum value at 256**
+--------------------------------------------------
+Results of NewAku vs OldAku (12+0.12, 10t, 512MB, imbalanced_book.epd):
+Elo: 24.86 +/- 15.14, nElo: 28.62 +/- 17.35
+LOS: 99.94 %, DrawRatio: 41.43 %, PairsRatio: 1.39
+Games: 1540, Wins: 695, Losses: 585, Draws: 260, Points: 825.0 (53.57 %)
+Ptnml(0-2): [102, 87, 319, 123, 139], WL/DD Ratio: 11.76
+LLR: 2.98 (101.3%) (-2.94, 2.94) [0.00, 10.00]
+--------------------------------------------------
+SPRT ([0.00, 10.00]) completed - H1 was accepted

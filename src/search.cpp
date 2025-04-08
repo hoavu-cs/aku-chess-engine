@@ -57,20 +57,6 @@ void initializeNNUE() {
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Parameters for pruning, later move reduction, etc.
-    These are tuned using annealing.
---------------------------------------------------------------------------------------------*/
-
-// History heuristic parameters
-int HISTINC1 = 20;
-int HISTINC2 = 14;
-int HISTINC3 = 18;
-
-int HISTDEC1 = 20;
-int HISTDEC2 = 20;
-int HISTDEC3 = 20;
-
-/*-------------------------------------------------------------------------------------------- 
     Initialize and look up endgame tablebases.
 --------------------------------------------------------------------------------------------*/
 void initializeTB(std::string path) {
@@ -274,8 +260,6 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 
 // History table for move ordering (side to move, thread ID, move index)
 std::vector<std::vector<std::vector<int>>> histTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
-
-std::vector<std::vector<std::vector<int>>> captureHistTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
 
 
 // Basic piece values for move ordering
@@ -843,18 +827,33 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 searchAllFlag = true;
             }
 
+            const int maxHistory = 256; // capped history score ~ 10 Elo
+
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
                 int mvIndex = moveIndex(move);
-                histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-10e9), static_cast<int>(10e9));
+
+                // tapered change new score = old score - (1 - old score / maxHistory) * depth * depth
+                // the closer the old score is to maxHistory, the less change is applied.
+                int currentHistScore = histTable[stm][threadID][mvIndex];
+                float delta = depth * depth;
+
+                if (i == 0) delta *= 4; // 4x for the first move
+                
+                int change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
+
+                histTable[stm][threadID][mvIndex] += change;
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
-            }
+            } 
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
-                histTable[stm][threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-10e9), static_cast<int>(10e9));
+
+                int currentHistScore = histTable[stm][threadID][mvIndex];
+                float delta = depth * depth;
+                int change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
+                
+                histTable[stm][threadID][mvIndex] -= change;
                 minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
@@ -917,7 +916,6 @@ Move findBestMove(Board& board,
     // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
         ttTable = std::vector<LockedTableEntry>(tableSize);
-        std::cout << "Update table size to " << ttTable.size() << std::endl;
     }
 
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -934,6 +932,7 @@ Move findBestMove(Board& board,
         for (int j = 0; j < 64 * 64; j++) {
             histTable[0][i][j] = 0;
             histTable[1][i][j] = 0;
+
             maxHistScore[0][i] = 0;
             minHistScore[1][i] = 0;
         }
