@@ -275,8 +275,6 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // History table for move ordering (side to move, thread ID, move index)
 std::vector<std::vector<std::vector<int>>> histTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
 
-std::vector<std::vector<std::vector<int>>> captureHistTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
-
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -478,7 +476,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 6000; 
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move, threadID);
-            priority = 4000 + captureHistTable[stm][threadID][moveIndex(move)] + seeScore;
+            priority = 4000 + seeScore;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000; // Killer move
         } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
@@ -843,8 +841,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 searchAllFlag = true;
             }
 
-            const int maxHistory = 1028;
-            const int maxCaptureHistory = 300;
+            const int maxHistory = 256;
 
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
@@ -852,23 +849,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 histTable[stm][threadID][mvIndex] += depth * depth;
                 histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], -maxHistory, maxHistory);
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
-            } else {
-                captureHistTable[stm][threadID][moveIndex(move)] += depth * depth;
-                captureHistTable[stm][threadID][moveIndex(move)] = std::clamp(captureHistTable[stm][threadID][moveIndex(move)], -maxCaptureHistory, maxCaptureHistory);
-            }
+            } 
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
-
-                if (!board.isCapture(moves[j].first)) {
-                    histTable[stm][threadID][mvIndex] -= depth * depth;
-                    histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], -maxHistory, maxHistory);
-                    minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
-                } else {
-                    captureHistTable[stm][threadID][moveIndex(moves[j].first)] -= depth * depth;
-                    captureHistTable[stm][threadID][moveIndex(moves[j].first)] = std::clamp(captureHistTable[stm][threadID][moveIndex(moves[j].first)], -maxCaptureHistory, maxCaptureHistory);
-                }
-                
+                histTable[stm][threadID][mvIndex] -= depth * depth;
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], -maxHistory, maxHistory);
+                minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
             break;
@@ -947,9 +934,6 @@ Move findBestMove(Board& board,
         for (int j = 0; j < 64 * 64; j++) {
             histTable[0][i][j] = 0;
             histTable[1][i][j] = 0;
-
-            captureHistTable[0][i][j] = 0;
-            captureHistTable[1][i][j] = 0;
 
             maxHistScore[0][i] = 0;
             minHistScore[1][i] = 0;
