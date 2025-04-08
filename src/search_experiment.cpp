@@ -57,20 +57,6 @@ void initializeNNUE() {
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Parameters for pruning, later move reduction, etc.
-    These are tuned using annealing.
---------------------------------------------------------------------------------------------*/
-
-// History heuristic parameters
-int HISTINC1 = 20;
-int HISTINC2 = 14;
-int HISTINC3 = 18;
-
-int HISTDEC1 = 20;
-int HISTDEC2 = 20;
-int HISTDEC3 = 20;
-
-/*-------------------------------------------------------------------------------------------- 
     Initialize and look up endgame tablebases.
 --------------------------------------------------------------------------------------------*/
 void initializeTB(std::string path) {
@@ -841,20 +827,33 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 searchAllFlag = true;
             }
 
-            const int maxHistory = 256;
+            const int maxHistory = 32768; // capped history score ~ 10 Elo
 
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
                 int mvIndex = moveIndex(move);
-                histTable[stm][threadID][mvIndex] += depth * depth;
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], -maxHistory, maxHistory);
+
+                // tapered change new score = old score - (1 - old score / maxHistory) * depth * depth
+                // the closer the old score is to maxHistory, the less change is applied.
+                int currentHistScore = histTable[stm][threadID][mvIndex];
+                float delta = depth * depth;
+
+                if (i == 0) delta *= 4; // 4x for the first move
+                
+                int change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
+
+                histTable[stm][threadID][mvIndex] += change;
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             } 
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
-                histTable[stm][threadID][mvIndex] -= depth * depth;
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], -maxHistory, maxHistory);
+
+                int currentHistScore = histTable[stm][threadID][mvIndex];
+                float delta = depth * depth;
+                int change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
+                
+                histTable[stm][threadID][mvIndex] -= change;
                 minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             }
 
@@ -917,7 +916,6 @@ Move findBestMove(Board& board,
     // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
         ttTable = std::vector<LockedTableEntry>(tableSize);
-        std::cout << "Update table size to " << ttTable.size() << std::endl;
     }
 
     auto startTime = std::chrono::high_resolution_clock::now();
