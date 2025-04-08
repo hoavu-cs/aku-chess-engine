@@ -171,7 +171,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 std::vector<std::vector<int>> lmrTable;
 
-void precomputeLRM(int maxDepth, int maxI) {
+void precomputeLRM1(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
 
@@ -404,9 +404,9 @@ int lateMoveReduction(Board& board,
             R--;
         } 
         
-        // if (seeScore <= -300) {
-        //     R++;
-        // }
+        if (seeScore <= -300) {
+            R++;
+        }
 
         return std::min(depth - R, depth - 1);
     }
@@ -478,8 +478,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 6000; 
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move, threadID);
-             //see(board, move, threadID);
-            priority = 4000 + seeScore;
+            priority = 4000 + captureHistTable[stm][threadID][moveIndex(move)] + seeScore;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000; // Killer move
         } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
@@ -844,29 +843,32 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 searchAllFlag = true;
             }
 
+            const int maxHistory = 1028;
+            const int maxCaptureHistory = 300;
+
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
                 int mvIndex = moveIndex(move);
-                histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-512), static_cast<int>(512));
+                histTable[stm][threadID][mvIndex] += depth * depth;
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], -maxHistory, maxHistory);
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
             } else {
-                int mvIndex = moveIndex(move);
-                captureHistTable[stm][threadID][mvIndex] += depth;
-                captureHistTable[stm][threadID][mvIndex] = std::clamp(captureHistTable[stm][threadID][mvIndex], -512, 512);
+                captureHistTable[stm][threadID][moveIndex(move)] += depth * depth;
+                captureHistTable[stm][threadID][moveIndex(move)] = std::clamp(captureHistTable[stm][threadID][moveIndex(move)], -maxCaptureHistory, maxCaptureHistory);
             }
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
 
                 if (!board.isCapture(moves[j].first)) {
-                    histTable[stm][threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
-                    histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-512), static_cast<int>(512));
-                    minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);                
+                    histTable[stm][threadID][mvIndex] -= depth * depth;
+                    histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], -maxHistory, maxHistory);
+                    minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
                 } else {
-                    captureHistTable[stm][threadID][mvIndex] -= depth;
-                    captureHistTable[stm][threadID][mvIndex] = std::clamp(captureHistTable[stm][threadID][mvIndex], -512, 512);
+                    captureHistTable[stm][threadID][moveIndex(moves[j].first)] -= depth * depth;
+                    captureHistTable[stm][threadID][moveIndex(moves[j].first)] = std::clamp(captureHistTable[stm][threadID][moveIndex(moves[j].first)], -maxCaptureHistory, maxCaptureHistory);
                 }
+                
             }
 
             break;
@@ -928,6 +930,7 @@ Move findBestMove(Board& board,
     // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
         ttTable = std::vector<LockedTableEntry>(tableSize);
+        std::cout << "Update table size to " << ttTable.size() << std::endl;
     }
 
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -937,7 +940,7 @@ Move findBestMove(Board& board,
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
     // Precompute late move reduction table
-    precomputeLRM(100, 500);
+    precomputeLRM1(100, 500);
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {

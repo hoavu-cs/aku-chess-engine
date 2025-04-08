@@ -212,7 +212,6 @@ struct TableEntry {
     EntryType type;
 };
 
-
 struct LockedTableEntry {
     std::mutex mtx;
     TableEntry entry;
@@ -275,6 +274,9 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 
 // History table for move ordering (side to move, thread ID, move index)
 std::vector<std::vector<std::vector<int>>> histTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
+
+std::vector<std::vector<std::vector<int>>> captureHistTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
+
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -915,6 +917,7 @@ Move findBestMove(Board& board,
     // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
         ttTable = std::vector<LockedTableEntry>(tableSize);
+        std::cout << "Update table size to " << ttTable.size() << std::endl;
     }
 
     auto startTime = std::chrono::high_resolution_clock::now();
