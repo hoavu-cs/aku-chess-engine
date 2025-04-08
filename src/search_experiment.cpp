@@ -171,7 +171,7 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 --------------------------------------------------------------------------------------------*/
 std::vector<std::vector<int>> lmrTable;
 
-void precomputeLRM1(int maxDepth, int maxI) {
+void precomputeLRM(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
 
@@ -274,6 +274,9 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 
 // History table for move ordering (side to move, thread ID, move index)
 std::vector<std::vector<std::vector<int>>> histTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
+
+std::vector<std::vector<std::vector<int>>> captureHistTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
+
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -401,9 +404,9 @@ int lateMoveReduction(Board& board,
             R--;
         } 
         
-        if (seeScore <= -300) {
-            R++;
-        }
+        // if (seeScore <= -300) {
+        //     R++;
+        // }
 
         return std::min(depth - R, depth - 1);
     }
@@ -475,6 +478,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 6000; 
         } else if (board.isCapture(move)) { 
             int seeScore = see(board, move, threadID);
+             //see(board, move, threadID);
             priority = 4000 + seeScore;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000; // Killer move
@@ -844,15 +848,25 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 updateKillerMoves(move, ply, threadID);
                 int mvIndex = moveIndex(move);
                 histTable[stm][threadID][mvIndex] += static_cast<int>(HISTINC1 + HISTINC2 * depth + HISTINC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-10e9), static_cast<int>(10e9));
+                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-512), static_cast<int>(512));
                 maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
+            } else {
+                int mvIndex = moveIndex(move);
+                captureHistTable[stm][threadID][mvIndex] += depth;
+                captureHistTable[stm][threadID][mvIndex] = std::clamp(captureHistTable[stm][threadID][mvIndex], -512, 512);
             }
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
-                histTable[stm][threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
-                histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-10e9), static_cast<int>(10e9));
-                minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
+
+                if (!board.isCapture(moves[j].first)) {
+                    histTable[stm][threadID][mvIndex] -= static_cast<int>(HISTDEC1 + HISTDEC2 * depth + HISTDEC3 * depth * depth);
+                    histTable[stm][threadID][mvIndex] = std::clamp(histTable[stm][threadID][mvIndex], static_cast<int>(-512), static_cast<int>(512));
+                    minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);                
+                } else {
+                    captureHistTable[stm][threadID][mvIndex] -= depth;
+                    captureHistTable[stm][threadID][mvIndex] = std::clamp(captureHistTable[stm][threadID][mvIndex], -512, 512);
+                }
             }
 
             break;
@@ -923,13 +937,17 @@ Move findBestMove(Board& board,
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
     // Precompute late move reduction table
-    precomputeLRM1(100, 500);
+    precomputeLRM(100, 500);
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < 64 * 64; j++) {
             histTable[0][i][j] = 0;
             histTable[1][i][j] = 0;
+
+            captureHistTable[0][i][j] = 0;
+            captureHistTable[1][i][j] = 0;
+
             maxHistScore[0][i] = 0;
             minHistScore[1][i] = 0;
         }
@@ -1047,7 +1065,7 @@ Move findBestMove(Board& board,
                 bool newBestFlag = false;  
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, 0, leftMost, omp_get_thread_num());
                 int eval = -INF;
-                int extensions = 2;
+                int extensions = 1;
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
 
