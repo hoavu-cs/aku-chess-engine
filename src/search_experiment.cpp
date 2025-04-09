@@ -801,11 +801,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool alphaRaised = eval > alpha;
         bool reducedDepth = nextDepth < depth - 1;
 
-        if (alphaRaised && (nullWindow || reducedDepth)  && isPV) {
-            // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
+        if (alphaRaised && reducedDepth  && !isPV) {
+            // If alpha is raised in a non-PV node with reduced depth, research with full depth.
             board.makeMove(move);
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
             board.unmakeMove(move);
+        } else if (alphaRaised && (nullWindow || reducedDepth) && isPV) {
+            // If alpha is raised in a PV node in a reduced depth or null window, research with full depth 
+            // and full window.
+            board.makeMove(move);
+            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
+            board.unmakeMove(move);            
         }
 
         if (eval > alpha) {
