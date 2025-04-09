@@ -801,17 +801,26 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool alphaRaised = eval > alpha;
         bool reducedDepth = nextDepth < depth - 1;
 
-        if (alphaRaised && reducedDepth  && !isPV) {
-            // If alpha is raised in a non-PV node with reduced depth, research with full depth.
+        if (alphaRaised && (nullWindow || reducedDepth)  && isPV) {
+            /*--------------------------------------------------------------------------------------------
+            If alpha is raised, re-search with full window & full depth (we don't do this for i = 0).
+            We only do this for PV nodes only. The reason is as follows:
+
+            Assume we are at Y and Y is a non-PV node. That means there must be a non-PV node X that is 
+            an ancestor of Y. WLOG, we assume it's white turn at X. We want to test if white can raise 
+            alpha at X.
+            
+            1. If at this node Y, it is also white turn and alpha is raised, then we know that we will research
+            at full depth and full window in node X. So here, a re-search at full depth and full window seems
+            redundant.
+            
+            2. If at this node Y, it is black turn and alpha is raised, then we know that we can't raised
+            alpha at node X at reduced depth which means we will not research at full depth and full window.
+            --------------------------------------------------------------------------------------------*/
+
             board.makeMove(move);
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
             board.unmakeMove(move);
-        } else if (alphaRaised && (nullWindow || reducedDepth) && isPV) {
-            // If alpha is raised in a PV node in a reduced depth or null window, research with full depth 
-            // and full window.
-            board.makeMove(move);
-            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
-            board.unmakeMove(move);            
         }
 
         if (eval > alpha) {
