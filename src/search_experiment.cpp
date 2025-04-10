@@ -261,9 +261,6 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // History table for move ordering (threadID, side to move, move index)
 std::vector<std::vector<std::vector<int>>> histTable(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
-// Store moves that raise alpha (threadID, ply, move index)
-// std::vector<std::vector<std::vector<int>>> goodMoves(maxThreadsID, std::vector<std::vector<int>>(ENGINE_DEPTH + 1, std::vector<int>(64 * 64, 0)));
-
 //std::vector<std::vector<Move>> moveSequence(maxThreadsID);
 
 
@@ -952,8 +949,6 @@ Move findBestMove(Board& board,
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
         // moveSequence[i] = {};
-        // goodMoves[i] = std::vector<std::vector<int>>(ENGINE_DEPTH + 1, std::vector<int>(64 * 64, 0));
-
         for (int j = 0; j < 64 * 64; j++) {
             histTable[i][0][j] = 0;
             histTable[i][1][j] = 0;

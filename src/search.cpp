@@ -181,8 +181,8 @@ int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 50;
 
-std::vector<std::vector<int>> maxHistScore(2, std::vector<int>(maxThreadsID, 0)); // Maximum history score for each thread, for each side
-std::vector<std::vector<int>> minHistScore(2, std::vector<int>(maxThreadsID, 0)); // Minimum history score for each thread, for each side
+std::vector<std::vector<int>> maxHistScore(maxThreadsID, std::vector<int>(2, 0)); // Maximum history score for each thread, for each side
+std::vector<std::vector<int>> minHistScore(maxThreadsID, std::vector<int>(2, 0)); // Minimum history score for each thread, for each side
 
 enum EntryType {
     EXACT,
@@ -258,11 +258,10 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
 
-// History table for move ordering (side to move, thread ID, move index)
-std::vector<std::vector<std::vector<int>>> histTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
+// History table for move ordering (threadID, side to move, move index)
+std::vector<std::vector<std::vector<int>>> histTable(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
-// Store moves that raise alpha (side to move, thread ID, move index)
-std::vector<std::vector<std::vector<int>>> goodMoves(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
+//std::vector<std::vector<Move>> moveSequence(maxThreadsID);
 
 
 // Basic piece values for move ordering
@@ -384,10 +383,10 @@ int lateMoveReduction(Board& board,
     if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
-        int histScore = histTable[stm][threadID][moveIndex(move)];
+        int histScore = histTable[threadID][stm][moveIndex(move)];
         int R = lmrTable[depth][i];
 
-        if (histScore > maxHistScore[stm][threadID] * 0.5) {
+        if (histScore > maxHistScore[threadID][stm] * 0.5) {
             R--;
         } 
         
@@ -409,7 +408,8 @@ std::vector<std::pair<Move, int>> orderedMoves(
     std::vector<Move>& previousPV, 
     bool leftMost,
     Move lastMove,
-    int threadID) {
+    int threadID,
+    bool& hashMoveFound) {
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -423,7 +423,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
     bool stm = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
     U64 hash = board.hash();
-    bool hashMoveFound = false;
 
     // Move ordering 1. promotion 2. captures 3. killer moves 4. hash 5. checks 6. quiet moves
     for (const auto& move : moves) {
@@ -460,6 +459,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
         if (previousPV.size() > ply && leftMost) {
             if (previousPV[ply] == move) {
                 priority = 10000; // PV move
+                hashMoveFound = true;
             }
         } else if (isPromotion(move)) {
             priority = 6000; 
@@ -480,7 +480,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             } else {
                 secondary = true;
                 U64 mvIndex = moveIndex(move);
-                priority = histTable[stm][threadID][mvIndex];
+                priority = histTable[threadID][stm][mvIndex];
             }
         } 
 
@@ -706,23 +706,34 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int reduction = (depth >= 6) ? 4 : 3;
 
         NodeInfo nullNodeInfo = {ply + 1, false, extensions, Move::NULL_MOVE, threadID}; 
+
+        //moveSequence[threadID].push_back(Move::NULL_MOVE);
+
         board.makeNullMove();
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, nullNodeInfo);
         board.unmakeNullMove();
 
+        //moveSequence[threadID].pop_back();
+
         if (nullEval >= beta) return beta;
     }
 
+    bool hashMoveFound = false;
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, 
                                                         depth, 
                                                         ply, 
                                                         previousPV, 
                                                         leftMost, 
                                                         lastMove, 
-                                                        threadID);
+                                                        threadID,
+                                                        hashMoveFound);
     int bestEval = -INF;
     bool searchAllFlag = false;
 
+    if (!hashMoveFound) {
+        // Reduce the depth to facilitate the search 
+        depth = std::max(depth - 2, 1);
+    }
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
@@ -791,6 +802,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             childNodeInfo.extensions--;
         }
 
+        //moveSequence[threadID].push_back(move);
+
         if (i == 0) {
             // full window & full depth search for the first node
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeInfo);
@@ -812,15 +825,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         if (eval > alpha) {
-
-            goodMoves[stm][threadID][moveIndex(move)] = depth;
-
             PV.clear();
             PV.push_back(move);
             for (auto& move : childPV) {
                 PV.push_back(move);
             }
         } 
+
+        //moveSequence.pop_back();
 
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
@@ -841,24 +853,24 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
                 // tapered change new score = old score - (1 - old score / maxHistory) * depth * depth
                 // the closer the old score is to maxHistory, the less change is applied.
-                int currentHistScore = histTable[stm][threadID][mvIndex];
+                int currentHistScore = histTable[threadID][stm][mvIndex];
                 float delta = depth * depth;
                 
                 int change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
 
-                histTable[stm][threadID][mvIndex] += change;
-                maxHistScore[stm][threadID] = std::max(maxHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
+                histTable[threadID][stm][mvIndex] += change;
+                maxHistScore[threadID][stm] = std::max(maxHistScore[threadID][stm], histTable[threadID][stm][mvIndex]);
             } 
 
             for (int j = 0; j < i; j++) {
                 int mvIndex = moveIndex(moves[j].first);
 
-                int currentHistScore = histTable[stm][threadID][mvIndex];
+                int currentHistScore = histTable[threadID][stm][mvIndex];
                 float delta = depth * depth;
                 int change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
                 
-                histTable[stm][threadID][mvIndex] -= change;
-                minHistScore[stm][threadID] = std::min(minHistScore[stm][threadID], histTable[stm][threadID][mvIndex]);
+                histTable[threadID][stm][mvIndex] -= change;
+                minHistScore[threadID][stm] = std::min(minHistScore[threadID][stm], histTable[threadID][stm][mvIndex]);
             }
 
             break;
@@ -933,15 +945,13 @@ Move findBestMove(Board& board,
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
+        // moveSequence[i] = {};
         for (int j = 0; j < 64 * 64; j++) {
-            histTable[0][i][j] = 0;
-            histTable[1][i][j] = 0;
+            histTable[i][0][j] = 0;
+            histTable[i][1][j] = 0;
 
-            goodMoves[0][i][j] = 0;
-            goodMoves[1][i][j] = 0;
-
-            maxHistScore[0][i] = 0;
-            minHistScore[1][i] = 0;
+            maxHistScore[i][0] = 0;
+            minHistScore[i][1] = 0;
         }
     }
 
@@ -1014,10 +1024,13 @@ Move findBestMove(Board& board,
         int currentBestEval = -INF;
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
-        
+        bool hashMoveFound = false;
+
         if (depth == baseDepth) {
-            moves = orderedMoves(board, depth, 0, previousPV, false, Move::NO_MOVE, 0);
+            moves = orderedMoves(board, depth, 0, previousPV, false, Move::NO_MOVE, 0, hashMoveFound);
         }
+
+
 
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
 
@@ -1043,6 +1056,7 @@ Move findBestMove(Board& board,
                 
                 bool leftMost = (i == 0);
                 Move move = moves[i].first;
+                //moveSequence[omp_get_thread_num()].push_back(move);
 
                 if (depth > 8 && i > 9) {
                     // Ignore late moves after a certain depth
@@ -1060,6 +1074,8 @@ Move findBestMove(Board& board,
                 int extensions = 1;
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
+
+                
 
                 localBoard.makeMove(move);
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
