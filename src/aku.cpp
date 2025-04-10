@@ -120,7 +120,7 @@ void extractTablebaseFiles() {
 /*-------------------------------------------------------------------------------------------- 
     Global variables
 -------------------------------------------------------------------------------------------- */
-int numThreads = 10;
+int numThreads = 4;
 int depth = 30;
 
 std::string getBookMove(Board& board) {

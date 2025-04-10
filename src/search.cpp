@@ -261,6 +261,9 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // History table for move ordering (side to move, thread ID, move index)
 std::vector<std::vector<std::vector<int>>> histTable(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
 
+// Store moves that raise alpha (side to move, thread ID, move index)
+std::vector<std::vector<std::vector<int>>> goodMoves(2, std::vector<std::vector<int>>(maxThreadsID, std::vector<int>(64 * 64, 0)));
+
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -809,6 +812,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         if (eval > alpha) {
+
+            goodMoves[stm][threadID][moveIndex(move)] = depth;
+
             PV.clear();
             PV.push_back(move);
             for (auto& move : childPV) {
@@ -827,7 +833,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 searchAllFlag = true;
             }
 
-            const int maxHistory = 256; // capped history score ~ 10 Elo
+            const int maxHistory = 100000; // capped history score ~ 10 Elo
 
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
@@ -837,8 +843,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 // the closer the old score is to maxHistory, the less change is applied.
                 int currentHistScore = histTable[stm][threadID][mvIndex];
                 float delta = depth * depth;
-
-                if (i == 0) delta *= 4; // 4x for the first move
                 
                 int change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
 
@@ -932,6 +936,9 @@ Move findBestMove(Board& board,
         for (int j = 0; j < 64 * 64; j++) {
             histTable[0][i][j] = 0;
             histTable[1][i][j] = 0;
+
+            goodMoves[0][i][j] = 0;
+            goodMoves[1][i][j] = 0;
 
             maxHistScore[0][i] = 0;
             minHistScore[1][i] = 0;
