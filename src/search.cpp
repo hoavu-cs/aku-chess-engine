@@ -261,6 +261,8 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // History table for move ordering (threadID, side to move, move index)
 std::vector<std::vector<std::vector<int>>> histTable(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
+//std::vector<std::vector<Move>> moveSequence(maxThreadsID);
+
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -387,6 +389,10 @@ int lateMoveReduction(Board& board,
         if (histScore > maxHistScore[threadID][stm] * 0.5) {
             R--;
         } 
+
+        if (board.inCheck()) {
+            R--;
+        }
         
         if (seeScore <= -300) {
             R++;
@@ -728,6 +734,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
+    if (!hashMoveFound && !isPV) {
+        // Reduce the depth to facilitate the search if no hash move found 
+        depth = std::max(depth - 1, 1);
+    }
+
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
     --------------------------------------------------------------------------------------------*/
@@ -938,6 +949,7 @@ Move findBestMove(Board& board,
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
+        // moveSequence[i] = {};
         for (int j = 0; j < 64 * 64; j++) {
             histTable[i][0][j] = 0;
             histTable[i][1][j] = 0;
