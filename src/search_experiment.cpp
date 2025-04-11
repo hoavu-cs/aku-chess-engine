@@ -389,6 +389,10 @@ int lateMoveReduction(Board& board,
         if (histScore > maxHistScore[threadID][stm] * 0.5) {
             R--;
         } 
+
+        if (board.inCheck()) {
+            R--;
+        }
         
         if (seeScore <= -300) {
             R++;
@@ -730,9 +734,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
-    if (!hashMoveFound) {
-        // Reduce the depth to facilitate the search 
-        depth = std::max(depth - 2, 1);
+    if (!hashMoveFound && !isPV) {
+        // Reduce the depth to facilitate the search if no hash move found 
+        depth = std::max(depth - 1, 1);
     }
 
     /*--------------------------------------------------------------------------------------------
