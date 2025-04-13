@@ -153,24 +153,26 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Late move reduction parameters.
+    Late move reduction tables.
 --------------------------------------------------------------------------------------------*/
-std::vector<std::vector<int>> lmrTable;
+std::vector<std::vector<int>> lmrTable1;
 
+// More aggressive LMR table
 void precomputeLRM1(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
 
-    lmrTable.resize(100 + 1, std::vector<int>(maxI + 1));
+    lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
+            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
         }
     }
 
     isPrecomputed = true;
 }
+
 
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and insert.
@@ -384,7 +386,7 @@ int lateMoveReduction(Board& board,
         return depth - 1;
     } else {
         int histScore = histTable[threadID][stm][moveIndex(move)];
-        int R = lmrTable[depth][i];
+        int R = lmrTable1[depth][i];
 
         if (histScore > maxHistScore[threadID][stm] * 0.5) {
             R--;
@@ -392,10 +394,6 @@ int lateMoveReduction(Board& board,
 
         if (board.inCheck()) {
             R--;
-        }
-        
-        if (seeScore <= -300) {
-            R++;
         }
 
         return std::min(depth - R, depth - 1);
@@ -658,11 +656,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         tableHit[threadID]++;
         if (tableDepth >= depth) found = true;
     }
-
-    // if (found && tableType == EXACT) {
-    //     return tableEval;
-    // }  
-
+    
     if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
     }  
@@ -829,9 +823,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         if (eval > alpha) {
-
-            //goodMoves[stm][threadID][moveIndex(move)] = depth;
-
             PV.clear();
             PV.push_back(move);
             for (auto& move : childPV) {
