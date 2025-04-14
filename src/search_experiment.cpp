@@ -382,7 +382,7 @@ int lateMoveReduction(Board& board,
     if (isMopUpPhase(board)) return depth - 1;
     bool stm = board.sideToMove() == Color::WHITE;
 
-    if (i <= 2 || depth <= 2) { 
+    if (i <= 2 || depth <= 3) { 
         return depth - 1;
     } else {
         int histScore = histTable[threadID][stm][moveIndex(move)];
