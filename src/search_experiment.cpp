@@ -280,14 +280,14 @@ const int pieceValues[] = {
 /*-------------------------------------------------------------------------------------------- 
     Compute the index of a move to be used in history table and others
 --------------------------------------------------------------------------------------------*/
-U64 moveIndex(const Move& move) {
+inline U64 moveIndex(const Move& move) {
     return move.from().index() * 64 + move.to().index();
 }
  
 /*-------------------------------------------------------------------------------------------- 
     Check if the move is a promotion.
 --------------------------------------------------------------------------------------------*/
-bool isPromotion(const Move& move) {
+inline bool isPromotion(const Move& move) {
     if (move.typeOf() & Move::PROMOTION) {
         return true;
     } 
@@ -297,14 +297,14 @@ bool isPromotion(const Move& move) {
 /*-------------------------------------------------------------------------------------------- 
     Update the killer moves. Currently using only 1 slot per ply.
 --------------------------------------------------------------------------------------------*/
-void updateKillerMoves(const Move& move, int ply, int threadID) {
+inline void updateKillerMoves(const Move& move, int ply, int threadID) {
     killer[threadID][ply][0] = move;
 }
 
 /*-------------------------------------------------------------------------------------------- 
     Check if the move involves a passed pawn push.
 --------------------------------------------------------------------------------------------*/
-bool promotionThreatMove(Board& board, Move move) {
+inline bool promotionThreatMove(Board& board, Move move) {
     Color color = board.sideToMove();
     PieceType type = board.at<Piece>(move.from()).type();
 
@@ -382,13 +382,14 @@ int lateMoveReduction(Board& board,
     if (isMopUpPhase(board)) return depth - 1;
     bool stm = board.sideToMove() == Color::WHITE;
 
-    if (i <= 2 || depth <= 3) { 
+    if (i <= 2 || depth <= 2) { 
         return depth - 1;
     } else {
         int histScore = histTable[threadID][stm][moveIndex(move)];
         int R = lmrTable1[depth][i];
 
-        if (histScore > maxHistScore[threadID][stm] * 0.5) {
+        if (histScore > 0) { 
+            //} maxHistScore[threadID][stm] * 0.) {
             R--;
         } 
 
