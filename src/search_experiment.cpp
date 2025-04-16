@@ -382,19 +382,22 @@ int lateMoveReduction(Board& board,
     if (isMopUpPhase(board)) return depth - 1;
     bool stm = board.sideToMove() == Color::WHITE;
 
-    if (i <= 2 || depth <= 2) { 
+    if (i <= 2 || depth <= 3) { 
         return depth - 1;
     } else {
         int histScore = histTable[threadID][stm][moveIndex(move)];
         int R = lmrTable1[depth][i];
 
         if (histScore > 0) { 
-            //} maxHistScore[threadID][stm] * 0.) {
             R--;
         } 
 
         if (board.inCheck()) {
             R--;
+        }
+
+        if (depth <= 2 && seeScore < -300 * depth && board.isCapture(move)) {
+            R++;
         }
 
         return std::min(depth - R, depth - 1);
@@ -1073,8 +1076,6 @@ Move findBestMove(Board& board,
                 int extensions = 1;
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
-
-                
 
                 localBoard.makeMove(move);
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
