@@ -399,17 +399,12 @@ int lateMoveReduction(Board& board,
         }
 
         // Reduce less if improving
-        if (ply >= 2 && (evalPath[threadID][ply] - evalPath[threadID][ply - 2] > 50)) {
-            R--;
-        }
+        // if (ply >= 2 && (evalPath[threadID][ply] - evalPath[threadID][ply - 2] > 50)) {
+        //     R--;
+        // }
 
         // Reduce more for bad captures
         if (depth <= 2 && seeScore < -300 * depth && board.isCapture(move)) {
-            R++;
-        }
-
-        // Reduce more for late quiet moves near the leaves 
-        if (depth <= 2 && !board.isCapture(move) && !board.inCheck() && !isPromotion(move) && i > 5) {
             R++;
         }
 

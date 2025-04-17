@@ -173,11 +173,9 @@ void precomputeLRM1(int maxDepth, int maxI) {
     isPrecomputed = true;
 }
 
-
 /*-------------------------------------------------------------------------------------------- 
     Transposition table lookup and insert.
 --------------------------------------------------------------------------------------------*/
-
 int tableSize = 8388608; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
@@ -248,7 +246,6 @@ void tableInsert(Board& board,
 /*-------------------------------------------------------------------------------------------- 
     Other global variables.
 --------------------------------------------------------------------------------------------*/
-
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; 
 std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
@@ -262,6 +259,9 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 
 // History table for move ordering (threadID, side to move, move index)
 std::vector<std::vector<std::vector<int>>> histTable(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
+
+// Evaluations along the current path
+std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
 //std::vector<std::vector<Move>> moveSequence(maxThreadsID);
 
@@ -382,19 +382,30 @@ int lateMoveReduction(Board& board,
     if (isMopUpPhase(board)) return depth - 1;
     bool stm = board.sideToMove() == Color::WHITE;
 
-    if (i <= 2 || depth <= 2) { 
+    if (i <= 2 || depth <= 3) { 
         return depth - 1;
     } else {
         int histScore = histTable[threadID][stm][moveIndex(move)];
         int R = lmrTable1[depth][i];
 
+        // Reduce less for move with positive history scores
         if (histScore > 0) { 
-            //} maxHistScore[threadID][stm] * 0.) {
             R--;
         } 
 
+        // Reduce less if in check
         if (board.inCheck()) {
             R--;
+        }
+
+        // Reduce less if improving
+        // if (ply >= 2 && (evalPath[threadID][ply] - evalPath[threadID][ply - 2] > 50)) {
+        //     R--;
+        // }
+
+        // Reduce more for bad captures
+        if (depth <= 2 && seeScore < -300 * depth && board.isCapture(move)) {
+            R++;
         }
 
         return std::min(depth - R, depth - 1);
@@ -612,11 +623,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int alpha0 = alpha;
     bool stm = (board.sideToMove() == Color::WHITE);
     
-    // Check if the game is over
+    // Check if the game is over. 
     auto gameOverResult = board.isGameOver();
     if (gameOverResult.first != GameResultReason::NONE) {
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
-            return -(INF/2 - ply); 
+            return -(INF/2 - ply); // Mate distance pruning.
         }
         return 0;
     }
@@ -674,6 +685,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     int standPat = Probe::eval(board.getFen().c_str());
+    evalPath[threadID][ply] = standPat; // store the evaluation along the path
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -939,12 +951,10 @@ Move findBestMove(Board& board,
     hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
-    // Precompute late move reduction table
-    precomputeLRM1(100, 500);
+    precomputeLRM1(100, 500); // Precompute late move reduction table
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
-        // moveSequence[i] = {};
         for (int j = 0; j < 64 * 64; j++) {
             histTable[i][0][j] = 0;
             histTable[i][1][j] = 0;
@@ -1029,10 +1039,7 @@ Move findBestMove(Board& board,
             moves = orderedMoves(board, depth, 0, previousPV, false, Move::NO_MOVE, 0, hashMoveFound);
         }
 
-
-
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
-
         bool stopNow = false;
         int aspiration, alpha, beta;
 
@@ -1065,6 +1072,7 @@ Move findBestMove(Board& board,
 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
+                evalPath[omp_get_thread_num()][0] = standPat;
 
                 int ply = 0;
                 bool newBestFlag = false;  
@@ -1073,7 +1081,7 @@ Move findBestMove(Board& board,
                 int extensions = 1;
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
-
+                
                 localBoard.makeMove(move);
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
                 localBoard.unmakeMove(move);
@@ -1204,8 +1212,7 @@ Move findBestMove(Board& board,
         }
 
         if (moves.size() == 1) {
-            // If there is only one move, return it immediately.
-            return moves[0].first;
+            return moves[0].first; // If there is only one move, return it immediately.
         }
 
         auto currentTime = std::chrono::high_resolution_clock::now();
@@ -1235,7 +1242,6 @@ Move findBestMove(Board& board,
             depth++;
         }
     }
-
 
     return bestMove; 
 }
