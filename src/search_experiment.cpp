@@ -382,7 +382,7 @@ int lateMoveReduction(Board& board,
     if (isMopUpPhase(board)) return depth - 1;
     bool stm = board.sideToMove() == Color::WHITE;
 
-    if (i <= 2 || depth <= 3) { 
+    if (i <= 1 || depth <= 3) { 
         return depth - 1;
     } else {
         int histScore = histTable[threadID][stm][moveIndex(move)];
@@ -397,13 +397,6 @@ int lateMoveReduction(Board& board,
         if (board.inCheck()) {
             R--;
         }
-
-        // Reduce less if improving
-        // if (ply >= 4 
-        //     && (evalPath[threadID][ply] > evalPath[threadID][ply - 2]) 
-        //     && (evalPath[threadID][ply - 2] > evalPath[threadID][ply - 4])) {
-        //     R--;
-        // }
 
         // Reduce more for bad captures
         if (depth <= 2 && seeScore < -300 * depth && board.isCapture(move)) {
