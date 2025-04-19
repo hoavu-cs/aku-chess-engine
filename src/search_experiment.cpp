@@ -1084,14 +1084,14 @@ Move findBestMove(Board& board,
 
                 #pragma omp critical
                 {
-                    if (eval >= currentBestEval) {
+                    if (eval > currentBestEval) {
                         newBestFlag = true;
                     }
                 }
 
-                if (newBestFlag && nextDepth < depth - 1) {
+                if (newBestFlag && depth > 8 && nextDepth < depth - 2) {
                     localBoard.makeMove(move);
-                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
+                    eval = -negamax(localBoard, depth - 2, -beta, -alpha, childPV, childNodeInfo);
                     localBoard.unmakeMove(move);
 
                     // Check if the time limit has been exceeded, if so the search 
