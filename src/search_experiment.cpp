@@ -170,7 +170,6 @@ void precomputeLRM1(int maxDepth, int maxI) {
         }
     }
 
-    isPrecomputed = true;
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -511,6 +510,12 @@ std::vector<std::pair<Move, int>> orderedMoves(
         nonQuiet.push_back(move);
     }
 
+    // if (rand() % 4 == 0) {
+    //     if (nonQuiet.size() > 3) {
+    //         std:swap(nonQuiet[1], nonQuiet[2]);
+    //     }
+    // }
+
     return nonQuiet;
 }
 
@@ -661,6 +666,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         tableHit[threadID]++;
         if (tableDepth >= depth) found = true;
     }
+
+    if (found && EntryType::EXACT) {
+        return tableEval;
+    }  
     
     if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
@@ -1044,19 +1053,12 @@ Move findBestMove(Board& board,
             currentBestEval = -INF;
 
             #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < moves.size(); i++) {
+            for (int i = 0; i < numThreads * moves.size(); i++) {
 
                 if (stopNow) continue;
-                
-                bool leftMost = (i == 0);
-                Move move = moves[i].first;
-                //moveSequence[omp_get_thread_num()].push_back(move);
 
-                if (depth > 8) {
-                    // Ignore late moves after a certain depth
-                    // Repeatedly search the top moves instead (lazySMP style)
-                    move = moves[i % 15].first;
-                }
+                bool leftMost = (i == 0);
+                Move move = moves[i / numThreads].first;
 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
@@ -1089,7 +1091,7 @@ Move findBestMove(Board& board,
                     }
                 }
 
-                if (newBestFlag && depth > 8 && nextDepth < depth - 1) {
+                if (newBestFlag && nextDepth < depth - 1) {
                     localBoard.makeMove(move);
                     eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
                     localBoard.unmakeMove(move);
@@ -1104,7 +1106,19 @@ Move findBestMove(Board& board,
                 if (stopNow) continue;
 
                 #pragma omp critical
-                newMoves.push_back({move, eval});
+                {
+                    bool computed = false;
+                    for (auto& [mv, mvEval] : newMoves) {
+                        if (mv == move) {
+                            mvEval = std::max(mvEval, eval);
+                            computed = true;
+                        }
+                    }
+                    if (!computed) {
+                        newMoves.push_back({move, eval});
+                    }
+                }
+                
                 
                 #pragma omp critical
                 {
