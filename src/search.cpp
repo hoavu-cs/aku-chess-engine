@@ -181,8 +181,6 @@ int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 const int maxThreadsID = 50;
 
-std::vector<std::vector<int>> maxHistScore(maxThreadsID, std::vector<int>(2, 0)); // Maximum history score for each thread, for each side
-std::vector<std::vector<int>> minHistScore(maxThreadsID, std::vector<int>(2, 0)); // Minimum history score for each thread, for each side
 
 enum EntryType {
     EXACT,
@@ -865,7 +863,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 int change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
 
                 histTable[threadID][stm][mvIndex] += change;
-                maxHistScore[threadID][stm] = std::max(maxHistScore[threadID][stm], histTable[threadID][stm][mvIndex]);
             } 
 
             for (int j = 0; j < i; j++) {
@@ -876,7 +873,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 int change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
                 
                 histTable[threadID][stm][mvIndex] -= change;
-                minHistScore[threadID][stm] = std::min(minHistScore[threadID][stm], histTable[threadID][stm][mvIndex]);
             }
 
             break;
@@ -953,9 +949,6 @@ Move findBestMove(Board& board,
         for (int j = 0; j < 64 * 64; j++) {
             histTable[i][0][j] = 0;
             histTable[i][1][j] = 0;
-
-            maxHistScore[i][0] = 0;
-            minHistScore[i][1] = 0;
         }
     }
 
@@ -1059,10 +1052,10 @@ Move findBestMove(Board& board,
                 Move move = moves[i].first;
                 //moveSequence[omp_get_thread_num()].push_back(move);
 
-                if (depth > 8 && i > 9) {
+                if (depth > 8) {
                     // Ignore late moves after a certain depth
                     // Repeatedly search the top moves instead (lazySMP style)
-                    move = moves[i % 9].first;
+                    move = moves[i % 15].first;
                 }
 
                 std::vector<Move> childPV; 
@@ -1091,12 +1084,12 @@ Move findBestMove(Board& board,
 
                 #pragma omp critical
                 {
-                    if (eval >= currentBestEval) {
+                    if (eval > currentBestEval) {
                         newBestFlag = true;
                     }
                 }
 
-                if (newBestFlag && nextDepth < depth - 1) {
+                if (newBestFlag && depth > 8 && nextDepth < depth - 1) {
                     localBoard.makeMove(move);
                     eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
                     localBoard.unmakeMove(move);

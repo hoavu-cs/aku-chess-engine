@@ -1089,9 +1089,9 @@ Move findBestMove(Board& board,
                     }
                 }
 
-                if (newBestFlag && depth > 8 && nextDepth < depth - 2) {
+                if (newBestFlag && depth > 8 && nextDepth < depth - 1) {
                     localBoard.makeMove(move);
-                    eval = -negamax(localBoard, depth - 2, -beta, -alpha, childPV, childNodeInfo);
+                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
                     localBoard.unmakeMove(move);
 
                     // Check if the time limit has been exceeded, if so the search 
