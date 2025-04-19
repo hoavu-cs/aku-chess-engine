@@ -996,6 +996,7 @@ Move findBestMove(Board& board,
             } else if (wdl == -1) {
                 score = -SZYZYGY_INF;
             }
+            
             std::cout << "info depth 0 score cp " << score << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
         }
         
