@@ -1104,7 +1104,18 @@ Move findBestMove(Board& board,
                 if (stopNow) continue;
 
                 #pragma omp critical
-                newMoves.push_back({move, eval});
+                {
+                    bool computed = false;
+                    for (auto& [mv, mvEval] : newMoves) {
+                        if (mv == move) {
+                            mvEval = eval;
+                            computed = true;
+                        }
+                    }
+                    if (!computed) {
+                        newMoves.push_back({move, eval});
+                    }
+                }
                 
                 #pragma omp critical
                 {
