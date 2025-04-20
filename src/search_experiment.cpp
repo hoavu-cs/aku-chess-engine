@@ -156,22 +156,17 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
     Late move reduction tables.
 --------------------------------------------------------------------------------------------*/
 std::vector<std::vector<int>> lmrTable1;
-std::vector<std::vector<int>> lmrTable2;
-
 
 // More aggressive LMR table
 void precomputeLRM1(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
 
-    lmrTable1.resize(maxDepth + 1, std::vector<int>(maxI + 1));
-    lmrTable2.resize(maxDepth + 1, std::vector<int>(maxI + 1));
-
+    lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
             lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.65 * log(depth) * log(i));
-            lmrTable2[depth][i] =  static_cast<int>(0.75 + 0.65 * log(depth) * log(i));
         }
     }
 
@@ -388,8 +383,6 @@ int lateMoveReduction(Board& board,
         return depth - 1;
     } else {
         int histScore = histTable[threadID][stm][moveIndex(move)];
-
-        int coinToss = rand() % 2;
         int R = lmrTable1[depth][i];
 
         // Reduce less for move with positive history scores
@@ -397,7 +390,8 @@ int lateMoveReduction(Board& board,
             R--;
         } 
 
-        if (ply >= 2 && evalPath[threadID][ply - 2] < evalPath[threadID][ply]) {
+        // Reduce less if in check
+        if (board.inCheck()) {
             R--;
         }
 
@@ -480,9 +474,13 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 4000 + seeScore;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000; // Killer move
-        } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
-            priority = 3700;  
-        } else {
+        } 
+        
+        // else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
+        //     priority = 3700;  
+        // } 
+        
+        else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
             board.unmakeMove(move);
@@ -515,12 +513,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
     for (const auto& move : quiet) {
         nonQuiet.push_back(move);
     }
-
-    // if (rand() % 4 == 0) {
-    //     if (nonQuiet.size() > 3) {
-    //         std:swap(nonQuiet[1], nonQuiet[2]);
-    //     }
-    // }
 
     return nonQuiet;
 }
@@ -672,10 +664,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         tableHit[threadID]++;
         if (tableDepth >= depth) found = true;
     }
-
-    if (found && EntryType::EXACT) {
-        return tableEval;
-    }  
     
     if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
@@ -749,12 +737,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
-    // if (!hashMoveFound && !isPV) {
-    //     // Reduce the depth to facilitate the search if no hash move found 
-    //     if (depth > 4) {
-    //         depth--;
-    //     }
-    // }
+    if (!hashMoveFound && !isPV && depth > 3) {
+        // Reduce the depth to facilitate the search if no hash move found 
+        depth = 3; 
+    }
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
@@ -960,7 +946,6 @@ Move findBestMove(Board& board,
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
     precomputeLRM1(100, 500); // Precompute late move reduction table
-    
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
@@ -1053,37 +1038,62 @@ Move findBestMove(Board& board,
         alpha = -INF;
         beta = INF;
 
-        if (depth > 6) {
-            aspiration = evals[depth - 1];
-            alpha = aspiration - 150;
-            beta = aspiration + 150;
+        // if (depth > 6) {
+        //     aspiration = evals[depth - 1];
+        //     alpha = aspiration - 150;
+        //     beta = aspiration + 150;
+        // }
+
+        // while (true) {
+        //     currentBestEval = -INF;
+        if (depth == 10) {
+            size_t k = std::min<size_t>(10, moves.size());
+            moves = std::vector<std::pair<Move, int>>(moves.begin(), moves.begin() + k);
         }
 
-        while (true) {
-            currentBestEval = -INF;
+        
+        #pragma omp parallel for schedule(dynamic, 1)
+        for (int i = 0; i < 3 * moves.size(); i++) {
 
-            #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < 3 * moves.size(); i++) {
+            if (stopNow) continue;
 
-                if (stopNow) continue;
+            bool leftMost = (i == 0);
+            Move move = moves[i % moves.size()].first;
 
-                bool leftMost = (i == 0);
-                Move move = moves[i % moves.size()].first;
+            std::vector<Move> childPV; 
+            Board localBoard = board;
+            evalPath[omp_get_thread_num()][0] = standPat;
 
-                std::vector<Move> childPV; 
-                Board localBoard = board;
-                evalPath[omp_get_thread_num()][0] = standPat;
+            int ply = 0;
+            bool newBestFlag = false;  
+            int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, 0, leftMost, omp_get_thread_num());
+            int eval = -INF;
+            int extensions = 1;
 
-                int ply = 0;
-                bool newBestFlag = false;  
-                int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, 0, leftMost, omp_get_thread_num());
-                int eval = -INF;
-                int extensions = 1;
+            NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
+            
+            localBoard.makeMove(move);
+            eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
+            localBoard.unmakeMove(move);
 
-                NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
-                
+            // Check if the time limit has been exceeded, if so the search 
+            // has not finished. Return the best move so far.
+            if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
+                stopNow = true;
+            }
+
+            if (stopNow) continue;
+
+            #pragma omp critical
+            {
+                if (eval > currentBestEval) {
+                    newBestFlag = true;
+                }
+            }
+
+            if (newBestFlag && nextDepth < depth - 1) {
                 localBoard.makeMove(move);
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
+                eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -1091,48 +1101,40 @@ Move findBestMove(Board& board,
                 if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
                     stopNow = true;
                 }
+            }
 
-                if (stopNow) continue;
+            if (stopNow) continue;
 
-                #pragma omp critical
-                {
-                    if (eval > currentBestEval) {
-                        newBestFlag = true;
+            #pragma omp critical
+            {
+                bool computed = false;
+                for (auto& [mv, mvEval] : newMoves) {
+                    if (mv == move) {
+                        mvEval = std::max(mvEval, eval);
+                        computed = true;
                     }
                 }
-
-                if (newBestFlag && nextDepth < depth - 1) {
-                    localBoard.makeMove(move);
-                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
-                    localBoard.unmakeMove(move);
-
-                    // Check if the time limit has been exceeded, if so the search 
-                    // has not finished. Return the best move so far.
-                    if (std::chrono::high_resolution_clock::now() >= hardDeadline) {
-                        stopNow = true;
-                    }
+                if (!computed) {
+                    newMoves.push_back({move, eval});
                 }
+            }
+            
+            
+            #pragma omp critical
+            {
+                if (eval > currentBestEval) {
+                    currentBestEval = eval;
+                    currentBestMove = move;
 
-                if (stopNow) continue;
-
-                #pragma omp critical
-                {
-                    bool computed = false;
-                    for (auto& [mv, mvEval] : newMoves) {
-                        if (mv == move) {
-                            mvEval = std::max(mvEval, eval);
-                            computed = true;
-                        }
+                    PV.clear();
+                    PV.push_back(move);
+                    for (auto& move : childPV) {
+                        PV.push_back(move);
                     }
-                    if (!computed) {
-                        newMoves.push_back({move, eval});
-                    }
-                }
-                
-                
-                #pragma omp critical
-                {
-                    if (eval > currentBestEval) {
+                } else if (eval == currentBestEval) {
+                    // This is mostly for Syzygy tablebase.
+                    // Prefer the move that is a capture or a pawn move.
+                    if (localBoard.isCapture(move) || localBoard.at<Piece>(move.from()).type() == PieceType::PAWN) {
                         currentBestEval = eval;
                         currentBestMove = move;
 
@@ -1141,33 +1143,21 @@ Move findBestMove(Board& board,
                         for (auto& move : childPV) {
                             PV.push_back(move);
                         }
-                    } else if (eval == currentBestEval) {
-                        // This is mostly for Syzygy tablebase.
-                        // Prefer the move that is a capture or a pawn move.
-                        if (localBoard.isCapture(move) || localBoard.at<Piece>(move.from()).type() == PieceType::PAWN) {
-                            currentBestEval = eval;
-                            currentBestMove = move;
-    
-                            PV.clear();
-                            PV.push_back(move);
-                            for (auto& move : childPV) {
-                                PV.push_back(move);
-                            }
-                        }
                     }
                 }
             }
-
-            if (stopNow) break;
-
-            if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
-                alpha = -INF;
-                beta = INF;
-                newMoves.clear();
-            } else {
-                break;
-            }
         }
+
+        //     if (stopNow) break;
+
+        //     if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
+        //         alpha = -INF;
+        //         beta = INF;
+        //         newMoves.clear();
+        //     } else {
+        //         break;
+        //     }
+        // }
         
         if (stopNow) {
             break;
