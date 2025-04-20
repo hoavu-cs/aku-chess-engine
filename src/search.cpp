@@ -380,7 +380,7 @@ int lateMoveReduction(Board& board,
     if (isMopUpPhase(board)) return depth - 1;
     bool stm = board.sideToMove() == Color::WHITE;
 
-    if (i <= 1 || depth <= 3) { 
+    if (i <= 2 || depth <= 3) { 
         return depth - 1;
     } else {
         int histScore = histTable[threadID][stm][moveIndex(move)];
@@ -394,11 +394,6 @@ int lateMoveReduction(Board& board,
         // Reduce less if in check
         if (board.inCheck()) {
             R--;
-        }
-
-        // Reduce more for bad captures
-        if (depth <= 2 && seeScore < -300 * depth && board.isCapture(move)) {
-            R++;
         }
 
         return std::min(depth - R, depth - 1);
@@ -704,7 +699,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     --------------------------------------------------------------------------------------------*/
     const int nullDepth = 4; 
 
-    if (depth >= nullDepth && !endGameFlag && !leftMost && !board.inCheck() && !mopUp) {
+    if (depth >= nullDepth && !endGameFlag && !leftMost && !board.inCheck() && !mopUp && !isPV) {
         std::vector<Move> nullPV; // dummy PV
         int nullEval;
         int reduction = (depth >= 6) ? 4 : 3;
@@ -734,9 +729,39 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
-    if (!hashMoveFound && !isPV) {
+    if (!hashMoveFound) {
         // Reduce the depth to facilitate the search if no hash move found 
         depth = std::max(depth - 1, 1);
+    }
+
+    /*--------------------------------------------------------------------------------------------
+        Singular extension.
+    --------------------------------------------------------------------------------------------*/
+    if (hashMoveFound && tableDepth >= depth - 3
+                        && ply >= 8
+                        && (tableType == EntryType::EXACT || tableType == EntryType::LOWERBOUND)
+                        && isPV) {
+
+            int singularEval = 0;
+            bool singular = true;
+
+            for (int i = 1; i < moves.size(); i++) {
+
+                board.makeMove(moves[i].first);
+                singularEval = -negamax(board, depth / 2, -beta, -alpha, PV, nodeInfo);
+                board.unmakeMove(moves[i].first);
+
+                if (singularEval < tableEval) {
+                    singular = false;
+                    break;
+                }
+            }
+            
+            if (extensions && singular) {
+                depth++;
+                extensions--;
+            }
+
     }
 
     /*--------------------------------------------------------------------------------------------
@@ -762,9 +787,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             For tactical stability, we only do this for quiet moves.
         --------------------------------------------------------------------------------------------*/
         if (depth <= 2 && quiet && pruningCondition) {
-            int margin = 350 * depth;
+            int margin = 330 * depth;
             if (standPat + margin < alpha) {
-                 return alpha;
+                continue;
             } 
         }
 
@@ -1043,28 +1068,22 @@ Move findBestMove(Board& board,
         while (true) {
             currentBestEval = -INF;
 
+            //#pragma omp parallel for schedule(dynamic, 1)
             #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < moves.size(); i++) {
+            for (int i = 0; i < 3 * moves.size(); i++) {
 
                 if (stopNow) continue;
                 
                 bool leftMost = (i == 0);
-                Move move = moves[i].first;
-                //moveSequence[omp_get_thread_num()].push_back(move);
-
-                if (depth > 8) {
-                    // Ignore late moves after a certain depth
-                    // Repeatedly search the top moves instead (lazySMP style)
-                    move = moves[i % 15].first;
-                }
-
+                Move move = moves[i % moves.size()].first;
+                
                 std::vector<Move> childPV; 
                 Board localBoard = board;
                 evalPath[omp_get_thread_num()][0] = standPat;
 
                 int ply = 0;
                 bool newBestFlag = false;  
-                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, 0, leftMost, omp_get_thread_num());
+                int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, 0, leftMost, omp_get_thread_num());
                 int eval = -INF;
                 int extensions = 1;
 
@@ -1234,7 +1253,7 @@ Move findBestMove(Board& board,
         // Break out of the loop if the time limit is exceeded and the evaluation is stable.
         if (!timeLimitExceeded) {
             depth++;
-        } else if (stableEval) {
+        } else if (stableEval && depth >= 15) {
             break;
         } else {
             if (depth > ENGINE_DEPTH || spendTooMuchTime) break;
