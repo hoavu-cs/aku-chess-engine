@@ -396,9 +396,9 @@ int lateMoveReduction(Board& board,
         }
 
         // Reduce more for bad captures
-        if (depth <= 2 && seeScore < -300 * depth && board.isCapture(move)) {
-            R++;
-        }
+        // if (depth <= 2 && seeScore < -300 * depth && board.isCapture(move)) {
+        //     R++;
+        // }
 
         return std::min(depth - R, depth - 1);
     }
@@ -474,13 +474,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 4000 + seeScore;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000; // Killer move
-        } 
-        
-        // else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
-        //     priority = 3700;  
-        // } 
-        
-        else {
+        } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
             board.unmakeMove(move);
