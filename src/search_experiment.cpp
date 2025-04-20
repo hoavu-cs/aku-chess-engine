@@ -156,17 +156,22 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
     Late move reduction tables.
 --------------------------------------------------------------------------------------------*/
 std::vector<std::vector<int>> lmrTable1;
+std::vector<std::vector<int>> lmrTable2;
+
 
 // More aggressive LMR table
 void precomputeLRM1(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
 
-    lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
+    lmrTable1.resize(maxDepth + 1, std::vector<int>(maxI + 1));
+    lmrTable2.resize(maxDepth + 1, std::vector<int>(maxI + 1));
+
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
+            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.65 * log(depth) * log(i));
+            lmrTable2[depth][i] =  static_cast<int>(0.75 + 0.65 * log(depth) * log(i));
         }
     }
 
@@ -383,6 +388,8 @@ int lateMoveReduction(Board& board,
         return depth - 1;
     } else {
         int histScore = histTable[threadID][stm][moveIndex(move)];
+
+        int coinToss = rand() % 2;
         int R = lmrTable1[depth][i];
 
         // Reduce less for move with positive history scores
@@ -390,8 +397,7 @@ int lateMoveReduction(Board& board,
             R--;
         } 
 
-        // Reduce less if in check
-        if (board.inCheck()) {
+        if (ply >= 2 && evalPath[threadID][ply - 2] < evalPath[threadID][ply]) {
             R--;
         }
 
@@ -743,10 +749,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
-    if (!hashMoveFound && !isPV) {
-        // Reduce the depth to facilitate the search if no hash move found 
-        depth = std::max(depth - 1, 1);
-    }
+    // if (!hashMoveFound && !isPV) {
+    //     // Reduce the depth to facilitate the search if no hash move found 
+    //     if (depth > 4) {
+    //         depth--;
+    //     }
+    // }
 
     /*--------------------------------------------------------------------------------------------
         Evaluate moves.
@@ -952,6 +960,7 @@ Move findBestMove(Board& board,
     softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
     precomputeLRM1(100, 500); // Precompute late move reduction table
+    
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
@@ -1054,12 +1063,12 @@ Move findBestMove(Board& board,
             currentBestEval = -INF;
 
             #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < numThreads * moves.size(); i++) {
+            for (int i = 0; i < 3 * moves.size(); i++) {
 
                 if (stopNow) continue;
 
                 bool leftMost = (i == 0);
-                Move move = moves[i / numThreads].first;
+                Move move = moves[i % moves.size()].first;
 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
@@ -1067,7 +1076,7 @@ Move findBestMove(Board& board,
 
                 int ply = 0;
                 bool newBestFlag = false;  
-                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, 0, leftMost, omp_get_thread_num());
+                int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, 0, leftMost, omp_get_thread_num());
                 int eval = -INF;
                 int extensions = 1;
 
