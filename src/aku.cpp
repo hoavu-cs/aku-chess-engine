@@ -122,6 +122,7 @@ void extractTablebaseFiles() {
 -------------------------------------------------------------------------------------------- */
 int numThreads = 8;
 int depth = 30;
+bool chess960 = false;
 
 std::string getBookMove(Board& board) {
     std::vector<std::string> possibleMoves;
@@ -175,9 +176,10 @@ void processPosition(const std::string& command) {
     iss >> token; // Skip "position"
     iss >> token; // "startpos" or "fen"
 
-    board = Board(); // Initialize to the starting position
-
     if (token == "startpos") {
+        board = Board(); // Initialize to the starting position
+        board.set960(chess960); // Set chess960 if applicable    
+
         if (iss >> token && token == "moves") {
             while (iss >> token) {
                 Move move = uci::uciToMove(board, token);
@@ -193,6 +195,7 @@ void processPosition(const std::string& command) {
         }
 
         board = Board(fen); // Set board to the FEN position
+        board.set960(chess960); // Set chess960 if applicable
 
         if (token == "moves") {
             while (iss >> token) {
@@ -213,7 +216,6 @@ void processSetOption(const std::vector<std::string>& tokens) {
     std::string optionName = tokens[2];
     std::string value = tokens[4];
 
-
     if (optionName == "Threads") {
         numThreads = std::stoi(value);
         // Set number of threads
@@ -221,6 +223,9 @@ void processSetOption(const std::vector<std::string>& tokens) {
         depth = std::stoi(value);
     } else if (optionName == "Hash") {
         tableSize = std::stoi(value) * 1024 * 1024 / 64;
+    } else if (optionName == "UCI_Chess960") {
+        chess960 = (value == "true");
+        board.set960(chess960);
     } else {
         std::cerr << "Unknown option: " << optionName << std::endl;
     }
@@ -281,15 +286,27 @@ void processGo(const std::vector<std::string>& tokens) {
         if (board.sideToMove() == Color::WHITE && wtime > 0) {
             int baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 22); 
             timeLimit = static_cast<int>(baseTime * adjust) + winc / 3;
+
+            if (wtime < 10000) {
+                // if only 10s left, make moves faster
+                baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 30); 
+                timeLimit = static_cast<int>(baseTime * adjust) + winc / 3;
+            }
         } else if (board.sideToMove() == Color::BLACK && btime > 0) {
             int baseTime = btime / (movestogo > 0 ? movestogo + 2 : 22); 
             timeLimit = static_cast<int>(baseTime * adjust) + binc / 3;
+
+            if (btime < 10000) {
+                // if only 10s left, make moves faster
+                baseTime = btime / (movestogo > 0 ? movestogo + 2 : 30); 
+                timeLimit = static_cast<int>(baseTime * adjust) + binc / 3;
+            }
         }
     }
     bestMove = findBestMove(board, numThreads, depth, timeLimit, quiet);
 
     if (bestMove != Move::NO_MOVE) {
-        std::cout << "bestmove " << uci::moveToUci(bestMove)  << std::endl;
+        std::cout << "bestmove " << uci::moveToUci(bestMove, chess960)  << std::endl;
     } else {
         std::cout << "bestmove 0000" << std::endl; // No legal moves
     }
@@ -304,6 +321,7 @@ void processUci() {
     std::cout << "option name Threads type spin default 8 min 1 max 10" << std::endl;
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
     std::cout << "option name Hash type spin default 512 min 128 max 1024" << std::endl;
+    std::cout << "option name UCI_Chess960 type check default false" << std::endl;
     std::cout << "uciok" << std::endl;
 }
 
@@ -320,6 +338,7 @@ void uciLoop() {
             std::cout << "readyok" << std::endl;
         } else if (line == "ucinewgame") {
             board = Board(); // Reset board to starting position
+            board.set960(chess960); // Set chess960 option
         } else if (line.find("position") == 0) {
             processPosition(line);
         } else if (line.find("setoption") == 0) {
