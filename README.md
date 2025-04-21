@@ -9,6 +9,7 @@ A few interesting features
 - Support Windows, MacOS, and Linux.
 - Self-contained 3-4 endgame tablebases.
 - NNUE evaluation.
+- Supports chess960.
 
 ## Strength and Performance
 
@@ -33,6 +34,8 @@ Currently, the engine is pretty strong and based on some simple concepts:
 - Killer move (1 slot per ply)
 - Principle variation search
 - Late move reduction
+- Extensions
+- LazySMP
 
 Progress is currently tracked using Sequential Probability Ratio Test [SPRT LOG](https://github.com/hoavu-cs/aku-chess-engine/tree/main/sprt).
 
