@@ -1216,7 +1216,7 @@ Move findBestMove(Board& board,
 
         std::string pvStr = "pv ";
         for (const auto& move : PV) {
-            pvStr += uci::moveToUci(move) + " ";
+            pvStr += uci::moveToUci(move, board.chess960()) + " ";
         }
 
         std::string analysis = "info " + depthStr + " " 
