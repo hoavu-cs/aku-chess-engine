@@ -8,7 +8,7 @@ The binaries for **Windows** and **MacOS** can be downloaded from the [releases]
 A few interesting features
 - Support Windows, MacOS, and Linux.
 - Self-contained 3-4 endgame tablebases.
-- NNUE evaluation.
+- NNUE evaluation. In the process of training my own NNUE.
 - Supports chess960.
 
 ## Strength and Performance
