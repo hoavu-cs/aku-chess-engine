@@ -261,9 +261,6 @@ std::vector<std::vector<std::vector<int>>> histTable(maxThreadsID, std::vector<s
 // Evaluations along the current path
 std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
-//std::vector<std::vector<Move>> moveSequence(maxThreadsID);
-
-
 // Basic piece values for move ordering
 const int pieceValues[] = {
     0,    // No piece
@@ -799,8 +796,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int seeScore = 0;
         
         if (isCapture) {
-            // see score will be negative if the move is a bad capture
-            // if the move is a hash move or leftmost path move, then see > 6000 - 4000 = 2000 > 0.
+            // see score will be negative if the move is a losing capture
             seeScore = moves[i].second - 4000;
         }
 
@@ -1085,7 +1081,7 @@ Move findBestMove(Board& board,
                 bool newBestFlag = false;  
                 int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, 0, leftMost, omp_get_thread_num());
                 int eval = -INF;
-                int extensions = 10;
+                int extensions = 3;
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
                 

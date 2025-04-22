@@ -598,7 +598,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool leftMost = nodeInfo.leftMost;
     int ply = nodeInfo.ply;
     int extensions = nodeInfo.extensions;
-    bool multiCut = nodeInfo.multiCut;
     Move lastMove = nodeInfo.lastMove;
 
     nodeCount[threadID]++;
@@ -688,7 +687,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (depth <= 2 && pruningCondition) {
         int margin = 330 * depth;
         if (standPat - margin > beta) {
-            return beta;
+            return standPat - margin;
         } 
     } 
 
@@ -702,7 +701,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int nullEval;
         int reduction = (depth >= 6) ? 4 : 3;
 
-        NodeInfo nullNodeInfo = {ply + 1, false, extensions, multiCut, Move::NULL_MOVE, threadID}; 
+        NodeInfo nullNodeInfo = {ply + 1, false, extensions, Move::NULL_MOVE, threadID}; 
 
         //moveSequence[threadID].push_back(Move::NULL_MOVE);
 
@@ -715,9 +714,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (nullEval >= beta) return beta;
     }
 
-
- 
-
     bool hashMoveFound = false;
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, 
                                                         depth, 
@@ -727,41 +723,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         lastMove, 
                                                         threadID,
                                                         hashMoveFound);
-
-    /*--------------------------------------------------------------------------------------------
-        Multicut. If the first C moves are all cutoffs, we can return beta since 
-        the position is very likely too good for us.
-        Avoid multicut on the leftmost path.
-        We only do multicut once on a path.
-    --------------------------------------------------------------------------------------------*/
-    // const int C = 3; // Multicut constant
-    // const int R = 3; // depth reduction constant for multicut
-    // const int multiCutDepth = 6;
-
-    // if (depth >= multiCutDepth && multiCut && !isPV) {
-    //     int counter = 0;
-    //     for (int i = 0; i < std::min(C, static_cast<int>(moves.size())); i++) {
-
-    //         Move move = moves[i].first;
-    //         NodeInfo multiCutNodeInfo = {ply + 1, false, extensions, false, move, threadID};
-
-    //         board.makeMove(move);
-    //         int multiCutScore = -negamax(board, depth - R, -beta, -alpha, PV, nodeInfo);
-    //         board.unmakeMove(move);
-
-    //         if (multiCutScore >= beta) {
-    //             counter++;
-    //         } else {
-    //             break;
-    //         }
-    //     }
-
-    //     if (counter >= C) {
-    //         return beta;
-    //     }
-    // }
-
-
     int bestEval = -INF;
     bool searchAllFlag = false;
 
@@ -769,8 +730,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Reduce the depth to facilitate the search if no hash move found 
         depth = std::max(depth - 1, 1);
     }
-
-
 
     /*--------------------------------------------------------------------------------------------
         Singular extension.
@@ -785,10 +744,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
             for (int i = 1; i < moves.size(); i++) {
 
-                NodeInfo singularNodeInfo = {ply + 1, leftMost, extensions, multiCut, moves[i].first, threadID};
-
                 board.makeMove(moves[i].first);
-                singularEval = -negamax(board, depth / 2, -beta, -alpha, PV, singularNodeInfo);
+                singularEval = -negamax(board, depth / 2, -beta, -alpha, PV, nodeInfo);
                 board.unmakeMove(moves[i].first);
 
                 if (singularEval < tableEval) {
@@ -801,6 +758,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 depth++;
                 extensions--;
             }
+
     }
 
     /*--------------------------------------------------------------------------------------------
@@ -856,7 +814,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.makeMove(move);
         bool nullWindow = false;
 
-        NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, multiCut, move, threadID}; 
+        NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
 
         // ~ 35 Elo
         if (extensions && board.inCheck()) { 
@@ -1125,7 +1083,7 @@ Move findBestMove(Board& board,
                 int eval = -INF;
                 int extensions = 3;
 
-                NodeInfo childNodeInfo = {1, leftMost, extensions, true, move, omp_get_thread_num()};
+                NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
                 
                 localBoard.makeMove(move);
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
@@ -1291,7 +1249,7 @@ Move findBestMove(Board& board,
         // Break out of the loop if the time limit is exceeded and the evaluation is stable.
         if (!timeLimitExceeded) {
             depth++;
-        } else if (stableEval && depth >= 15) {
+        } else if (stableEval) {
             break;
         } else {
             if (depth > ENGINE_DEPTH || spendTooMuchTime) break;
