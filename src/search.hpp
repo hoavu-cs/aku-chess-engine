@@ -44,6 +44,7 @@ struct NodeInfo {
     int ply;
     bool leftMost;
     int extensions;
+    bool multiCut;
     Move lastMove;
     int threadID;
 };
