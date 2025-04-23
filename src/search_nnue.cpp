@@ -37,6 +37,7 @@
 #include <cmath>
 #include <filesystem>
 #include <mutex>
+#include "nnue.hpp"
 
 
 #include "../lib/stockfish_nnue_probe/probe.h"
