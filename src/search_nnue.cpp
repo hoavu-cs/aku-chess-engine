@@ -54,7 +54,7 @@ const int maxThreadsID = 50; // Maximum number of threads
 Network evalNetwork;
 
 void initializeNNUE() {
-    const std::string& path = "quantised.bin";
+    const std::string& path = "beans.bin";
     std::cout << "Initializing NNUE from: " << path << std::endl;
     loadNetwork(path, evalNetwork);
 }

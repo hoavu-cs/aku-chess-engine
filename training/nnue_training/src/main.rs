@@ -21,7 +21,7 @@ use bullet_lib::{
     },
 };
 
-const HIDDEN_SIZE: usize = 512;
+const HIDDEN_SIZE: usize = 64;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -36,15 +36,19 @@ fn main() {
         .activate(Activation::SCReLU)
         .add_layer(1)
         .build();
+    
+        //trainer.load_from_checkpoint("checkpoints/simple-40");
+
+    //println!("Loaded network with features");
 
     let schedule = TrainingSchedule {
-        net_id: "simple".to_string(),
+        net_id: "simple128".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 40,
+            end_superbatch: 50,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
         lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 18 },
@@ -57,7 +61,7 @@ fn main() {
 
     // loading from a SF binpack
     let data_loader = {
-        let file_path = "test80-2024-01-jan-2tb7p.min-v2.v6.binpack";
+        let file_path = "test80-2023-06-jun-2tb7p.min-v2.v6.binpack";
         let buffer_size_mb = 1024;
         let threads = 4;
         fn filter(entry: &TrainingDataEntry) -> bool {
