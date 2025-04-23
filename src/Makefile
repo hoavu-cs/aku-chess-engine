@@ -5,10 +5,10 @@ ifeq ($(UNAME_S), Darwin)
     CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp 
 else
     CXX = g++
-    CXXFLAGS = -std=c++17 -O3 -march=native -fopenmp -pthread -Wall -Wextra -Wshadow -w -static
+    CXXFLAGS = -std=c++17 -O3 -march=native -fopenmp -fopenmp-simd -pthread -Wall -Wextra -Wshadow -w -static
 endif
 
-all: aku debug_nnue aku_experiment debug_experiment
+all: aku debug_nnue aku_experiment aku_nnue
 
 ../bin:
 	@mkdir -p ../bin
@@ -21,6 +21,9 @@ aku_experiment: aku.cpp search_experiment.cpp utils.cpp ../lib/stockfish_nnue_pr
 
 debug: debug.cpp search_experiment.cpp utils.cpp ../lib/stockfish_nnue_probe/bitboard.cpp ../lib/stockfish_nnue_probe/evaluate.cpp ../lib/stockfish_nnue_probe/misc.cpp ../lib/stockfish_nnue_probe/position.cpp ../lib/stockfish_nnue_probe/probe.cpp ../lib/stockfish_nnue_probe/nnue/evaluate_nnue.cpp ../lib/stockfish_nnue_probe/nnue/features/half_ka_v2_hm.cpp ../lib/fathom/src/tbprobe.c  | ../bin
 	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/stockfish_nnue_probe -I ../lib/fathom/src -o ../bin/debug $^ -lm
+
+aku_nnue: aku.cpp search_nnue.cpp utils.cpp ../lib/fathom/src/tbprobe.c | ../bin
+	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/fathom/src -o ../bin/aku_nnue $^ -lm
 
 clean:
 	rm -rf ../bin ../lib/Fathom/src/*.o
