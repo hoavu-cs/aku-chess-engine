@@ -56,8 +56,8 @@ bool initializeNNUE(const std::string& path = "beans.bin") {
     return loadNetwork(path, evalNetwork);
 }
 
-Accumulator whiteAccumulator;
-Accumulator blackAccumulator;
+std::vector<Accumulator> whiteAccumulator (maxThreadsID);
+std::vector<Accumulator> blackAccumulator (maxThreadsID);
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize and look up endgame tablebases.
@@ -974,6 +974,8 @@ Move findBestMove(Board& board,
             histTable[i][0][j] = 0;
             histTable[i][1][j] = 0;
         }
+
+        createAccumulator(board, whiteAccumulator[i], blackAccumulator[i]);
     }
 
     // Reset killer moves for each thread and ply
