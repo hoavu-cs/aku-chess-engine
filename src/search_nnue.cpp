@@ -45,15 +45,18 @@ using namespace chess;
 typedef std::uint64_t U64;
 
 
+const int maxThreadsID = 50; // Maximum number of threads
+
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
     Utility function to convert board to pieces array for fast evaluation.
 --------------------------------------------------------------------------------------------*/
 Network evalNetwork;
 
-bool initializeNNUE(const std::string& path = "beans.bin") {
+void initializeNNUE() {
+    const std::string& path = "beans.bin";
     std::cout << "Initializing custom NNUE from: " << path << std::endl;
-    return loadNetwork(path, evalNetwork);
+    loadNetwork(path, evalNetwork);
 }
 
 std::vector<Accumulator> whiteAccumulator (maxThreadsID);
@@ -182,7 +185,7 @@ void precomputeLRM1(int maxDepth, int maxI) {
 int tableSize = 8388608; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
-const int maxThreadsID = 50;
+
 
 
 enum EntryType {
@@ -262,7 +265,7 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 std::vector<std::vector<std::vector<int>>> histTable(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Evaluations along the current path
-std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
+//std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -543,7 +546,12 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     if (isMopUpPhase(board)) {
         standPat = color * mopUpScore(board);
     } else {
-        standPat = Probe::eval(board.getFen().c_str());
+        makeAccumulators(board, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+        if (color == 1) {
+            standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
+        } else {
+            standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
+        }
     }
 
     int bestScore = standPat;
@@ -671,9 +679,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         depth++;
         return negamax(board, depth, alpha, beta, PV, nodeInfo);
     }
+
+    int standPat = 0;
+    makeAccumulators(board, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+    if (stm == 1) {
+        standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
+    } else {
+        standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
+    }
     
-    int standPat = Probe::eval(board.getFen().c_str());
-    evalPath[threadID][ply] = standPat; // store the evaluation along the path
+    
+    //evalPath[threadID][ply] = standPat; // store the evaluation along the path
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -974,8 +990,6 @@ Move findBestMove(Board& board,
             histTable[i][0][j] = 0;
             histTable[i][1][j] = 0;
         }
-
-        createAccumulator(board, whiteAccumulator[i], blackAccumulator[i]);
     }
 
     // Reset killer moves for each thread and ply
@@ -1027,7 +1041,7 @@ Move findBestMove(Board& board,
         }
     }
 
-    int standPat = Probe::eval(board.getFen().c_str()); 
+    //int standPat = Probe::eval(board.getFen().c_str()); 
 
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
@@ -1080,7 +1094,7 @@ Move findBestMove(Board& board,
                 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
-                evalPath[omp_get_thread_num()][0] = standPat;
+                //evalPath[omp_get_thread_num()][0] = standPat;
 
                 int ply = 0;
                 bool newBestFlag = false;  
@@ -1091,6 +1105,7 @@ Move findBestMove(Board& board,
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
                 
                 localBoard.makeMove(move);
+                makeAccumulators(localBoard, whiteAccumulator[omp_get_thread_num()], blackAccumulator[omp_get_thread_num()], evalNetwork);
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
                 localBoard.unmakeMove(move);
 

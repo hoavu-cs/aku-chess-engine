@@ -8,6 +8,9 @@
 #include <cstdint>
 #include <string>
 #include <iostream>
+#include "chess.hpp"
+
+using namespace chess;
 
 constexpr int INPUT_SIZE = 768;
 constexpr int HIDDEN_SIZE = 64;
@@ -19,10 +22,23 @@ constexpr int QB = 64;
     Calculate index of a piece, square, and side to move
     Square: 0 - 63
     PieceType: Pawn = 0, Knight = 1, Bishop = 2, Rook = 3, Queen = 4, King = 5
-    Side: White = 0, Black = 1
+    Side: us = 0, them = 1
 --------------------------------------------------------------------------------------------*/
 inline int calculateIndex(int side, int pieceType, int square) {
     return side * 64 * 6 + pieceType * 64 + square;
+}
+
+/*--------------------------------------------------------------------------------------------
+    PieceType to piece index
+--------------------------------------------------------------------------------------------*/
+inline int pieceTypeToIndex(PieceType type) {
+    if (type == PieceType::PAWN) return 0;
+    if (type == PieceType::KNIGHT) return 1;
+    if (type == PieceType::BISHOP) return 2;
+    if (type == PieceType::ROOK) return 3;
+    if (type == PieceType::QUEEN) return 4;
+    if (type == PieceType::KING) return 5;
+    return -1; // Invalid piece type
 }
 
 /*--------------------------------------------------------------------------------------------
@@ -78,15 +94,16 @@ struct Network {
     int evaluate(const Accumulator& us, const Accumulator& them) const {
         int output = static_cast<int>(output_bias);
 
-        // Side-to-move accumulator
+        #pragma omp simd reduction(+:output)
         for (int i = 0; i < HIDDEN_SIZE; ++i) {
-            output += screlu(us.vals[i]) * static_cast<int>(outputWeights[i]);
+            output += screlu(us.vals[i]) * static_cast<int>(outputWeights[i]) + 
+                      screlu(them.vals[i]) * static_cast<int>(outputWeights[HIDDEN_SIZE + i]);
         }
 
-        // Not-side-to-move accumulator
-        for (int i = 0; i < HIDDEN_SIZE; ++i) {
-            output += screlu(them.vals[i]) * static_cast<int>(outputWeights[HIDDEN_SIZE + i]);
-        }
+        // #pragma omp simd reduction(+:output)
+        // for (int i = 0; i < HIDDEN_SIZE; ++i) {
+        //     output += 
+        // }
 
         output *= SCALE;
         output /= static_cast<int>(QA) * static_cast<int>(QB); // Remove quantization
@@ -157,7 +174,7 @@ inline int mirror_square(int sq) {
     return (sq ^ 56); // flips rank (A1 to A8, H2 to H7, etc.)
 }
 
-void createAccumulator(Board& board, Accumulator& whiteAccumulator, Accumulator& blackAccumulator) {
+void makeAccumulators(Board& board, Accumulator& whiteAccumulator, Accumulator& blackAccumulator, Network& evalNetwork) {
     // Initialize the accumulators
     whiteAccumulator = Accumulator::fromBias(evalNetwork);
     blackAccumulator = Accumulator::fromBias(evalNetwork);
@@ -194,24 +211,92 @@ void createAccumulator(Board& board, Accumulator& whiteAccumulator, Accumulator&
 
         while (bb) {
             int sq = bb.lsb();
+            int msq = mirror_square(sq);
             bb.clear(sq);
         
             int type = i % 6;
-            int color = (i < 6) ? 0 : 1;
+            bool white = (i < 6) ? 0 : 1;
         
-            // White
-            if (color == 0)
-                whiteAccumulator.addFeature(calculateIndex(0, type, sq), evalNetwork);
-            else
-                blackAccumulator.addFeature(calculateIndex(1, type, sq), evalNetwork);
-        
-            // Black
-            int msq = mirror_square(sq);
-            if (color == 1)
-                blackAccumulator.addFeature(calculateIndex(0, type, msq), evalNetwork);
-            else
-                whiteAccumulator.addFeature(calculateIndex(1, type, msq), evalNetwork);
+            if (white) {
+                // from White’s view
+                whiteAccumulator.addFeature(calculateIndex(0, type, sq),  evalNetwork); // us
+                blackAccumulator.addFeature(calculateIndex(1, type, msq), evalNetwork); // them
+            } else {
+                // from Black’s view
+                blackAccumulator.addFeature(calculateIndex(0, type, sq),  evalNetwork); // us
+                whiteAccumulator.addFeature(calculateIndex(1, type, msq), evalNetwork); // them
+            }
         }
         
     }
 }
+
+/*--------------------------------------------------------------------------------------------
+    Update accumulator given a move.
+--------------------------------------------------------------------------------------------*/
+// void updateAccumulators(Board& board, Move& move, Accumulator& whiteAccumulator, Accumulator& blackAccumulator) {
+
+//     Color color = board.sideToMove();
+//     PieceType pieceType = board.at<Piece>(move.from()).type();
+
+//     int pieceIdx = pieceTypeToIndex(pieceType);
+//     bool isPromotion = move.typeOf() & Move::PROMOTION;
+
+//     // Calculate index of from and to from "us" perspective
+//     int fromIdx = calculateIndex(0, pieceIdx, move.from().index());
+//     int toIdx = calculateIndex(0, pieceIdx, move.to().index());
+
+//     if (color == Color::WHITE) {
+//         if (!isPromotion) {
+//             whiteAccumulator.removeFeature(fromIdx, evalNetwork);
+//             whiteAccumulator.addFeature(toIdx, evalNetwork);
+//         } else {
+//             PieceType promotionType = move.promotionType();
+//             int promotionPieceIdx = pieceTypeToIndex(promotionType);
+
+//             // change toIdx to reflect the promotion piece
+//             toIdx = calculateIndex(0, promotionPieceIdx, move.to().index());
+
+//             whiteAccumulator.removeFeature(fromIdx, evalNetwork);
+//             whiteAccumulator.addFeature(toIdx, evalNetwork);
+//         }
+
+//         if (board.isCapture(move)) {
+//             PieceType captured = board.at<Piece>(move.to()).type();
+//             int capturedIdx = pieceTypeToIndex(captured);
+
+//             int captureIndexUs = calculateIndex(1, capturedIdx, move.to().index());
+//             whiteAccumulator.removeFeature(captureIndexUs, evalNetwork);
+
+//             int captureIndexThem = calculateIndex(0, capturedIdx, mirror_square(move.to().index()));
+//             blackAccumulator.removeFeature(captureIndexThem, evalNetwork);
+//         }
+
+//     } else {
+
+//         if (!isPromotion) {
+//             blackAccumulator.removeFeature(fromIdx, evalNetwork);
+//             blackAccumulator.addFeature(toIdx, evalNetwork);
+//         } else {
+//             PieceType promotionType = move.promotionType();
+//             int promotionPieceIdx = pieceTypeToIndex(promotionType);
+//             toIdx = calculateIndex(0, promotionPieceIdx, move.to().index());
+
+//             blackAccumulator.removeFeature(fromIdx, evalNetwork);
+//             blackAccumulator.addFeature(toIdx, evalNetwork);
+//         }
+
+//         if (board.isCapture(move)) {
+//             PieceType captured = board.at<Piece>(move.to()).type();
+//             int capturedIdx = pieceTypeToIndex(captured);
+
+//             int captureIndexUs = calculateIndex(1, capturedIdx, move.to().index());
+//             blackAccumulator.removeFeature(captureIndexUs, evalNetwork);
+
+//             int captureIndexThem = calculateIndex(0, capturedIdx, mirror_square(move.to().index()));
+//             whiteAccumulator.removeFeature(captureIndexThem, evalNetwork);
+//         }
+//     }
+// }
+
+
