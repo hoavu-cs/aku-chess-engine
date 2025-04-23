@@ -44,10 +44,10 @@ inline int pieceTypeToIndex(PieceType type) {
 /*--------------------------------------------------------------------------------------------
     Clip ReLU
 --------------------------------------------------------------------------------------------*/
-// inline int crelu(int16_t x) {
-//     int val = static_cast<int>(x);
-//     return std::clamp(val, 0, static_cast<int>(QA));
-// }
+inline int crelu(int16_t x) {
+    int val = static_cast<int>(x);
+    return std::clamp(val, 0, static_cast<int>(QA));
+}
 
 /*--------------------------------------------------------------------------------------------
     Square Clip ReLU (SCReLU)
@@ -119,16 +119,19 @@ inline Accumulator Accumulator::fromBias(const Network& net) {
 }
 
 inline void Accumulator::addFeature(size_t feature_idx, const Network& net) {
+    #pragma omp simd
     for (size_t i = 0; i < HIDDEN_SIZE; ++i) {
         vals[i] += net.featureWeights[feature_idx].vals[i];
     }
 }
 
 inline void Accumulator::removeFeature(size_t feature_idx, const Network& net) {
+    #pragma omp simd
     for (size_t i = 0; i < HIDDEN_SIZE; ++i) {
         vals[i] -= net.featureWeights[feature_idx].vals[i];
     }
 }
+
 
 /*--------------------------------------------------------------------------------------------
     Load network from file.
@@ -177,7 +180,6 @@ void makeAccumulators(Board& board, Accumulator& whiteAccumulator, Accumulator& 
     whiteAccumulator = Accumulator::fromBias(evalNetwork);
     blackAccumulator = Accumulator::fromBias(evalNetwork);
 
-    // Add features for each piece on the board
     Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
     Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
     Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
@@ -231,6 +233,7 @@ void makeAccumulators(Board& board, Accumulator& whiteAccumulator, Accumulator& 
 
 /*--------------------------------------------------------------------------------------------
     Update accumulator given a move.
+    Work in progress: need to consider castling &  enpassant
 --------------------------------------------------------------------------------------------*/
 // void updateAccumulators(Board& board, Move& move, Accumulator& whiteAccumulator, Accumulator& blackAccumulator) {
 

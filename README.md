@@ -41,8 +41,13 @@ Progress is currently tracked using Sequential Probability Ratio Test [SPRT LOG]
 
 ## Evaluation Method
 
-This engine uses **NNUE (Efficiently Updatable Neural Network) evaluation**.  
-For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce).
+- This engine uses **NNUE (Efficiently Updatable Neural Network) evaluation**.  
+
+- Currently, the engine has its own NNUE inference implementation for the vanilla NNUE 768 -> 2 N -> output. Training its own NNUE is underway.
+
+- The engine also has a version (currently the strongest) where it probes Stockfish pretrained network.
+
+- For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce).
 
 ## Online Version
 
