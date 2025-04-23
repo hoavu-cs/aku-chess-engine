@@ -1203,7 +1203,6 @@ Move findBestMove(Board& board,
         }
 
         std::string nodeStr = "nodes " + std::to_string(totalNodeCount);
-
         std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(totalTableHit) / totalNodeCount);
 
         auto iterationEndTime = std::chrono::high_resolution_clock::now();
@@ -1249,7 +1248,7 @@ Move findBestMove(Board& board,
         // Break out of the loop if the time limit is exceeded and the evaluation is stable.
         if (!timeLimitExceeded) {
             depth++;
-        } else if (stableEval && depth >= 15) {
+        } else if (stableEval) {
             break;
         } else {
             if (depth > ENGINE_DEPTH || spendTooMuchTime) break;

@@ -18,10 +18,10 @@ constexpr int QB = 64;
 /*--------------------------------------------------------------------------------------------
     Calculate index of a piece, square, and side to move
     Square: 0 - 63
-    PieceType: Pawn = 0, Knight = 1, Bishop, Rook, Queen, King
+    PieceType: Pawn = 0, Knight = 1, Bishop = 2, Rook = 3, Queen = 4, King = 5
     Side: White = 0, Black = 1
 --------------------------------------------------------------------------------------------*/
-inline int calculate_index(int side, int pieceType, int square) {
+inline int calculateIndex(int side, int pieceType, int square) {
     return side * 64 * 6 + pieceType * 64 + square;
 }
 
@@ -52,9 +52,9 @@ struct Network;
 struct Accumulator {
     std::array<int16_t, HIDDEN_SIZE> vals;
 
-    static Accumulator from_bias(const Network& net);
-    void add_feature(size_t feature_idx, const Network& net);
-    void remove_feature(size_t feature_idx, const Network& net);
+    static Accumulator fromBias(const Network& net);
+    void addFeature(size_t feature_idx, const Network& net);
+    void removeFeature(size_t feature_idx, const Network& net);
 };
 
 
@@ -97,19 +97,19 @@ struct Network {
 
 
 /*--------------------------------------------------------------------------------------------
-    Accumulator from bias
+    Accumulator functions.
 --------------------------------------------------------------------------------------------*/
-inline Accumulator Accumulator::from_bias(const Network& net) {
+inline Accumulator Accumulator::fromBias(const Network& net) {
     return net.feature_bias;
 }
 
-inline void Accumulator::add_feature(size_t feature_idx, const Network& net) {
+inline void Accumulator::addFeature(size_t feature_idx, const Network& net) {
     for (size_t i = 0; i < HIDDEN_SIZE; ++i) {
         vals[i] += net.featureWeights[feature_idx].vals[i];
     }
 }
 
-inline void Accumulator::remove_feature(size_t feature_idx, const Network& net) {
+inline void Accumulator::removeFeature(size_t feature_idx, const Network& net) {
     for (size_t i = 0; i < HIDDEN_SIZE; ++i) {
         vals[i] -= net.featureWeights[feature_idx].vals[i];
     }
@@ -148,4 +148,70 @@ bool loadNetwork(const std::string& filepath, Network& net) {
     }
 
     return true;
+}
+
+/*--------------------------------------------------------------------------------------------
+    Create accumulators for white and black pieces.
+--------------------------------------------------------------------------------------------*/
+inline int mirror_square(int sq) {
+    return (sq ^ 56); // flips rank (A1 to A8, H2 to H7, etc.)
+}
+
+void createAccumulator(Board& board, Accumulator& whiteAccumulator, Accumulator& blackAccumulator) {
+    // Initialize the accumulators
+    whiteAccumulator = Accumulator::fromBias(evalNetwork);
+    blackAccumulator = Accumulator::fromBias(evalNetwork);
+
+    // Add features for each piece on the board
+    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
+    Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
+    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
+    Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
+    Bitboard whiteQueens = board.pieces(PieceType::QUEEN, Color::WHITE);
+    Bitboard whiteKings = board.pieces(PieceType::KING, Color::WHITE);
+
+    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
+    Bitboard blackKnights = board.pieces(PieceType::KNIGHT, Color::BLACK);
+    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
+    Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
+    Bitboard blackQueens = board.pieces(PieceType::QUEEN, Color::BLACK);
+    Bitboard blackKings = board.pieces(PieceType::KING, Color::BLACK);
+
+    for (int i = 0; i < 12; i++) {
+        Bitboard bb;
+        if (i == 0) bb = whitePawns;
+        else if (i == 1) bb = whiteKnights;
+        else if (i == 2) bb = whiteBishops;
+        else if (i == 3) bb = whiteRooks;
+        else if (i == 4) bb = whiteQueens;
+        else if (i == 5) bb = whiteKings;
+        else if (i == 6) bb = blackPawns;
+        else if (i == 7) bb = blackKnights;
+        else if (i == 8) bb = blackBishops;
+        else if (i == 9) bb = blackRooks;
+        else if (i == 10) bb = blackQueens;
+        else if (i == 11) bb = blackKings;
+
+        while (bb) {
+            int sq = bb.lsb();
+            bb.clear(sq);
+        
+            int type = i % 6;
+            int color = (i < 6) ? 0 : 1;
+        
+            // White
+            if (color == 0)
+                whiteAccumulator.addFeature(calculateIndex(0, type, sq), evalNetwork);
+            else
+                blackAccumulator.addFeature(calculateIndex(1, type, sq), evalNetwork);
+        
+            // Black
+            int msq = mirror_square(sq);
+            if (color == 1)
+                blackAccumulator.addFeature(calculateIndex(0, type, msq), evalNetwork);
+            else
+                whiteAccumulator.addFeature(calculateIndex(1, type, msq), evalNetwork);
+        }
+        
+    }
 }

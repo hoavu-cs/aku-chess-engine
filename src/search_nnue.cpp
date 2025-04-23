@@ -38,13 +38,10 @@
 #include <filesystem>
 #include <mutex>
 #include "nnue.hpp"
-
-
-#include "../lib/stockfish_nnue_probe/probe.h"
 #include "../lib/fathom/src/tbprobe.h"
 
 using namespace chess;
-using namespace Stockfish;
+
 typedef std::uint64_t U64;
 
 
@@ -52,10 +49,15 @@ typedef std::uint64_t U64;
     Initialize the NNUE evaluation function.
     Utility function to convert board to pieces array for fast evaluation.
 --------------------------------------------------------------------------------------------*/
-void initializeNNUE() {
-    std::cout << "Initializing NNUE." << std::endl;
-    Stockfish::Probe::init("nn-1c0000000000.nnue", "nn-1c0000000000.nnue");
+Network evalNetwork;
+
+bool initializeNNUE(const std::string& path = "beans.bin") {
+    std::cout << "Initializing custom NNUE from: " << path << std::endl;
+    return loadNetwork(path, evalNetwork);
 }
+
+Accumulator whiteAccumulator;
+Accumulator blackAccumulator;
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize and look up endgame tablebases.
