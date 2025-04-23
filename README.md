@@ -43,7 +43,7 @@ Progress is currently tracked using Sequential Probability Ratio Test [SPRT LOG]
 
 - This engine uses **NNUE (Efficiently Updatable Neural Network) evaluation**.  
 
-- Currently, the engine has its own NNUE inference implementation for the vanilla NNUE 768 -> 2 N -> output. Training its own NNUE is underway.
+- Currently, the engine has its own NNUE inference implementation for the vanilla NNUE 768 -> 2 N -> output (under testing using weights from beans.bin provided by Ciekce). Training its own NNUE is underway.
 
 - The engine also has a version (currently the strongest) where it probes Stockfish pretrained network.
 
