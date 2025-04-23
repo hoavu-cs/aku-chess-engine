@@ -53,7 +53,14 @@ struct alignas(64) Accumulator {
 
 /*--------------------------------------------------------------------------------------------
     768 -> HIDDEN_SIZE x 2 -> 1
-    Network architecture.
+    Network architecture:
+    x1 : 768 for side-to-move
+    x2 : 768 for not-side-to-move
+
+    h1 = Wx1 + b  
+    h2 = Wx2 + b
+
+    o = O1 * relu(h1) + O2 * relu(h2) + c
 --------------------------------------------------------------------------------------------*/
 struct Network {
     std::array<Accumulator, 768> feature_weights;
