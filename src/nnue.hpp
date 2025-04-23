@@ -3,54 +3,80 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
+#include <array>
+#include <cstdint>
 
 constexpr int INPUT_SIZE = 768;
-constexpr int HIDDEN_SIZE = 1024;
+constexpr int HIDDEN_SIZE = 512;
+constexpr int SCALE = 400;
+constexpr int QA = 255;
+constexpr int QB = 64;
 
-// Clamped ReLU squared (SCReLU)
-inline float screlu(float x) {
-    x = std::clamp(x, 0.0f, 1.0f);
-    return x * x;
+/*--------------------------------------------------------------------------------------------
+    Clip ReLU
+--------------------------------------------------------------------------------------------*/
+inline int crelu(int16_t x) {
+    int val = static_cast<int>(x);
+    return std::clamp(val, 0, static_cast<int>(QA));
 }
 
-// Sigmoid
-inline float sigmoid(float x) {
-    return 1.0f / (1.0f + std::exp(-x));
-}
+/*--------------------------------------------------------------------------------------------
+    Forward declaration
+--------------------------------------------------------------------------------------------*/
+struct Network;
 
-// Perform inference on a single input vector
-float infer(
-    const float* input,                         // shape: [768]
-    const float* hidden_weights,               // shape: [1024][768] → flat size 1024*768
-    const float* hidden_biases,                // shape: [1024]
-    const float* output_weights,               // shape: [1][1024] → flat size 1024
-    const float output_bias                    // scalar
-) {
-    float hidden[HIDDEN_SIZE];
+/*--------------------------------------------------------------------------------------------
+    Accumulator
+--------------------------------------------------------------------------------------------*/
+struct alignas(64) Accumulator {
+    std::array<int16_t, HIDDEN_SIZE> vals;
 
-    // Compute hidden layer with SCReLU activation
-    for (int i = 0; i < HIDDEN_SIZE; ++i) {
-        float sum = hidden_biases[i];
+    // Initialize from network's bias
+    static Accumulator from_bias(const Network& net) {
+        return net.feature_bias;
+    }
 
-        #pragma GCC ivdep // Enable vectorization for this loop
-        for (int j = 0; j < INPUT_SIZE; ++j) {
-            sum += hidden_weights[i * INPUT_SIZE + j] * input[j];
+    // Add feature vector to accumulator
+    void add_feature(size_t feature_idx, const Network& net) {
+        for (size_t i = 0; i < HIDDEN_SIZE; ++i) {
+            vals[i] += net.feature_weights[feature_idx].vals[i];
+        }
+    }
+
+    // Remove feature vector from accumulator
+    void remove_feature(size_t feature_idx, const Network& net) {
+        for (size_t i = 0; i < HIDDEN_SIZE; ++i) {
+            vals[i] -= net.feature_weights[feature_idx].vals[i];
+        }
+    }
+};
+
+/*--------------------------------------------------------------------------------------------
+    768 -> HIDDEN_SIZE x 2 -> 1
+    Network architecture.
+--------------------------------------------------------------------------------------------*/
+struct Network {
+    std::array<Accumulator, 768> feature_weights;
+    Accumulator feature_bias;
+    std::array<int16_t, 2 * HIDDEN_SIZE> output_weights;
+    int16_t output_bias;
+
+    int evaluate(const Accumulator& us, const Accumulator& them) const {
+        int output = static_cast<int>(output_bias);
+
+        // Side-to-move accumulator
+        for (int i = 0; i < HIDDEN_SIZE; ++i) {
+            output += crelu(us.vals[i]) * static_cast<int>(output_weights[i]);
         }
 
-        hidden[i] = sum;
-    }
+        // Not-side-to-move accumulator
+        for (int i = 0; i < HIDDEN_SIZE; ++i) {
+            output += crelu(them.vals[i]) * static_cast<int>(output_weights[HIDDEN_SIZE + i]);
+        }
 
-    #pragma GCC ivdep
-    for (int i = 0; i < HIDDEN_SIZE; ++i) {
-        hidden[i] = screlu(hidden[i]);
-    }
+        output *= SCALE;
+        output /= static_cast<int>(QA) * static_cast<int>(QB); // Remove quantization
 
-    // Compute output
-    float output = output_bias;
-    #pragma GCC ivdep 
-    for (int i = 0; i < HIDDEN_SIZE; ++i) {
-        output += output_weights[i] * hidden[i];
+        return output;
     }
-
-    return sigmoid(output);  // final prediction
-}
+};
