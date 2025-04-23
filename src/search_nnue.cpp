@@ -55,7 +55,7 @@ Network evalNetwork;
 
 void initializeNNUE() {
     const std::string& path = "beans.bin";
-    std::cout << "Initializing custom NNUE from: " << path << std::endl;
+    std::cout << "Initializing NNUE from: " << path << std::endl;
     loadNetwork(path, evalNetwork);
 }
 
@@ -539,7 +539,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     Movelist moves;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
-    int color = board.sideToMove() == Color::WHITE ? 1 : -1;
+    int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
     int standPat = 0;
     bool mopUp = isMopUpPhase(board);
 
@@ -1105,7 +1105,6 @@ Move findBestMove(Board& board,
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
                 
                 localBoard.makeMove(move);
-                makeAccumulators(localBoard, whiteAccumulator[omp_get_thread_num()], blackAccumulator[omp_get_thread_num()], evalNetwork);
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
                 localBoard.unmakeMove(move);
 

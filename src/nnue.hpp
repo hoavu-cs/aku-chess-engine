@@ -44,10 +44,10 @@ inline int pieceTypeToIndex(PieceType type) {
 /*--------------------------------------------------------------------------------------------
     Clip ReLU
 --------------------------------------------------------------------------------------------*/
-inline int crelu(int16_t x) {
-    int val = static_cast<int>(x);
-    return std::clamp(val, 0, static_cast<int>(QA));
-}
+// inline int crelu(int16_t x) {
+//     int val = static_cast<int>(x);
+//     return std::clamp(val, 0, static_cast<int>(QA));
+// }
 
 /*--------------------------------------------------------------------------------------------
     Square Clip ReLU (SCReLU)
@@ -92,26 +92,24 @@ struct Network {
     int16_t output_bias;
 
     int evaluate(const Accumulator& us, const Accumulator& them) const {
-        int output = static_cast<int>(output_bias);
-
+        int output = 0;
+    
         #pragma omp simd reduction(+:output)
         for (int i = 0; i < HIDDEN_SIZE; ++i) {
-            output += screlu(us.vals[i]) * static_cast<int>(outputWeights[i]) + 
+            output += screlu(us.vals[i]) * static_cast<int>(outputWeights[i]) +
                       screlu(them.vals[i]) * static_cast<int>(outputWeights[HIDDEN_SIZE + i]);
         }
-
-        // #pragma omp simd reduction(+:output)
-        // for (int i = 0; i < HIDDEN_SIZE; ++i) {
-        //     output += 
-        // }
+    
+        output /= QA;
+        output += static_cast<int>(output_bias);
 
         output *= SCALE;
-        output /= static_cast<int>(QA) * static_cast<int>(QB); // Remove quantization
-
+        output /= QA * QB;
+    
         return output;
     }
+    
 };
-
 
 /*--------------------------------------------------------------------------------------------
     Accumulator functions.
@@ -215,7 +213,7 @@ void makeAccumulators(Board& board, Accumulator& whiteAccumulator, Accumulator& 
             bb.clear(sq);
         
             int type = i % 6;
-            bool white = (i < 6) ? 0 : 1;
+            bool white = (i < 6);
         
             if (white) {
                 // from White’s view
@@ -223,8 +221,8 @@ void makeAccumulators(Board& board, Accumulator& whiteAccumulator, Accumulator& 
                 blackAccumulator.addFeature(calculateIndex(1, type, msq), evalNetwork); // them
             } else {
                 // from Black’s view
-                blackAccumulator.addFeature(calculateIndex(0, type, sq),  evalNetwork); // us
-                whiteAccumulator.addFeature(calculateIndex(1, type, msq), evalNetwork); // them
+                blackAccumulator.addFeature(calculateIndex(0, type, msq),  evalNetwork); // us
+                whiteAccumulator.addFeature(calculateIndex(1, type, sq), evalNetwork); // them
             }
         }
         
