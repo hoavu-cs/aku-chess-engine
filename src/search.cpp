@@ -54,7 +54,7 @@ const int maxThreadsID = 50; // Maximum number of threads
 Network evalNetwork;
 
 void initializeNNUE() {
-    const std::string& path = "HL256.bin";
+    const std::string& path = "beans.bin";
     std::cout << "Initializing NNUE from: " << path << std::endl;
     loadNetwork(path, evalNetwork);
 }
@@ -546,11 +546,23 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     if (isMopUpPhase(board)) {
         standPat = color * mopUpScore(board);
     } else {
-        // makeAccumulators(board, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+        Accumulator whiteAccCopy, blackAccCopy;
+        makeAccumulators(board, whiteAccCopy, blackAccCopy, evalNetwork);
+
         if (color == 1) {
             standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
+
+            int doubleCheckEval = evalNetwork.evaluate(whiteAccCopy, blackAccCopy);
+            if (doubleCheckEval != standPat) {
+                std::cout << "Double check evaluation mismatch: " << doubleCheckEval << " vs " << standPat << std::endl;
+            }
         } else {
             standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
+
+            int doubleCheckEval = evalNetwork.evaluate(blackAccCopy, whiteAccCopy);
+            if (doubleCheckEval != standPat) {
+                std::cout << "Double check evaluation mismatch: " << doubleCheckEval << " vs " << standPat << std::endl;
+            }
         }
     }
 
@@ -684,11 +696,23 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     int standPat = 0;
-    // makeAccumulators(board, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+    Accumulator whiteAccCopy, blackAccCopy;
+    makeAccumulators(board, whiteAccCopy, blackAccCopy, evalNetwork);
+    
     if (stm == 1) {
         standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
+
+        int doubleCheckEval = evalNetwork.evaluate(whiteAccCopy, blackAccCopy);
+        if (doubleCheckEval != standPat) {
+            std::cout << "Double check evaluation mismatch: " << doubleCheckEval << " vs " << standPat << std::endl;
+        }
     } else {
         standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
+
+        int doubleCheckEval = evalNetwork.evaluate(blackAccCopy, whiteAccCopy);
+        if (doubleCheckEval != standPat) {
+            std::cout << "Double check evaluation mismatch: " << doubleCheckEval << " vs " << standPat << std::endl;
+        }
     }
     
     //evalPath[threadID][ply] = standPat; // store the evaluation along the path
