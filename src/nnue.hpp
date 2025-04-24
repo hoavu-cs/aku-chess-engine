@@ -13,7 +13,7 @@
 using namespace chess;
 
 constexpr int INPUT_SIZE = 768;
-constexpr int HIDDEN_SIZE = 128;
+constexpr int HIDDEN_SIZE = 256;
 constexpr int SCALE = 400;
 constexpr int QA = 255;
 constexpr int QB = 64;
@@ -236,114 +236,154 @@ void makeAccumulators(Board& board, Accumulator& whiteAccumulator, Accumulator& 
     Work in progress: need to consider castling &  enpassant.
     To be called before board.makeMove(move).
 --------------------------------------------------------------------------------------------*/
-//void updateAccumulators(Board& board, Move& move, Accumulator& whiteAccumulator, Accumulator& blackAccumulator) {
+void addAccumulators(Board& board, 
+                        Move& move, 
+                        Accumulator& whiteAccumulator, 
+                        Accumulator& blackAccumulator,
+                        Network& evalNetwork) {
 
-//     Color color = board.sideToMove();
-//     PieceType pieceType = board.at<Piece>(move.from()).type();
+    Color color = board.sideToMove();
+    PieceType pieceType = board.at<Piece>(move.from()).type();
 
-//     int pieceIdx = pieceTypeToIndex(pieceType);
-//     bool isPromotion = move.typeOf() & Move::PROMOTION;
-//     bool isEnpassant = move.typeOf() & Move::ENPASSANT;
-//     bool isCastle = move.typeOf() & Move::CASTLING;
+    int pieceIdx = pieceTypeToIndex(pieceType);
+    bool isPromotion = move.typeOf() & Move::PROMOTION;
+    bool isEnpassant = move.typeOf() & Move::ENPASSANT;
+    bool isCastle = move.typeOf() & Move::CASTLING;
+    bool isCapture = board.isCapture(move);
 
-//     if (isPromotion || isEnpassant || isCastle) {
-//         // For now calculate from scratch for promotion and enpassant
-//         makeAccumulators(board, whiteAccumulator, blackAccumulator, evalNetwork);
-//         return;
-//     }
+    if (isPromotion || isEnpassant || isCastle) {
+        // For now calculate from scratch for promotion and enpassant
+        board.makeMove(move);
+        makeAccumulators(board, whiteAccumulator, blackAccumulator, evalNetwork);
+        board.unmakeMove(move);
+        return;
+    }
 
-//     // Calculate index of from and to from "us" perspective
-//     int fromIdx = calculateIndex(0, pieceIdx, move.from().index());
-//     int toIdx = calculateIndex(0, pieceIdx, move.to().index());
+    if (color == Color::WHITE) {
+        // Calculate index of from and to from "us" perspective
+        int fromIdx = calculateIndex(0, pieceIdx, move.from().index());
+        int toIdx = calculateIndex(0, pieceIdx, move.to().index());
 
-//     if (color == Color::WHITE) {
-//         whiteAccumulator.removeFeature(fromIdx, evalNetwork);
-//         whiteAccumulator.addFeature(toIdx, evalNetwork);
+        whiteAccumulator.removeFeature(fromIdx, evalNetwork);
+        whiteAccumulator.addFeature(toIdx, evalNetwork);
 
-//         if (board.isCapture(move)) {
-//             PieceType captured = board.at<Piece>(move.to()).type();
-//             int capturedIdx = pieceTypeToIndex(captured);
+        if (board.isCapture(move)) {
+            // Remove the captured piece
+            PieceType captured = board.at<Piece>(move.to()).type();
+            int capturedIdx = pieceTypeToIndex(captured);
 
-//             int captureIndexUs = calculateIndex(1, capturedIdx, move.to().index());
-//             whiteAccumulator.removeFeature(captureIndexUs, evalNetwork);
+            // remove the black piece from white's perspective
+            int captureIndexUs = calculateIndex(1, capturedIdx, move.to().index());
+            whiteAccumulator.removeFeature(captureIndexUs, evalNetwork);
 
-//             int captureIndexThem = calculateIndex(0, capturedIdx, mirrorSquare(move.to().index()));
-//             blackAccumulator.removeFeature(captureIndexThem, evalNetwork);
-//         }
+            // remove the black piece from black's perspective
+            int captureIndexThem = calculateIndex(0, capturedIdx, mirrorSquare(move.to().index()));
+            blackAccumulator.removeFeature(captureIndexThem, evalNetwork);
+        }
 
-//     } else {
-//         blackAccumulator.removeFeature(fromIdx, evalNetwork);
-//         blackAccumulator.addFeature(toIdx, evalNetwork);
+    } else {
+        // mirror the square because we are in black's perspective
+        int fromIdx = calculateIndex(0, pieceIdx, mirrorSquare(move.from().index()));
+        int toIdx = calculateIndex(0, pieceIdx, mirrorSquare(move.to().index()));
 
-//         if (board.isCapture(move)) {
-//             PieceType captured = board.at<Piece>(move.to()).type();
-//             int capturedIdx = pieceTypeToIndex(captured);
+        blackAccumulator.removeFeature(fromIdx, evalNetwork);
+        blackAccumulator.addFeature(toIdx, evalNetwork);
 
-//             int captureIndexUs = calculateIndex(1, capturedIdx, mirrorSquare(move.to().index()));
-//             blackAccumulator.removeFeature(captureIndexUs, evalNetwork);
+        if (board.isCapture(move)) {
+            PieceType captured = board.at<Piece>(move.to()).type();
+            int capturedIdx = pieceTypeToIndex(captured);
 
-//             int captureIndexThem = calculateIndex(0, capturedIdx, move.to().index());
-//             whiteAccumulator.removeFeature(captureIndexThem, evalNetwork);
-//         }
-//     }
-// }
+            // remove the white piece from black's perspective
+            int captureIndexUs = calculateIndex(1, capturedIdx, mirrorSquare(move.to().index()));
+            blackAccumulator.removeFeature(captureIndexUs, evalNetwork);
 
-
+            // remove the white piece from white's perspective
+            int captureIndexThem = calculateIndex(0, capturedIdx, move.to().index());
+            whiteAccumulator.removeFeature(captureIndexThem, evalNetwork);
+        }
+    }
+}
 
 /*--------------------------------------------------------------------------------------------
-    Update accumulator given an unMove.
-    Work in progress: need to consider castling &  enpassant.
+    Update accumulator given an unmakeMove.
     To be called before board.unmakeMove(move).
 --------------------------------------------------------------------------------------------*/
-// void reverseUpdateAccumulators(Board& board, Move& move, Accumulator& whiteAccumulator, Accumulator& blackAccumulator) {
+void subtractAccumulators(Board& board, 
+                                Move& move, 
+                                Accumulator& whiteAccumulator, 
+                                Accumulator& blackAccumulator,
+                                Network& evalNetwork) {
 
-//     Color color = board.sideToMove();
-//     PieceType pieceType = board.at<Piece>(move.from()).type();
+    bool isPromotion = move.typeOf() & Move::PROMOTION;
+    bool isEnpassant = move.typeOf() & Move::ENPASSANT;
+    bool isCastle = move.typeOf() & Move::CASTLING;      
+    bool isNullMove = move.typeOf() & Move::NULL_MOVE;
 
-//     int pieceIdx = pieceTypeToIndex(pieceType);
-//     bool isPromotion = move.typeOf() & Move::PROMOTION;
-//     bool isEnpassant = move.typeOf() & Move::ENPASSANT;
-//     bool isCastle = move.typeOf() & Move::CASTLING;
+    if (isPromotion || isEnpassant || isCastle || isNullMove) {
+        // For now calculate from scratch for promotion and enpassant
+        board.unmakeMove(move);
+        makeAccumulators(board, whiteAccumulator, blackAccumulator, evalNetwork);
+        board.makeMove(move);
+        return;
+    }
 
-//     if (isPromotion || isEnpassant || isCastle) {
-//         // For now calculate from scratch for promotion and enpassant
-//         makeAccumulators(board, whiteAccumulator, blackAccumulator, evalNetwork);
-//         return;
-//     }
+    board.unmakeMove(move); 
 
-//     // Calculate index of from and to from "us" perspective
-//     int fromIdx = calculateIndex(0, pieceIdx, move.from().index());
-//     int toIdx = calculateIndex(0, pieceIdx, move.to().index());
+    Color color = board.sideToMove(); 
+    PieceType pieceType = board.at<Piece>(move.from()).type();
+    int pieceIdx = pieceTypeToIndex(pieceType);
 
-//     if (color == Color::WHITE) {
-//         whiteAccumulator.removeFeature(fromIdx, evalNetwork);
-//         whiteAccumulator.addFeature(toIdx, evalNetwork);
+    if (color == Color::WHITE) {
 
-//         if (board.isCapture(move)) {
-//             PieceType captured = board.at<Piece>(move.to()).type();
-//             int capturedIdx = pieceTypeToIndex(captured);
+        int fromIdx = calculateIndex(0, pieceIdx, move.from().index());
+        int toIdx = calculateIndex(0, pieceIdx, move.to().index());
 
-//             int captureIndexUs = calculateIndex(1, capturedIdx, move.to().index());
-//             whiteAccumulator.removeFeature(captureIndexUs, evalNetwork);
+        // Remove the piece from the destination square & put the piece back in its original position
+        whiteAccumulator.removeFeature(toIdx, evalNetwork);
+        whiteAccumulator.addFeature(fromIdx, evalNetwork);
 
-//             int captureIndexThem = calculateIndex(0, capturedIdx, mirrorSquare(move.to().index()));
-//             blackAccumulator.removeFeature(captureIndexThem, evalNetwork);
-//         }
 
-//     } else {
-//         blackAccumulator.removeFeature(fromIdx, evalNetwork);
-//         blackAccumulator.addFeature(toIdx, evalNetwork);
+        if (board.isCapture(move)) {
+            makeAccumulators(board, whiteAccumulator, blackAccumulator, evalNetwork);
 
-//         if (board.isCapture(move)) {
-//             PieceType captured = board.at<Piece>(move.to()).type();
-//             int capturedIdx = pieceTypeToIndex(captured);
+            // PieceType captured = board.at<Piece>(move.to()).type();
+            // int capturedIdx = pieceTypeToIndex(captured);
 
-//             int captureIndexUs = calculateIndex(1, capturedIdx, mirrorSquare(move.to().index()));
-//             blackAccumulator.removeFeature(captureIndexUs, evalNetwork);
+            // // Put the black piece back in its original position from white's perspective
+            // int captureIndexUs = calculateIndex(1, capturedIdx, move.to().index());
+            // whiteAccumulator.addFeature(captureIndexUs, evalNetwork);
 
-//             int captureIndexThem = calculateIndex(0, capturedIdx, move.to().index());
-//             whiteAccumulator.removeFeature(captureIndexThem, evalNetwork);
-//         }
-//     }
-// }
+            // // Put the black piece back in its original position from black's perspective
+            // int captureIndexThem = calculateIndex(0, capturedIdx, mirrorSquare(move.to().index()));
+            // blackAccumulator.addFeature(captureIndexThem, evalNetwork); 
+        }
+
+
+    } else {
+        int fromIdx = calculateIndex(0, pieceIdx, mirrorSquare(move.from().index()));
+        int toIdx = calculateIndex(0, pieceIdx, mirrorSquare(move.to().index()));
+
+        // Remove the piece from the destination square & put the piece back in its original position
+        blackAccumulator.removeFeature(toIdx, evalNetwork);
+        blackAccumulator.addFeature(fromIdx, evalNetwork);
+
+        if (board.isCapture(move)) {
+            makeAccumulators(board, whiteAccumulator, blackAccumulator, evalNetwork);
+            
+            // PieceType captured = board.at<Piece>(move.to()).type();
+            // int capturedIdx = pieceTypeToIndex(captured);
+
+            // // Put the white piece back from black's perspective
+            // int captureIndexUs = calculateIndex(1, capturedIdx, mirrorSquare(move.to().index()));
+            // blackAccumulator.addFeature(captureIndexUs, evalNetwork);
+
+            // // Put the white piece from white's perspective
+            // int captureIndexThem = calculateIndex(0, capturedIdx, move.to().index());
+            // whiteAccumulator.addFeature(captureIndexThem, evalNetwork);
+        }
+
+    }
+
+    board.makeMove(move);
+}
 

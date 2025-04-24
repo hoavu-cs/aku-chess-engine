@@ -37,30 +37,24 @@
 #include <cmath>
 #include <filesystem>
 #include <mutex>
-#include "nnue.hpp"
+
+
+#include "../lib/stockfish_nnue_probe/probe.h"
 #include "../lib/fathom/src/tbprobe.h"
 
 using namespace chess;
-
+using namespace Stockfish;
 typedef std::uint64_t U64;
 
-
-const int maxThreadsID = 50; // Maximum number of threads
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
     Utility function to convert board to pieces array for fast evaluation.
 --------------------------------------------------------------------------------------------*/
-Network evalNetwork;
-
 void initializeNNUE() {
-    const std::string& path = "simple128.bin";
-    std::cout << "Initializing NNUE from: " << path << std::endl;
-    loadNetwork(path, evalNetwork);
+    std::cout << "Initializing NNUE." << std::endl;
+    Stockfish::Probe::init("nn-1c0000000000.nnue", "nn-1c0000000000.nnue");
 }
-
-std::vector<Accumulator> whiteAccumulator (maxThreadsID);
-std::vector<Accumulator> blackAccumulator (maxThreadsID);
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize and look up endgame tablebases.
@@ -172,7 +166,7 @@ void precomputeLRM1(int maxDepth, int maxI) {
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.45 * log(depth) * log(i));
+            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
         }
     }
 
@@ -185,7 +179,7 @@ void precomputeLRM1(int maxDepth, int maxI) {
 int tableSize = 8388608; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
-
+const int maxThreadsID = 50;
 
 
 enum EntryType {
@@ -265,7 +259,7 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 std::vector<std::vector<std::vector<int>>> histTable(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Evaluations along the current path
-//std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
+std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -539,19 +533,14 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     Movelist moves;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
-    int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
+    int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     int standPat = 0;
     bool mopUp = isMopUpPhase(board);
 
     if (isMopUpPhase(board)) {
         standPat = color * mopUpScore(board);
     } else {
-        makeAccumulators(board, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
-        if (color == 1) {
-            standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
-        } else {
-            standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
-        }
+        standPat = Probe::eval(board.getFen().c_str());
     }
 
     int bestScore = standPat;
@@ -679,17 +668,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         depth++;
         return negamax(board, depth, alpha, beta, PV, nodeInfo);
     }
-
-    int standPat = 0;
-    makeAccumulators(board, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
-    if (stm == 1) {
-        standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
-    } else {
-        standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
-    }
     
-    
-    //evalPath[threadID][ply] = standPat; // store the evaluation along the path
+    int standPat = Probe::eval(board.getFen().c_str());
+    evalPath[threadID][ply] = standPat; // store the evaluation along the path
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -1041,7 +1022,7 @@ Move findBestMove(Board& board,
         }
     }
 
-    //int standPat = Probe::eval(board.getFen().c_str()); 
+    int standPat = Probe::eval(board.getFen().c_str()); 
 
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
@@ -1094,7 +1075,7 @@ Move findBestMove(Board& board,
                 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
-                //evalPath[omp_get_thread_num()][0] = standPat;
+                evalPath[omp_get_thread_num()][0] = standPat;
 
                 int ply = 0;
                 bool newBestFlag = false;  

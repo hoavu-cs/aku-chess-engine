@@ -37,24 +37,30 @@
 #include <cmath>
 #include <filesystem>
 #include <mutex>
-
-
-#include "../lib/stockfish_nnue_probe/probe.h"
+#include "nnue.hpp"
 #include "../lib/fathom/src/tbprobe.h"
 
 using namespace chess;
-using namespace Stockfish;
+
 typedef std::uint64_t U64;
 
+
+const int maxThreadsID = 50; // Maximum number of threads
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize the NNUE evaluation function.
     Utility function to convert board to pieces array for fast evaluation.
 --------------------------------------------------------------------------------------------*/
+Network evalNetwork;
+
 void initializeNNUE() {
-    std::cout << "Initializing NNUE." << std::endl;
-    Stockfish::Probe::init("nn-1c0000000000.nnue", "nn-1c0000000000.nnue");
+    const std::string& path = "HL256.bin";
+    std::cout << "Initializing NNUE from: " << path << std::endl;
+    loadNetwork(path, evalNetwork);
 }
+
+std::vector<Accumulator> whiteAccumulator (maxThreadsID);
+std::vector<Accumulator> blackAccumulator (maxThreadsID);
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize and look up endgame tablebases.
@@ -166,7 +172,7 @@ void precomputeLRM1(int maxDepth, int maxI) {
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.75 * log(depth) * log(i));
+            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.45 * log(depth) * log(i));
         }
     }
 
@@ -179,7 +185,7 @@ void precomputeLRM1(int maxDepth, int maxI) {
 int tableSize = 8388608; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
-const int maxThreadsID = 50;
+
 
 
 enum EntryType {
@@ -259,7 +265,7 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 std::vector<std::vector<std::vector<int>>> histTable(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Evaluations along the current path
-std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
+//std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -533,14 +539,19 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     Movelist moves;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
-    int color = board.sideToMove() == Color::WHITE ? 1 : -1;
+    int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
     int standPat = 0;
     bool mopUp = isMopUpPhase(board);
 
     if (isMopUpPhase(board)) {
         standPat = color * mopUpScore(board);
     } else {
-        standPat = Probe::eval(board.getFen().c_str());
+        // makeAccumulators(board, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+        if (color == 1) {
+            standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
+        } else {
+            standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
+        }
     }
 
     int bestScore = standPat;
@@ -566,10 +577,14 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
         return a.second > b.second;
     });
 
-    for (const auto& [move, priority] : candidateMoves) {
+    for (auto& [move, priority] : candidateMoves) {
+        addAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
         board.makeMove(move);
+        
         int score = 0;
         score = -quiescence(board, -beta, -alpha, ply + 1, threadID);
+
+        subtractAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
         board.unmakeMove(move);
 
         bestScore = std::max(bestScore, score);
@@ -579,7 +594,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
             return beta;
         }
     }
-
     return bestScore;
 }
 
@@ -668,9 +682,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         depth++;
         return negamax(board, depth, alpha, beta, PV, nodeInfo);
     }
+
+    int standPat = 0;
+    // makeAccumulators(board, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+    if (stm == 1) {
+        standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
+    } else {
+        standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
+    }
     
-    int standPat = Probe::eval(board.getFen().c_str());
-    evalPath[threadID][ply] = standPat; // store the evaluation along the path
+    //evalPath[threadID][ply] = standPat; // store the evaluation along the path
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -743,9 +764,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             bool singular = true;
 
             for (int i = 1; i < moves.size(); i++) {
-
+                
+                addAccumulators(board, moves[i].first, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
                 board.makeMove(moves[i].first);
+
                 singularEval = -negamax(board, depth / 2, -beta, -alpha, PV, nodeInfo);
+
+                subtractAccumulators(board, moves[i].first, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
                 board.unmakeMove(moves[i].first);
 
                 if (singularEval < tableEval) {
@@ -773,6 +798,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool isPromo = isPromotion(move);
         bool isPromoThreat = promotionThreatMove(board, move);
         bool inCheck = board.inCheck();
+
         board.makeMove(move); 
         bool isCheck = board.inCheck(); 
         board.unmakeMove(move); 
@@ -811,7 +837,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             with a null window.
             - Then, if alpha is raised, re-search with a full window & full depth. 
         --------------------------------------------------------------------------------------------*/
+
+        addAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
         board.makeMove(move);
+
         bool nullWindow = false;
 
         NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
@@ -838,14 +867,20 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, childNodeInfo);
         }
         
+        subtractAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
         board.unmakeMove(move);
+
         bool alphaRaised = eval > alpha;
         bool reducedDepth = nextDepth < depth - 1;
 
         if (alphaRaised && (nullWindow || reducedDepth)  && isPV) {
             // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
+            addAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
             board.makeMove(move);
+
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
+
+            subtractAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
             board.unmakeMove(move);
         }
 
@@ -856,8 +891,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 PV.push_back(move);
             }
         } 
-
-        //moveSequence.pop_back();
 
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
@@ -973,6 +1006,11 @@ Move findBestMove(Board& board,
         }
     }
 
+    for (int i = 0; i < maxThreadsID; i++) {
+        makeAccumulators(board, whiteAccumulator[i], blackAccumulator[i], evalNetwork);
+        makeAccumulators(board, whiteAccumulator[i], blackAccumulator[i], evalNetwork);
+    }
+
     // Reset killer moves for each thread and ply
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < ENGINE_DEPTH; j++) {
@@ -1022,7 +1060,7 @@ Move findBestMove(Board& board,
         }
     }
 
-    int standPat = Probe::eval(board.getFen().c_str()); 
+    int standPat = evalNetwork.evaluate(whiteAccumulator[0], blackAccumulator[0]);
 
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
@@ -1075,7 +1113,7 @@ Move findBestMove(Board& board,
                 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
-                evalPath[omp_get_thread_num()][0] = standPat;
+                //evalPath[omp_get_thread_num()][0] = standPat;
 
                 int ply = 0;
                 bool newBestFlag = false;  
@@ -1085,8 +1123,20 @@ Move findBestMove(Board& board,
 
                 NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
                 
+                addAccumulators(localBoard, 
+                                move, 
+                                whiteAccumulator[omp_get_thread_num()], 
+                                blackAccumulator[omp_get_thread_num()], 
+                                evalNetwork);
                 localBoard.makeMove(move);
+
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
+
+                subtractAccumulators(localBoard, 
+                                    move, 
+                                    whiteAccumulator[omp_get_thread_num()], 
+                                    blackAccumulator[omp_get_thread_num()],
+                                    evalNetwork);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -1105,8 +1155,21 @@ Move findBestMove(Board& board,
                 }
 
                 if (newBestFlag && depth > 8 && nextDepth < depth - 1) {
+
+                    addAccumulators(localBoard, 
+                                    move, 
+                                    whiteAccumulator[omp_get_thread_num()], 
+                                    blackAccumulator[omp_get_thread_num()], 
+                                    evalNetwork);
                     localBoard.makeMove(move);
+
                     eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
+
+                    subtractAccumulators(localBoard, 
+                                        move, 
+                                        whiteAccumulator[omp_get_thread_num()], 
+                                        blackAccumulator[omp_get_thread_num()], 
+                                        evalNetwork);
                     localBoard.unmakeMove(move);
 
                     // Check if the time limit has been exceeded, if so the search 
