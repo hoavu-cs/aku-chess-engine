@@ -8,7 +8,7 @@ The binaries for **Windows** and **MacOS** can be downloaded from the [releases]
 A few interesting features
 - Support Windows, MacOS, and Linux.
 - Self-contained 3-4 endgame tablebases.
-- NNUE evaluation. In the process of training my own NNUE.
+- NNUE evaluation.
 - Supports chess960.
 
 ## Strength and Performance
@@ -43,7 +43,7 @@ Progress is currently tracked using Sequential Probability Ratio Test [SPRT LOG]
 
 - This engine uses **NNUE (Efficiently Updatable Neural Network) evaluation**.  
 
-- Currently, the engine has its own NNUE inference implementation for the vanilla NNUE 768 -> 2 N -> output (under testing using weights from beans.bin provided by Ciekce). Training its own NNUE is underway.
+- Currently, the engine has its own NNUE inference implementation for the vanilla NNUE 768 -> 2 HL -> output. Currently, the hidden layer size is 256.
 
 - The engine also has a version (currently the strongest) where it probes Stockfish pretrained network.
 
@@ -55,7 +55,9 @@ Play online at: [donbotchess.org](https://donbotchess.org/) and at [Lichess](htt
 
 ## Acknowledgements
 
-- **NNUE probe library**: [stockfish_nnue_probe](https://github.com/VedantJoshi1409/stockfish_nnue_probe)
 - **Bitboard and move generation library**: [chess-library](https://github.com/Disservin/chess-library)
 - **Syzygy probe library**: [Fathom](https://github.com/jdart1/Fathom)
 - **Utility for including binary files**: [incbin](https://github.com/graphitemaster/incbin)
+- **ML library for training NNUE-style networks**: [Bullet](https://github.com/graphitemaster/incbin) 
+
+
