@@ -546,23 +546,10 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     if (isMopUpPhase(board)) {
         standPat = color * mopUpScore(board);
     } else {
-        Accumulator whiteAccCopy, blackAccCopy;
-        makeAccumulators(board, whiteAccCopy, blackAccCopy, evalNetwork);
-
         if (color == 1) {
             standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
-
-            int doubleCheckEval = evalNetwork.evaluate(whiteAccCopy, blackAccCopy);
-            if (doubleCheckEval != standPat) {
-                std::cout << "Double check evaluation mismatch: " << doubleCheckEval << " vs " << standPat << std::endl;
-            }
         } else {
             standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
-
-            int doubleCheckEval = evalNetwork.evaluate(blackAccCopy, whiteAccCopy);
-            if (doubleCheckEval != standPat) {
-                std::cout << "Double check evaluation mismatch: " << doubleCheckEval << " vs " << standPat << std::endl;
-            }
         }
     }
 
@@ -695,24 +682,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return negamax(board, depth, alpha, beta, PV, nodeInfo);
     }
 
-    int standPat = 0;
-    Accumulator whiteAccCopy, blackAccCopy;
-    makeAccumulators(board, whiteAccCopy, blackAccCopy, evalNetwork);
-    
+    int standPat = 0;    
     if (stm == 1) {
         standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
-
-        int doubleCheckEval = evalNetwork.evaluate(whiteAccCopy, blackAccCopy);
-        if (doubleCheckEval != standPat) {
-            std::cout << "Double check evaluation mismatch: " << doubleCheckEval << " vs " << standPat << std::endl;
-        }
     } else {
         standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
-
-        int doubleCheckEval = evalNetwork.evaluate(blackAccCopy, whiteAccCopy);
-        if (doubleCheckEval != standPat) {
-            std::cout << "Double check evaluation mismatch: " << doubleCheckEval << " vs " << standPat << std::endl;
-        }
     }
     
     //evalPath[threadID][ply] = standPat; // store the evaluation along the path
