@@ -54,7 +54,7 @@ const int maxThreadsID = 50; // Maximum number of threads
 Network evalNetwork;
 
 void initializeNNUE() {
-    const std::string& path = "beans.bin";
+    const std::string& path = "simple256.bin";
     std::cout << "Initializing NNUE from: " << path << std::endl;
     loadNetwork(path, evalNetwork);
 }
@@ -682,7 +682,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return negamax(board, depth, alpha, beta, PV, nodeInfo);
     }
 
-    int standPat = 0;    
+    int standPat = 0;
+    
     if (stm == 1) {
         standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
     } else {
