@@ -21,7 +21,7 @@ use bullet_lib::{
     },
 };
 
-const HIDDEN_SIZE: usize = 64;
+const HIDDEN_SIZE: usize = 128;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -37,7 +37,7 @@ fn main() {
         .add_layer(1)
         .build();
     
-        //trainer.load_from_checkpoint("checkpoints/simple-40");
+    //trainer.load_from_checkpoint("checkpoints/simple-40");
 
     //println!("Loaded network with features");
 
@@ -48,7 +48,7 @@ fn main() {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 50,
+            end_superbatch: 40,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
         lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 18 },
@@ -61,9 +61,9 @@ fn main() {
 
     // loading from a SF binpack
     let data_loader = {
-        let file_path = "test80-2023-06-jun-2tb7p.min-v2.v6.binpack";
+        let file_path = "test80-2024-02-feb-2tb7p.min-v2.v6.binpack";
         let buffer_size_mb = 1024;
-        let threads = 4;
+        let threads = 16;
         fn filter(entry: &TrainingDataEntry) -> bool {
             entry.ply >= 16
                 && !entry.pos.is_checked(entry.pos.side_to_move())
@@ -76,9 +76,12 @@ fn main() {
     };
 
     // loading directly from a `BulletFormat` file
-    //let data_loader = loader::DirectSequentialDataLoader::new(&["test80-2024-01-jan-2tb7p.min-v2.v6.binpack"]);
+    //let data_loader = loader::DirectSequentialDataLoader::new(&["test80-2024-02-feb-2tb7p.min-v2.v6.binpack"]);
 
     trainer.run(&schedule, &settings, &data_loader);
+
+
+
 }
 
 /*
