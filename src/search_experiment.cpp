@@ -41,7 +41,9 @@
 #include "../lib/fathom/src/tbprobe.h"
 
 using namespace chess;
+
 typedef std::uint64_t U64;
+
 
 const int maxThreadsID = 50; // Maximum number of threads
 

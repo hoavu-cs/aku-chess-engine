@@ -194,10 +194,12 @@ int main() {
     1rb5/5pk1/p1p5/3pbPp1/5qPr/PBNQ4/1PP5/1K1R3R w - - 7 27
     */
 
+    extractFiles();
+    
     std::string nnuePath = getExecutablePath() + "/nnue/nnue_weights.bin";
     initializeNNUE(nnuePath);
     std::string path = getExecutablePath() + "/tables/";
-    extractFiles();
+    
     initializeTB(path);
 
     /*-------------------------------------------------------------------------------------------- 

@@ -391,6 +391,7 @@ void uciLoop() {
 
 int main() {
     extractFiles();
+    
     std::string nnuePath = getExecutablePath() + "/nnue/nnue_weights.bin";
     initializeNNUE(nnuePath);
 
