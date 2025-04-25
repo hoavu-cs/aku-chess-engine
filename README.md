@@ -16,22 +16,11 @@ A few interesting features
 
 The engine currently plays rapid chess at an estimated **~3100-3400 ELO** (subject to further testing). The main goal is to improve the strength through exploring new ideas in the search algorithm. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible).
 
-I'm new to chess development so any suggestion is welcome. Currently, the engine is pretty strong and based on some simple concepts: 
-
-- Alpha-beta search, iterative deepening, and transposition tables
-- Futility pruning, reverse futility pruning, null move pruning
-- History score 
-- Killer move (1 slot per ply)
-- Principle variation search
-- Late move reduction
-- Extensions (check, one-reply, singular)
-- LazySMP
-
-Progress is currently tracked using Sequential Probability Ratio Test [SPRT LOG](https://github.com/hoavu-cs/aku-chess-engine/tree/main/sprt).
+This is a fun side project so any suggestion is welcome. Currently, the engine is pretty strong and based on some simple techniques and NNUE evaluation. 
 
 ## Evaluation Method
 
-- This engine uses **NNUE (Efficiently Updatable Neural Network) evaluation**.  
+- This engine uses NNUE (Efficiently Updatable Neural Network) evaluation.  
 
 - The engine has its own NNUE inference implementation for the vanilla NNUE (768 -> 256)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. Currently testing (768 -> 512)x2.
 
