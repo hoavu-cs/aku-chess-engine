@@ -117,7 +117,7 @@ void extractFiles() {
 
 
     // Ensure "nnue" directory exists
-    std::filesystem::path nnueDir = std::filesystem::path(path) / "nnue";
+    std::string nnueDir = path + "/nnue";
     if (!std::filesystem::exists(nnueDir)) {
         std::cout << "Creating directory: " << nnueDir << std::endl;
         if (!std::filesystem::create_directories(nnueDir)) {
@@ -127,7 +127,7 @@ void extractFiles() {
     }
 
     // Extract NNUE weights file
-    std::filesystem::path nnueFilePath = nnueDir / nnueWeightFile.name;
+    std::string nnueFilePath = nnueDir + "/" + nnueWeightFile.name;
     if (!std::filesystem::exists(nnueFilePath)) {
         std::ofstream nnueOut(nnueFilePath, std::ios::binary);
         if (!nnueOut) {
@@ -390,10 +390,11 @@ void uciLoop() {
 }
 
 int main() {
+    extractFiles();
     std::string nnuePath = getExecutablePath() + "/nnue/nnue_weights.bin";
     initializeNNUE(nnuePath);
+
     std::string egTablePath = getExecutablePath() + "/tables/";
-    extractFiles();
     initializeTB(egTablePath);
 
     uciLoop();
