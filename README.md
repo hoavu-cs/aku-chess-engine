@@ -10,6 +10,7 @@ A few interesting features
 - Self-contained 3-4 endgame tablebases.
 - NNUE evaluation.
 - Supports chess960.
+- Lightweight < 10Mb.
 
 ## Strength and Performance
 
