@@ -32,7 +32,7 @@ Progress is currently tracked using Sequential Probability Ratio Test [SPRT LOG]
 
 - This engine uses **NNUE (Efficiently Updatable Neural Network) evaluation**.  
 
-- The engine has its own NNUE inference implementation for the vanilla NNUE (768 -> 256)x2 -> output architecture. Currently, the hidden layer size is 256.
+- The engine has its own NNUE inference implementation for the vanilla NNUE (768 -> 256)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks.
 
 - For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce).
 
