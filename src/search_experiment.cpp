@@ -160,7 +160,8 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 /*-------------------------------------------------------------------------------------------- 
     Late move reduction tables.
 --------------------------------------------------------------------------------------------*/
-std::vector<std::vector<int>> lmrTable1;
+std::vector<std::vector<int>> lmrTable1; // LRM for quiet moves
+std::vector<std::vector<int>> lmrTable2; // LRM for tactical moves
 
 // More aggressive LMR table
 void precomputeLRM1(int maxDepth, int maxI) {
@@ -168,10 +169,12 @@ void precomputeLRM1(int maxDepth, int maxI) {
     if (isPrecomputed) return;
 
     lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
+    lmrTable2.resize(100 + 1, std::vector<int>(maxI + 1));
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.45 * log(depth) * log(i));
+            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.55 * log(depth) * log(i));
+            lmrTable2[depth][i] =  static_cast<int>(0.45 + 0.45 * log(depth) * log(i));
         }
     }
 
@@ -264,7 +267,7 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 std::vector<std::vector<std::vector<int>>> histTable(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Evaluations along the current path
-//std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
+std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -298,7 +301,8 @@ inline bool isPromotion(const Move& move) {
     Update the killer moves. Currently using only 1 slot per ply.
 --------------------------------------------------------------------------------------------*/
 inline void updateKillerMoves(const Move& move, int ply, int threadID) {
-    killer[threadID][ply][0] = move;
+    killer[threadID][ply][0] = killer[threadID][ply][1];
+    killer[threadID][ply][1] = move;
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -385,16 +389,21 @@ int lateMoveReduction(Board& board,
     if (i <= 2 || depth <= 3) { 
         return depth - 1;
     } else {
+        bool isTactical = false;
         int histScore = histTable[threadID][stm][moveIndex(move)];
-        int R = lmrTable1[depth][i];
+        bool improving = false;
 
-        // Reduce less for move with positive history scores
-        if (histScore > 0) { 
-            R--;
-        } 
+        if (board.isCapture(move) || isPromotion(move) || promotionThreatMove(board, move)) {
+            isTactical = true;
+        }        
 
-        // Reduce less if in check
-        if (board.inCheck()) {
+        if (ply >= 2 && evalPath[threadID][ply - 2] < evalPath[threadID][ply]) {
+            improving = true;
+        }
+        
+        int R = isTactical ? lmrTable2[depth][i] : lmrTable1[depth][i];
+        
+        if (histScore > 0 || improving || board.inCheck()) {
             R--;
         }
 
@@ -471,9 +480,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
-            priority = 4000; // Killer move
-        } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
-            priority = 3700;  
+            priority = 4000;
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
@@ -689,7 +696,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
     }
     
-    //evalPath[threadID][ply] = standPat; // store the evaluation along the path
+    evalPath[threadID][ply] = standPat; // store the evaluation along the path
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -781,7 +788,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 depth++;
                 extensions--;
             }
-
     }
 
     /*--------------------------------------------------------------------------------------------
@@ -1012,7 +1018,7 @@ Move findBestMove(Board& board,
     // Reset killer moves for each thread and ply
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < ENGINE_DEPTH; j++) {
-            killer[i][j] = {};
+            killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
         }
     }
 
@@ -1111,7 +1117,7 @@ Move findBestMove(Board& board,
                 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
-                //evalPath[omp_get_thread_num()][0] = standPat;
+                evalPath[omp_get_thread_num()][0] = standPat;
 
                 int ply = 0;
                 bool newBestFlag = false;  

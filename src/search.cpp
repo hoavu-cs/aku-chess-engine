@@ -388,6 +388,7 @@ int lateMoveReduction(Board& board,
         int histScore = histTable[threadID][stm][moveIndex(move)];
         int R = lmrTable1[depth][i];
 
+
         // Reduce less for move with positive history scores
         if (histScore > 0) { 
             R--;
