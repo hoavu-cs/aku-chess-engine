@@ -53,8 +53,7 @@ const int maxThreadsID = 50; // Maximum number of threads
 --------------------------------------------------------------------------------------------*/
 Network evalNetwork;
 
-void initializeNNUE() {
-    const std::string& path = "simple256.bin";
+void initializeNNUE(std::string path) {
     std::cout << "Initializing NNUE from: " << path << std::endl;
     loadNetwork(path, evalNetwork);
 }

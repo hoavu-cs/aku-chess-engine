@@ -2,11 +2,20 @@
 #pragma once
 #include "incbin.h"
 
-struct TablebaseFile {
+INCBIN(nnue_weights, "nnue/nnue_weights.bin");
+
+struct NNUEFile {
     const char* name;
     const unsigned char* data;
     size_t size;
 };
+
+const NNUEFile nnueWeightFile = {
+    "nnue_weights.bin",
+    gnnue_weightsData,
+    gnnue_weightsSize
+};
+
 
 INCBIN(KBBvK_rtbw, "tables/KBBvK.rtbw");
 INCBIN(KBBvK_rtbz, "tables/KBBvK.rtbz");
@@ -78,6 +87,13 @@ INCBIN(KRvKP_rtbw, "tables/KRvKP.rtbw");
 INCBIN(KRvKP_rtbz, "tables/KRvKP.rtbz");
 INCBIN(KRvKR_rtbw, "tables/KRvKR.rtbw");
 INCBIN(KRvKR_rtbz, "tables/KRvKR.rtbz");
+
+
+struct TablebaseFile {
+    const char* name;
+    const unsigned char* data;
+    size_t size;
+};
 
 TablebaseFile tablebaseFiles[] = {
     {"tables/KBBvK.rtbw", gKBBvK_rtbwData, gKBBvK_rtbwSize},

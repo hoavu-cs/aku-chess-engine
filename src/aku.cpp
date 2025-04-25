@@ -35,7 +35,7 @@
 #include <fstream>
 #include <cstdio>  
 #include <stdexcept> 
-#include "eg_table_inc.hpp"
+#include "assets.hpp"
 
 using namespace chess;
 
@@ -81,7 +81,7 @@ std::string getExecutablePath() {
 }
 
 // Extract tablebase files to the current directory if they don't already exist.
-void extractTablebaseFiles() {
+void extractFiles() {
 
     std::string path = getExecutablePath();
     std::filesystem::path tablesDir = std::filesystem::path(path) / "tables";
@@ -114,6 +114,31 @@ void extractTablebaseFiles() {
         outFile.close();
         std::cout << "info extracted: " << filePath << std::endl;
     }
+
+
+    // Ensure "nnue" directory exists
+    std::filesystem::path nnueDir = std::filesystem::path(path) / "nnue";
+    if (!std::filesystem::exists(nnueDir)) {
+        std::cout << "Creating directory: " << nnueDir << std::endl;
+        if (!std::filesystem::create_directories(nnueDir)) {
+            std::cerr << "Failed to create directory: " << nnueDir << std::endl;
+            return;
+        }
+    }
+
+    // Extract NNUE weights file
+    std::filesystem::path nnueFilePath = nnueDir / nnueWeightFile.name;
+    if (!std::filesystem::exists(nnueFilePath)) {
+        std::ofstream nnueOut(nnueFilePath, std::ios::binary);
+        if (!nnueOut) {
+            std::cerr << "info failed to create: " << nnueFilePath << std::endl;
+        } else {
+            nnueOut.write(reinterpret_cast<const char*>(nnueWeightFile.data), nnueWeightFile.size);
+            nnueOut.close();
+            std::cout << "info extracted: " << nnueFilePath << std::endl;
+        }
+    }
+
 }
 
 
@@ -365,10 +390,11 @@ void uciLoop() {
 }
 
 int main() {
-    initializeNNUE();
-    std::string path = getExecutablePath() + "/tables/";
-    extractTablebaseFiles();
-    initializeTB(path);
+    std::string nnuePath = getExecutablePath() + "/nnue/nnue_weights.bin";
+    initializeNNUE(nnuePath);
+    std::string egTablePath = getExecutablePath() + "/tables/";
+    extractFiles();
+    initializeTB(egTablePath);
 
     uciLoop();
 

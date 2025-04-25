@@ -36,7 +36,7 @@ const int SZYZYGY_INF = 40000;
 extern int tableSize; // Maximum size of the transposition table
 
 // Function Declarations
-void initializeNNUE();
+void initializeNNUE(std::string path);
 
 void initializeTB(std::string path);
 
