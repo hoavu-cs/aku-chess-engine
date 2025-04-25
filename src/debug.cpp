@@ -11,12 +11,26 @@
 #include <unordered_map>
 #include <unordered_set>
 #include "../lib/fathom/src/tbprobe.h"
-#include "eg_table_inc.hpp"
+#include "assets.hpp"
 #include <filesystem>
 
 typedef std::uint64_t U64;
 
 using namespace chess;
+
+/*-------------------------------------------------------------------------------------------- 
+    Initialize endgame tablebases.
+--------------------------------------------------------------------------------------------*/
+
+// Get the executable's directory path
+#ifdef _WIN32
+    #include <windows.h>
+#elif __APPLE__
+    #include <mach-o/dyld.h>
+#elif __linux__
+    #include <unistd.h>
+#endif
+
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize endgame tablebases.
@@ -54,8 +68,9 @@ std::string getExecutablePath() {
     return std::filesystem::canonical(std::filesystem::path(path)).parent_path().string();
 }
 
+
 // Extract tablebase files to the current directory if they don't already exist.
-void extractTablebaseFiles() {
+void extractFiles() {
 
     std::string path = getExecutablePath();
     std::filesystem::path tablesDir = std::filesystem::path(path) / "tables";
@@ -74,7 +89,6 @@ void extractTablebaseFiles() {
 
         // Check if the file already exists
         if (std::filesystem::exists(filePath)) {
-            //std::cout << "info skipping: " << filePath << " (already exists)" << std::endl;
             continue;
         }
 
@@ -89,7 +103,33 @@ void extractTablebaseFiles() {
         outFile.close();
         std::cout << "info extracted: " << filePath << std::endl;
     }
+
+
+    // Ensure "nnue" directory exists
+    std::filesystem::path nnueDir = std::filesystem::path(path) / "nnue";
+    if (!std::filesystem::exists(nnueDir)) {
+        std::cout << "Creating directory: " << nnueDir << std::endl;
+        if (!std::filesystem::create_directories(nnueDir)) {
+            std::cerr << "Failed to create directory: " << nnueDir << std::endl;
+            return;
+        }
+    }
+
+    // Extract NNUE weights file
+    std::filesystem::path nnueFilePath = nnueDir / nnueWeightFile.name;
+    if (!std::filesystem::exists(nnueFilePath)) {
+        std::ofstream nnueOut(nnueFilePath, std::ios::binary);
+        if (!nnueOut) {
+            std::cerr << "info failed to create: " << nnueFilePath << std::endl;
+        } else {
+            nnueOut.write(reinterpret_cast<const char*>(nnueWeightFile.data), nnueWeightFile.size);
+            nnueOut.close();
+            std::cout << "info extracted: " << nnueFilePath << std::endl;
+        }
+    }
+
 }
+
 
 
 int main() {
@@ -154,10 +194,10 @@ int main() {
     1rb5/5pk1/p1p5/3pbPp1/5qPr/PBNQ4/1PP5/1K1R3R w - - 7 27
     */
 
-    initializeNNUE();
-
+    std::string nnuePath = getExecutablePath() + "/nnue/nnue_weights.bin";
+    initializeNNUE(nnuePath);
     std::string path = getExecutablePath() + "/tables/";
-    extractTablebaseFiles();
+    extractFiles();
     initializeTB(path);
 
     /*-------------------------------------------------------------------------------------------- 

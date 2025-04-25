@@ -41,9 +41,7 @@
 #include "../lib/fathom/src/tbprobe.h"
 
 using namespace chess;
-
 typedef std::uint64_t U64;
-
 
 const int maxThreadsID = 50; // Maximum number of threads
 
@@ -53,8 +51,7 @@ const int maxThreadsID = 50; // Maximum number of threads
 --------------------------------------------------------------------------------------------*/
 Network evalNetwork;
 
-void initializeNNUE() {
-    const std::string& path = "simple256.bin";
+void initializeNNUE(std::string path) {
     std::cout << "Initializing NNUE from: " << path << std::endl;
     loadNetwork(path, evalNetwork);
 }

@@ -37,19 +37,19 @@ fn main() {
         .add_layer(1)
         .build();
     
-    //trainer.load_from_checkpoint("checkpoints/simple-40");
+    trainer.load_from_checkpoint("checkpoints/simple512_2-40/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple512".to_string(),
+        net_id: "simple512_2".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
-            start_superbatch: 1,
-            end_superbatch: 120,
+            start_superbatch: 41,
+            end_superbatch: 160,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 18 },
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.3, step: 18 },
         save_rate: 10,
     };
 
@@ -59,9 +59,9 @@ fn main() {
 
     // loading from a SF binpack
     let data_loader = {
-        let file_path = "test80-2023-06-jun-2tb7p.min-v2.v6.binpack";
+        let file_path = "test80-2024-03-mar-2tb7p.min-v2.v6.binpack";
         let buffer_size_mb = 1024;
-        let threads = 16;
+        let threads = 4;
         fn filter(entry: &TrainingDataEntry) -> bool {
             entry.ply >= 16
                 && !entry.pos.is_checked(entry.pos.side_to_move())

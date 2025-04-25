@@ -13,7 +13,7 @@
 using namespace chess;
 
 constexpr int INPUT_SIZE = 768;
-constexpr int HIDDEN_SIZE = 256;
+constexpr int HIDDEN_SIZE = 512;
 constexpr int SCALE = 400;
 constexpr int QA = 255;
 constexpr int QB = 64;
@@ -251,7 +251,11 @@ void addAccumulators(Board& board,
     bool isNullMove = move.typeOf() & Move::NULL_MOVE;
     bool isCapture = board.isCapture(move);
 
-    if (isPromotion || isEnpassant || isCastle || isNullMove) {
+    if (isNullMove) {
+        return; 
+    }
+
+    if (isPromotion || isEnpassant || isCastle) {
         // For now calculate from scratch for promotion and enpassant
         board.makeMove(move);
         makeAccumulators(board, whiteAccumulator, blackAccumulator, evalNetwork);
@@ -333,7 +337,11 @@ void subtractAccumulators(Board& board,
     board.makeMove(move);
     return;
 
-    if (isPromotion || isEnpassant || isCastle || isNullMove) {
+    if (isNullMove) {
+        return; 
+    }
+
+    if (isPromotion || isEnpassant || isCastle) {
         // For now calculate from scratch for promotion and enpassant
         board.unmakeMove(move);
         makeAccumulators(board, whiteAccumulator, blackAccumulator, evalNetwork);

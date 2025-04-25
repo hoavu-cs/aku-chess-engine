@@ -11,7 +11,7 @@ struct NNUEFile {
 };
 
 const NNUEFile nnueWeightFile = {
-    "nnue_weights.bin",
+    "nnue/nnue_weights.bin",
     gnnue_weightsData,
     gnnue_weightsSize
 };
