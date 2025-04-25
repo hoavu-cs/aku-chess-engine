@@ -2,7 +2,7 @@ This engine was renamed from **Donbot** to **Aku**
 
 # How to Play with the Engine in a GUI
 
-To play on a GUI, you can use any UCI-compatible GUI such as **Cute Chess**, **PyChess**, **Nibbler**, etc., and add the engine to the GUI program.  
+To play on a GUI, you can use any UCI-compatible GUI such as **CuteChess**, **PyChess**, etc., and add the engine to the GUI program.  
 The binaries for **Windows** and **MacOS** can be downloaded from the [releases](https://github.com/hoavu-cs/donbot-chess-engine/releases/) or just download the repository and call "make aku" from inside the src folder.
 
 A few interesting features
@@ -13,28 +13,17 @@ A few interesting features
 
 ## Strength and Performance
 
-The engine currently plays rapid chess at an estimated **~3100-3400 ELO** (subject to further testing). The main goal is to improve the strength through **exploring new ideas** mainly in the **search algorithm**. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible).
+The engine currently plays rapid chess at an estimated **~3100-3400 ELO** (subject to further testing). The main goal is to improve the strength through exploring new ideas in the search algorithm. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible).
 
-Though my current focus for this engine is the search algorithm, I'd like to train my own NNUE at some point. 
-
-Current ideas I would like to explore:
-- Instead of finetuning parameters heavily, can we use some sort of ensemble methods?
-- ML-based move ordering.
-- Probabilistic pruning.
-
-I'm new to chess development so any suggestion is welcome.
-
-Currently, the engine is pretty strong and based on some simple concepts: 
+I'm new to chess development so any suggestion is welcome. Currently, the engine is pretty strong and based on some simple concepts: 
 
 - Alpha-beta search, iterative deepening, and transposition tables
-- Futility pruning
-- Reverse futility pruning
-- Null move pruning
+- Futility pruning, reverse futility pruning, null move pruning
 - History score 
 - Killer move (1 slot per ply)
 - Principle variation search
 - Late move reduction
-- Extensions
+- Extensions (check, one-reply, singular)
 - LazySMP
 
 Progress is currently tracked using Sequential Probability Ratio Test [SPRT LOG](https://github.com/hoavu-cs/aku-chess-engine/tree/main/sprt).
@@ -43,9 +32,7 @@ Progress is currently tracked using Sequential Probability Ratio Test [SPRT LOG]
 
 - This engine uses **NNUE (Efficiently Updatable Neural Network) evaluation**.  
 
-- Currently, the engine has its own NNUE inference implementation for the vanilla NNUE 768 -> 2 HL -> output. Currently, the hidden layer size is 256.
-
-- The engine also has a version (currently the strongest) where it probes Stockfish pretrained network.
+- The engine has its own NNUE inference implementation for the vanilla NNUE (768 -> 256)x2 -> output architecture. Currently, the hidden layer size is 256.
 
 - For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce).
 
