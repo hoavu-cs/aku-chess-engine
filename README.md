@@ -51,7 +51,7 @@ Progress is currently tracked using Sequential Probability Ratio Test [SPRT LOG]
 
 ## Online Version
 
-Play online at: [donbotchess.org](https://donbotchess.org/) and at [Lichess](https://lichess.org/@/AkuBot)
+Play online at: [Lichess](https://lichess.org/@/AkuBot)
 
 ## Acknowledgements
 
