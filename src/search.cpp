@@ -160,7 +160,8 @@ bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
 /*-------------------------------------------------------------------------------------------- 
     Late move reduction tables.
 --------------------------------------------------------------------------------------------*/
-std::vector<std::vector<int>> lmrTable1;
+std::vector<std::vector<int>> lmrTable1; // LRM for quiet moves
+std::vector<std::vector<int>> lmrTable2; // LRM for tactical moves
 
 // More aggressive LMR table
 void precomputeLRM1(int maxDepth, int maxI) {
@@ -168,10 +169,12 @@ void precomputeLRM1(int maxDepth, int maxI) {
     if (isPrecomputed) return;
 
     lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
+    //lmrTable2.resize(100 + 1, std::vector<int>(maxI + 1));
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.45 * log(depth) * log(i));
+            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.65 * log(depth) * log(i));
+            //lmrTable2[depth][i] =  static_cast<int>(0.45 + 0.45 * log(depth) * log(i));
         }
     }
 
@@ -250,7 +253,6 @@ void tableInsert(Board& board,
     Other global variables.
 --------------------------------------------------------------------------------------------*/
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; 
-std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
 std::vector<U64> nodeCount (maxThreadsID); // Node count for each thread
 std::vector<U64> tableHit (maxThreadsID); // Table hit count for each thread
@@ -264,7 +266,7 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 std::vector<std::vector<std::vector<int>>> histTable(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Evaluations along the current path
-//std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
+std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -298,7 +300,8 @@ inline bool isPromotion(const Move& move) {
     Update the killer moves. Currently using only 1 slot per ply.
 --------------------------------------------------------------------------------------------*/
 inline void updateKillerMoves(const Move& move, int ply, int threadID) {
-    killer[threadID][ply][0] = move;
+    killer[threadID][ply][0] = killer[threadID][ply][1];
+    killer[threadID][ply][1] = move;
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -382,20 +385,19 @@ int lateMoveReduction(Board& board,
     if (isMopUpPhase(board)) return depth - 1;
     bool stm = board.sideToMove() == Color::WHITE;
 
-    if (i <= 2 || depth <= 3) { 
+    if (i <= 1 || depth <= 3) { 
         return depth - 1;
     } else {
         int histScore = histTable[threadID][stm][moveIndex(move)];
+        bool improving = false;
+        bool isPromotionThreat = promotionThreatMove(board, move); 
         int R = lmrTable1[depth][i];
 
-
-        // Reduce less for move with positive history scores
-        if (histScore > 0) { 
-            R--;
-        } 
-
-        // Reduce less if in check
-        if (board.inCheck()) {
+        if (ply >= 2 && evalPath[threadID][ply - 2] < evalPath[threadID][ply]) {
+            improving = true;
+        }
+        
+        if (histScore > 0 || improving || board.inCheck() || isPromotionThreat) {
             R--;
         }
 
@@ -472,9 +474,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int seeScore = see(board, move, threadID);
             priority = 4000 + seeScore;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
-            priority = 4000; // Killer move
-        } else if (ply >= 2 && std::find(killer[threadID][ply - 2].begin(), killer[threadID][ply - 2].end(), move) != killer[threadID][ply - 2].end()) {
-            priority = 3700;  
+            priority = 4000;
         } else {
             board.makeMove(move);
             bool isCheck = board.inCheck();
@@ -690,7 +690,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
     }
     
-    //evalPath[threadID][ply] = standPat; // store the evaluation along the path
+    evalPath[threadID][ply] = standPat; // store the evaluation along the path
 
     /*--------------------------------------------------------------------------------------------
         Reverse futility pruning: We skip the search if the position is too good for us.
@@ -746,9 +746,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
-    if (!hashMoveFound) {
+    if (!hashMoveFound && !isPV && depth > 2) {
         // Reduce the depth to facilitate the search if no hash move found 
-        depth = std::max(depth - 1, 1);
+        depth = depth - 1;//std::max(depth - 1, 1);
     }
 
     /*--------------------------------------------------------------------------------------------
@@ -782,7 +782,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 depth++;
                 extensions--;
             }
-
     }
 
     /*--------------------------------------------------------------------------------------------
@@ -968,15 +967,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 /*-------------------------------------------------------------------------------------------- 
     Main search function to communicate with UCI interface.
     Time control: 
-    Soft deadline: 2x time limit
-    Hard deadline: 3x time limit
+    Hard deadline: 2x time limit
 
     - Case 1: As long as we are within the time limit, we search as deep as we can.
-    - Case 2: If we have used more than the time limit:
-        Case 2.1: If the search has stabilized, return the best move.
-        Case 2.2: If the search has not stabilized and we used less than the soft deadline, 
-                  continue searching.
-    - Case 3: If we are past the hard deadline, stop the search and return the best move.
+    - Case 2: Stop if we reach the hard deadline or certain depth.
 --------------------------------------------------------------------------------------------*/
 Move findBestMove(Board& board, 
                 int numThreads = 4, 
@@ -992,8 +986,7 @@ Move findBestMove(Board& board,
     auto startTime = std::chrono::high_resolution_clock::now();
     bool timeLimitExceeded = false;
 
-    hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
-    softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
+    hardDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
     precomputeLRM1(100, 500); // Precompute late move reduction table
 
@@ -1013,7 +1006,7 @@ Move findBestMove(Board& board,
     // Reset killer moves for each thread and ply
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < ENGINE_DEPTH; j++) {
-            killer[i][j] = {};
+            killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
         }
     }
 
@@ -1112,7 +1105,7 @@ Move findBestMove(Board& board,
                 
                 std::vector<Move> childPV; 
                 Board localBoard = board;
-                //evalPath[omp_get_thread_num()][0] = standPat;
+                evalPath[omp_get_thread_num()][0] = standPat;
 
                 int ply = 0;
                 bool newBestFlag = false;  
@@ -1294,26 +1287,19 @@ Move findBestMove(Board& board,
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
 
         timeLimitExceeded = duration > timeLimit;
-        bool spendTooMuchTime = currentTime >= softDeadline;
+        bool spendTooMuchTime = currentTime >= hardDeadline;
 
         evals[depth] = bestEval;
         candidateMove[depth] = bestMove; 
 
-        // Check for stable evaluation
-        bool stableEval = true;
-        if ((depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 50) ||
-            (depth > 3 && std::abs(evals[depth] - evals[depth - 1]) > 50) ||
-            (depth > 3 && candidateMove[depth] != candidateMove[depth - 1])){
-            stableEval = false;
-        }
-
-        // Break out of the loop if the time limit is exceeded and the evaluation is stable.
+        
         if (!timeLimitExceeded) {
+            // If the time limit is not exceeded, we can search deeper.
             depth++;
-        } else if (stableEval) {
-            break;
         } else {
-            if (depth > ENGINE_DEPTH || spendTooMuchTime) break;
+            // If we go beyond the hard limit or reach depth 14, stop the search.
+            if (spendTooMuchTime || depth >= 14) break;
+            // Else, we can still search deeper
             depth++;
         }
     }

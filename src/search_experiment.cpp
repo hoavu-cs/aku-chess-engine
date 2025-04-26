@@ -253,6 +253,7 @@ void tableInsert(Board& board,
     Other global variables.
 --------------------------------------------------------------------------------------------*/
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; 
+std::vector<Move> rootMoves (2 * ENGINE_DEPTH + 1, Move());
 
 std::vector<U64> nodeCount (maxThreadsID); // Node count for each thread
 std::vector<U64> tableHit (maxThreadsID); // Table hit count for each thread
@@ -852,10 +853,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             // forced move extension
             nextDepth++;
             childNodeInfo.extensions--;
-        }
+        } 
 
         //moveSequence[threadID].push_back(move);
-
         if (i == 0) {
             // full window & full depth search for the first node
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeInfo);
@@ -967,15 +967,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 /*-------------------------------------------------------------------------------------------- 
     Main search function to communicate with UCI interface.
     Time control: 
-    Soft deadline: 2x time limit
-    Hard deadline: 3x time limit
+    Hard deadline: 2x time limit
 
     - Case 1: As long as we are within the time limit, we search as deep as we can.
-    - Case 2: If we have used more than the time limit:
-        Case 2.1: If the search has stabilized, return the best move.
-        Case 2.2: If the search has not stabilized and we used less than the soft deadline, 
-                  continue searching.
-    - Case 3: If we are past the hard deadline, stop the search and return the best move.
+    - Case 2: Stop if we reach the hard deadline or certain depth.
 --------------------------------------------------------------------------------------------*/
 Move findBestMove(Board& board, 
                 int numThreads = 4, 
@@ -990,6 +985,7 @@ Move findBestMove(Board& board,
 
     auto startTime = std::chrono::high_resolution_clock::now();
     bool timeLimitExceeded = false;
+    rootMoves = {};
 
     hardDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
@@ -1027,7 +1023,7 @@ Move findBestMove(Board& board,
     const int baseDepth = 1;
     int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
-    std::vector<Move> candidateMove (2 * ENGINE_DEPTH + 1, Move());
+    
 
     /*--------------------------------------------------------------------------------------------
         Check if the move position is in the endgame tablebase.
@@ -1295,7 +1291,7 @@ Move findBestMove(Board& board,
         bool spendTooMuchTime = currentTime >= hardDeadline;
 
         evals[depth] = bestEval;
-        candidateMove[depth] = bestMove; 
+        rootMoves[depth] = bestMove; 
 
         
         if (!timeLimitExceeded) {
