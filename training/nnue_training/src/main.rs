@@ -21,7 +21,7 @@ use bullet_lib::{
     },
 };
 
-const HIDDEN_SIZE: usize = 256;
+const HIDDEN_SIZE: usize = 512;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -37,31 +37,31 @@ fn main() {
         .add_layer(1)
         .build();
     
-    //trainer.load_from_checkpoint("checkpoints/simple512_2-40/");
+    //trainer.load_from_checkpoint("checkpoints/simple512_v2-70/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple256_2".to_string(),
+        net_id: "simple512_v3".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 150,
+            end_superbatch: 160,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 18 },
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.3, step: 18 },
         save_rate: 10,
     };
 
     trainer.set_optimiser_params(optimiser::AdamWParams::default());
 
-    let settings = LocalSettings { threads: 8, test_set: None, output_directory: "checkpoints", batch_queue_size: 64 };
+    let settings = LocalSettings { threads: 8, test_set: None, output_directory: "checkpoints", batch_queue_size: 128 };
 
     // loading from a SF binpack
     let data_loader = {
-        let file_path = "test80-2023-06-jun-2tb7p.min-v2.v6.binpack";
+        let file_path = "janfebmar.binpack";
         let buffer_size_mb = 1024;
-        let threads = 4;
+        let threads = 8;
         fn filter(entry: &TrainingDataEntry) -> bool {
             entry.ply >= 16
                 && !entry.pos.is_checked(entry.pos.side_to_move())
