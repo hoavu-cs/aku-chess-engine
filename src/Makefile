@@ -13,13 +13,13 @@ all: aku debug_nnue aku_experiment
 ../bin:
 	@mkdir -p ../bin
 
-aku_experiment: aku.cpp search_experiment.cpp utils.cpp  ../lib/fathom/src/tbprobe.c  | ../bin
+aku_experiment: aku.cpp search_experiment.cpp  ../lib/fathom/src/tbprobe.c  | ../bin
 	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/fathom/src -o ../bin/aku_experiment $^ -lm
 
-aku: aku.cpp search.cpp utils.cpp ../lib/fathom/src/tbprobe.c | ../bin
+aku: aku.cpp search.cpp  ../lib/fathom/src/tbprobe.c | ../bin
 	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/fathom/src -o ../bin/aku $^ -lm
 
-debug: debug.cpp search_experiment.cpp utils.cpp ../lib/fathom/src/tbprobe.c  | ../bin
+debug: debug.cpp search_experiment.cpp  ../lib/fathom/src/tbprobe.c  | ../bin
 	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/fathom/src -o ../bin/debug $^ -lm
 
 clean:
