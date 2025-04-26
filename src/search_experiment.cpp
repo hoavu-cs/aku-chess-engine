@@ -169,12 +169,12 @@ void precomputeLRM1(int maxDepth, int maxI) {
     if (isPrecomputed) return;
 
     lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
-    lmrTable2.resize(100 + 1, std::vector<int>(maxI + 1));
+    //lmrTable2.resize(100 + 1, std::vector<int>(maxI + 1));
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.55 * log(depth) * log(i));
-            lmrTable2[depth][i] =  static_cast<int>(0.45 + 0.45 * log(depth) * log(i));
+            lmrTable1[depth][i] =  static_cast<int>(0.75 + 0.65 * log(depth) * log(i));
+            //lmrTable2[depth][i] =  static_cast<int>(0.45 + 0.45 * log(depth) * log(i));
         }
     }
 
@@ -253,7 +253,6 @@ void tableInsert(Board& board,
     Other global variables.
 --------------------------------------------------------------------------------------------*/
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; 
-std::chrono::time_point<std::chrono::high_resolution_clock> softDeadline;
 
 std::vector<U64> nodeCount (maxThreadsID); // Node count for each thread
 std::vector<U64> tableHit (maxThreadsID); // Table hit count for each thread
@@ -386,24 +385,19 @@ int lateMoveReduction(Board& board,
     if (isMopUpPhase(board)) return depth - 1;
     bool stm = board.sideToMove() == Color::WHITE;
 
-    if (i <= 2 || depth <= 3) { 
+    if (i <= 1 || depth <= 3) { 
         return depth - 1;
     } else {
-        bool isTactical = false;
         int histScore = histTable[threadID][stm][moveIndex(move)];
         bool improving = false;
-
-        if (board.isCapture(move) || isPromotion(move) || promotionThreatMove(board, move)) {
-            isTactical = true;
-        }        
+        bool isPromotionThreat = promotionThreatMove(board, move); 
+        int R = lmrTable1[depth][i];
 
         if (ply >= 2 && evalPath[threadID][ply - 2] < evalPath[threadID][ply]) {
             improving = true;
         }
         
-        int R = isTactical ? lmrTable2[depth][i] : lmrTable1[depth][i];
-        
-        if (histScore > 0 || improving || board.inCheck()) {
+        if (histScore > 0 || improving || board.inCheck() || isPromotionThreat) {
             R--;
         }
 
@@ -752,9 +746,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
-    if (!hashMoveFound) {
+    if (!hashMoveFound && !isPV && depth > 2) {
         // Reduce the depth to facilitate the search if no hash move found 
-        depth = std::max(depth - 1, 1);
+        depth = depth - 1;//std::max(depth - 1, 1);
     }
 
     /*--------------------------------------------------------------------------------------------
@@ -997,8 +991,7 @@ Move findBestMove(Board& board,
     auto startTime = std::chrono::high_resolution_clock::now();
     bool timeLimitExceeded = false;
 
-    hardDeadline = startTime + 3 * std::chrono::milliseconds(timeLimit);
-    softDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
+    hardDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
     precomputeLRM1(100, 500); // Precompute late move reduction table
 
@@ -1299,26 +1292,19 @@ Move findBestMove(Board& board,
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
 
         timeLimitExceeded = duration > timeLimit;
-        bool spendTooMuchTime = currentTime >= softDeadline;
+        bool spendTooMuchTime = currentTime >= hardDeadline;
 
         evals[depth] = bestEval;
         candidateMove[depth] = bestMove; 
 
-        // Check for stable evaluation
-        bool stableEval = true;
-        if ((depth > 3 && std::abs(evals[depth] - evals[depth - 2]) > 50) ||
-            (depth > 3 && std::abs(evals[depth] - evals[depth - 1]) > 50) ||
-            (depth > 3 && candidateMove[depth] != candidateMove[depth - 1])){
-            stableEval = false;
-        }
-
-        // Break out of the loop if the time limit is exceeded and the evaluation is stable.
+        
         if (!timeLimitExceeded) {
+            // If the time limit is not exceeded, we can search deeper.
             depth++;
-        } else if (stableEval) {
-            break;
         } else {
-            if (depth > ENGINE_DEPTH || spendTooMuchTime) break;
+            // If we go beyond the hard limit or reach depth 14, stop the search.
+            if (spendTooMuchTime || depth >= 14) break;
+            // Else, we can still search deeper
             depth++;
         }
     }
