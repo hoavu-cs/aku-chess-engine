@@ -188,8 +188,6 @@ int tableSize = 8388608; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 
-
-
 enum EntryType {
     EXACT,
     LOWERBOUND,
@@ -253,6 +251,7 @@ void tableInsert(Board& board,
     Other global variables.
 --------------------------------------------------------------------------------------------*/
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; 
+std::vector<Move> rootMoves (2 * ENGINE_DEPTH + 1, Move());
 
 std::vector<U64> nodeCount (maxThreadsID); // Node count for each thread
 std::vector<U64> tableHit (maxThreadsID); // Table hit count for each thread
@@ -393,12 +392,20 @@ int lateMoveReduction(Board& board,
         bool isPromotionThreat = promotionThreatMove(board, move); 
         int R = lmrTable1[depth][i];
 
-        if (ply >= 2 && evalPath[threadID][ply - 2] < evalPath[threadID][ply]) {
+        if (ply >= 2 && evalPath[threadID][ply - 2] + 25 < evalPath[threadID][ply]) {
             improving = true;
         }
         
-        if (histScore > 0 || improving || board.inCheck() || isPromotionThreat) {
+        if (histScore > 0 || improving || board.inCheck()) {
             R--;
+        }
+
+        if (isPromotionThreat) {
+            R--;
+        }
+
+        if (depth == 1 && board.isCapture(move) && seeScore < 100) {
+            return 0;
         }
 
         return std::min(depth - R, depth - 1);
@@ -610,7 +617,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int threadID = nodeInfo.threadID;
     bool leftMost = nodeInfo.leftMost;
     int ply = nodeInfo.ply;
-    int extensions = nodeInfo.extensions;
+
+    int checkExtensions = nodeInfo.checkExtensions;
+    int singularExtensions = nodeInfo.singularExtensions;
+    int oneMoveExtensions = nodeInfo.oneMoveExtensions;
+    int promoThreatExtensions = nodeInfo.promoThreatExtensions;
+
     Move lastMove = nodeInfo.lastMove;
 
     nodeCount[threadID]++;
@@ -721,7 +733,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int nullEval;
         int reduction = (depth >= 6) ? 4 : 3;
 
-        NodeInfo nullNodeInfo = {ply + 1, false, extensions, Move::NULL_MOVE, threadID}; 
+        NodeInfo nullNodeInfo = {ply + 1, 
+                                false, 
+                                checkExtensions,
+                                singularExtensions,
+                                oneMoveExtensions,
+                                promoThreatExtensions,
+                                Move::NULL_MOVE,
+                                threadID};
 
         //moveSequence[threadID].push_back(Move::NULL_MOVE);
 
@@ -746,7 +765,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
-    if (!hashMoveFound && !isPV && depth > 2) {
+    if (!hashMoveFound && !isPV && depth > 1) {
         // Reduce the depth to facilitate the search if no hash move found 
         depth = depth - 1;//std::max(depth - 1, 1);
     }
@@ -778,9 +797,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 }
             }
             
-            if (extensions && singular) {
+            if (singularExtensions && singular) {
                 depth++;
-                extensions--;
+                singularExtensions--;
             }
     }
 
@@ -841,21 +860,40 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         bool nullWindow = false;
 
-        NodeInfo childNodeInfo = {ply + 1, leftMost, extensions, move, threadID}; 
+        NodeInfo childNodeInfo = {ply + 1, 
+                                leftMost, 
+                                checkExtensions,
+                                singularExtensions,
+                                oneMoveExtensions,
+                                promoThreatExtensions,
+                                move,
+                                threadID};
+
+        int rank = move.to().index() / 8;
 
         // ~ 35 Elo
-        if (extensions && board.inCheck()) { 
+        if (checkExtensions && board.inCheck()) { 
             // check extension
             nextDepth++;
-            childNodeInfo.extensions--; 
-        } else if (extensions && moves.size() == 1) { 
+            childNodeInfo.checkExtensions--;
+        }  
+        
+        if (oneMoveExtensions && moves.size() == 1) { 
             // forced move extension
             nextDepth++;
-            childNodeInfo.extensions--;
+            childNodeInfo.oneMoveExtensions--;
         }
-
+        
+        if (promoThreatExtensions
+            && board.at<Piece>(move.from()).type() == PieceType::PAWN
+            && ((board.sideToMove() == Color::WHITE && rank == 6) 
+            // rank 7/2 extension
+                 || (board.sideToMove() == Color::BLACK && rank == 1))) {
+            nextDepth++;
+            childNodeInfo.promoThreatExtensions--;
+        }
+        
         //moveSequence[threadID].push_back(move);
-
         if (i == 0) {
             // full window & full depth search for the first node
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeInfo);
@@ -985,6 +1023,7 @@ Move findBestMove(Board& board,
 
     auto startTime = std::chrono::high_resolution_clock::now();
     bool timeLimitExceeded = false;
+    rootMoves = {};
 
     hardDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
@@ -1022,7 +1061,7 @@ Move findBestMove(Board& board,
     const int baseDepth = 1;
     int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
-    std::vector<Move> candidateMove (2 * ENGINE_DEPTH + 1, Move());
+    
 
     /*--------------------------------------------------------------------------------------------
         Check if the move position is in the endgame tablebase.
@@ -1111,9 +1150,20 @@ Move findBestMove(Board& board,
                 bool newBestFlag = false;  
                 int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, 0, leftMost, omp_get_thread_num());
                 int eval = -INF;
-                int extensions = 3;
 
-                NodeInfo childNodeInfo = {1, leftMost, extensions, move, omp_get_thread_num()};
+                int checkExtensions = 2;
+                int singularExtensions = 5;
+                int oneMoveExtensions = 5;
+                int promoThreatExtensions = 2;
+
+                NodeInfo childNodeInfo = {1, 
+                                        leftMost, 
+                                        checkExtensions,
+                                        singularExtensions,
+                                        oneMoveExtensions,
+                                        promoThreatExtensions,
+                                        move,
+                                        omp_get_thread_num()};
                 
                 addAccumulators(localBoard, 
                                 move, 
@@ -1290,8 +1340,7 @@ Move findBestMove(Board& board,
         bool spendTooMuchTime = currentTime >= hardDeadline;
 
         evals[depth] = bestEval;
-        candidateMove[depth] = bestMove; 
-
+        rootMoves[depth] = bestMove; 
         
         if (!timeLimitExceeded) {
             // If the time limit is not exceeded, we can search deeper.

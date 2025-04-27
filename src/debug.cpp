@@ -117,7 +117,7 @@ void extractFiles() {
 
     // Extract NNUE weights file
     std::filesystem::path nnueFilePath = nnueDir / nnueWeightFile.name;
-    if (!std::filesystem::exists(nnueFilePath)) {
+    //if (!std::filesystem::exists(nnueFilePath)) {
         std::ofstream nnueOut(nnueFilePath, std::ios::binary);
         if (!nnueOut) {
             std::cerr << "info failed to create: " << nnueFilePath << std::endl;
@@ -126,7 +126,7 @@ void extractFiles() {
             nnueOut.close();
             std::cout << "info extracted: " << nnueFilePath << std::endl;
         }
-    }
+    //}
 
 }
 
@@ -231,10 +231,11 @@ int main() {
         "2br4/r1q1bpk1/2pp2pp/p3p3/P3P3/1BQRN2P/1PP2PP1/3R2K1 b - - 6 22",
 
         "2rbr1k1/p2n1pp1/4P2p/1p6/q1p1R3/5NB1/P1R1QPPP/5K2 b - - 0 27",
-
+        //8/2k5/5R2/p2p1BP1/P1bP4/1p2P1K1/8/r7 b - - 0 64
         // "6k1/6pp/5p2/2b1p1n1/4P3/3P2Pq/r2NQP1P/B1R4K w - - 9 30"
 
         //r1bq1rk1/pp1pppbp/5np1/n3P3/3N4/1BN1B3/PPP2PPP/R2QK2R b KQ - 0 9
+        //
     
     }; 
 
@@ -288,7 +289,7 @@ int main() {
 
     // Default settings
     int depth = 30;
-    int numThreads = 8;
+    int numThreads = 10;
     int timeLimit = 20000;
 
     std::cout << "Enter fen: ";

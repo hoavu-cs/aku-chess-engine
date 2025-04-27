@@ -128,16 +128,16 @@ void extractFiles() {
 
     // Extract NNUE weights file
     std::string nnueFilePath = nnueDir + "/" + nnueWeightFile.name;
-    if (!std::filesystem::exists(nnueFilePath)) {
-        std::ofstream nnueOut(nnueFilePath, std::ios::binary);
-        if (!nnueOut) {
-            std::cerr << "info failed to create: " << nnueFilePath << std::endl;
-        } else {
-            nnueOut.write(reinterpret_cast<const char*>(nnueWeightFile.data), nnueWeightFile.size);
-            nnueOut.close();
-            std::cout << "info extracted: " << nnueFilePath << std::endl;
-        }
+    //if (!std::filesystem::exists(nnueFilePath)) {
+    std::ofstream nnueOut(nnueFilePath, std::ios::binary);
+    if (!nnueOut) {
+        std::cerr << "info failed to create: " << nnueFilePath << std::endl;
+    } else {
+        nnueOut.write(reinterpret_cast<const char*>(nnueWeightFile.data), nnueWeightFile.size);
+        nnueOut.close();
+        std::cout << "info extracted: " << nnueFilePath << std::endl;
     }
+    //}
 
 }
 
@@ -345,7 +345,7 @@ void processUci() {
     std::cout << "id author " << ENGINE_AUTHOR << std::endl;
     std::cout << "option name Threads type spin default 8 min 1 max 10" << std::endl;
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
-    std::cout << "option name Hash type spin default 512 min 128 max 1024" << std::endl;
+    std::cout << "option name Hash type spin default 256 min 128 max 1024" << std::endl;
     std::cout << "option name UCI_Chess960 type check default false" << std::endl;
     std::cout << "uciok" << std::endl;
 }

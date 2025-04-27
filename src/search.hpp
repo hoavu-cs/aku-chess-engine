@@ -43,7 +43,12 @@ void initializeTB(std::string path);
 struct NodeInfo {
     int ply;
     bool leftMost;
-    int extensions;
+
+    int checkExtensions;
+    int singularExtensions;
+    int oneMoveExtensions;
+    int promoThreatExtensions;
+    
     Move lastMove;
     int threadID;
 };
