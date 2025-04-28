@@ -22,7 +22,7 @@ This is a fun side project so any suggestion is welcome. Currently, the engine i
 
 - This engine uses NNUE (Efficiently Updatable Neural Network) evaluation.  
 
-- The engine has its own NNUE inference implementation for the vanilla NNUE (768 -> 256)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. Currently testing (768 -> 512)x2.
+- The engine has its own NNUE inference implementation for the vanilla NNUE (768 -> 512)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. Currently trying larger architecture.
 
 - For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce).
 
