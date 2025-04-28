@@ -44,6 +44,8 @@
 
     bool isMopUpPhase(Board& board);
 
+    inline bool promotionThreatMove(Board& board, Move move);
+
 ------------------------------------------------------------------------------*/
 
 #include "chess.hpp"
@@ -392,5 +394,30 @@ bool isMopUpPhase(Board& board) {
     }
 
     // Otherwise, if we have K + a minor piece, or KR vs K + minor piece, it's drawish
+    return false;
+}
+
+
+/*-------------------------------------------------------------------------------------------- 
+    Check if the move involves a passed pawn push.
+--------------------------------------------------------------------------------------------*/
+inline bool promotionThreatMove(Board& board, Move move) {
+    Color color = board.sideToMove();
+    PieceType type = board.at<Piece>(move.from()).type();
+
+    if (type == PieceType::PAWN) {
+        int destinationIndex = move.to().index();
+        int rank = destinationIndex / 8;
+        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+        bool isPassedPawnFlag = isPassedPawn(destinationIndex, color, theirPawns);
+
+        if (isPassedPawnFlag) {
+            if ((color == Color::WHITE && rank > 3) || 
+                (color == Color::BLACK && rank < 4)) {
+                return true;
+            }
+        }
+    }
+
     return false;
 }

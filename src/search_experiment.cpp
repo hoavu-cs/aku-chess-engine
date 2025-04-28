@@ -304,31 +304,7 @@ inline void updateKillerMoves(const Move& move, int ply, int threadID) {
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Check if the move involves a passed pawn push.
---------------------------------------------------------------------------------------------*/
-inline bool promotionThreatMove(Board& board, Move move) {
-    Color color = board.sideToMove();
-    PieceType type = board.at<Piece>(move.from()).type();
-
-    if (type == PieceType::PAWN) {
-        int destinationIndex = move.to().index();
-        int rank = destinationIndex / 8;
-        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-        bool isPassedPawnFlag = isPassedPawn(destinationIndex, color, theirPawns);
-
-        if (isPassedPawnFlag) {
-            if ((color == Color::WHITE && rank > 3) || 
-                (color == Color::BLACK && rank < 4)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-/*-------------------------------------------------------------------------------------------- 
-  SEE (Static Exchange Evaluation) function.
+    SEE (Static Exchange Evaluation) function.
  -------------------------------------------------------------------------------------------*/
 int see(Board& board, Move move, int threadID) {
 
@@ -372,36 +348,42 @@ int see(Board& board, Move move, int threadID) {
     Late move reduction. 
 --------------------------------------------------------------------------------------------*/
 int lateMoveReduction(Board& board, 
-                    Move move, 
-                    int i, 
-                    int depth, 
-                    int ply, 
-                    bool isPV, 
-                    bool leftMost, 
-                    int threadID) {
+                      Move move, 
+                      int i, 
+                      int depth, 
+                      int ply, 
+                      bool isPV, 
+                      bool leftMost, 
+                      int threadID) 
+{
+    if (isMopUpPhase(board))
+        return depth - 1;
 
-    if (isMopUpPhase(board)) return depth - 1;
     bool stm = board.sideToMove() == Color::WHITE;
 
-    if (i <= 1 || depth <= 3) { 
+    if (i <= 1 || depth <= 3) {
         return depth - 1;
     } else {
         bool improving = (ply >= 2 && evalPath[threadID][ply - 2] < evalPath[threadID][ply]);
-        bool isKillerMove = std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end();
-        int R = lmrTable1[depth][i];
-
         bool isCapture = board.isCapture(move);
-        int histScore = isCapture ? captureHistory[threadID][stm][moveIndex(move)] : history[threadID][stm][moveIndex(move)];
-        
-        if (improving || board.inCheck() || isKillerMove) {
+        board.makeMove(move);
+        bool giveCheck = board.inCheck();
+        board.unmakeMove(move);
+
+        int R = lmrTable1[depth][i];
+        if (improving || board.inCheck() || giveCheck || isPV) {
             R--;
         }
 
-        R -= histScore / 5000; 
+        if (!isCapture) {
+            int histScore = history[threadID][stm][moveIndex(move)];
+            R -= histScore / 8000;
+        }
 
         return std::min(depth - R, depth - 1);
     }
 }
+
 
 /*-------------------------------------------------------------------------------------------- 
     Returns a list of candidate moves ordered by priority.
@@ -474,17 +456,9 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000;
         } else {
-            board.makeMove(move);
-            bool isCheck = board.inCheck();
-            board.unmakeMove(move);
-
-            if (isCheck) {
-                priority = 2000;
-            } else {
-                secondary = true;
-                U64 mvIndex = moveIndex(move);
-                priority = history[threadID][stm][mvIndex];
-            }
+            secondary = true;
+            U64 mvIndex = moveIndex(move);
+            priority = history[threadID][stm][mvIndex];
         } 
 
         if (!secondary) {
@@ -758,6 +732,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     bool hashMoveFound = false;
+    killer[threadID][ply + 1] = {Move::NO_MOVE, Move::NO_MOVE}; 
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, 
                                                         depth, 
                                                         ply, 
@@ -775,7 +750,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         Reduce the depth to facilitate the search if no hash move found.
         Restricted to expected cut nodes and depth > 3.
     --------------------------------------------------------------------------------------------*/
-    if (!hashMoveFound && depth >= 4) {
+    if (!hashMoveFound && depth >= 4 && (nodeType == NodeType::CUT || nodeType == NodeType::PV)) {
         depth = depth - 1;
     }
 
@@ -842,23 +817,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool isCapture = board.isCapture(move);
         bool isQuiet = !isCapture && !isPromo; 
 
+        if (i > 0) leftMost = false;
+        int eval = 0;
+        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost, threadID); 
+
         /*--------------------------------------------------------------------------------------------
             Late move pruning
         --------------------------------------------------------------------------------------------*/
         bool lmpCondition = !isPromo && !inCheck && !isPV && doSingularSearch;
         int lmpValue = (4 + depth * depth) / (1 + !improving);
-        if (lmpCondition && isQuiet && depth <= 5 && i >= std::max(1, lmpValue)) {
+        if (lmpCondition && isQuiet && nextDepth <= 5 && i >= std::max(1, lmpValue)) {
             continue; 
-        }
-
-        /*--------------------------------------------------------------------------------------------
-            SEE pruning
-        --------------------------------------------------------------------------------------------*/
-        if (isCapture && i > 0) {
-            int seeScore = see(board, move, threadID);
-            if (seeScore < -100 * depth) {
-                continue;
-            }
         }
 
         /*--------------------------------------------------------------------------------------------
@@ -867,23 +836,32 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool hpCondition = !isPromo && !inCheck && !isPV && doSingularSearch && isQuiet;
         if (i > 0 && hpCondition) {
             int mvIndex = moveIndex(move);
-            if (history[threadID][stm][mvIndex] < -1000 - 2500 * depth) {
+            if (history[threadID][stm][mvIndex] < -1000 - 2500 * nextDepth) {
                 continue;
             } 
         }
 
-
-
-        if (i > 0) leftMost = false;
-        
-        int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost, threadID); 
+        /*--------------------------------------------------------------------------------------------
+            SEE pruning
+        --------------------------------------------------------------------------------------------*/
+        if (isCapture && i > 0 && doSingularSearch) {
+            int seeScore = see(board, move, threadID);
+            if (seeScore < -100 * nextDepth) {
+                continue;
+            }
+        }
 
         /*--------------------------------------------------------------------------------------------
             Futility pruning: prune if there is no hope of raising alpha.
             For tactical stability, we only do this for quiet moves.
         --------------------------------------------------------------------------------------------*/
-        bool fpCondition = !isPromo && !inCheck && !isPV && doSingularSearch;
+        bool fpCondition = !isPromo 
+                            && !inCheck 
+                            && !isPV 
+                            && doSingularSearch 
+                            && !isCapture 
+                            && doSingularSearch;
+
         if (nextDepth <= 4 && fpCondition && i > 0) {
             int margin = (70 + 80 * depth + 100 * improving);
             if (standPat + margin < alpha) {
@@ -1104,24 +1082,23 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     - Case 1: As long as we are within the time limit, we search as deep as we can.
     - Case 2: Stop if we reach the hard deadline or certain depth.
 --------------------------------------------------------------------------------------------*/
-Move findBestMove(Board& board, 
-                int numThreads = 4, 
-                int maxDepth = 30, 
-                int timeLimit = 15000,
-                bool quiet = false) {
+Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeLimit = 15000, bool quiet = false) {
 
-    // Update if the size for the transposition table changes.
-    if (ttTable.size() != tableSize) {
-        ttTable = std::vector<LockedTableEntry>(tableSize);
-    }
-
+    /*--------------------------------------------------------------------------------------------
+        Set up ttTable, threads, time limits, history scores, killer moves and accumulators.
+    --------------------------------------------------------------------------------------------*/
+    omp_set_num_threads(numThreads);
     auto startTime = std::chrono::high_resolution_clock::now();
+    hardDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
     rootMoves = {};
-
-    hardDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     
     precomputeLRM(100, 500); // Precompute late move reduction table
+
+    if (ttTable.size() != tableSize) {
+        // Update if the size for the transposition table changes.
+        ttTable = std::vector<LockedTableEntry>(tableSize);
+    }
 
     // Reset history scores 
     for (int i = 0; i < maxThreadsID; i++) {
@@ -1132,19 +1109,16 @@ Move findBestMove(Board& board,
             captureHistory[i][0][j] = 0;
             captureHistory[i][1][j] = 0;
         }
-
-        //moveStack[i] = std::vector<Move>(ENGINE_DEPTH, Move::NO_MOVE);
     }
 
-    for (int i = 0; i < maxThreadsID; i++) {
-        makeAccumulators(board, whiteAccumulator[i], blackAccumulator[i], evalNetwork);
-    }
-
-    // Reset killer moves for each thread and ply
     for (int i = 0; i < maxThreadsID; i++) {
         for (int j = 0; j < ENGINE_DEPTH; j++) {
             killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
         }
+    }
+
+    for (int i = 0; i < maxThreadsID; i++) {
+        makeAccumulators(board, whiteAccumulator[i], blackAccumulator[i], evalNetwork);
     }
 
     Move bestMove = Move(); 
@@ -1152,15 +1126,8 @@ Move findBestMove(Board& board,
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
 
     std::vector<std::pair<Move, int>> moves;
-    std::vector<Move> globalPV (maxDepth);
-
-    omp_set_num_threads(numThreads);
-
-    const int baseDepth = 1;
-    int depth = baseDepth;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
     
-
     /*--------------------------------------------------------------------------------------------
         Check if the move position is in the endgame tablebase.
     --------------------------------------------------------------------------------------------*/
@@ -1188,50 +1155,44 @@ Move findBestMove(Board& board,
             }
         }
     }
+    
+    /*--------------------------------------------------------------------------------------------
+        Start the search.
+    --------------------------------------------------------------------------------------------*/
 
     int standPat = evalNetwork.evaluate(whiteAccumulator[0], blackAccumulator[0]);
+    int depth = 0;
 
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
 
-        // reset node count for each thread
         for (int i = 0; i < maxThreadsID; i++) {
             nodeCount[i] = 0;
-        }
-
-        // reset table hit count for each thread
-        for (int i = 0; i < maxThreadsID; i++) {
             tableHit[i] = 0;
         }
+
 
         // Track the best move for the current depth
         Move currentBestMove = Move();
         int currentBestEval = -INF;
-        std::vector<std::pair<Move, int>> newMoves;
-        std::vector<Move> PV; 
         bool hashMoveFound = false;
 
-        if (depth == baseDepth) {
+        std::vector<std::pair<Move, int>> newMoves;
+        std::vector<Move> PV; 
+        
+        if (depth == 0) {
             moves = orderedMoves(board, depth, 0, previousPV, false, Move::NO_MOVE, 0, hashMoveFound);
         }
 
         auto iterationStartTime = std::chrono::high_resolution_clock::now();
         bool stopNow = false;
-        int aspiration, alpha, beta;
-
-        alpha = -INF;
-        beta = INF;
-
-        if (depth > 6) {
-            aspiration = evals[depth - 1];
-            alpha = aspiration - 150;
-            beta = aspiration + 150;
-        }
+        int alpha = (depth > 6) ? evals[depth - 1] - 150 : -INF;
+        int beta  = (depth > 6) ? evals[depth - 1] + 150 : INF;
 
         while (true) {
             currentBestEval = -INF;
             #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < 5 * moves.size(); i++) {
+            for (int i = 0; i < 3 * moves.size(); i++) {
 
                 if (stopNow) continue;
                 
@@ -1244,15 +1205,14 @@ Move findBestMove(Board& board,
 
                 int ply = 0;
                 bool newBestFlag = false;  
-                int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, leftMost, omp_get_thread_num());
+                int threadID = omp_get_thread_num();
+                int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
                 int eval = -INF;
 
                 int checkExtensions = 3;
                 int singularExtensions = 5;
-                int oneMoveExtensions = 5;
-
-                //moveStack[omp_get_thread_num()][ply] = move;
-
+                int oneMoveExtensions = 3;
+                
                 NodeInfo childNodeInfo = {1, 
                                         leftMost, 
                                         checkExtensions,
@@ -1262,12 +1222,12 @@ Move findBestMove(Board& board,
                                         true,
                                         move,
                                         NodeType::PV,
-                                        omp_get_thread_num()};
+                                        threadID};
                 
                 addAccumulators(localBoard, 
                                 move, 
-                                whiteAccumulator[omp_get_thread_num()], 
-                                blackAccumulator[omp_get_thread_num()], 
+                                whiteAccumulator[threadID], 
+                                blackAccumulator[threadID], 
                                 evalNetwork);
                 localBoard.makeMove(move);
 
@@ -1275,8 +1235,8 @@ Move findBestMove(Board& board,
 
                 subtractAccumulators(localBoard, 
                                     move, 
-                                    whiteAccumulator[omp_get_thread_num()], 
-                                    blackAccumulator[omp_get_thread_num()],
+                                    whiteAccumulator[threadID], 
+                                    blackAccumulator[threadID],
                                     evalNetwork);
                 localBoard.unmakeMove(move);
 
@@ -1299,8 +1259,8 @@ Move findBestMove(Board& board,
 
                     addAccumulators(localBoard, 
                                     move, 
-                                    whiteAccumulator[omp_get_thread_num()], 
-                                    blackAccumulator[omp_get_thread_num()], 
+                                    whiteAccumulator[threadID], 
+                                    blackAccumulator[threadID], 
                                     evalNetwork);
                     localBoard.makeMove(move);
 
@@ -1308,8 +1268,8 @@ Move findBestMove(Board& board,
 
                     subtractAccumulators(localBoard, 
                                         move, 
-                                        whiteAccumulator[omp_get_thread_num()], 
-                                        blackAccumulator[omp_get_thread_num()], 
+                                        whiteAccumulator[threadID], 
+                                        blackAccumulator[threadID], 
                                         evalNetwork);
                     localBoard.unmakeMove(move);
 
@@ -1393,19 +1353,14 @@ Move findBestMove(Board& board,
         moves = newMoves;
         previousPV = PV;
 
-        std::string depthStr = "depth " +  std::to_string(std::max(size_t(depth), PV.size()));
-        std::string scoreStr = "score cp " + std::to_string(bestEval);
-
-        U64 totalNodeCount = 0;
+        U64 totalNodeCount = 0, totalTableHit = 0;
         for (int i = 0; i < maxThreadsID; i++) {
             totalNodeCount += nodeCount[i];
-        }
-
-        U64 totalTableHit = 0;
-        for (int i = 0; i < maxThreadsID; i++) {
             totalTableHit += tableHit[i];
         }
 
+        std::string depthStr = "depth " +  std::to_string(std::max(size_t(depth), PV.size()));
+        std::string scoreStr = "score cp " + std::to_string(bestEval);
         std::string nodeStr = "nodes " + std::to_string(totalNodeCount);
         std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(totalTableHit) / totalNodeCount);
 
@@ -1418,11 +1373,7 @@ Move findBestMove(Board& board,
             pvStr += uci::moveToUci(move, board.chess960()) + " ";
         }
 
-        std::string analysis = "info " + depthStr + " " 
-                                    + scoreStr + " " 
-                                    + nodeStr + " " 
-                                    + timeStr + " " 
-                                    + pvStr;
+        std::string analysis = "info " + depthStr + " " + scoreStr + " " + nodeStr + " " + timeStr + " " + pvStr;
 
         if (!quiet) {
             std::cout << analysis << std::endl;
