@@ -371,7 +371,6 @@ void subtractAccumulators(Board& board,
 
 
         if (board.isCapture(move)) {
-
             PieceType captured = board.at<Piece>(move.to()).type();
             int capturedIdx = pieceTypeToIndex(captured);
 
@@ -398,9 +397,7 @@ void subtractAccumulators(Board& board,
         whiteAccumulator.removeFeature(fromIdxThem, evalNetwork);
         whiteAccumulator.addFeature(toIdxThem, evalNetwork);
 
-        if (board.isCapture(move)) {
-            //makeAccumulators(board, whiteAccumulator, blackAccumulator, evalNetwork);
-            
+        if (board.isCapture(move)) {            
             PieceType captured = board.at<Piece>(move.to()).type();
             int capturedIdx = pieceTypeToIndex(captured);
 
