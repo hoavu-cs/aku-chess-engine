@@ -401,10 +401,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
     Movelist moves;
     movegen::legalmoves(moves, board);
 
-    std::vector<std::pair<Move, int>> nonQuiet;
+    std::vector<std::pair<Move, int>> primary;
     std::vector<std::pair<Move, int>> quiet;
 
-    nonQuiet.reserve(moves.size());
+    primary.reserve(moves.size());
     quiet.reserve(moves.size());
 
     bool stm = board.sideToMove() == Color::WHITE;
@@ -428,12 +428,12 @@ std::vector<std::pair<Move, int>> orderedMoves(
             // Hash move from the PV transposition table should be searched first 
             if (tableMove == move && tableType == EntryType::EXACT) {
                 priority = 19000 + tableEval;
-                nonQuiet.push_back({tableMove, priority});
+                primary.push_back({tableMove, priority});
                 hashMove = true;
                 hashMoveFound = true;
             } else if (tableMove == move && tableType == EntryType::LOWERBOUND) {
                 priority = 18000 + tableEval;
-                nonQuiet.push_back({tableMove, priority});
+                primary.push_back({tableMove, priority});
                 hashMove = true;
                 hashMoveFound = true;
             }
@@ -462,14 +462,14 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } 
 
         if (!secondary) {
-            nonQuiet.push_back({move, priority});
+            primary.push_back({move, priority});
         } else {
             quiet.push_back({move, priority});
         }
     }
 
     // Sort capture, promotion, checks by priority
-    std::sort(nonQuiet.begin(), nonQuiet.end(), [](const auto& a, const auto& b) {
+    std::sort(primary.begin(), primary.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
@@ -478,10 +478,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
     });
 
     for (const auto& move : quiet) {
-        nonQuiet.push_back(move);
+        primary.push_back(move);
     }
 
-    return nonQuiet;
+    return primary;
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -831,7 +831,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         /*--------------------------------------------------------------------------------------------
-            History
+            History pruning
         --------------------------------------------------------------------------------------------*/       
         bool hpCondition = !isPromo && !inCheck && !isPV && doSingularSearch && isQuiet;
         if (i > 0 && hpCondition) {
@@ -1075,7 +1075,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Main search function to communicate with UCI interface.
+    Main search function to communicate with UCI interface. This is the root node.
     Time control: 
     Hard deadline: 2x time limit
 
@@ -1212,7 +1212,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int checkExtensions = 3;
                 int singularExtensions = 5;
                 int oneMoveExtensions = 3;
-                
+
                 NodeInfo childNodeInfo = {1, 
                                         leftMost, 
                                         checkExtensions,
