@@ -289,7 +289,7 @@ int main() {
 
     // Default settings
     int depth = 30;
-    int numThreads = 10;
+    int numThreads = 8;
     int timeLimit = 25000;
 
     std::cout << "Enter fen: ";
