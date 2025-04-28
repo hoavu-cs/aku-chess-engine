@@ -21,7 +21,7 @@ use bullet_lib::{
     },
 };
 
-const HIDDEN_SIZE: usize = 1024;
+const HIDDEN_SIZE: usize = 512;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -37,16 +37,16 @@ fn main() {
         .add_layer(1)
         .build();
     
-    //trainer.load_from_checkpoint("checkpoints/simple512_v2-70/");
+    trainer.load_from_checkpoint("checkpoints/simple512_v4-40/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple1024".to_string(),
+        net_id: "simple512_v4".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
-            start_superbatch: 1,
-            end_superbatch: 180,
+            start_superbatch: 41,
+            end_superbatch: 350,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
         lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.3, step: 18 },
@@ -59,7 +59,7 @@ fn main() {
 
     // loading from a SF binpack
     let data_loader = {
-        let file_path = "janfebmaraprmay.binpack";
+        let file_path = "janfebmaraprmayjun.binpack";
         let buffer_size_mb = 2048;
         let threads = 8;
         fn filter(entry: &TrainingDataEntry) -> bool {

@@ -30,6 +30,12 @@
 
 using namespace chess;
 
+enum NodeType {
+    PV,
+    CUT,
+    ALL
+};
+
 // Constants & global variables
 const int INF = 1000000;
 const int SZYZYGY_INF = 40000;
@@ -47,9 +53,13 @@ struct NodeInfo {
     int checkExtensions;
     int singularExtensions;
     int oneMoveExtensions;
-    int promoThreatExtensions;
-    
+
+    bool doNMP;
+    bool doSingularSearch;
+
     Move lastMove;
+    NodeType nodeType;
+
     int threadID;
 };
 
