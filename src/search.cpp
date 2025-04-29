@@ -30,7 +30,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <omp.h> // Include OpenMP header
+#include <omp.h> 
 #include <chrono>
 #include <stdlib.h>
 #include <cmath>
@@ -265,6 +265,9 @@ std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vec
 // Evaluations along the current path
 std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
+// Random seeds
+std::vector<uint32_t> seeds(maxThreadsID);
+
 // Basic piece values for move ordering
 const int pieceValues[] = {
     0,    // No piece
@@ -401,10 +404,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
     Movelist moves;
     movegen::legalmoves(moves, board);
 
-    std::vector<std::pair<Move, int>> nonQuiet;
+    std::vector<std::pair<Move, int>> primary;
     std::vector<std::pair<Move, int>> quiet;
 
-    nonQuiet.reserve(moves.size());
+    primary.reserve(moves.size());
     quiet.reserve(moves.size());
 
     bool stm = board.sideToMove() == Color::WHITE;
@@ -428,12 +431,12 @@ std::vector<std::pair<Move, int>> orderedMoves(
             // Hash move from the PV transposition table should be searched first 
             if (tableMove == move && tableType == EntryType::EXACT) {
                 priority = 19000 + tableEval;
-                nonQuiet.push_back({tableMove, priority});
+                primary.push_back({tableMove, priority});
                 hashMove = true;
                 hashMoveFound = true;
             } else if (tableMove == move && tableType == EntryType::LOWERBOUND) {
                 priority = 18000 + tableEval;
-                nonQuiet.push_back({tableMove, priority});
+                primary.push_back({tableMove, priority});
                 hashMove = true;
                 hashMoveFound = true;
             }
@@ -462,14 +465,14 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } 
 
         if (!secondary) {
-            nonQuiet.push_back({move, priority});
+            primary.push_back({move, priority});
         } else {
             quiet.push_back({move, priority});
         }
     }
 
     // Sort capture, promotion, checks by priority
-    std::sort(nonQuiet.begin(), nonQuiet.end(), [](const auto& a, const auto& b) {
+    std::sort(primary.begin(), primary.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
@@ -478,10 +481,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
     });
 
     for (const auto& move : quiet) {
-        nonQuiet.push_back(move);
+        primary.push_back(move);
     }
 
-    return nonQuiet;
+    return primary;
 }
 
 /*-------------------------------------------------------------------------------------------- 
@@ -490,6 +493,9 @@ std::vector<std::pair<Move, int>> orderedMoves(
 int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     
     nodeCount[threadID]++;
+    int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
+    int standPat = 0;
+    bool mopUp = isMopUpPhase(board);
 
     // Probe Syzygy tablebases
     Move syzygyMove = Move::NO_MOVE;
@@ -511,14 +517,9 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     Movelist moves;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
-    int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
-    int standPat = 0;
-    bool mopUp = isMopUpPhase(board);
-
     if (isMopUpPhase(board)) {
         standPat = color * mopUpScore(board);
     } else {
-        //makeAccumulators(board, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
         if (color == 1) {
             standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
         } else {
@@ -532,7 +533,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     }
 
     alpha = std::max(alpha, standPat);
-
     std::vector<std::pair<Move, int>> candidateMoves;
     candidateMoves.reserve(moves.size());
 
@@ -831,7 +831,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         /*--------------------------------------------------------------------------------------------
-            History
+            History pruning
         --------------------------------------------------------------------------------------------*/       
         bool hpCondition = !isPromo && !inCheck && !isPV && doSingularSearch && isQuiet;
         if (i > 0 && hpCondition) {
@@ -993,6 +993,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
             const int maxHistory = 16384; // capped history score ~ 10 Elo
             const int maxCaptureHistory = 5048; 
+            seeds[threadID] = fastRand(seeds[threadID]);
+            // Apply random perturbation to the history score standard depth * depth change
+            // ~ 35 Elo
+            float delta = depth * depth + (seeds[threadID] % 25);
 
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
@@ -1001,7 +1005,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 // the closer the old score is to maxHistory, the less change is applied.
                 int mvIndex = moveIndex(move);
                 int currentScore = history[threadID][stm][mvIndex];
-                float delta = depth * depth;
                 int change = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(maxHistory)) * delta;
 
                 history[threadID][stm][mvIndex] += change;
@@ -1010,7 +1013,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } else {
                 int mvIndex = moveIndex(move);
                 int currentScore = captureHistory[threadID][stm][mvIndex];
-                float delta = depth * depth;
                 int change = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(maxCaptureHistory)) * delta;
 
                 captureHistory[threadID][stm][mvIndex] += change;
@@ -1024,7 +1026,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                         captureHistory[threadID][stm][mvIndex] : 
                                         history[threadID][stm][mvIndex];
             
-                float delta = depth * depth;
                 int change = 0;
 
                 if (isCapture) {
@@ -1075,7 +1076,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 }
 
 /*-------------------------------------------------------------------------------------------- 
-    Main search function to communicate with UCI interface.
+    Main search function to communicate with UCI interface. This is the root node.
     Time control: 
     Hard deadline: 2x time limit
 
@@ -1109,6 +1110,10 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             captureHistory[i][0][j] = 0;
             captureHistory[i][1][j] = 0;
         }
+
+        nodeCount[i] = 0;
+        tableHit[i] = 0;
+        seeds[i] = rand() % 1000000;
     }
 
     for (int i = 0; i < maxThreadsID; i++) {
@@ -1166,16 +1171,14 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
     while (depth <= maxDepth) {
         globalMaxDepth = depth;
 
-        for (int i = 0; i < maxThreadsID; i++) {
-            nodeCount[i] = 0;
-            tableHit[i] = 0;
-        }
-
-
         // Track the best move for the current depth
         Move currentBestMove = Move();
         int currentBestEval = -INF;
         bool hashMoveFound = false;
+
+        bool stopNow = false;
+        int alpha = (depth > 6) ? evals[depth - 1] - 150 : -INF;
+        int beta  = (depth > 6) ? evals[depth - 1] + 150 : INF;
 
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
@@ -1183,11 +1186,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         if (depth == 0) {
             moves = orderedMoves(board, depth, 0, previousPV, false, Move::NO_MOVE, 0, hashMoveFound);
         }
-
-        auto iterationStartTime = std::chrono::high_resolution_clock::now();
-        bool stopNow = false;
-        int alpha = (depth > 6) ? evals[depth - 1] - 150 : -INF;
-        int beta  = (depth > 6) ? evals[depth - 1] + 150 : INF;
 
         while (true) {
             currentBestEval = -INF;
@@ -1209,10 +1207,8 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
                 int eval = -INF;
 
-                int checkExtensions = 3;
-                int singularExtensions = 5;
-                int oneMoveExtensions = 3;
-                
+                int checkExtensions = 3, singularExtensions = 5, oneMoveExtensions = 3;
+
                 NodeInfo childNodeInfo = {1, 
                                         leftMost, 
                                         checkExtensions,
@@ -1359,26 +1355,9 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             totalTableHit += tableHit[i];
         }
 
-        std::string depthStr = "depth " +  std::to_string(std::max(size_t(depth), PV.size()));
-        std::string scoreStr = "score cp " + std::to_string(bestEval);
-        std::string nodeStr = "nodes " + std::to_string(totalNodeCount);
-        std::string tableHitStr = "tableHit " + std::to_string(static_cast<double>(totalTableHit) / totalNodeCount);
-
-        auto iterationEndTime = std::chrono::high_resolution_clock::now();
-        std::string timeStr = "time " 
-                            + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(iterationEndTime - iterationStartTime).count());
-
-        std::string pvStr = "pv ";
-        for (const auto& move : PV) {
-            pvStr += uci::moveToUci(move, board.chess960()) + " ";
-        }
-
-        std::string analysis = "info " + depthStr + " " + scoreStr + " " + nodeStr + " " + timeStr + " " + pvStr;
-
-        if (!quiet) {
-            std::cout << analysis << std::endl;
-        }
-
+        std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
+        if (!quiet) std::cout << analysis << std::endl;
+        
         if (moves.size() == 1) {
             return moves[0].first; // If there is only one move, return it immediately.
         }
@@ -1394,7 +1373,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         
         if (!timeLimitExceeded) {
             // If the time limit is not exceeded, we can search deeper.
-            depth++;// =  std::max(depth + 1, static_cast<int>(PV.size()) + 1);
+            depth++;
         } else {
             // If we go beyond the hard limit or stabilize
             if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1])) break;

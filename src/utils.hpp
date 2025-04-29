@@ -54,9 +54,12 @@
         const std::chrono::high_resolution_clock::time_point& startTime,
         const std::vector<Move>& PV,
         const Board& board); 
+
+    inline uint32_t fastRand(uint32_t& seed);
 ------------------------------------------------------------------------------*/
 
 #include "chess.hpp"
+#include <chrono>
 
 using namespace chess; 
 
@@ -430,10 +433,8 @@ inline bool promotionThreatMove(Board& board, Move move) {
     return false;
 }
 
-
-
 /*-------------------------------------------------------------------------------------------- 
-    Return the analysis string for the given parameters.
+    Return the UCI analysis string for the given parameters.
 --------------------------------------------------------------------------------------------*/
 std::string formatAnalysis(
     int depth,
@@ -463,4 +464,15 @@ std::string formatAnalysis(
 
     std::string analysis = "info " + depthStr + " " + scoreStr + " " + nodeStr + " " + timeStr + " " + pvStr;
     return analysis;
+}
+
+
+/*-------------------------------------------------------------------------------------------- 
+    Fast random number generator.
+--------------------------------------------------------------------------------------------*/
+inline uint32_t fastRand(uint32_t& seed) {
+    seed ^= seed << 13;
+    seed ^= seed >> 17;
+    seed ^= seed << 5;
+    return seed;
 }
