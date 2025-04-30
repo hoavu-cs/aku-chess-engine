@@ -685,7 +685,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !isPV
                             && !mopUp
                             && doSingularSearch;
-    int rfpMargin = 55 * depth + (improving ? 0 : 100);
+    int rfpMargin = 55 * depth + (!improving ? 0 : 100);
     if (depth <= 9 && rfpCondition) {
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
@@ -755,7 +755,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         Singular extension.
     --------------------------------------------------------------------------------------------*/
     if (hashMoveFound && tableDepth >= depth - 3
-                        && ply >= 8
+                        && depth >= 8
                         && (tableType == EntryType::EXACT || tableType == EntryType::LOWERBOUND)
                         && isPV
                         && standPat >= beta
@@ -775,7 +775,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                             checkExtensions,
                                             singularExtensions,
                                             oneMoveExtensions,
-                                            doNMP,
+                                            false, // turn off NMP for this path
                                             false, // turn off singular search for this path
                                             moves[i].first,
                                             NodeType::PV,
@@ -1202,7 +1202,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
                 int eval = -INF;
 
-                int checkExtensions = 3, singularExtensions = 5, oneMoveExtensions = 3;
+                int checkExtensions = 3, singularExtensions = 5, oneMoveExtensions = 5;
 
                 NodeInfo childNodeInfo = {1, 
                                         leftMost, 
