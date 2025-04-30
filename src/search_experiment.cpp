@@ -1079,7 +1079,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     - Case 1: As long as we are within the time limit, we search as deep as we can.
     - Case 2: Stop if we reach the hard deadline or certain depth.
 --------------------------------------------------------------------------------------------*/
-Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeLimit = 15000, bool quiet = false) {
+Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeLimit = 15000) {
 
     /*--------------------------------------------------------------------------------------------
         Set up ttTable, threads, time limits, history scores, killer moves and accumulators.
@@ -1135,15 +1135,15 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
     int wdl = 0;
 
     if (probeSyzygy(board, syzygyMove, wdl)) {
-        if (!quiet) {
-            int score = 0;
-            if (wdl == 1) {
-                score = SZYZYGY_INF;
-            } else if (wdl == -1) {
-                score = -SZYZYGY_INF;
-            }
-            std::cout << "info depth 0 score cp " << score << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
+
+        int score = 0;
+        if (wdl == 1) {
+            score = SZYZYGY_INF;
+        } else if (wdl == -1) {
+            score = -SZYZYGY_INF;
         }
+        std::cout << "info depth 0 score cp " << score << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
+        
         
         if (syzygyMove != Move::NO_MOVE) {
             try {
@@ -1351,7 +1351,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         }
 
         std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
-        if (!quiet) std::cout << analysis << std::endl;
+        std::cout << analysis << std::endl;
         
         if (moves.size() == 1) {
             return moves[0].first; // If there is only one move, return it immediately.
