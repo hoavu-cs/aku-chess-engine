@@ -265,9 +265,6 @@ std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vec
 // Evaluations along the current path
 std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
-// Random seeds
-std::vector<uint32_t> seeds(maxThreadsID);
-
 // Basic piece values for move ordering
 const int pieceValues[] = {
     0,    // No piece
@@ -688,7 +685,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !isPV
                             && !mopUp
                             && doSingularSearch;
-    int rfpMargin = 55 * depth + (improving ? 0 : 100);
+    int rfpMargin = 55 * depth + (!improving ? 0 : 100);
     if (depth <= 9 && rfpCondition) {
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
@@ -758,7 +755,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         Singular extension.
     --------------------------------------------------------------------------------------------*/
     if (hashMoveFound && tableDepth >= depth - 3
-                        && ply >= 8
+                        && depth >= 8
                         && (tableType == EntryType::EXACT || tableType == EntryType::LOWERBOUND)
                         && isPV
                         && standPat >= beta
@@ -778,7 +775,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                             checkExtensions,
                                             singularExtensions,
                                             oneMoveExtensions,
-                                            doNMP,
+                                            false, // turn off NMP for this path
                                             false, // turn off singular search for this path
                                             moves[i].first,
                                             NodeType::PV,
@@ -993,10 +990,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
             const int maxHistory = 16384; // capped history score ~ 10 Elo
             const int maxCaptureHistory = 5048; 
-            seeds[threadID] = fastRand(seeds[threadID]);
-            // Apply random perturbation to the history score standard depth * depth change
-            // ~ 35 Elo
-            float delta = depth * depth + (seeds[threadID] % 25);
 
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
@@ -1005,6 +998,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 // the closer the old score is to maxHistory, the less change is applied.
                 int mvIndex = moveIndex(move);
                 int currentScore = history[threadID][stm][mvIndex];
+                float delta = depth * depth;
                 int change = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(maxHistory)) * delta;
 
                 history[threadID][stm][mvIndex] += change;
@@ -1013,6 +1007,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } else {
                 int mvIndex = moveIndex(move);
                 int currentScore = captureHistory[threadID][stm][mvIndex];
+                float delta = depth * depth;
                 int change = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(maxCaptureHistory)) * delta;
 
                 captureHistory[threadID][stm][mvIndex] += change;
@@ -1026,6 +1021,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                         captureHistory[threadID][stm][mvIndex] : 
                                         history[threadID][stm][mvIndex];
             
+                float delta = depth * depth;
                 int change = 0;
 
                 if (isCapture) {
@@ -1113,7 +1109,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
         nodeCount[i] = 0;
         tableHit[i] = 0;
-        seeds[i] = rand() % 1000000;
     }
 
     for (int i = 0; i < maxThreadsID; i++) {
@@ -1207,7 +1202,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
                 int eval = -INF;
 
-                int checkExtensions = 3, singularExtensions = 5, oneMoveExtensions = 3;
+                int checkExtensions = 3, singularExtensions = 5, oneMoveExtensions = 5;
 
                 NodeInfo childNodeInfo = {1, 
                                         leftMost, 
@@ -1373,7 +1368,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         
         if (!timeLimitExceeded) {
             // If the time limit is not exceeded, we can search deeper.
-            depth++;
+            depth++;// =  std::max(depth + 1, static_cast<int>(PV.size()) + 1);
         } else {
             // If we go beyond the hard limit or stabilize
             if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1])) break;
