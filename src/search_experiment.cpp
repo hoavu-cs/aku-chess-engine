@@ -1200,8 +1200,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
                 int eval = -INF;
 
-                int checkExtensions = 3, singularExtensions = 5, oneMoveExtensions = 5;
-
                 NodeInfo childNodeInfo = {1, 
                                         leftMost, 
                                         checkExtensions,

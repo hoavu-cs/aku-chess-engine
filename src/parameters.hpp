@@ -36,3 +36,7 @@ extern int deltaC2;
 
 extern float lmrC0;
 extern float lmrC1;
+
+extern int checkExtensions;
+extern int singularExtensions;
+extern int oneMoveExtensions;

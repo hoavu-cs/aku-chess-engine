@@ -19,42 +19,47 @@ typedef std::uint64_t U64;
 
 using namespace chess;
 
-int historyLMR = 8040;
+int historyLMR = 7988;
 
-int rfpScale = 45;
-int rfpImproving = 1;
-int rfpDepth = 9;
+int rfpScale = 25;
+int rfpImproving = 11;
+int rfpDepth = 10;
 
-int singularDepth = 6;
-int singularTableReduce = 3;
-int singularReduceFactor = 4;
+int singularDepth = 5;
+int singularTableReduce = 4;
+int singularReduceFactor = 3;
 
 int lmpDepth = 8;
-int lmpC0 = 7;
-int lmpC1 = 6;
-int lmpC2 = 11;
-int lmpC3 = 1;  // Warning: original min was 10, max was 1 → broken bounds
+int lmpC0 = 10;
+int lmpC1 = 13;
+int lmpC2 = 10;
+int lmpC3 = 4;  
 
-int histC0 = 1798;
-int histC1 = 2145;
+int histC0 = 1863;
+int histC1 = 1991;
 
-int seeC1 = 70;
+int seeC1 = 118;
 int seeDepth = 15;
 
-int fpDepth = 10;
-int fpC0 = 31;
-int fpC1 = 112;
-int fpImprovingC = 98;
+int fpDepth = 5;
+int fpC0 = 37;
+int fpC1 = 113;
+int fpImprovingC = 105;
 
-int maxHistory = 17261;
-int maxCaptureHistory = 5515;
+int maxHistory = 18612;
+int maxCaptureHistory = 6562;
 
-int deltaC0 = 2;
-int deltaC1 = 4;
+int deltaC0 = 4;
+int deltaC1 = 3;
 int deltaC2 = 4;
 
-float lmrC0 = 0.82f;  // 82 / 100
-float lmrC1 = 0.39f;  // 39 / 100
+float lmrC0 = 0.88f;  // 82 / 100
+float lmrC1 = 0.46f;  // 39 / 100
+
+int checkExtensions = 3;
+int singularExtensions = 6;
+int oneMoveExtensions = 8;
+
 /*-------------------------------------------------------------------------------------------- 
     Initialize endgame tablebases.
 --------------------------------------------------------------------------------------------*/
