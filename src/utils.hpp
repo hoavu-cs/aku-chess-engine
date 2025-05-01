@@ -23,41 +23,6 @@
 * THE SOFTWARE.
 */
 
-/*------------------------------------------------------------------------------
-    Small utility functions for the engine.
-
-    void bitBoardVisualize(const Bitboard& board);
-
-    int gamePhase(const Board& board);
-
-    bool knownDraw(const Board& board);
-
-    int materialImbalance(const Board& board);
-
-    bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns);
-
-    int manhattanDistance(const Square& sq1, const Square& sq2);
-
-    int minDistance(const Square& sq, const Square& sq2);
-
-    int mopUpScore(const Board& board);
-
-    bool isMopUpPhase(Board& board);
-
-    inline bool promotionThreatMove(Board& board, Move move);
-
-    std::string formatAnalysis(
-        int depth,
-        int bestEval,
-        size_t totalNodeCount,
-        size_t totalTableHit,
-        const std::chrono::high_resolution_clock::time_point& startTime,
-        const std::vector<Move>& PV,
-        const Board& board); 
-
-    inline uint32_t fastRand(uint32_t& seed);
-------------------------------------------------------------------------------*/
-
 #include "chess.hpp"
 #include <chrono>
 
@@ -103,9 +68,52 @@ const int bnMateDarkSquares[64] = {
     0, 10, 20, 30, 40, 50, 60, 70
 };
 
+// visualize the bitboard
+void bitBoardVisualize(const Bitboard& board);
+
+// gamephase 24: beginning, 16: middle, 12: endgame
+int gamePhase(const Board& board);
+
+// known draw positions (to be phased out after nnue)
+bool knownDraw(const Board& board);
+
+// check if the square is a passed pawn
+bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns);
+
+// manhattan distance between two squares
+int manhattanDistance(const Square& sq1, const Square& sq2);
+
+/// Distance between two squares
+int minDistance(const Square& sq1, const Square& sq2);
+
+// Distance to the edge of the board
+int minDistanceToEdge(const Square& sq);
+
+// mopUp Phase: Looking for checkmate phase
+bool isMopUpPhase(Board& board);
+
+// checkmate score (i.e., drive opponent's king to the edge of the board)
+int mopUpScore(const Board& board);
+
+//Return the UCI analysis string for the given parameters.
+std::string formatAnalysis(
+    int depth,
+    int bestEval,
+    size_t totalNodeCount,
+    size_t totalTableHit,
+    const std::chrono::high_resolution_clock::time_point& startTime,
+    const std::vector<Move>& PV,
+    const Board& board
+);
+
+// fast random number generator
+inline uint32_t fastRand(uint32_t& seed);
+
+
 /*------------------------------------------------------------------------
-    Visualize a bitboard
+    Function definitions
 ------------------------------------------------------------------------*/
+
 void bitBoardVisualize(const Bitboard& board) {
     std::uint64_t boardInt = board.getBits();
 
@@ -122,9 +130,6 @@ void bitBoardVisualize(const Bitboard& board) {
     std::cout << std::endl;
 }
 
-/*------------------------------------------------------------------------
-    Return game phase 0-24 for endgame to opening
-------------------------------------------------------------------------*/
 int gamePhase (const Board& board) {
     int phase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
                      board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
@@ -134,10 +139,6 @@ int gamePhase (const Board& board) {
     return phase;
 }
 
-
-/*------------------------------------------------------------------------
-    Known draw.
-------------------------------------------------------------------------*/
 bool knownDraw(const Board& board) {
 
     // Two kings are a draw
@@ -209,40 +210,6 @@ bool knownDraw(const Board& board) {
 
 }
 
-/*------------------------------------------------------------------------
-    Calculate material imbalance in centipawn
-------------------------------------------------------------------------*/
-int materialImbalance(const Board& board) {
-    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
-    Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
-    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
-    Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
-    Bitboard whiteQueens = board.pieces(PieceType::QUEEN, Color::WHITE);
-
-    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
-    Bitboard blackKnights = board.pieces(PieceType::KNIGHT, Color::BLACK);
-    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
-    Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
-    Bitboard blackQueens = board.pieces(PieceType::QUEEN, Color::BLACK);
-
-    int whiteMaterial = whitePawns.count() * PAWN_VALUE +
-                        whiteKnights.count() * KNIGHT_VALUE +
-                        whiteBishops.count() * BISHOP_VALUE +
-                        whiteRooks.count() * ROOK_VALUE +
-                        whiteQueens.count() * QUEEN_VALUE;
-
-    int blackMaterial = blackPawns.count() * PAWN_VALUE + 
-                        blackKnights.count() * KNIGHT_VALUE +
-                        blackBishops.count() * BISHOP_VALUE +
-                        blackRooks.count() * ROOK_VALUE +
-                        blackQueens.count() * QUEEN_VALUE;
-
-    return whiteMaterial - blackMaterial;
-}
-
-/*------------------------------------------------------------------------
-    Check if the given square is a passed pawn 
-------------------------------------------------------------------------*/
 bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
     int file = sqIndex % 8;
     int rank = sqIndex / 8;
@@ -268,32 +235,51 @@ bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
     return true;  
 }
 
-/*------------------------------------------------------------------------
-    Manhattan distance between two squares
-------------------------------------------------------------------------*/
 int manhattanDistance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
 }
 
-/*------------------------------------------------------------------------
-    Min distance between two squares
-------------------------------------------------------------------------*/
 int minDistance(const Square& sq, const Square& sq2) {
     return std::min(std::abs(sq.file() - sq2.file()), std::abs(sq.rank() - sq2.rank()));
 }
 
-/*------------------------------------------------------------------------
-    Min distance to the edge of the board
-------------------------------------------------------------------------*/
 int minDistanceToEdge(const Square& sq) {
     int file = sq.index() % 8;
     int rank = sq.index() / 8;
     return std::min(std::min(file, 7 - file), std::min(rank, 7 - rank));
 }
 
-/*------------------------------------------------------------------------
-    Mop up score. This function assume the board is in mop up phase.
-------------------------------------------------------------------------*/
+bool isMopUpPhase(Board& board) {
+    int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
+    int blackPawnsCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
+
+    int whiteKnightsCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
+    int blackKnightsCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
+
+    int whiteBishopsCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
+    int blackBishopsCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
+
+    int whiteRooksCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
+    int blackRooksCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
+
+    int whiteQueensCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
+    int blackQueensCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
+
+    const int whiteMaterial = whitePawnsCount + whiteKnightsCount * 3 + whiteBishopsCount * 3 + whiteRooksCount * 5 + whiteQueensCount * 10;
+    const int blackMaterial = blackPawnsCount + blackKnightsCount * 3 + blackBishopsCount * 3 + blackRooksCount * 5 + blackQueensCount * 10;    
+
+    if (whitePawnsCount > 0 || blackPawnsCount > 0) {
+        // if there are pawns, it's not a settled
+        return false;
+    } else if (std::abs(whiteMaterial - blackMaterial) > 4) {
+        // This covers cases such as KQvK, KRvK, KQvKR, KBBvK
+        return true;
+    }
+
+    // Otherwise, if we have K + a minor piece, or KR vs K + minor piece, it's drawish
+    return false;
+}
+
 int mopUpScore(const Board& board) {
 
     int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
@@ -373,69 +359,6 @@ int mopUpScore(const Board& board) {
     return 0;
 }
 
-
-/*-------------------------------------------------------------------------------------------- 
-    mopUp Phase
---------------------------------------------------------------------------------------------*/
-bool isMopUpPhase(Board& board) {
-    int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
-    int blackPawnsCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
-
-    int whiteKnightsCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
-    int blackKnightsCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
-
-    int whiteBishopsCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
-    int blackBishopsCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
-
-    int whiteRooksCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
-    int blackRooksCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
-
-    int whiteQueensCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
-    int blackQueensCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
-
-    const int whiteMaterial = whitePawnsCount + whiteKnightsCount * 3 + whiteBishopsCount * 3 + whiteRooksCount * 5 + whiteQueensCount * 10;
-    const int blackMaterial = blackPawnsCount + blackKnightsCount * 3 + blackBishopsCount * 3 + blackRooksCount * 5 + blackQueensCount * 10;    
-
-    if (whitePawnsCount > 0 || blackPawnsCount > 0) {
-        // if there are pawns, it's not a settled
-        return false;
-    } else if (std::abs(whiteMaterial - blackMaterial) > 4) {
-        // This covers cases such as KQvK, KRvK, KQvKR, KBBvK
-        return true;
-    }
-
-    // Otherwise, if we have K + a minor piece, or KR vs K + minor piece, it's drawish
-    return false;
-}
-
-
-/*-------------------------------------------------------------------------------------------- 
-    Check if the move involves a passed pawn push.
---------------------------------------------------------------------------------------------*/
-inline bool promotionThreatMove(Board& board, Move move) {
-    Color color = board.sideToMove();
-    PieceType type = board.at<Piece>(move.from()).type();
-
-    if (type == PieceType::PAWN) {
-        int destinationIndex = move.to().index();
-        int rank = destinationIndex / 8;
-        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-        bool isPassedPawnFlag = isPassedPawn(destinationIndex, color, theirPawns);
-
-        if (isPassedPawnFlag) {
-            if ((color == Color::WHITE && rank > 3) || 
-                (color == Color::BLACK && rank < 4)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-/*-------------------------------------------------------------------------------------------- 
-    Return the UCI analysis string for the given parameters.
---------------------------------------------------------------------------------------------*/
 std::string formatAnalysis(
     int depth,
     int bestEval,
@@ -466,10 +389,6 @@ std::string formatAnalysis(
     return analysis;
 }
 
-
-/*-------------------------------------------------------------------------------------------- 
-    Fast random number generator.
---------------------------------------------------------------------------------------------*/
 inline uint32_t fastRand(uint32_t& seed) {
     seed ^= seed << 13;
     seed ^= seed >> 17;
