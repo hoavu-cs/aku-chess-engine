@@ -37,6 +37,7 @@
 #include <filesystem>
 #include <mutex>
 #include "nnue.hpp"
+#include "parameters.hpp"
 #include "../lib/fathom/src/tbprobe.h"
 
 using namespace chess;
@@ -377,7 +378,7 @@ int lateMoveReduction(Board& board,
 
         if (!isCapture) {
             int histScore = history[threadID][stm][moveIndex(move)];
-            R -= histScore / 8000;
+            R -= histScore / historyLMR;
         }
 
         return std::min(depth - R, depth - 1);
@@ -685,8 +686,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !isPV
                             && !mopUp
                             && doSingularSearch;
-    int rfpMargin = 55 * depth + (!improving ? 0 : 100);
-    if (depth <= 9 && rfpCondition) {
+    int rfpMargin = rfpScale * depth + (!improving ? 0 : rfpImproving);
+    if (depth <= rfpDepth && rfpCondition) {
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
         } 
@@ -754,8 +755,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     /*--------------------------------------------------------------------------------------------
         Singular extension.
     --------------------------------------------------------------------------------------------*/
-    if (hashMoveFound && tableDepth >= depth - 3
-                        && depth >= 8
+    if (hashMoveFound && tableDepth >= depth - singularTableReduce
+                        && depth >= singularDepth
                         && (tableType == EntryType::EXACT || tableType == EntryType::LOWERBOUND)
                         && isPV
                         && standPat >= beta
@@ -781,7 +782,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                             NodeType::PV,
                                             threadID};
 
-                singularEval = -negamax(board, depth / 2, -beta, -alpha, PV, childNodeInfo);
+                singularEval = -negamax(board, depth / singularReduceFactor, -beta, -alpha, PV, childNodeInfo);
 
                 subtractAccumulators(board, moves[i].first, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
                 board.unmakeMove(moves[i].first);
@@ -822,8 +823,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             Late move pruning
         --------------------------------------------------------------------------------------------*/
         bool lmpCondition = !isPromo && !inCheck && !isPV && doSingularSearch;
-        int lmpValue = (4 + depth * depth) / (1 + !improving);
-        if (lmpCondition && isQuiet && nextDepth <= 5 && i >= std::max(1, lmpValue)) {
+        int lmpValue = (lmpCoeff0 + lmpCoeff2 * depth * depth) / (lmpCoeff3 + !improving);
+        if (lmpCondition && isQuiet && nextDepth <= lmpDepth && i >= std::max(1, lmpValue)) {
             continue; 
         }
 
@@ -833,7 +834,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool hpCondition = !isPromo && !inCheck && !isPV && doSingularSearch && isQuiet;
         if (i > 0 && hpCondition) {
             int mvIndex = moveIndex(move);
-            if (history[threadID][stm][mvIndex] < -1000 - 2500 * nextDepth) {
+            if (history[threadID][stm][mvIndex] < -histCoeff0 - histCoeff1 * nextDepth) {
                 continue;
             } 
         }
@@ -841,9 +842,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         /*--------------------------------------------------------------------------------------------
             SEE pruning
         --------------------------------------------------------------------------------------------*/
-        if (isCapture && i > 0 && doSingularSearch) {
+        if (isCapture && i > 0 && doSingularSearch && nextDepth <= seeDepth) {
             int seeScore = see(board, move, threadID);
-            if (seeScore < -100 * nextDepth) {
+            if (seeScore < -seeCoeff1 * nextDepth) {
                 continue;
             }
         }
@@ -859,8 +860,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !isCapture 
                             && doSingularSearch;
 
-        if (nextDepth <= 4 && fpCondition && i > 0) {
-            int margin = (70 + 80 * depth + 100 * improving);
+        if (nextDepth <= fpDepth && fpCondition && i > 0) {
+            int margin = (fpCoeff0 + fpCoeff1 * depth + fpImprovingCoeff * improving);
             if (standPat + margin < alpha) {
                 continue;
             } 
@@ -990,6 +991,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
             const int maxHistory = 16384; // capped history score ~ 10 Elo
             const int maxCaptureHistory = 5048; 
+            float delta = deltaCoeff2  * depth * depth + deltaCoeff1 * depth + deltaCoeff0;
 
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
@@ -998,7 +1000,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 // the closer the old score is to maxHistory, the less change is applied.
                 int mvIndex = moveIndex(move);
                 int currentScore = history[threadID][stm][mvIndex];
-                float delta = depth * depth;
                 int change = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(maxHistory)) * delta;
 
                 history[threadID][stm][mvIndex] += change;
@@ -1007,7 +1008,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } else {
                 int mvIndex = moveIndex(move);
                 int currentScore = captureHistory[threadID][stm][mvIndex];
-                float delta = depth * depth;
                 int change = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(maxCaptureHistory)) * delta;
 
                 captureHistory[threadID][stm][mvIndex] += change;
@@ -1021,7 +1021,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                         captureHistory[threadID][stm][mvIndex] : 
                                         history[threadID][stm][mvIndex];
             
-                float delta = depth * depth;
                 int change = 0;
 
                 if (isCapture) {

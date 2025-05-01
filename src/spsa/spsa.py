@@ -3,26 +3,29 @@ import random
 import shutil
 import re
 import time
+import os
+import subprocess
+
 
 # Coefficients to perturb and their ranges
 param_ranges = {
     "historyLrmFactor": (1000, 20000),
 
     "rfpDepthCoeff": (0, 100),
-    "rfpImprovingCoeff": (0, 200),
-    "rfpDepthLimit": (0, 16),
+    "rfpImprovingCoeff": (0, 2),
+    "rfpDepthLimit": (0, 10),
 
-    "singularDepthLimit": (0, 16),
-    "tableDepthReductionLimit": (0, 8),
-    "singularReductionFactor": (1, 4),
+    "singularDepthLimit": (0, 12),
+    "tableDepthReductionLimit": (0, 4),
+    "singularReductionFactor": (2, 5),
 
-    "lmpDepthLimit": (1, 12),
+    "lmpDepthLimit": (1, 15),
     "lmpCoeff0": (1, 10),
     "lmpCoeff2": (1, 10),
     "lmpCoeff3": (1, 10),
 
-    "histCoeff0": (100, 2000),
-    "histCoeff1": (500, 5000),
+    "histCoeff0": (500, 2000),
+    "histCoeff1": (500, 3000),
 
     "seeCoeff1": (1, 500),
     "seeDepthLimit": (1, 32),
@@ -60,50 +63,92 @@ def save_params(params):
             f.write(f"int {k} = {v};\n")
 
 # Build engine with given output name
+# windows
+# def build_engine(output):
+#     try:
+#         subprocess.check_call([
+#             "/opt/homebrew/opt/llvm/bin/clang++", "-std=c++17", "-O3", "-march=native",
+#             "-fopenmp", "-fopenmp-simd", "-pthread", "-Wall",
+#             "-Wextra", "-Wshadow", "-w", "-static",
+#             "-I", "include/", "-I", "../../lib/fathom/src",
+#             "aku.cpp", "search_tune.cpp", "../../lib/fathom/src/tbprobe.c",
+#             "-o", output, "-lm"
+#         ])
+#         return True
+#     except subprocess.CalledProcessError:
+#         return False
+
+#MacOS
 def build_engine(output):
     try:
         subprocess.check_call([
-            "g++", "-std=c++17", "-O3", "-march=native",
-            "-fopenmp", "-fopenmp-simd", "-pthread", "-Wall",
-            "-Wextra", "-Wshadow", "-w", "-static",
+            "/opt/homebrew/opt/llvm/bin/clang++",
+            "-std=c++17", "-O3", "-ffast-math", "-fopenmp",
+            "-Wall", "-Wextra", "-Wshadow", "-w",
             "-I", "include/", "-I", "../../lib/fathom/src",
             "aku.cpp", "search_tune.cpp", "../../lib/fathom/src/tbprobe.c",
             "-o", output, "-lm"
         ])
         return True
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
+        print("❌ Build failed.")
+        print("Command:", e.cmd)
         return False
 
-import os
 import subprocess
+import os
+
+import subprocess
+import re
+
+import subprocess
+import os
+import re
 
 def evaluate_challenger():
     cmd = [
-        "fastchess.exe",
+        "./fastchess",
         "-engine", "cmd=aku_test.exe", "name=Test",
         "-engine", "cmd=aku_best.exe", "name=Best",
-        "-each", "tc=40+0.4",
-        "-rounds", "4",
+        "-each", "tc=30+0.3",
+        "-rounds", "2",
         "-repeat",
-        "-concurrency", "2",
+        "-concurrency", "4",
         "-pgnout", "file=tmp.pgn"
     ]
 
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        output_lines = []
 
-    if not os.path.exists("tmp.pgn"):
-        print("❌ fastchess.exe failed or did not produce PGN output.")
-        print("----- STDOUT -----")
-        print(result.stdout)
-        print("----- STDERR -----")
-        print(result.stderr)
+        # Stream output live and capture it
+        for line in process.stdout:
+            print(line, end='')  # show in console immediately
+            output_lines.append(line)
+
+        process.wait()
+        if process.returncode != 0:
+            print("❌ fastchess failed to run.")
+            return False
+
+    except Exception as e:
+        print(f"❌ Exception: {e}")
         return False
 
-    # Parse PGN for results
-    wins_best = sum(1 for line in open("tmp.pgn") if 'Result "1-0"' in line)  # Best is White
-    wins_test = sum(1 for line in open("tmp.pgn") if 'Result "0-1"' in line)  # Test is Black
+    # Combine captured output
+    output = "".join(output_lines)
 
-    return wins_test > wins_best
+    # Parse summary
+    match = re.search(r"Games:\s*(\d+),\s*Wins:\s*(\d+),\s*Losses:\s*(\d+),\s*Draws:\s*(\d+)", output)
+    if not match:
+        print("❌ Failed to parse summary.")
+        return False
+
+    games, wins, losses, draws = map(int, match.groups())
+    print(f"Parsed → Games: {games}, Wins (Test): {wins}, Losses: {losses}, Draws: {draws}")
+
+    return wins > losses
+
 
 
 # Perturb a random parameter
@@ -113,7 +158,7 @@ def perturb(params):
     low_bound, high_bound = param_ranges[key]
 
     # Compute ±20% range around current value
-    delta = max(1, int(current_val * 0.2))
+    delta = max(1, int(current_val * 0.1))
     new_val = current_val + random.randint(-delta, delta)
 
     # Clamp to allowed range

@@ -296,7 +296,7 @@ int main() {
     std::string inputFen;
     std::getline(std::cin, inputFen);
     Board board = Board(inputFen);
-    Move bestMove = findBestMove(board, numThreads, depth, timeLimit, false);
+    Move bestMove = findBestMove(board, numThreads, depth, timeLimit);
 
     // for (int i = 0; i < testFens.size(); i++) {
     //     std::cout << "------------------" << "Test " << i + 1 << "------------------" << std::endl;
