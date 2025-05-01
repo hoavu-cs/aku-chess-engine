@@ -12,11 +12,46 @@
 #include <unordered_set>
 #include "../lib/fathom/src/tbprobe.h"
 #include "assets.hpp"
+#include "parameters.hpp"
 #include <filesystem>
 
 typedef std::uint64_t U64;
 
 using namespace chess;
+
+int historyLMR = 7882;
+
+int rfpScale = 59;
+int rfpImproving = 2;
+int rfpDepth = 8;
+
+int singularDepth = 7;
+int singularTableReduce = 4;
+int singularReduceFactor = 3;
+
+int lmpDepth = 6;
+int lmpC0 = 4;
+int lmpC1 = 0;
+int lmpC2 = 2;
+int lmpC3 = 1;
+
+int histC0 = 1491;
+int histC1 = 2310;
+
+int seeC1 = 105;
+int seeDepth = 14;
+
+int fpDepth = 9;
+int fpC0 = 77;
+int fpC1 = 82;
+int fpImprovingC = 110;
+
+int maxHistory = 15959;
+int maxCaptureHistory = 4562;
+
+int deltaC0 = 2;
+int deltaC1 = 0;
+int deltaC2 = 3;
 
 /*-------------------------------------------------------------------------------------------- 
     Initialize endgame tablebases.
