@@ -4,7 +4,7 @@ Command for Mac/Linux ./fastchess-ubuntu-22.04  -engine cmd=aku_experiment name=
 
 ./fastchess.exe  -engine cmd=aku_experiment name=NewAku -engine cmd=aku name=OldAku -each tc=40+0.4 -rounds 10000 -repeat -concurrency 4 -openings file=imbalanced_book.epd format=epd -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05
 
-./fastchess.exe  -engine cmd=aku_experiment/aku_experiment.exe name=NewAku -engine cmd=aku/aku.exe name=OldAku -each tc=15+0.15 -rounds 10000 -repeat -concurrency 4 -openings file=imbalanced_book.epd format=epd -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05
+./fastchess.exe  -engine cmd=aku_experiment/aku_experiment.exe name=NewAku -engine cmd=aku/aku.exe name=OldAku -each tc=20+0.20 -rounds 10000 -repeat -concurrency 4 -openings file=imbalanced_book.epd format=epd -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05
 
 **Check and forced move extension SPRT Test**
 ```

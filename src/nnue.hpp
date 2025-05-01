@@ -414,4 +414,3 @@ void subtractAccumulators(Board& board,
 
     board.makeMove(move);
 }
-

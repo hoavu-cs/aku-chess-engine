@@ -81,7 +81,7 @@ const int mate[64] = {
     600, 500, 500, 400, 400, 500, 500, 600
 };
 
-int bnMateLightSquares[64] = {
+const int bnMateLightSquares[64] = {
     0, 10, 20, 30, 40, 50, 60, 70,
     10, 20, 30, 40, 50, 60, 70, 60,
     20, 30, 40, 50, 60, 70, 60, 50,
@@ -92,7 +92,7 @@ int bnMateLightSquares[64] = {
     70, 60, 50, 40, 30, 20, 10, 0
 };
 
-int bnMateDarkSquares[64] = {
+const int bnMateDarkSquares[64] = {
     70, 60, 50, 40, 30, 20, 10, 0,
     60, 70, 60, 50, 40, 30, 20, 10,
     50, 60, 70, 60, 50, 40, 30, 20,
