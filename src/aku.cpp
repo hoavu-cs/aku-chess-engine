@@ -441,6 +441,7 @@ void processUci() {
     std::cout << "option name UCI_Chess960 type check default false" << std::endl;
 
 
+    // For automated tuning. Do not touch from UCI GUI/App.
     // std::cout << "option name historyLMR type spin default 7882 min 1000 max 15000" << std::endl;
 
     // std::cout << "option name rfpScale type spin default 59 min 10 max 500" << std::endl;
