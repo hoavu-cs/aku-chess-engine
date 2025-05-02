@@ -161,8 +161,7 @@ int histC0 = 1863;
 int histC1 = 1991;
 
 int seeC1 = 118;
-int seeC2 = 40;
-int seeDepth = 16;
+int seeDepth = 15;
 
 int fpDepth = 5;
 int fpC0 = 37;
@@ -316,7 +315,6 @@ void processSetOption(const std::vector<std::string>& tokens) {
     else if (optionName == "histC1") histC1 = std::stoi(value);
 
     else if (optionName == "seeC1") seeC1 = std::stoi(value);
-    else if (optionName == "seeC2") seeC2 = std::stoi(value);
     else if (optionName == "seeDepth") seeDepth = std::stoi(value);
 
     else if (optionName == "fpDepth") fpDepth = std::stoi(value);
@@ -463,7 +461,6 @@ void processUci() {
     std::cout << "option name histC1 type spin default 2310 min 0 max 10000" << std::endl;
     
     std::cout << "option name seeC1 type spin default 105 min 50 max 1000" << std::endl;
-    std::cout << "option name seeC2 type spin default 40 min 0 max 1000" << std::endl;
     std::cout << "option name seeDepth type spin default 14 min 1 max 20" << std::endl;
     
     std::cout << "option name fpDepth type spin default 9 min 1 max 20" << std::endl;
@@ -481,9 +478,9 @@ void processUci() {
     std::cout << "option name lmrC0 type spin default 75 min 20 max 90" << std::endl;
     std::cout << "option name lmrC1 type spin default 45 min 20 max 90" << std::endl;
 
-    std::cout << "option name checkExtensions type spin default 3 min 0 max 10" << std::endl;
-    std::cout << "option name singularExtensions type spin default 5 min 0 max 10" << std::endl;
-    std::cout << "option name oneMoveExtensions type spin default 5 min 0 max 10" << std::endl;
+    std::cout << "option name checkExtensions type spin default 3 min 1 max 10" << std::endl;
+    std::cout << "option name singularExtensions type spin default 5 min 1 max 10" << std::endl;
+    std::cout << "option name oneMoveExtensions type spin default 5 min 1 max 10" << std::endl;
 
     std::cout << "uciok" << std::endl;
 }

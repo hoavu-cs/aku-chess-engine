@@ -20,7 +20,6 @@ extern int histC0;
 extern int histC1;
 
 extern int seeC1;
-extern int seeC2;
 extern int seeDepth;
 
 extern int fpDepth;
@@ -41,3 +40,5 @@ extern float lmrC1;
 extern int checkExtensions;
 extern int singularExtensions;
 extern int oneMoveExtensions;
+
+extern int mulCutCount;
