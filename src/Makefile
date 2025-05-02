@@ -19,10 +19,7 @@ aku_experiment: aku.cpp search_experiment.cpp  ../lib/fathom/src/tbprobe.c  | ..
 aku: aku.cpp search.cpp  ../lib/fathom/src/tbprobe.c | ../bin
 	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/fathom/src -o ../bin/aku $^ -lm
 
-debug: debug.cpp search_experiment.cpp   ../lib/fathom/src/tbprobe.c  | ../bin
-	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/fathom/src -o ../bin/debug $^ -lm
-
 clean:
 	rm -rf ../bin ../lib/Fathom/src/*.o
 
-.PHONY: all aku debug_nnue aku_experiment debug clean
+.PHONY: all aku aku_experiment debug clean
