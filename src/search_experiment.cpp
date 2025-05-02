@@ -685,7 +685,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !endGameFlag 
                             && !isPV
                             && !mopUp
-                            && doSingularSearch;
+                            && doSingularSearch
+                            && abs(alpha) < 8000
+                            && abs(beta) < 8000;
     int rfpMargin = rfpScale * depth + (!improving ? 0 : rfpImproving);
     if (depth <= rfpDepth && rfpCondition) {
         if (standPat - rfpMargin > beta) {
@@ -1180,9 +1182,9 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
         while (true) {
             currentBestEval = -INF;
-            
+
             #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < moves.size(); i++) {
+            for (int i = 0; i < 3 * moves.size(); i++) {
 
                 if (stopNow) continue;
                 
@@ -1270,7 +1272,16 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
                 #pragma omp critical
                 {
-                    newMoves.push_back({move, eval});
+                    bool computed = false;
+                    for (auto& [mv, mvEval] : newMoves) {
+                        if (mv == move) {
+                            mvEval = eval;
+                            computed = true;
+                        }
+                    }
+                    if (!computed) {
+                        newMoves.push_back({move, eval});
+                    }
                 }
                 
                 #pragma omp critical
