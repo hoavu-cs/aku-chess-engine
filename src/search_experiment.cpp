@@ -792,12 +792,19 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                     singular = false;
                     break;
                 }
+
+                if (standPat >= beta && tableEval >= beta && singularEval >= beta) {
+                    // Simplified multicut: if static eval, table eval of the hash move, and the second move 
+                    // are all >= beta, we can assume a beta cutoff.
+                    return (standPat + beta) / 2;
+                }
             }
             
             if (singularExtensions && singular) {
                 depth++;
                 singularExtensions--;
             }
+
     }
 
     /*--------------------------------------------------------------------------------------------
@@ -849,9 +856,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         --------------------------------------------------------------------------------------------*/
         if (isCapture && i > 0 && doSingularSearch && nextDepth <= seeDepth) {
             int seeScore = see(board, move, threadID);
-            if (seeScore < -seeC1 * nextDepth) {
+            if (isCapture && seeScore < -seeC1 * nextDepth) {
                 continue;
-            }
+            } 
         }
 
         /*--------------------------------------------------------------------------------------------

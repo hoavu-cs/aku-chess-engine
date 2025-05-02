@@ -20,6 +20,7 @@ extern int histC0;
 extern int histC1;
 
 extern int seeC1;
+extern int seeC2;
 extern int seeDepth;
 
 extern int fpDepth;

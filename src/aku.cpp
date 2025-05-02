@@ -161,6 +161,7 @@ int histC0 = 1863;
 int histC1 = 1991;
 
 int seeC1 = 118;
+int seeC2 = 40;
 int seeDepth = 16;
 
 int fpDepth = 5;
@@ -315,6 +316,7 @@ void processSetOption(const std::vector<std::string>& tokens) {
     else if (optionName == "histC1") histC1 = std::stoi(value);
 
     else if (optionName == "seeC1") seeC1 = std::stoi(value);
+    else if (optionName == "seeC2") seeC2 = std::stoi(value);
     else if (optionName == "seeDepth") seeDepth = std::stoi(value);
 
     else if (optionName == "fpDepth") fpDepth = std::stoi(value);
@@ -437,7 +439,7 @@ void processUci() {
     std::cout << "id author " << ENGINE_AUTHOR << std::endl;
     std::cout << "option name Threads type spin default 8 min 1 max 10" << std::endl;
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
-    std::cout << "option name Hash type spin default 512 min 128 max 1024" << std::endl;
+    std::cout << "option name Hash type spin default 256 min 128 max 1024" << std::endl;
     std::cout << "option name UCI_Chess960 type check default false" << std::endl;
 
 
@@ -461,6 +463,7 @@ void processUci() {
     std::cout << "option name histC1 type spin default 2310 min 0 max 10000" << std::endl;
     
     std::cout << "option name seeC1 type spin default 105 min 50 max 1000" << std::endl;
+    std::cout << "option name seeC2 type spin default 40 min 0 max 1000" << std::endl;
     std::cout << "option name seeDepth type spin default 14 min 1 max 20" << std::endl;
     
     std::cout << "option name fpDepth type spin default 9 min 1 max 20" << std::endl;

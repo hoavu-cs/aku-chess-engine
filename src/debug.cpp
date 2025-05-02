@@ -39,6 +39,7 @@ int histC0 = 1863;
 int histC1 = 1991;
 
 int seeC1 = 118;
+int seeC2 = 40;
 int seeDepth = 15;
 
 int fpDepth = 5;
