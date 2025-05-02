@@ -481,9 +481,9 @@ void processUci() {
     std::cout << "option name lmrC0 type spin default 75 min 20 max 90" << std::endl;
     std::cout << "option name lmrC1 type spin default 45 min 20 max 90" << std::endl;
 
-    std::cout << "option name checkExtensions type spin default 3 min 1 max 10" << std::endl;
-    std::cout << "option name singularExtensions type spin default 5 min 1 max 10" << std::endl;
-    std::cout << "option name oneMoveExtensions type spin default 5 min 1 max 10" << std::endl;
+    std::cout << "option name checkExtensions type spin default 3 min 0 max 10" << std::endl;
+    std::cout << "option name singularExtensions type spin default 5 min 0 max 10" << std::endl;
+    std::cout << "option name oneMoveExtensions type spin default 5 min 0 max 10" << std::endl;
 
     std::cout << "uciok" << std::endl;
 }
