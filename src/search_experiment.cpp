@@ -263,6 +263,8 @@ std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vec
 
 //std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<Move>(ENGINE_DEPTH + 1, 0));
 
+std::vector<uint32_t> seeds(maxThreadsID); // Random seeds for each thread
+
 // Evaluations along the current path
 std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
@@ -990,7 +992,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 searchAllFlag = true;
             }
 
-            float delta = deltaC2  * depth * depth + deltaC1 * depth + deltaC0;
+            seeds[threadID] = fastRand(seeds[threadID]);
+            float delta = deltaC2  * depth * depth + deltaC1 * depth + deltaC0 + (seeds[threadID] % 15);
 
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
@@ -1107,6 +1110,8 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
         nodeCount[i] = 0;
         tableHit[i] = 0;
+
+        seeds[i] = rand();
     }
 
     for (int i = 0; i < maxThreadsID; i++) {
