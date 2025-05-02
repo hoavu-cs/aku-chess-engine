@@ -793,11 +793,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                     break;
                 }
 
-                if (standPat >= beta && tableEval >= beta && singularEval >= beta) {
-                    // Simplified multicut: if static eval, table eval of the hash move, and the second move 
-                    // are all >= beta, we can assume a beta cutoff.
-                    return (standPat + beta) / 2;
-                }
+                // if (standPat >= beta && tableEval >= beta && singularEval >= beta) {
+                //     // Simplified multicut: if static eval, table eval of the hash move, and the second move 
+                //     // are all >= beta, we can assume a beta cutoff.
+                //     return (standPat + beta) / 2;
+                // }
             }
             
             if (singularExtensions && singular) {
