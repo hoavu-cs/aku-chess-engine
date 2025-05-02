@@ -74,12 +74,6 @@ void bitBoardVisualize(const Bitboard& board);
 // gamephase 24: beginning, 16: middle, 12: endgame
 int gamePhase(const Board& board);
 
-// known draw positions (to be phased out after nnue)
-bool knownDraw(const Board& board);
-
-// check if the square is a passed pawn
-bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns);
-
 // manhattan distance between two squares
 int manhattanDistance(const Square& sq1, const Square& sq2);
 
@@ -137,102 +131,6 @@ int gamePhase (const Board& board) {
                      board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
 
     return phase;
-}
-
-bool knownDraw(const Board& board) {
-
-    // Two kings are a draw
-    if (board.us(Color::WHITE).count() == 1 && board.us(Color::BLACK).count() == 1) {
-        return true;
-    }
-
-    int whitePawnCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
-    int whiteKnightCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
-    int whiteBishopCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
-    int whiteRookCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
-    int whiteQueenCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
-
-    int blackPawnCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
-    int blackKnightCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
-    int blackBishopCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
-    int blackRookCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
-    int blackQueenCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
-
-    // If there are pawns on the board, it is not a draw
-    if (whitePawnCount > 0 || blackPawnCount > 0) {
-        return false;
-    }
-
-    // Cannot checkmate with 2 knights or a knight 
-    if (whitePawnCount == 0 && whiteKnightCount <= 2 && whiteBishopCount == 0 && whiteRookCount == 0 && whiteQueenCount == 0 &&
-        blackPawnCount == 0 && blackKnightCount <= 0 && blackBishopCount == 0 && blackRookCount == 0 && blackQueenCount == 0) {
-        return true;
-    }
-
-    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 0 && whiteRookCount == 0 && whiteQueenCount == 0 &&
-        blackPawnCount == 0 && blackKnightCount <= 2 && blackBishopCount == 0 && blackRookCount == 0 && blackQueenCount == 0) {
-        return true;
-    }
-
-    // Cannot checkmate with one bishop
-    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 1 && whiteRookCount == 0 && whiteQueenCount == 0 &&
-        blackPawnCount == 0 && blackKnightCount == 0 && blackBishopCount == 0 && blackRookCount == 0 && blackQueenCount == 0) {
-        return true;
-    }
-
-    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 0 && whiteRookCount == 0 && whiteQueenCount == 0 &&
-        blackPawnCount == 0 && blackKnightCount == 0 && blackBishopCount == 1 && blackRookCount == 0 && blackQueenCount == 0) {
-        return true;
-    }
-
-    // A RK vs RB or a QK vs QB endgame is drawish
-    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 0 && whiteRookCount == 1 && whiteQueenCount == 0 &&
-        blackPawnCount == 0 && blackKnightCount == 1 && blackBishopCount == 0 && blackRookCount == 0 && blackQueenCount == 0) {
-        return true;
-    }
-
-    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 0 && whiteRookCount == 1 && whiteQueenCount == 0 &&
-        blackPawnCount == 0 && blackKnightCount == 0 && blackBishopCount == 1 && blackRookCount == 0 && blackQueenCount == 0) {
-        return true;
-    }
-
-    if (whitePawnCount == 0 && whiteKnightCount == 1 && whiteBishopCount == 0 && whiteRookCount == 0 && whiteQueenCount == 0 &&
-        blackPawnCount == 0 && blackKnightCount == 0 && blackBishopCount == 0 && blackRookCount == 1 && blackQueenCount == 0) {
-        return true;
-    }
-
-    if (whitePawnCount == 0 && whiteKnightCount == 0 && whiteBishopCount == 1 && whiteRookCount == 0 && whiteQueenCount == 0 &&
-        blackPawnCount == 0 && blackKnightCount == 0 && blackBishopCount == 0 && blackRookCount == 1 && blackQueenCount == 0) {
-        return true;
-    }
-
-    return false;
-
-}
-
-bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
-    int file = sqIndex % 8;
-    int rank = sqIndex / 8;
-
-    Bitboard theirPawnsCopy = theirPawns;
-
-    while (theirPawnsCopy) {
-        int sqIndex2 = theirPawnsCopy.lsb();  
-        int file2 = sqIndex2 % 8;
-        int rank2 = sqIndex2 / 8;
-
-        if (std::abs(file - file2) <= 1 && rank2 > rank && color == Color::WHITE) {
-            return false; 
-        }
-
-        if (std::abs(file - file2) <= 1 && rank2 < rank && color == Color::BLACK) {
-            return false; 
-        }
-
-        theirPawnsCopy.clear(sqIndex2);
-    }
-
-    return true;  
 }
 
 int manhattanDistance(const Square& sq1, const Square& sq2) {

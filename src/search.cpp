@@ -642,16 +642,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     TableEntry entry;
 
     /*-------------------------------------------------------------------------------------------- 
-    Transposition table lookup.
+        Transposition table lookup.
     --------------------------------------------------------------------------------------------*/
     if (tableLookUp(board, tableDepth, tableEval, tableMove, tableType, ttTable)) {
         tableHit[threadID]++;
         if (tableDepth >= depth) found = true;
     }
 
-    if (found && tableType == EntryType::EXACT) {
-        return tableEval;
-    }  
+    // if (found && tableType == EntryType::EXACT) {
+    //     return tableEval;
+    // }  
     
     if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
@@ -661,7 +661,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return tableEval;
     }
     
-    if (depth <= 0 && (!board.inCheck() || ply == globalMaxDepth)) {
+    if (depth <= 0 && !board.inCheck()) {
         return quiescence(board, alpha, beta, ply + 1, threadID);
     } else if (depth <= 0) {
         depth++;
@@ -741,14 +741,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         hashMoveFound);
 
     int bestEval = -INF;
-    bool searchAllFlag = false;
 
     /*--------------------------------------------------------------------------------------------
         Simplified version of IID.
         Reduce the depth to facilitate the search if no hash move found.
         Restricted to expected cut nodes and depth > 3.
     --------------------------------------------------------------------------------------------*/
-    if (!hashMoveFound && depth >= 4 && (nodeType == NodeType::CUT || nodeType == NodeType::PV)) {
+    if (!hashMoveFound && depth >= 4 && (nodeType == NodeType::CUT || nodeType == NodeType::PV) && doSingularSearch) {
         depth = depth - 1;
     }
 
@@ -814,6 +813,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool inCheck = board.inCheck();
         bool isCapture = board.isCapture(move);
         bool isQuiet = !isCapture && !isPromo; 
+        board.makeMove(move);
+        bool giveCheck = board.inCheck();
+        board.unmakeMove(move);
 
         if (i > 0) leftMost = false;
         int eval = 0;
@@ -859,7 +861,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !isPV 
                             && doSingularSearch 
                             && !isCapture 
-                            && doSingularSearch;
+                            && doSingularSearch
+                            && !giveCheck
+                            && abs(alpha) < 8000
+                            && abs(beta) < 8000;
 
         if (nextDepth <= fpDepth && fpCondition && i > 0) {
             int margin = (fpC0 + fpC1 * depth + fpImprovingC * improving);
@@ -984,12 +989,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (beta <= alpha) {
 
-            if (i == moves.size() - 1) {
-                // This means we have a beta cutoff at the last child node
-                // which signals the result is an EXACT score.
-                searchAllFlag = true;
-            }
-
             float delta = deltaC2  * depth * depth + deltaC1 * depth + deltaC0;
 
             if (!board.isCapture(move)) {
@@ -1029,7 +1028,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                     change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
                     history[threadID][stm][mvIndex] -= change;
                 }
-            
             }
  
             break;
@@ -1039,7 +1037,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (isPV) {
         EntryType type;
 
-        if (bestEval >= alpha0 && bestEval <= beta && searchAllFlag) {
+        if (bestEval >= alpha0 && bestEval < beta) {
             type = EXACT;
         } else if (bestEval < alpha0) {
             type = UPPERBOUND;
@@ -1182,8 +1180,9 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
         while (true) {
             currentBestEval = -INF;
+            
             #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < 3 * moves.size(); i++) {
+            for (int i = 0; i < moves.size(); i++) {
 
                 if (stopNow) continue;
                 
@@ -1242,7 +1241,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                     }
                 }
 
-                if (newBestFlag && depth > 8 && nextDepth < depth - 1) {
+                if (newBestFlag && nextDepth < depth - 1) {
 
                     addAccumulators(localBoard, 
                                     move, 
@@ -1271,16 +1270,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
                 #pragma omp critical
                 {
-                    bool computed = false;
-                    for (auto& [mv, mvEval] : newMoves) {
-                        if (mv == move) {
-                            mvEval = eval;
-                            computed = true;
-                        }
-                    }
-                    if (!computed) {
-                        newMoves.push_back({move, eval});
-                    }
+                    newMoves.push_back({move, eval});
                 }
                 
                 #pragma omp critical
@@ -1366,9 +1356,8 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             // If the time limit is not exceeded, we can search deeper.
             depth++;// =  std::max(depth + 1, static_cast<int>(PV.size()) + 1);
         } else {
-            // If we go beyond the hard limit or stabilize
+            // If we go beyond the hard limit or stabilize. Else, we can still search deeper.
             if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1])) break;
-            // Else, we can still search deeper
             depth++;
         }
     }
