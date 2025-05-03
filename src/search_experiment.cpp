@@ -462,9 +462,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int ply = nodeInfo.ply;
 
     // Extract extension information from nodeInfo
-    int checkExtensions = nodeInfo.checkExtensions;
-    int singularExtensions = nodeInfo.singularExtensions;
-    int oneMoveExtensions = nodeInfo.oneMoveExtensions;
+    int extensions = nodeInfo.extensions;
 
     // Extract whether we can do singular search and NMP
     bool singularSearchOk = nodeInfo.singularSearchOk;
@@ -587,9 +585,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo nullNodeInfo = {ply + 1, 
                                 false, 
-                                checkExtensions,
-                                singularExtensions,
-                                oneMoveExtensions,
+                                extensions,
                                 false, // turn off NMP for this path
                                 singularSearchOk,
                                 Move::NULL_MOVE,
@@ -633,49 +629,48 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     //Singular extension.
-    if (hashMoveFound && ttDepth >= depth - singularTableReduce
+    // If the hash move is stronger than all others, extend the search.
+    bool singular = false;
+    if (hashMoveFound && ttDepth >= depth - 3
                         && depth >= singularDepth
                         && (ttType == EntryType::EXACT || ttType == EntryType::LOWERBOUND)
                         && isPV
-                        && standPat >= beta
-                        && singularSearchOk) {
+                        && singularSearchOk
+                        && extensions
+                        && abs(ttEval) < INF/2 - 100) {
 
-            int singularEval = 0;
-            bool singular = true;
+        int bestSEval = -INF;
+        int sBeta = ttEval - 2 * depth;
 
-            for (int i = 1; i < moves.size(); i++) {
-                
-                //moveStack[threadID][ply] = moves[i].first; 
-                addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-                board.makeMove(moves[i].first);
-
-                NodeInfo childNodeInfo = {ply + 1, 
-                                            leftMost, 
-                                            checkExtensions,
-                                            singularExtensions,
-                                            oneMoveExtensions,
-                                            false, // turn off NMP for this path
-                                            false, // turn off singular search for this path
-                                            moves[i].first,
-                                            NodeType::PV,
-                                            threadID};
-
-                singularEval = -negamax(board, depth / singularReduceFactor, -beta, -alpha, PV, childNodeInfo);
-                evalAdjust(singularEval);
-
-                subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-                board.unmakeMove(moves[i].first);
-
-                if (singularEval < ttEval) {
-                    singular = false;
-                    break;
-                }
-            }
+        for (int i = 0; i < moves.size(); i++) {
             
-            if (singularExtensions && singular) {
-                depth++;
-                singularExtensions--;
-            }
+            if (moves[i].first == ttMove) 
+                continue; 
+            
+            addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            board.makeMove(moves[i].first);
+
+            NodeInfo childNodeInfo = {ply + 1, 
+                                        leftMost, 
+                                        extensions,
+                                        false, // turn off NMP for this path
+                                        false, // turn off singular search for this path
+                                        moves[i].first,
+                                        NodeType::PV,
+                                        threadID};
+
+            
+            int sEval = -negamax(board, (depth - 1)/2, -sBeta - 1, -sBeta, PV, childNodeInfo);
+            evalAdjust(sEval);
+
+            subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            board.unmakeMove(moves[i].first);
+
+            bestSEval = std::max(bestSEval, sEval);
+            if (bestSEval >= sBeta) break;
+        }
+        
+        if (bestSEval < sBeta) singular = true;
     }
 
     // Evaluate moves.
@@ -690,7 +685,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool isPromo = isPromotion(move);
         bool inCheck = board.inCheck();
         bool isCapture = board.isCapture(move);
-        bool isQuiet = !isCapture && !isPromo; 
         bool isPromoThreat = promotionThreat(board, move);
 
         if (i > 0) leftMost = false;
@@ -698,14 +692,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost, threadID); 
 
         // Late move pruning
-        bool lmpCondition = isQuiet && !inCheck && !isPV && singularSearchOk;
+        bool lmpCondition = !isCapture && !isPromo && !inCheck && !isPV && singularSearchOk;
         int lmpValue = (lmpC0 + lmpC1 * depth + lmpC2 * depth * depth) / (lmpC3 + !improving);
-        if (lmpCondition && isQuiet && nextDepth <= lmpDepth && i >= std::max(1, lmpValue)) {
+        if (lmpCondition && nextDepth <= lmpDepth && i >= std::max(1, lmpValue)) {
             continue; 
         }
 
         // History pruning       
-        bool hpCondition = !isPromo && !isPromoThreat && !inCheck && !isPV && singularSearchOk && isQuiet;
+        bool hpCondition = !isCapture && !isPromo && !inCheck && !isPV && singularSearchOk;
         if (i > 0 && hpCondition) {
             int mvIndex = moveIndex(move);
             if (history[threadID][stm][mvIndex] < -histC0 - histC1 * nextDepth) {
@@ -714,7 +708,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // SEE pruning
-        if (isCapture && i > 0 && singularSearchOk && nextDepth <= seeDepth) {
+        if (isCapture && i > 0 && nextDepth <= seeDepth  && singularSearchOk) {
             int seeScore = see(board, move, threadID);
             if (seeScore < -seeC1 * nextDepth) {
                 continue;
@@ -722,8 +716,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // Futility pruning
-        bool fpCondition = !isPromo 
-                            && !isPromoThreat
+        bool fpCondition = !isCapture 
+                            && !isPromo
                             && !inCheck 
                             && !isCapture 
                             && !isPV 
@@ -736,12 +730,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } 
         }
 
-        /*--------------------------------------------------------------------------------------------
-            PVS search: 
-            Full window & full depth for the first node or during mop up.
-            After the first node, search other nodes with a null window and potentially reduced depth.
-            Then, if alpha is raised, re-search with a full window & full depth. 
-        --------------------------------------------------------------------------------------------*/
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.makeMove(move);
         bool nullWindow = false;
@@ -749,26 +737,19 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo childNodeInfo = {ply + 1, 
                                 leftMost, 
-                                checkExtensions,
-                                singularExtensions,
-                                oneMoveExtensions,
+                                extensions,
                                 nmpOK,
                                 singularSearchOk,
                                 move,
                                 NodeType::PV,
                                 threadID};
 
-        if (checkExtensions && board.inCheck()) { 
+        if (extensions && (board.inCheck() || moves.size() == 1 || singular)) {
             nextDepth++;
-            childNodeInfo.checkExtensions--;
-        }  
-        
-        if (oneMoveExtensions && moves.size() == 1) { 
-            nextDepth++;
-            childNodeInfo.oneMoveExtensions--;
+            childNodeInfo.extensions--;
         }
         
-        // Full window for the first node. 
+        // PVS: Full window for the first node. 
         // Once alpha is raised, we search with null window until alpha is raised again.
         // If alpha is raised on a null window or reduced depth, we search with full window and full depth.
         if (i == 0) {
@@ -1053,12 +1034,11 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int threadID = omp_get_thread_num();
                 int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
                 int eval = -INF;
+                int extensions = 2 * depth;
 
                 NodeInfo childNodeInfo = {1, // ply of child node
                                         leftMost, // left most flag
-                                        checkExtensions,
-                                        singularExtensions,
-                                        oneMoveExtensions,
+                                        extensions, // extensions
                                         true, // NMP ok
                                         true, // singular search ok
                                         move, // no last move

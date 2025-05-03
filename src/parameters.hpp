@@ -7,8 +7,6 @@ extern int rfpImproving;
 extern int rfpDepth;
 
 extern int singularDepth;
-extern int singularTableReduce;
-extern int singularReduceFactor;
 
 extern int lmpDepth;
 extern int lmpC0;
@@ -36,9 +34,5 @@ extern int deltaC2;
 
 extern float lmrC0;
 extern float lmrC1;
-
-extern int checkExtensions;
-extern int singularExtensions;
-extern int oneMoveExtensions;
 
 extern int mulCutCount;

@@ -49,11 +49,7 @@ void initializeTB(std::string path);
 struct NodeInfo {
     int ply;
     bool leftMost;
-
-    int checkExtensions;
-    int singularExtensions;
-    int oneMoveExtensions;
-
+    int extensions; // number of extensions
     bool nmpOk; // flag to signal if nmp is allowed
     bool singularSearchOk; // flag to signal if singular search is allowed
 

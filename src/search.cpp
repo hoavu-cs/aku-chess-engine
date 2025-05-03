@@ -176,13 +176,17 @@ const int pieceValues[] = {
     20000 // King
 };
 
-// Update killer moves
+/*-------------------------------------------------------------------------------------------- 
+    Update the killer moves. Currently using only 1 slot per ply.
+--------------------------------------------------------------------------------------------*/
 inline void updateKillerMoves(const Move& move, int ply, int threadID) {
     killer[threadID][ply][0] = killer[threadID][ply][1];
     killer[threadID][ply][1] = move;
 }
 
-// Static Exchange Evaluation (SEE) function
+/*-------------------------------------------------------------------------------------------- 
+    SEE (Static Exchange Evaluation) function.
+ -------------------------------------------------------------------------------------------*/
 int see(Board& board, Move move, int threadID) {
 
     nodeCount[threadID]++;
@@ -221,7 +225,9 @@ int see(Board& board, Move move, int threadID) {
     return victimValue - opponentGain;
 }
 
-// Late Move Reduction (LMR) function
+/*--------------------------------------------------------------------------------------------
+    Late move reduction. 
+--------------------------------------------------------------------------------------------*/
 int lateMoveReduction(Board& board, 
                       Move move, 
                       int i, 
@@ -259,7 +265,9 @@ int lateMoveReduction(Board& board,
     }
 }
 
-// Order moves based on various heuristics
+/*-------------------------------------------------------------------------------------------- 
+    Returns a list of candidate moves ordered by priority.
+--------------------------------------------------------------------------------------------*/
 std::vector<std::pair<Move, int>> orderedMoves(
     Board& board, 
     int depth, 
@@ -356,7 +364,9 @@ std::vector<std::pair<Move, int>> orderedMoves(
     return primary;
 }
 
-// Quiescence search 
+/*-------------------------------------------------------------------------------------------- 
+    Quiescence search for captures only.
+--------------------------------------------------------------------------------------------*/
 int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     
     nodeCount[threadID]++;
@@ -436,7 +446,9 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     return bestScore;
 }
 
-// Main negamax function
+/*-------------------------------------------------------------------------------------------- 
+    Negamax with alpha-beta pruning.
+--------------------------------------------------------------------------------------------*/
 int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeInfo& nodeInfo) {
 
     // Stop the search if hard deadline is reached
@@ -915,12 +927,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     return bestEval;
 }
 
- 
-// Main search function to communicate with UCI interface. This is the root node.
-// Time control: 
-// Hard deadline: 2x time limit
-// - Case 1: As long as we are within the time limit, we search as deep as we can.
-// - Case 2: Stop if we reach the hard deadline or certain depth.
+/*-------------------------------------------------------------------------------------------- 
+    Main search function to communicate with UCI interface. This is the root node.
+    Time control: 
+    Hard deadline: 2x time limit
+
+    - Case 1: As long as we are within the time limit, we search as deep as we can.
+    - Case 2: Stop if we reach the hard deadline or certain depth.
+--------------------------------------------------------------------------------------------*/
 Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeLimit = 15000) {
 
     omp_set_num_threads(numThreads);

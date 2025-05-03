@@ -53,6 +53,7 @@ inline int manhattanDistance(const Square& sq1, const Square& sq2);
 inline int minDistance(const Square& sq1, const Square& sq2);
 inline int minDistanceToEdge(const Square& sq);
 inline U64 moveIndex(const Move& move);
+inline bool isCastling(const Move& move);
 inline bool isPromotion(const Move& move);
 inline bool isMopUpPhase(Board& board);
 inline int mopUpScore(const Board& board);
@@ -103,7 +104,14 @@ inline int minDistanceToEdge(const Square& sq) {
 inline U64 moveIndex(const Move& move) {
     return move.from().index() * 64 + move.to().index();
 }
- 
+
+inline bool isCastling(const Move& move) {
+    if (move.typeOf() & Move::CASTLING) {
+        return true;
+    } 
+    return false;
+}
+
 inline bool isPromotion(const Move& move) {
     if (move.typeOf() & Move::PROMOTION) {
         if (move.promotionType() == PieceType::QUEEN) {
