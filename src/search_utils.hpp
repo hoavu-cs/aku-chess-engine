@@ -43,39 +43,19 @@ const int bnMateDarkSquares[64] = {
     0, 10, 20, 30, 40, 50, 60, 70
 };
 
-/*--------------------------------------------------------------------------------------------- 
-    Function declarations
----------------------------------------------------------------------------------------------*/
-
-// Adjust mate score to account for an extra ply for wining/losing from mate or Syzygy
+// Function declarations
 inline void evalAdjust(int& eval);
-
-// gamephase 24: beginning, 16: middle, 12: endgame
 int gamePhase(const Board& board);
-
-// manhattan distance between two squares
 int manhattanDistance(const Square& sq1, const Square& sq2);
-
-/// Distance between two squares
 int minDistance(const Square& sq1, const Square& sq2);
-
-// Distance to the edge of the board
 int minDistanceToEdge(const Square& sq);
-
-// mopUp Phase: Looking for checkmate phase
 bool isMopUpPhase(Board& board);
-
-// checkmate score (i.e., drive opponent's king to the edge of the board)
 int mopUpScore(const Board& board);
-
-// update the PV: form a PV with (move) + (childPV)
 void updatePV(std::vector<Move>& PV, const Move& move, const std::vector<Move>& childPV);
+bool promotionThreat(Board& board, Move move);
 
 
-/*--------------------------------------------------------------------------------------------- 
-    Function definitions
----------------------------------------------------------------------------------------------*/
-
+// Function definitions
 inline void evalAdjust(int& eval) {
     if (eval >= INF/2 - 100) {
         eval--; 
@@ -94,30 +74,60 @@ inline void updatePV(std::vector<Move>& PV, const Move& move, const std::vector<
     PV.insert(PV.end(), childPV.begin(), childPV.end());
 }
 
-int gamePhase (const Board& board) {
-    int phase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +
-                     board.pieces(PieceType::BISHOP, Color::WHITE).count() + board.pieces(PieceType::BISHOP, Color::BLACK).count() +
-                     board.pieces(PieceType::ROOK, Color::WHITE).count() * 2 + board.pieces(PieceType::ROOK, Color::BLACK).count() * 2 +
-                     board.pieces(PieceType::QUEEN, Color::WHITE).count() * 4 + board.pieces(PieceType::QUEEN, Color::BLACK).count() * 4;
-
-    return phase;
+inline int gamePhase (const Board& board) {
+    return board.pieces(PieceType::KNIGHT).count() +
+                board.pieces(PieceType::BISHOP).count() +
+                board.pieces(PieceType::ROOK).count() * 2 +
+                board.pieces(PieceType::QUEEN).count() * 4;
 }
 
-int manhattanDistance(const Square& sq1, const Square& sq2) {
+inline int manhattanDistance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
 }
 
-int minDistance(const Square& sq, const Square& sq2) {
+inline int minDistance(const Square& sq, const Square& sq2) {
     return std::min(std::abs(sq.file() - sq2.file()), std::abs(sq.rank() - sq2.rank()));
 }
 
-int minDistanceToEdge(const Square& sq) {
+inline int minDistanceToEdge(const Square& sq) {
     int file = sq.index() % 8;
     int rank = sq.index() / 8;
     return std::min(std::min(file, 7 - file), std::min(rank, 7 - rank));
 }
 
-bool isMopUpPhase(Board& board) {
+inline bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
+    int file = sqIndex % 8;
+    int rank = sqIndex / 8;
+    Bitboard copy = theirPawns;
+    while (copy) {
+        int sqIndex2 = copy.lsb(), file2 = sqIndex2 % 8, rank2 = sqIndex2 / 8;
+        if (std::abs(file - file2) <= 1 && rank2 > rank && color == Color::WHITE) 
+            return false; 
+        if (std::abs(file - file2) <= 1 && rank2 < rank && color == Color::BLACK) 
+            return false; 
+        copy.clear(sqIndex2);
+    }
+    return true;  
+}
+
+inline bool promotionThreat(Board& board, Move move) {
+    if (board.at(move.from()).type() != PieceType::PAWN) return false;
+
+    Color color = board.sideToMove();
+    PieceType type = board.at<Piece>(move.from()).type();
+    int destinationIndex = move.to().index();
+    int toRank = destinationIndex / 8;
+    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
+    bool isPassedPawnFlag = isPassedPawn(destinationIndex, color, theirPawns);
+    if (isPassedPawnFlag) {
+        if ((color == Color::WHITE && toRank > 3) || 
+            (color == Color::BLACK && toRank < 4)) {
+            return true;
+        }
+    }
+}
+
+inline bool isMopUpPhase(Board& board) {
     int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
     int blackPawnsCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
 
@@ -148,7 +158,7 @@ bool isMopUpPhase(Board& board) {
     return false;
 }
 
-int mopUpScore(const Board& board) {
+inline int mopUpScore(const Board& board) {
 
     int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
     int blackPawnsCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
@@ -227,48 +237,3 @@ int mopUpScore(const Board& board) {
     return 0;
 }
 
-inline bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
-    int file = sqIndex % 8;
-    int rank = sqIndex / 8;
-
-    Bitboard theirPawnsCopy = theirPawns;
-
-    while (theirPawnsCopy) {
-        int sqIndex2 = theirPawnsCopy.lsb();  
-        int file2 = sqIndex2 % 8;
-        int rank2 = sqIndex2 / 8;
-
-        if (std::abs(file - file2) <= 1 && rank2 > rank && color == Color::WHITE) {
-            return false; 
-        }
-
-        if (std::abs(file - file2) <= 1 && rank2 < rank && color == Color::BLACK) {
-            return false; 
-        }
-
-        theirPawnsCopy.clear(sqIndex2);
-    }
-
-    return true;  
-}
-
-inline bool promotionThreat(Board& board, Move move) {
-    Color color = board.sideToMove();
-    PieceType type = board.at<Piece>(move.from()).type();
-
-    if (type == PieceType::PAWN) {
-        int destinationIndex = move.to().index();
-        int rank = destinationIndex / 8;
-        Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-        bool isPassedPawnFlag = isPassedPawn(destinationIndex, color, theirPawns);
-
-        if (isPassedPawnFlag) {
-            if ((color == Color::WHITE && rank > 3) || 
-                (color == Color::BLACK && rank < 4)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}

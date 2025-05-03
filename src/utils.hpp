@@ -3,11 +3,7 @@
 
 using namespace chess; 
 
-//--------------------------------------------------------------------------------------------
 // Function declarations
-//--------------------------------------------------------------------------------------------
-
-//  UCI analysis string formatting
 inline std::string formatAnalysis(
     int depth,
     int bestEval,
@@ -17,14 +13,9 @@ inline std::string formatAnalysis(
     const std::vector<Move>& PV,
     const Board& board
 );
-
-// fast random number generator
 inline uint32_t fastRand(uint32_t& seed);
 
-//--------------------------------------------------------------------------------------------
 // Function definitions
-//--------------------------------------------------------------------------------------------
-
 inline std::string formatAnalysis(
     int depth,
     int bestEval,
