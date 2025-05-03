@@ -567,7 +567,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Reverse futility pruning (RFP)
     bool rfpCondition = !board.inCheck() && !isPV && abs(beta) < 10000;
     int rfpMargin = rfpScale * depth + (!improving ? 0 : rfpImproving);
-    if (depth <= 4 && rfpCondition) {
+    if (depth <= 7 && rfpCondition) {
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
         } 
