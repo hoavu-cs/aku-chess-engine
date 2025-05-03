@@ -461,9 +461,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool leftMost = nodeInfo.leftMost;
     int ply = nodeInfo.ply;
 
-    // Extract extension information from nodeInfo
-    int extensions = nodeInfo.extensions;
-
     // Extract whether we can do singular search and NMP
     bool singularSearchOk = nodeInfo.singularSearchOk;
     bool nmpOK = nodeInfo.nmpOk;
@@ -593,7 +590,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo nullNodeInfo = {ply + 1, 
                                 false, 
-                                extensions,
                                 false, // turn off NMP for this path
                                 singularSearchOk,
                                 Move::NULL_MOVE,
@@ -634,7 +630,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && ttType != EntryType::UPPERBOUND
                         && isPV
                         && singularSearchOk
-                        && extensions
                         && abs(ttEval) < INF/2 - 100) {
 
         int bestSEval = -INF;
@@ -650,7 +645,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
             NodeInfo childNodeInfo = {ply + 1, 
                                         leftMost, 
-                                        extensions,
                                         false, // turn off NMP for this path
                                         false, // turn off singular search for this path
                                         moves[i].first,
@@ -733,16 +727,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo childNodeInfo = {ply + 1, 
                                 leftMost, 
-                                extensions,
                                 nmpOK,
                                 singularSearchOk,
                                 move,
                                 NodeType::PV,
                                 threadID};
 
-        if (extensions && (board.inCheck() || moves.size() == 1 || singular)) {
+        if (ply < 2 * globalMaxDepth && (board.inCheck() || moves.size() == 1 || singular)) {
             nextDepth++;
-            childNodeInfo.extensions--;
         }
         
         // PVS: Full window for the first node. 
@@ -1030,11 +1022,9 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int threadID = omp_get_thread_num();
                 int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
                 int eval = -INF;
-                int extensions = 2 * depth;
 
                 NodeInfo childNodeInfo = {1, // ply of child node
                                         leftMost, // left most flag
-                                        extensions, // extensions
                                         true, // NMP ok
                                         true, // singular search ok
                                         move, // no last move
