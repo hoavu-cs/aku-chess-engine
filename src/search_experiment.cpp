@@ -1,28 +1,3 @@
-/*
-* Author: Hoa T. Vu
-* Created: December 1, 2024
-* 
-* Copyright (c) 2024 Hoa T. Vu
-* 
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to use,
-* copy, modify, merge, publish, and distribute copies of the Software for 
-* **non-commercial purposes only**, provided that the following conditions are met:
-* 
-* 1. The above copyright notice and this permission notice shall be included in
-*    all copies or substantial portions of the Software.
-* 2. Any use of this Software for commercial purposes **requires prior written
-*    permission from the author, Hoa T. Vu**.
-* 
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-* THE SOFTWARE.
-*/
-
 
 #include <iostream>
 #include <string>
@@ -176,17 +151,13 @@ const int pieceValues[] = {
     20000 // King
 };
 
-/*-------------------------------------------------------------------------------------------- 
-    Update the killer moves. Currently using only 1 slot per ply.
---------------------------------------------------------------------------------------------*/
+// Update killer moves 
 inline void updateKillerMoves(const Move& move, int ply, int threadID) {
     killer[threadID][ply][0] = killer[threadID][ply][1];
     killer[threadID][ply][1] = move;
 }
 
-/*-------------------------------------------------------------------------------------------- 
-    SEE (Static Exchange Evaluation) function.
- -------------------------------------------------------------------------------------------*/
+// Static exchange evaluation (SEE) function
 int see(Board& board, Move move, int threadID) {
 
     nodeCount[threadID]++;
@@ -225,10 +196,8 @@ int see(Board& board, Move move, int threadID) {
     return victimValue - opponentGain;
 }
 
-/*--------------------------------------------------------------------------------------------
-    Late move reduction. 
---------------------------------------------------------------------------------------------*/
-int lateMoveReduction(Board& board, 
+// Late move reduction 
+int lrm(Board& board, 
                       Move move, 
                       int i, 
                       int depth, 
@@ -265,9 +234,7 @@ int lateMoveReduction(Board& board,
     }
 }
 
-/*-------------------------------------------------------------------------------------------- 
-    Returns a list of candidate moves ordered by priority.
---------------------------------------------------------------------------------------------*/
+// generate ordered moves for the current position
 std::vector<std::pair<Move, int>> orderedMoves(
     Board& board, 
     int depth, 
@@ -364,9 +331,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
     return primary;
 }
 
-/*-------------------------------------------------------------------------------------------- 
-    Quiescence search for captures only.
---------------------------------------------------------------------------------------------*/
+// Quiescence search 
 int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     
     nodeCount[threadID]++;
@@ -446,9 +411,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     return bestScore;
 }
 
-/*-------------------------------------------------------------------------------------------- 
-    Negamax with alpha-beta pruning.
---------------------------------------------------------------------------------------------*/
+// Negamax main search function
 int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeInfo& nodeInfo) {
 
     // Stop the search if hard deadline is reached
@@ -567,7 +530,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Reverse futility pruning (RFP)
     bool rfpCondition = !board.inCheck() && !isPV && abs(beta) < 10000;
     int rfpMargin = rfpScale * depth + (!improving ? 0 : rfpImproving);
-    if (depth <= 7 && rfpCondition) {
+    if (depth <= 4 && rfpCondition) {
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
         } 
@@ -684,7 +647,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (i > 0) leftMost = false;
         int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost, threadID); 
+        int nextDepth = lrm(board, move, i, depth, ply, isPV, leftMost, threadID); 
 
         // Late move pruning
         bool lmpCondition = !isCapture && !isPromo && !isPromoThreat && !inCheck && !isPV;
@@ -896,14 +859,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     return bestEval;
 }
 
-/*-------------------------------------------------------------------------------------------- 
-    Main search function to communicate with UCI interface. This is the root node.
-    Time control: 
-    Hard deadline: 2x time limit
-
-    - Case 1: As long as we are within the time limit, we search as deep as we can.
-    - Case 2: Stop if we reach the hard deadline or certain depth.
---------------------------------------------------------------------------------------------*/
+//     Root search function to communicate with UCI interface. 
+//     Time control: 
+//     Hard deadline: 2x time limit
+//     - Case 1: As long as we are within the time limit, we search as deep as we can.
+//     - Case 2: Stop if we reach the hard deadline or certain depth.
 Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeLimit = 15000) {
 
     omp_set_num_threads(numThreads);
@@ -1007,7 +967,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             currentBestEval = -INF;
 
             #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < 3 * moves.size(); i++) {
+            for (int i = 0; i < 6 * moves.size(); i++) {
 
                 if (stopNow) continue; // Check if the time limit has been exceeded
                 
@@ -1020,7 +980,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int ply = 0;
                 bool newBestFlag = false;  
                 int threadID = omp_get_thread_num();
-                int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
+                int nextDepth = lrm(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
                 int eval = -INF;
 
                 NodeInfo childNodeInfo = {1, // ply of child node
