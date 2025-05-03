@@ -26,6 +26,7 @@
 #include "search.hpp"
 #include "chess.hpp"
 #include "utils.hpp"
+#include "search_utils.hpp"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -590,8 +591,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int oneMoveExtensions = nodeInfo.oneMoveExtensions;
 
     // Extract whether we can do singular search and NMP
-    bool doSingularSearch = nodeInfo.doSingularSearch;
-    bool doNMP = nodeInfo.doNMP;
+    bool singularSearchOk = nodeInfo.singularSearchOk;
+    bool nmpOk = nodeInfo.nmpOk;
 
     // Extract node type and last move from nodeInfo
     NodeType nodeType = nodeInfo.nodeType;
@@ -651,16 +652,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (tableDepth >= depth) found = true;
     }
 
-    if (found && tableType == EntryType::EXACT) {
-        return tableEval;
-    }  
-    
-    if (found && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
+    if (isPV && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
         return tableEval;
     }  
 
-    if (found && tableEval <= alpha && !isPV && (tableType == EntryType::UPPERBOUND || tableType == EntryType::EXACT)) {
-        return tableEval;
+    if (found && !isPV) {
+        if ((tableType == EntryType::EXACT)
+            || (tableType == EntryType::UPPERBOUND && tableEval <= alpha) 
+            || (tableType == EntryType::LOWERBOUND && tableEval >= beta)) {
+            return tableEval;
+        }
     }
     
     if (depth <= 0 && (!board.inCheck() || ply == globalMaxDepth)) {
@@ -687,7 +688,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !endGameFlag 
                             && !isPV
                             && !mopUp
-                            && doSingularSearch;
+                            && singularSearchOk;
     int rfpMargin = rfpScale * depth + (!improving ? 0 : rfpImproving);
     if (depth <= rfpDepth && rfpCondition) {
         if (standPat - rfpMargin > beta) {
@@ -706,7 +707,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && !board.inCheck() 
         && !mopUp 
         && standPat >= beta
-        && doNMP
+        && nmpOk
     ) {
         std::vector<Move> nullPV; // dummy PV
         int nullEval;
@@ -718,7 +719,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                 singularExtensions,
                                 oneMoveExtensions,
                                 false, // turn off NMP for this path
-                                doSingularSearch,
+                                singularSearchOk,
                                 Move::NULL_MOVE,
                                 NodeType::ALL, // expected all node
                                 threadID};
@@ -762,7 +763,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && (tableType == EntryType::EXACT || tableType == EntryType::LOWERBOUND)
                         && isPV
                         && standPat >= beta
-                        && doSingularSearch) {
+                        && singularSearchOk) {
 
             int singularEval = 0;
             bool singular = true;
@@ -824,7 +825,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         /*--------------------------------------------------------------------------------------------
             Late move pruning
         --------------------------------------------------------------------------------------------*/
-        bool lmpCondition = !isPromo && !inCheck && !isPV && doSingularSearch;
+        bool lmpCondition = !isPromo && !inCheck && !isPV && singularSearchOk;
 
         int lmpValue = (lmpC0 + lmpC1 * depth + lmpC2 * depth * depth) / (lmpC3 + !improving);
         if (lmpCondition && isQuiet && nextDepth <= lmpDepth && i >= std::max(1, lmpValue)) {
@@ -834,7 +835,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         /*--------------------------------------------------------------------------------------------
             History pruning
         --------------------------------------------------------------------------------------------*/       
-        bool hpCondition = !isPromo && !inCheck && !isPV && doSingularSearch && isQuiet;
+        bool hpCondition = !isPromo && !inCheck && !isPV && singularSearchOk && isQuiet;
         if (i > 0 && hpCondition) {
             int mvIndex = moveIndex(move);
             if (history[threadID][stm][mvIndex] < -histC0 - histC1 * nextDepth) {
@@ -845,7 +846,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         /*--------------------------------------------------------------------------------------------
             SEE pruning
         --------------------------------------------------------------------------------------------*/
-        if (isCapture && i > 0 && doSingularSearch && nextDepth <= seeDepth) {
+        if (isCapture && i > 0 && singularSearchOk && nextDepth <= seeDepth) {
             int seeScore = see(board, move, threadID);
             if (seeScore < -seeC1 * nextDepth) {
                 continue;
@@ -859,9 +860,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool fpCondition = !isPromo 
                             && !inCheck 
                             && !isPV 
-                            && doSingularSearch 
+                            && singularSearchOk 
                             && !isCapture 
-                            && doSingularSearch;
+                            && singularSearchOk;
 
         if (nextDepth <= fpDepth && fpCondition && i > 0) {
             int margin = (fpC0 + fpC1 * depth + fpImprovingC * improving);
@@ -887,8 +888,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                 checkExtensions,
                                 singularExtensions,
                                 oneMoveExtensions,
-                                doNMP,
-                                doSingularSearch,
+                                nmpOk,
+                                singularSearchOk,
                                 move,
                                 NodeType::PV,
                                 threadID};
@@ -937,7 +938,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             --------------------------------------------------------------------------------------------*/
             NodeType childNodeType;
             if (isPV) {
-                childNodeType = NodeType::ALL;
+                childNodeType = NodeType::CUT;
             } else if (!isPV && nodeType == NodeType::ALL) {
                 childNodeType = NodeType::CUT;
             } else if (!isPV && nodeType == NodeType::CUT) {
@@ -1042,7 +1043,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (isPV) {
         EntryType type;
 
-        if (bestEval >= alpha0 && bestEval < beta && searchAllFlag) {
+        if (bestEval > alpha0 && bestEval < beta && searchAllFlag) {
             type = EXACT;
         } else if (bestEval < alpha0) {
             type = UPPERBOUND;

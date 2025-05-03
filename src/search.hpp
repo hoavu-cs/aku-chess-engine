@@ -54,8 +54,8 @@ struct NodeInfo {
     int singularExtensions;
     int oneMoveExtensions;
 
-    bool doNMP; // flag to signal if nmp is allowed
-    bool doSingularSearch; // flag to signal if singular search is allowed
+    bool nmpOk; // flag to signal if nmp is allowed
+    bool singularSearchOk; // flag to signal if singular search is allowed
 
     Move lastMove;
     NodeType nodeType;

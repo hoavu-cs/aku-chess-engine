@@ -178,9 +178,9 @@ int deltaC2 = 4;
 float lmrC0 = 0.88f;  // 82 / 100
 float lmrC1 = 0.46f;  // 39 / 100
 
-int checkExtensions = 3;
-int singularExtensions = 6;
-int oneMoveExtensions = 8;
+int checkExtensions = 20;
+int singularExtensions = 20;
+int oneMoveExtensions = 20;
 
 
 /*-------------------------------------------------------------------------------------------- 
