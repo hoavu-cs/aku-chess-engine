@@ -47,6 +47,9 @@ const int bnMateDarkSquares[64] = {
 //Function declarations
 //---------------------------------------------------------------------------------------------
 
+// Adjust mate score to account for an extra ply for wining/losing from mate or Syzygy
+inline void evalAdjust(int& eval);
+
 // gamephase 24: beginning, 16: middle, 12: endgame
 int gamePhase(const Board& board);
 
@@ -69,6 +72,18 @@ int mopUpScore(const Board& board);
 //--------------------------------------------------------------------------------------------- 
 //Function definitions
 //---------------------------------------------------------------------------------------------
+
+inline void evalAdjust(int& eval) {
+    if (eval >= INF/2 - 100) {
+        eval--; 
+    } else if (eval <= -INF/2 + 100) {
+        eval++; 
+    } else if (eval >= SZYZYGY_INF - 100) {
+        eval--; 
+    } else if (eval <= -SZYZYGY_INF + 100) {
+        eval++;
+    }
+}
 
 int gamePhase (const Board& board) {
     int phase = board.pieces(PieceType::KNIGHT, Color::WHITE).count() + board.pieces(PieceType::KNIGHT, Color::BLACK).count() +

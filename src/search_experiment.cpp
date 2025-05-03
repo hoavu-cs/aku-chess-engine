@@ -24,9 +24,9 @@
 */
 
 #include "search.hpp"
+#include "search_utils.hpp"
 #include "chess.hpp"
 #include "utils.hpp"
-#include "search_utils.hpp"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -264,8 +264,6 @@ std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vec
 
 //std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<Move>(ENGINE_DEPTH + 1, 0));
 
-std::vector<uint32_t> seeds(maxThreadsID); // Random seeds for each thread
-
 // Evaluations along the current path
 std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
@@ -422,22 +420,22 @@ std::vector<std::pair<Move, int>> orderedMoves(
         bool hashMove = false;
 
         // Previous PV move >= hash moves > captures/killer moves > checks > quiet moves
-        Move tableMove;
-        int tableEval;
-        int tableDepth;
-        EntryType tableType;
+        Move ttMove;
+        int ttEval;
+        int ttDepth;
+        EntryType ttType;
         TableEntry entry;
 
-        if (tableLookUp(board, tableDepth, tableEval, tableMove, tableType, ttTable)) {
+        if (tableLookUp(board, ttDepth, ttEval, ttMove, ttType, ttTable)) {
             // Hash move from the PV transposition table should be searched first 
-            if (tableMove == move && tableType == EntryType::EXACT) {
-                priority = 19000 + tableEval;
-                primary.push_back({tableMove, priority});
+            if (ttMove == move && ttType == EntryType::EXACT) {
+                priority = 19000 + ttEval;
+                primary.push_back({ttMove, priority});
                 hashMove = true;
                 hashMoveFound = true;
-            } else if (tableMove == move && tableType == EntryType::LOWERBOUND) {
-                priority = 18000 + tableEval;
-                primary.push_back({tableMove, priority});
+            } else if (ttMove == move && ttType == EntryType::LOWERBOUND) {
+                priority = 18000 + ttEval;
+                primary.push_back({ttMove, priority});
                 hashMove = true;
                 hashMoveFound = true;
             }
@@ -592,7 +590,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Extract whether we can do singular search and NMP
     bool singularSearchOk = nodeInfo.singularSearchOk;
-    bool nmpOk = nodeInfo.nmpOk;
+    bool nmpOK = nodeInfo.nmpOk;
 
     // Extract node type and last move from nodeInfo
     NodeType nodeType = nodeInfo.nodeType;
@@ -610,7 +608,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     auto gameOverResult = board.isGameOver();
     if (gameOverResult.first != GameResultReason::NONE) {
         if (gameOverResult.first == GameResultReason::CHECKMATE) {
-            return -(INF/2 - ply); // Mate distance pruning.
+            return -INF/2; // Mate distance pruning.
         }
         return 0;
     }
@@ -639,29 +637,29 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Probe the transposition table
     bool found = false;
-    int tableEval, tableDepth;
-    Move tableMove;
-    EntryType tableType;
+    int ttEval, ttDepth;
+    Move ttMove;
+    EntryType ttType;
     TableEntry entry;
 
     /*-------------------------------------------------------------------------------------------- 
-    Transposition table lookup.
+        Transposition table lookup.
     --------------------------------------------------------------------------------------------*/
-    if (tableLookUp(board, tableDepth, tableEval, tableMove, tableType, ttTable)) {
+    if (tableLookUp(board, ttDepth, ttEval, ttMove, ttType, ttTable)) {
         tableHit[threadID]++;
-        if (tableDepth >= depth) found = true;
+        if (ttDepth >= depth) found = true;
     }
 
-    if (isPV && tableEval >= beta && (tableType == EXACT || tableType == EntryType::LOWERBOUND)) {
-        return tableEval;
+    if (found && ttType == EntryType::EXACT) {
+        return ttEval;
+    }  
+    
+    if (found && ttEval >= beta && (ttType == EXACT || ttType == EntryType::LOWERBOUND)) {
+        return ttEval;
     }  
 
-    if (found && !isPV) {
-        if ((tableType == EntryType::EXACT)
-            || (tableType == EntryType::UPPERBOUND && tableEval <= alpha) 
-            || (tableType == EntryType::LOWERBOUND && tableEval >= beta)) {
-            return tableEval;
-        }
+    if (found && ttEval <= alpha && !isPV && (ttType == EntryType::UPPERBOUND || ttType == EntryType::EXACT)) {
+        return ttEval;
     }
     
     if (depth <= 0 && (!board.inCheck() || ply == globalMaxDepth)) {
@@ -707,7 +705,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && !board.inCheck() 
         && !mopUp 
         && standPat >= beta
-        && nmpOk
+        && nmpOK
     ) {
         std::vector<Move> nullPV; // dummy PV
         int nullEval;
@@ -727,6 +725,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         //moveStack[threadID][ply] = Move::NULL_MOVE; 
         board.makeNullMove();
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, nullNodeInfo);
+        evalAdjust(nullEval);
         board.unmakeNullMove();
 
         if (nullEval >= beta) return beta;
@@ -758,9 +757,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     /*--------------------------------------------------------------------------------------------
         Singular extension.
     --------------------------------------------------------------------------------------------*/
-    if (hashMoveFound && tableDepth >= depth - singularTableReduce
+    if (hashMoveFound && ttDepth >= depth - singularTableReduce
                         && depth >= singularDepth
-                        && (tableType == EntryType::EXACT || tableType == EntryType::LOWERBOUND)
+                        && (ttType == EntryType::EXACT || ttType == EntryType::LOWERBOUND)
                         && isPV
                         && standPat >= beta
                         && singularSearchOk) {
@@ -786,11 +785,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                             threadID};
 
                 singularEval = -negamax(board, depth / singularReduceFactor, -beta, -alpha, PV, childNodeInfo);
+                evalAdjust(singularEval);
 
                 subtractAccumulators(board, moves[i].first, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
                 board.unmakeMove(moves[i].first);
 
-                if (singularEval < tableEval) {
+                if (singularEval < ttEval) {
                     singular = false;
                     break;
                 }
@@ -888,7 +888,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                 checkExtensions,
                                 singularExtensions,
                                 oneMoveExtensions,
-                                nmpOk,
+                                nmpOK,
                                 singularSearchOk,
                                 move,
                                 NodeType::PV,
@@ -926,6 +926,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             childNodeInfo.nodeType = childNodeType;
 
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeInfo);
+            evalAdjust(eval);
         } else {
             // null window and potential reduced depth for the rest
             nullWindow = true;
@@ -938,7 +939,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             --------------------------------------------------------------------------------------------*/
             NodeType childNodeType;
             if (isPV) {
-                childNodeType = NodeType::CUT;
+                childNodeType = NodeType::ALL;
             } else if (!isPV && nodeType == NodeType::ALL) {
                 childNodeType = NodeType::CUT;
             } else if (!isPV && nodeType == NodeType::CUT) {
@@ -947,6 +948,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             childNodeInfo.nodeType = childNodeType;
 
             eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, childNodeInfo);
+            evalAdjust(eval);
         }
         
         subtractAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
@@ -969,6 +971,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             board.makeMove(move);
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
+            evalAdjust(eval);
 
             subtractAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
             board.unmakeMove(move);
@@ -993,8 +996,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 searchAllFlag = true;
             }
 
-            seeds[threadID] = fastRand(seeds[threadID]);
-            float delta = deltaC2  * depth * depth + deltaC1 * depth + deltaC0 + (seeds[threadID] % 15);
+            float delta = deltaC2  * depth * depth + deltaC1 * depth + deltaC0;
 
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
@@ -1111,8 +1113,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
         nodeCount[i] = 0;
         tableHit[i] = 0;
-
-        seeds[i] = rand();
     }
 
     for (int i = 0; i < maxThreadsID; i++) {
@@ -1225,6 +1225,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 localBoard.makeMove(move);
 
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
+                evalAdjust(eval);
 
                 subtractAccumulators(localBoard, 
                                     move, 
@@ -1258,6 +1259,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                     localBoard.makeMove(move);
 
                     eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
+                    evalAdjust(eval);
 
                     subtractAccumulators(localBoard, 
                                         move, 
