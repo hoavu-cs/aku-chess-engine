@@ -39,22 +39,18 @@
 #include "parameters.hpp"
 #include "../lib/fathom/src/tbprobe.h"
 #include "search.hpp"
-#include "search_utils.hpp"
+#include "chess_utils.hpp"
+#include "utils.hpp"
 #include "syzygy.hpp"
 #include "chess.hpp"
-#include "utils.hpp"
-
 
 using namespace chess;
 
 typedef std::uint64_t U64;
+const int maxThreadsID = 50; 
 
-const int maxThreadsID = 50; // Maximum number of threads
 
-/*-------------------------------------------------------------------------------------------- 
-    Initialize the NNUE evaluation function.
-    Utility function to convert board to pieces array for fast evaluation.
---------------------------------------------------------------------------------------------*/
+// Initalize NNUE
 Network nnue;
 
 void initializeNNUE(std::string path) {
@@ -66,9 +62,7 @@ std::vector<Accumulator> wAccumulator (maxThreadsID);
 std::vector<Accumulator> bAccumulator (maxThreadsID);
 
 
-/*-------------------------------------------------------------------------------------------- 
-    Late move reduction tables.
---------------------------------------------------------------------------------------------*/
+// Precompute the LMR table
 std::vector<std::vector<int>> lmrTable1; 
 
 void precomputeLRM(int maxDepth, int maxI) {
@@ -86,9 +80,7 @@ void precomputeLRM(int maxDepth, int maxI) {
     isPrecomputed = true;
 }
 
-/*-------------------------------------------------------------------------------------------- 
-    Transposition table lookup and insert.
---------------------------------------------------------------------------------------------*/
+// Transposition table lookup and insert.
 int tableSize = 4194304; // Maximum size of the transposition table
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
@@ -152,9 +144,7 @@ void tableInsert(Board& board,
     lockedEntry.entry = {hash, eval, depth, bestMove, type}; 
 }
 
-/*-------------------------------------------------------------------------------------------- 
-    Other global variables.
---------------------------------------------------------------------------------------------*/
+// Other global variables.
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; 
 std::vector<Move> rootMoves (2 * ENGINE_DEPTH + 1, Move());
 
@@ -169,7 +159,6 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // History table for move ordering (threadID, side to move, move index)
 std::vector<std::vector<std::vector<int>>> history(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
-
 
 //std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<Move>(ENGINE_DEPTH + 1, 0));
 
@@ -187,24 +176,7 @@ const int pieceValues[] = {
     20000 // King
 };
 
-/*-------------------------------------------------------------------------------------------- 
-    Compute the index of a move to be used in history table and others
---------------------------------------------------------------------------------------------*/
-inline U64 moveIndex(const Move& move) {
-    return move.from().index() * 64 + move.to().index();
-}
- 
-/*-------------------------------------------------------------------------------------------- 
-    Check if the move is a promotion.
---------------------------------------------------------------------------------------------*/
-inline bool isPromotion(const Move& move) {
-    if (move.typeOf() & Move::PROMOTION) {
-        if (move.promotionType() == PieceType::QUEEN) {
-            return true;
-        } 
-    } 
-    return false;
-}
+
 
 /*-------------------------------------------------------------------------------------------- 
     Update the killer moves. Currently using only 1 slot per ply.
@@ -1173,7 +1145,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
             if (stopNow) break;
 
-            if (currentBestEval < alpha + 1 || currentBestEval > beta - 1) {
+            if (currentBestEval <= alpha || currentBestEval >= beta) {
                 alpha = -INF;
                 beta = INF;
                 newMoves.clear();
