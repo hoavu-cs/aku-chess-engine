@@ -601,7 +601,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool endGameFlag = gamePhase(board) <= 12;
     int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
     bool isPV = (alpha < beta - 1);
-    int alpha0 = alpha;
+    int alpha0 = alpha; // Original alpha passed from the parent node
     bool stm = (board.sideToMove() == Color::WHITE);
     
     // Check if the game is over. 
@@ -650,23 +650,26 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (ttDepth >= depth) found = true;
     }
 
-    if (found && ttType == EntryType::EXACT) {
-        return ttEval;
-    }  
-    
-    if (found && ttEval >= beta && (ttType == EXACT || ttType == EntryType::LOWERBOUND)) {
-        return ttEval;
-    }  
+    if (found && !isPV) {
+        if (ttType == EntryType::EXACT
+            || (ttType == EntryType::LOWERBOUND && ttEval >= beta)
+            || (ttType == EntryType::UPPERBOUND && ttEval <= alpha)) {
+            return ttEval;
+        } 
+    }
 
-    if (found && ttEval <= alpha && !isPV && (ttType == EntryType::UPPERBOUND || ttType == EntryType::EXACT)) {
-        return ttEval;
+    if (found && isPV) {
+        if (ttType == EntryType::EXACT 
+            || (ttType == EntryType::LOWERBOUND && ttEval >= beta)) {
+            return ttEval;
+        } 
     }
     
-    if (depth <= 0 && (!board.inCheck() || ply == globalMaxDepth)) {
+    
+    if (depth <= 0 && !board.inCheck()) {
         return quiescence(board, alpha, beta, ply + 1, threadID);
     } else if (depth <= 0) {
-        depth++;
-        return negamax(board, depth, alpha, beta, PV, nodeInfo);
+        return negamax(board, 1, alpha, beta, PV, nodeInfo);
     }
 
     int standPat = 0;
@@ -679,9 +682,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     evalPath[threadID][ply] = standPat; // store the evaluation along the path
     bool improving = (ply >= 2 && evalPath[threadID][ply - 2] < evalPath[threadID][ply]) && !board.inCheck();
 
-    /*--------------------------------------------------------------------------------------------
-        Reverse futility pruning.
-    ------------------------------------------------------------- -------------------------------*/
+    // Reverse futility pruning (RFP)
     bool rfpCondition = !board.inCheck() 
                             && !endGameFlag 
                             && !isPV
@@ -694,9 +695,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     } 
 
-    /*-------------------------------------------------------------------------------------------- 
-        Null move pruning. Avoid null move pruning in the endgame phase.
-    --------------------------------------------------------------------------------------------*/
+    // Null move pruning
     const int nullDepth = 4; 
 
     if (depth >= nullDepth 
@@ -745,18 +744,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
     bool searchAllFlag = false;
 
-    /*--------------------------------------------------------------------------------------------
-        Simplified version of IID.
-        Reduce the depth to facilitate the search if no hash move found.
-        Restricted to expected cut nodes and depth > 3.
-    --------------------------------------------------------------------------------------------*/
+    // Simplified version of IID.
+    // Reduce the depth to facilitate the search if no hash move found.
+    // Restricted to expected cut nodes and depth > 3.
     if (!hashMoveFound && depth >= 4 && (nodeType == NodeType::CUT || nodeType == NodeType::PV)) {
         depth = depth - 1;
     }
 
-    /*--------------------------------------------------------------------------------------------
-        Singular extension.
-    --------------------------------------------------------------------------------------------*/
+    //Singular extension.
     if (hashMoveFound && ttDepth >= depth - singularTableReduce
                         && depth >= singularDepth
                         && (ttType == EntryType::EXACT || ttType == EntryType::LOWERBOUND)
@@ -802,11 +797,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
     }
 
-    /*--------------------------------------------------------------------------------------------
-        Evaluate moves.
-    --------------------------------------------------------------------------------------------*/
+    // Evaluate moves.
     int numCaptures = 0;
     int numQuiet = 0;
+    bool raisedAlpha = false;
 
     for (int i = 0; i < moves.size(); i++) {
 
@@ -822,9 +816,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost, threadID); 
 
-        /*--------------------------------------------------------------------------------------------
-            Late move pruning
-        --------------------------------------------------------------------------------------------*/
+        // Late move pruning
         bool lmpCondition = !isPromo && !inCheck && !isPV && singularSearchOk;
 
         int lmpValue = (lmpC0 + lmpC1 * depth + lmpC2 * depth * depth) / (lmpC3 + !improving);
@@ -832,9 +824,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             continue; 
         }
 
-        /*--------------------------------------------------------------------------------------------
-            History pruning
-        --------------------------------------------------------------------------------------------*/       
+        // History pruning       
         bool hpCondition = !isPromo && !inCheck && !isPV && singularSearchOk && isQuiet;
         if (i > 0 && hpCondition) {
             int mvIndex = moveIndex(move);
@@ -843,9 +833,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } 
         }
 
-        /*--------------------------------------------------------------------------------------------
-            SEE pruning
-        --------------------------------------------------------------------------------------------*/
+        // SEE pruning
         if (isCapture && i > 0 && singularSearchOk && nextDepth <= seeDepth) {
             int seeScore = see(board, move, threadID);
             if (seeScore < -seeC1 * nextDepth) {
@@ -853,10 +841,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        /*--------------------------------------------------------------------------------------------
-            Futility pruning: prune if there is no hope of raising alpha.
-            For tactical stability, we only do this for quiet moves.
-        --------------------------------------------------------------------------------------------*/
+        // Futility pruning
         bool fpCondition = !isPromo 
                             && !inCheck 
                             && !isPV 
@@ -878,10 +863,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             Then, if alpha is raised, re-search with a full window & full depth. 
         --------------------------------------------------------------------------------------------*/
         addAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
-        //moveStack[threadID][ply] = move; 
         board.makeMove(move);
-
         bool nullWindow = false;
+        bool reducedDepth = nextDepth < depth - 1;
 
         NodeInfo childNodeInfo = {ply + 1, 
                                 leftMost, 
@@ -894,8 +878,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                 NodeType::PV,
                                 threadID};
 
-        int rank = move.to().index() / 8;
-
         if (checkExtensions && board.inCheck()) { 
             nextDepth++;
             childNodeInfo.checkExtensions--;
@@ -906,15 +888,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             childNodeInfo.oneMoveExtensions--;
         }
         
-        if (i == 0) {
-            // full window & full depth search for the first node
-            
-            /*--------------------------------------------------------------------------------------------
-                In PVS search, in the first child:
-                1. if the node is a cut node, the child is an ALL node
-                2. if the node is an ALL node, the child is a CUT node
-                2. if the node is a PV node, the child is a PV node
-            --------------------------------------------------------------------------------------------*/
+        // Full window for the first node. 
+        // Once alpha is raised, we search with null window until alpha is raised again.
+        // If alpha is raised on a null window or reduced depth, we search with full window and full depth.
+        if (i == 0 || !raisedAlpha) {
             NodeType childNodeType;
             if (!isPV && nodeType == NodeType::CUT) {
                 childNodeType = NodeType::ALL;
@@ -924,22 +901,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 childNodeType = NodeType::PV;
             } 
             childNodeInfo.nodeType = childNodeType;
-
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeInfo);
             evalAdjust(eval);
         } else {
-            // null window and potential reduced depth for the rest
+            // If we are in a PV node and search the next child on a null window, we expect
+            // the child to be a CUT node. 
+            // If we are in a CUT node, we expect the child to be an ALL node.
+            // If we are in an ALL node, we expect the child to be a CUT node.
             nullWindow = true;
-
-            /*--------------------------------------------------------------------------------------------
-                In PVS search, in the subsequent children:
-                1. if the node is a PV node, any child after the first is a CUT node
-                2. if the node is an ALL node, the child is a CUT node
-                2. if the node is a CUT node, the child is an ALL node
-            --------------------------------------------------------------------------------------------*/
             NodeType childNodeType;
             if (isPV) {
-                childNodeType = NodeType::ALL;
+                childNodeType = NodeType::CUT;
             } else if (!isPV && nodeType == NodeType::ALL) {
                 childNodeType = NodeType::CUT;
             } else if (!isPV && nodeType == NodeType::CUT) {
@@ -953,20 +925,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         
         subtractAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
         board.unmakeMove(move);
+    
+        // If we raised alpha in a null window search or reduced depth search, re-search with full window and full depth.
+        // We don't need to do this for non-PV nodes because when beta = alpha + 1, the full window is the same as the null window.
+        // Furthermore, if we are in a non-PV node and a reduced depth search raised alpha, then we will need to 
+        // re-search with full window and full depth in some ancestor node anyway so there is no need to do it here. 
+        if ((eval > alpha) && (nullWindow || reducedDepth) && isPV) {
 
-        bool alphaRaised = eval > alpha;
-        bool reducedDepth = nextDepth < depth - 1;
-
-        if (alphaRaised && (nullWindow || reducedDepth)  && isPV) {
-
-
-            /*--------------------------------------------------------------------------------------------
-                Since now we are in a full window search, the child node is a PV node.
-            --------------------------------------------------------------------------------------------*/
+            // Now this child becomes a PV node.
             childNodeInfo.nodeType = NodeType::PV;
 
-            // If alpha is raised, research with full window & full depth (we don't do this for i = 0)
-            //moveStack[threadID][ply] = move;
             addAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
             board.makeMove(move);
 
@@ -983,21 +951,18 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             for (auto& move : childPV) {
                 PV.push_back(move);
             }
+            raisedAlpha = true;
         } 
 
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
 
+        // Beta cutoff.
         if (beta <= alpha) {
-
-            if (i == moves.size() - 1) {
-                // This means we have a beta cutoff at the last child node
-                // which signals the result is an EXACT score.
-                searchAllFlag = true;
-            }
 
             float delta = deltaC2  * depth * depth + deltaC1 * depth + deltaC0;
 
+            // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
             if (!board.isCapture(move)) {
                 updateKillerMoves(move, ply, threadID);
                 
@@ -1042,12 +1007,21 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     }
 
+
     if (isPV) {
+        // If the bestEval is in (alpha0, beta), then bestEval is EXACT.
+        // If the bestEval <= alpha0, then bestEval is UPPERBOUND because this is caused by one of the children's beta-cutoff.
+        // If the bestEval >= beta then we quit the loop early, then we know that this is a LOWERBOUND. 
+        // This ccould be exact if the cut off is at the last child, but it's not too important to handle this case separately.
+        // If the bestEval is in (alpha0, beta), then we know that this is an exact score.
+        // This is nice in the sense that if a node is non-PV, the bounds are always UPPERBOUND and LOWERBOUND.
+        // EXACT flag only happens at PV nodes.
+        // For non-PV nodes, the bounds are artifical so we can't say for sure.
         EntryType type;
 
         if (bestEval > alpha0 && bestEval < beta && searchAllFlag) {
             type = EXACT;
-        } else if (bestEval < alpha0) {
+        } else if (bestEval <= alpha0) {
             type = UPPERBOUND;
         } else {
             type = LOWERBOUND;
@@ -1060,8 +1034,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
     } else {
-        
-        if (bestEval > alpha0) {
+        // For non-PV nodes:
+        // alpha is artifical for CUT nodes and beta is artifical for ALL nodes.
+        // In CUT nodes, we have a fake alpha. We can only tell if bestEval is a LOWERBOUND if we have a beta cutoff.
+        // IN ALL nodess, we have a fake beta. Similarly, we can only tell if bestEval is a UPPERBOUND if we have an alpha cutoff.
+        if (bestEval >= beta) {
             EntryType type = LOWERBOUND;
             if (PV.size() > 0) {
                 tableInsert(board, depth, bestEval, PV[0], type, ttTable);
