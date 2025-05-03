@@ -43,9 +43,9 @@ const int bnMateDarkSquares[64] = {
     0, 10, 20, 30, 40, 50, 60, 70
 };
 
-//--------------------------------------------------------------------------------------------- 
-//Function declarations
-//---------------------------------------------------------------------------------------------
+/*--------------------------------------------------------------------------------------------- 
+    Function declarations
+---------------------------------------------------------------------------------------------*/
 
 // Adjust mate score to account for an extra ply for wining/losing from mate or Syzygy
 inline void evalAdjust(int& eval);
@@ -68,10 +68,13 @@ bool isMopUpPhase(Board& board);
 // checkmate score (i.e., drive opponent's king to the edge of the board)
 int mopUpScore(const Board& board);
 
+// update the PV: form a PV with (move) + (childPV)
+void updatePV(std::vector<Move>& PV, const Move& move, const std::vector<Move>& childPV);
 
-//--------------------------------------------------------------------------------------------- 
-//Function definitions
-//---------------------------------------------------------------------------------------------
+
+/*--------------------------------------------------------------------------------------------- 
+    Function definitions
+---------------------------------------------------------------------------------------------*/
 
 inline void evalAdjust(int& eval) {
     if (eval >= INF/2 - 100) {
@@ -83,6 +86,12 @@ inline void evalAdjust(int& eval) {
     } else if (eval <= -SZYZYGY_INF + 100) {
         eval++;
     }
+}
+
+inline void updatePV(std::vector<Move>& PV, const Move& move, const std::vector<Move>& childPV) {
+    PV.clear();
+    PV.push_back(move);
+    PV.insert(PV.end(), childPV.begin(), childPV.end());
 }
 
 int gamePhase (const Board& board) {

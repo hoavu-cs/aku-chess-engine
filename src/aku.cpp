@@ -37,6 +37,7 @@
 #include <stdexcept> 
 #include "assets.hpp"
 #include "parameters.hpp"
+#include "syzygy.hpp"
 
 using namespace chess;
 
@@ -187,7 +188,7 @@ int oneMoveExtensions = 20;
     Global variables
 -------------------------------------------------------------------------------------------- */
 int numThreads = 8;
-int depth = 30;
+int depth = 50;
 bool chess960 = false;
 
 std::string getBookMove(Board& board) {
@@ -532,7 +533,7 @@ int main() {
     initializeNNUE(nnuePath);
 
     std::string egTablePath = getExecutablePath() + "/tables/";
-    initializeTB(egTablePath);
+    syzygy::initializeTB(egTablePath);
 
     uciLoop();
 

@@ -23,10 +23,7 @@
 * THE SOFTWARE.
 */
 
-#include "search.hpp"
-#include "search_utils.hpp"
-#include "chess.hpp"
-#include "utils.hpp"
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -37,9 +34,16 @@
 #include <cmath>
 #include <filesystem>
 #include <mutex>
+
 #include "nnue.hpp"
 #include "parameters.hpp"
 #include "../lib/fathom/src/tbprobe.h"
+#include "search.hpp"
+#include "search_utils.hpp"
+#include "syzygy.hpp"
+#include "chess.hpp"
+#include "utils.hpp"
+
 
 using namespace chess;
 
@@ -51,116 +55,21 @@ const int maxThreadsID = 50; // Maximum number of threads
     Initialize the NNUE evaluation function.
     Utility function to convert board to pieces array for fast evaluation.
 --------------------------------------------------------------------------------------------*/
-Network evalNetwork;
+Network nnue;
 
 void initializeNNUE(std::string path) {
     std::cout << "Initializing NNUE from: " << path << std::endl;
-    loadNetwork(path, evalNetwork);
+    loadNetwork(path, nnue);
 }
 
-std::vector<Accumulator> whiteAccumulator (maxThreadsID);
-std::vector<Accumulator> blackAccumulator (maxThreadsID);
+std::vector<Accumulator> wAccumulator (maxThreadsID);
+std::vector<Accumulator> bAccumulator (maxThreadsID);
 
-/*-------------------------------------------------------------------------------------------- 
-    Initialize and look up endgame tablebases.
---------------------------------------------------------------------------------------------*/
-void initializeTB(std::string path) {
-    std::cout << "Initializing endgame table at path: " << path << std::endl;
-    if (!tb_init(path.c_str())) {
-        std::cerr << "Failed to initialize endgame table." << std::endl;
-    } else {
-        std::cout << "Endgame table initialized successfully!" << std::endl;
-    }
-}
-
-bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
-    // Convert the board to bitboard representation
-    U64 white = board.us(Color::WHITE).getBits();
-    U64 black = board.us(Color::BLACK).getBits();
-    U64 kings = board.pieces(PieceType::KING).getBits();
-    U64 queens = board.pieces(PieceType::QUEEN).getBits();
-    U64 rooks = board.pieces(PieceType::ROOK).getBits();
-    U64 bishops = board.pieces(PieceType::BISHOP).getBits();
-    U64 knights = board.pieces(PieceType::KNIGHT).getBits();
-    U64 pawns = board.pieces(PieceType::PAWN).getBits();
-
-    unsigned rule50 = board.halfMoveClock() / 2;
-    unsigned castling = board.castlingRights().hashIndex();
-    unsigned ep = (board.enpassantSq() != Square::underlying::NO_SQ) ? board.enpassantSq().index() : 0;
-    bool turn = (board.sideToMove() == Color::WHITE);
-
-    // Create structure to store root move suggestions
-    TbRootMoves results;
-
-    int probeSuccess = tb_probe_root_dtz(
-        white, black, kings, queens, rooks, bishops, knights, pawns,
-        rule50, castling, ep, turn, 
-        true, true, &results
-    );
-
-    // Handle probe failure
-    if (!probeSuccess) {
-        probeSuccess = tb_probe_root_wdl(
-            white, black, kings, queens, rooks, bishops, knights, pawns,
-            rule50, castling, ep, turn, true, &results
-        );
-
-        if (!probeSuccess) {
-            return false;
-        }
-    }
-
-    if (results.size > 0) {
-        TbRootMove *bestMove = std::max_element(results.moves, results.moves + results.size, 
-            [](const TbRootMove &a, const TbRootMove &b) {
-                return a.tbRank < b.tbRank; // Higher rank is better
-            });
-
-        unsigned from = TB_MOVE_FROM(bestMove->move);
-        unsigned to = TB_MOVE_TO(bestMove->move);
-        unsigned promotes = TB_MOVE_PROMOTES(bestMove->move);
-
-        int fromIndex = from;
-        int toIndex = to;
-
-        if (promotes) {
-            switch (promotes) {
-                case TB_PROMOTES_QUEEN:
-                    suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::QUEEN);
-                    break;
-                case TB_PROMOTES_ROOK:
-                    suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::ROOK);
-                    break;
-                case TB_PROMOTES_BISHOP:
-                    suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::BISHOP);
-                    break;
-                case TB_PROMOTES_KNIGHT:
-                    suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::KNIGHT);
-                    break;
-            }
-            
-        } else {
-            suggestedMove = Move::make<Move::NORMAL>(Square(fromIndex), Square(toIndex));
-        }
-
-        if (bestMove->tbScore > 0) {
-            wdl = 1;
-        } else if (bestMove->tbScore < 0) {
-            wdl = -1;
-        } else {
-            wdl = 0;
-        }
-
-        return true;
-    } else {
-        return false;
-    }
-}
 
 /*-------------------------------------------------------------------------------------------- 
     Late move reduction tables.
 --------------------------------------------------------------------------------------------*/
-std::vector<std::vector<int>> lmrTable1; // LRM for quiet moves
+std::vector<std::vector<int>> lmrTable1; 
 
 void precomputeLRM(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
@@ -265,7 +174,7 @@ std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vec
 //std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<Move>(ENGINE_DEPTH + 1, 0));
 
 // Evaluations along the current path
-std::vector<std::vector<int>> evalPath(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
+std::vector<std::vector<int>> staticEval(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
 // Basic piece values for move ordering
 const int pieceValues[] = {
@@ -366,7 +275,7 @@ int lateMoveReduction(Board& board,
     if (i <= 1 || depth <= 3) {
         return depth - 1;
     } else {
-        bool improving = (ply >= 2 && evalPath[threadID][ply - 2] < evalPath[threadID][ply]);
+        bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]);
         bool isCapture = board.isCapture(move);
         board.makeMove(move);
         bool giveCheck = board.inCheck();
@@ -385,7 +294,6 @@ int lateMoveReduction(Board& board,
         return std::min(depth - R, depth - 1);
     }
 }
-
 
 /*-------------------------------------------------------------------------------------------- 
     Returns a list of candidate moves ordered by priority.
@@ -499,7 +407,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     // Probe Syzygy tablebases
     Move syzygyMove = Move::NO_MOVE;
     int wdl = 0;
-    if (probeSyzygy(board, syzygyMove, wdl)) {
+    if (syzygy::probeSyzygy(board, syzygyMove, wdl)) {
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
@@ -520,9 +428,9 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
         standPat = color * mopUpScore(board);
     } else {
         if (color == 1) {
-            standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
+            standPat = nnue.evaluate(wAccumulator[threadID], bAccumulator[threadID]);
         } else {
-            standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
+            standPat = nnue.evaluate(bAccumulator[threadID], wAccumulator[threadID]);
         }
     }
 
@@ -549,13 +457,13 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     });
 
     for (auto& [move, priority] : candidateMoves) {
-        addAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+        addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.makeMove(move);
         
         int score = 0;
         score = -quiescence(board, -beta, -alpha, ply + 1, threadID);
 
-        subtractAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+        subtractAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.unmakeMove(move);
 
         bestScore = std::max(bestScore, score);
@@ -621,7 +529,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Probe Syzygy tablebases
     Move syzygyMove = Move::NO_MOVE;
     int wdl = 0;
-    if (probeSyzygy(board, syzygyMove, wdl)) { 
+    if (syzygy::probeSyzygy(board, syzygyMove, wdl)) { 
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
@@ -642,9 +550,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     EntryType ttType;
     TableEntry entry;
 
-    /*-------------------------------------------------------------------------------------------- 
-        Transposition table lookup.
-    --------------------------------------------------------------------------------------------*/
     if (tableLookUp(board, ttDepth, ttEval, ttMove, ttType, ttTable)) {
         tableHit[threadID]++;
         if (ttDepth >= depth) found = true;
@@ -674,13 +579,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     int standPat = 0;
     if (stm == 1) {
-        standPat = evalNetwork.evaluate(whiteAccumulator[threadID], blackAccumulator[threadID]);
+        standPat = nnue.evaluate(wAccumulator[threadID], bAccumulator[threadID]);
     } else {
-        standPat = evalNetwork.evaluate(blackAccumulator[threadID], whiteAccumulator[threadID]);
+        standPat = nnue.evaluate(bAccumulator[threadID], wAccumulator[threadID]);
     }
     
-    evalPath[threadID][ply] = standPat; // store the evaluation along the path
-    bool improving = (ply >= 2 && evalPath[threadID][ply - 2] < evalPath[threadID][ply]) && !board.inCheck();
+    staticEval[threadID][ply] = standPat; // store the evaluation along the path
+    bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]) && !board.inCheck();
 
     // Reverse futility pruning (RFP)
     bool rfpCondition = !board.inCheck() 
@@ -699,7 +604,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     const int nullDepth = 4; 
 
     if (depth >= nullDepth 
-        && !endGameFlag 
+        && !endGameFlag // avoid null move pruning in endgame
         && !leftMost 
         && !board.inCheck() 
         && !mopUp 
@@ -727,7 +632,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         evalAdjust(nullEval);
         board.unmakeNullMove();
 
-        if (nullEval >= beta) return beta;
+        if (nullEval >= beta) {
+            return beta;
+        } else if (nullEval <= -INF/2 + 2) {
+            // If we don't make a move and get mated, then we should return beta + 1 to triger a
+            // re-search for this threat.
+            return beta + 1;
+        }
     }
 
     bool hashMoveFound = false;
@@ -765,7 +676,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             for (int i = 1; i < moves.size(); i++) {
                 
                 //moveStack[threadID][ply] = moves[i].first; 
-                addAccumulators(board, moves[i].first, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+                addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
                 board.makeMove(moves[i].first);
 
                 NodeInfo childNodeInfo = {ply + 1, 
@@ -782,7 +693,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 singularEval = -negamax(board, depth / singularReduceFactor, -beta, -alpha, PV, childNodeInfo);
                 evalAdjust(singularEval);
 
-                subtractAccumulators(board, moves[i].first, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+                subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
                 board.unmakeMove(moves[i].first);
 
                 if (singularEval < ttEval) {
@@ -810,21 +721,21 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool inCheck = board.inCheck();
         bool isCapture = board.isCapture(move);
         bool isQuiet = !isCapture && !isPromo; 
+        bool isPromoThreat = promotionThreat(board, move);
 
         if (i > 0) leftMost = false;
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, leftMost, threadID); 
 
         // Late move pruning
-        bool lmpCondition = !isPromo && !inCheck && !isPV && singularSearchOk;
-
+        bool lmpCondition = isQuiet && !inCheck && !isPV && singularSearchOk;
         int lmpValue = (lmpC0 + lmpC1 * depth + lmpC2 * depth * depth) / (lmpC3 + !improving);
         if (lmpCondition && isQuiet && nextDepth <= lmpDepth && i >= std::max(1, lmpValue)) {
             continue; 
         }
 
         // History pruning       
-        bool hpCondition = !isPromo && !inCheck && !isPV && singularSearchOk && isQuiet;
+        bool hpCondition = !isPromo && !isPromoThreat && !inCheck && !isPV && singularSearchOk && isQuiet;
         if (i > 0 && hpCondition) {
             int mvIndex = moveIndex(move);
             if (history[threadID][stm][mvIndex] < -histC0 - histC1 * nextDepth) {
@@ -842,10 +753,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         // Futility pruning
         bool fpCondition = !isPromo 
+                            && !isPromoThreat
                             && !inCheck 
-                            && !isPV 
-                            && singularSearchOk 
                             && !isCapture 
+                            && !isPV 
                             && singularSearchOk;
 
         if (nextDepth <= fpDepth && fpCondition && i > 0) {
@@ -861,7 +772,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             After the first node, search other nodes with a null window and potentially reduced depth.
             Then, if alpha is raised, re-search with a full window & full depth. 
         --------------------------------------------------------------------------------------------*/
-        addAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+        addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.makeMove(move);
         bool nullWindow = false;
         bool reducedDepth = nextDepth < depth - 1;
@@ -922,7 +833,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             evalAdjust(eval);
         }
         
-        subtractAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+        subtractAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.unmakeMove(move);
     
         // If we raised alpha in a null window search or reduced depth search, re-search with full window and full depth.
@@ -934,22 +845,18 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             // Now this child becomes a PV node.
             childNodeInfo.nodeType = NodeType::PV;
 
-            addAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+            addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
             board.makeMove(move);
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
             evalAdjust(eval);
 
-            subtractAccumulators(board, move, whiteAccumulator[threadID], blackAccumulator[threadID], evalNetwork);
+            subtractAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
             board.unmakeMove(move);
         }
 
         if (eval > alpha) {
-            PV.clear();
-            PV.push_back(move);
-            for (auto& move : childPV) {
-                PV.push_back(move);
-            }
+            updatePV(PV, move, childPV);
         } 
 
         bestEval = std::max(bestEval, eval);
@@ -1060,24 +967,29 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 --------------------------------------------------------------------------------------------*/
 Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeLimit = 15000) {
 
-    /*--------------------------------------------------------------------------------------------
-        Set up ttTable, threads, time limits, history scores, killer moves and accumulators.
-    --------------------------------------------------------------------------------------------*/
     omp_set_num_threads(numThreads);
+
+    // Time management variables
     auto startTime = std::chrono::high_resolution_clock::now();
     hardDeadline = startTime + 2 * std::chrono::milliseconds(timeLimit);
     bool timeLimitExceeded = false;
+
+    Move bestMove = Move(); 
+    int bestEval = -INF;
+    int color = board.sideToMove() == Color::WHITE ? 1 : -1;
     rootMoves = {};
     
-    precomputeLRM(100, 500); // Precompute late move reduction table
+    // Precompute late move reduction table
+    precomputeLRM(100, 500); 
 
+    // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
-        // Update if the size for the transposition table changes.
         ttTable = std::vector<LockedTableEntry>(tableSize);
     }
 
-    // Reset history scores 
+    
     for (int i = 0; i < maxThreadsID; i++) {
+        // Reset history scores 
         for (int j = 0; j < 64 * 64; j++) {
             history[i][0][j] = 0;
             history[i][1][j] = 0;
@@ -1086,23 +998,17 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             captureHistory[i][1][j] = 0;
         }
 
-        nodeCount[i] = 0;
-        tableHit[i] = 0;
-    }
-
-    for (int i = 0; i < maxThreadsID; i++) {
+        // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {
             killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
         }
-    }
 
-    for (int i = 0; i < maxThreadsID; i++) {
-        makeAccumulators(board, whiteAccumulator[i], blackAccumulator[i], evalNetwork);
-    }
+        nodeCount[i] = 0;
+        tableHit[i] = 0;
 
-    Move bestMove = Move(); 
-    int bestEval = -INF;
-    int color = board.sideToMove() == Color::WHITE ? 1 : -1;
+        // Make accumulators for each thread
+        makeAccumulators(board, wAccumulator[i], bAccumulator[i], nnue);
+    }
 
     std::vector<std::pair<Move, int>> moves;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
@@ -1111,16 +1017,18 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
     Move syzygyMove;
     int wdl = 0;
 
-    if (probeSyzygy(board, syzygyMove, wdl)) {
-
+    if (syzygy::probeSyzygy(board, syzygyMove, wdl)) {
         int score = 0;
         if (wdl == 1) {
             score = SZYZYGY_INF;
         } else if (wdl == -1) {
             score = -SZYZYGY_INF;
         }
-        std::cout << "info depth 0 score cp " << score << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
-        
+
+        if (syzygyMove != Move::NO_MOVE) {
+            std::cout << "info depth 0 score cp " << score 
+                        << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
+        }
         
         if (syzygyMove != Move::NO_MOVE) {
             try {
@@ -1134,10 +1042,10 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
     }
     
     // Start the search
-    int standPat = evalNetwork.evaluate(whiteAccumulator[0], blackAccumulator[0]);
+    int standPat = nnue.evaluate(wAccumulator[0], bAccumulator[0]);
     int depth = 0;
 
-    while (depth <= maxDepth) {
+    while (depth <= std::min(ENGINE_DEPTH, maxDepth)) {
         globalMaxDepth = depth;
 
         // Track the best move for the current depth
@@ -1146,8 +1054,8 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         bool hashMoveFound = false;
 
         bool stopNow = false;
-        int alpha = (depth > 6) ? evals[depth - 1] - 150 : -INF;
-        int beta  = (depth > 6) ? evals[depth - 1] + 150 : INF;
+        int alpha = (depth > 6) ? evals[depth - 1] - 100 : -INF;
+        int beta  = (depth > 6) ? evals[depth - 1] + 100 : INF;
 
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
@@ -1158,50 +1066,42 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
         while (true) {
             currentBestEval = -INF;
+
             #pragma omp parallel for schedule(dynamic, 1)
             for (int i = 0; i < 3 * moves.size(); i++) {
 
-                if (stopNow) continue;
+                if (stopNow) continue; // Check if the time limit has been exceeded
                 
-                bool leftMost = (i == 0);
                 Move move = moves[i % moves.size()].first;
-                
                 std::vector<Move> childPV; 
                 Board localBoard = board;
-                evalPath[omp_get_thread_num()][0] = standPat;
+                staticEval[omp_get_thread_num()][0] = standPat;
 
+                bool leftMost = (i == 0);
                 int ply = 0;
                 bool newBestFlag = false;  
                 int threadID = omp_get_thread_num();
                 int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
                 int eval = -INF;
 
-                NodeInfo childNodeInfo = {1, 
-                                        leftMost, 
+                NodeInfo childNodeInfo = {1, // ply of child node
+                                        leftMost, // left most flag
                                         checkExtensions,
                                         singularExtensions,
                                         oneMoveExtensions,
-                                        true,
-                                        true,
-                                        move,
-                                        NodeType::PV,
+                                        true, // NMP ok
+                                        true, // singular search ok
+                                        move, // no last move
+                                        NodeType::PV, // root node is always a PV node
                                         threadID};
                 
-                addAccumulators(localBoard, 
-                                move, 
-                                whiteAccumulator[threadID], 
-                                blackAccumulator[threadID], 
-                                evalNetwork);
+                addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                 localBoard.makeMove(move);
 
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
                 evalAdjust(eval);
 
-                subtractAccumulators(localBoard, 
-                                    move, 
-                                    whiteAccumulator[threadID], 
-                                    blackAccumulator[threadID],
-                                    evalNetwork);
+                subtractAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                 localBoard.unmakeMove(move);
 
                 // Check if the time limit has been exceeded, if so the search 
@@ -1221,21 +1121,13 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
                 if (newBestFlag && depth > 8 && nextDepth < depth - 1) {
 
-                    addAccumulators(localBoard, 
-                                    move, 
-                                    whiteAccumulator[threadID], 
-                                    blackAccumulator[threadID], 
-                                    evalNetwork);
+                    addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                     localBoard.makeMove(move);
 
                     eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
                     evalAdjust(eval);
 
-                    subtractAccumulators(localBoard, 
-                                        move, 
-                                        whiteAccumulator[threadID], 
-                                        blackAccumulator[threadID], 
-                                        evalNetwork);
+                    subtractAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                     localBoard.unmakeMove(move);
 
                     // Check if the time limit has been exceeded, if so the search 
@@ -1266,24 +1158,14 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                     if (eval > currentBestEval) {
                         currentBestEval = eval;
                         currentBestMove = move;
-
-                        PV.clear();
-                        PV.push_back(move);
-                        for (auto& move : childPV) {
-                            PV.push_back(move);
-                        }
+                        updatePV(PV, move, childPV);
                     } else if (eval == currentBestEval) {
                         // This is mostly for Syzygy tablebase.
                         // Prefer the move that is a capture or a pawn move.
                         if (localBoard.isCapture(move) || localBoard.at<Piece>(move.from()).type() == PieceType::PAWN) {
                             currentBestEval = eval;
                             currentBestMove = move;
-    
-                            PV.clear();
-                            PV.push_back(move);
-                            for (auto& move : childPV) {
-                                PV.push_back(move);
-                            }
+                            updatePV(PV, move, childPV);
                         }
                     }
                 }
@@ -1342,12 +1224,12 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         
         if (!timeLimitExceeded) {
             // If the time limit is not exceeded, we can search deeper.
-            depth++;// =  std::max(depth + 1, static_cast<int>(PV.size()) + 1);
-        } else {
-            // If we go beyond the hard limit or stabilize
-            if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1])) break;
-            // Else, we can still search deeper
             depth++;
+        } else {
+            if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1])) {
+                break; // If we go beyond the hard limit or stabilize
+            } 
+            depth++; // Else, we can still search deeper
         }
     }
 
