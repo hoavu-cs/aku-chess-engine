@@ -800,7 +800,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Evaluate moves.
     int numCaptures = 0;
     int numQuiet = 0;
-    bool raisedAlpha = false;
 
     for (int i = 0; i < moves.size(); i++) {
 
@@ -891,7 +890,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Full window for the first node. 
         // Once alpha is raised, we search with null window until alpha is raised again.
         // If alpha is raised on a null window or reduced depth, we search with full window and full depth.
-        if (i == 0 || !raisedAlpha) {
+        if (i == 0) {
             NodeType childNodeType;
             if (!isPV && nodeType == NodeType::CUT) {
                 childNodeType = NodeType::ALL;
@@ -951,7 +950,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             for (auto& move : childPV) {
                 PV.push_back(move);
             }
-            raisedAlpha = true;
         } 
 
         bestEval = std::max(bestEval, eval);
@@ -1109,9 +1107,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
     std::vector<std::pair<Move, int>> moves;
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
     
-    /*--------------------------------------------------------------------------------------------
-        Check if the move position is in the endgame tablebase.
-    --------------------------------------------------------------------------------------------*/
+    // Syzygy tablebase probe
     Move syzygyMove;
     int wdl = 0;
 
@@ -1137,10 +1133,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         }
     }
     
-    /*--------------------------------------------------------------------------------------------
-        Start the search.
-    --------------------------------------------------------------------------------------------*/
-
+    // Start the search
     int standPat = evalNetwork.evaluate(whiteAccumulator[0], blackAccumulator[0]);
     int depth = 0;
 
