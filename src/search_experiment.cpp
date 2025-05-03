@@ -1191,6 +1191,12 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
         evals[depth] = bestEval;
         rootMoves[depth] = bestMove; 
+
+        if (depth >= 6 
+            && abs(evals[depth - 1]) >= INF/2 - 100 
+            && abs(evals[depth]) >= INF/2 - 100) {
+            break; // If we are in a forced mate sequence, we can stop the search.
+        }
         
         if (!timeLimitExceeded) {
             // If the time limit is not exceeded, we can search deeper.
