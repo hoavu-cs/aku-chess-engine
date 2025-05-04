@@ -143,19 +143,20 @@ void extractFiles() {
     Global parameters for the engine.
 ----------------------------------------------------------------------------------------------*/
 int rfpDepth = 4;
-int rfpC0 = 512;
-int rfpC1 = 32;
+int rfpC0 = 150;
+int rfpC1 = 100;
 
-int singularDepth = 7;
+int singularDepth = 8;
 
-int lmpDepth = 6;
-int lmpC0 = 8;
+int lmpDepth = 5;
+int lmpC0 = 10;
+int lmpC1 = 1;
 
 
-int fpDepth = 6;
-int fpC0 = 256;
-int fpC1 = 512;
-int fpC2 = 32;
+int fpDepth = 4;
+int fpC0 = 70;
+int fpC1 = 80;
+int fpC2 = 100;
 
 int maxHistory = 18612;
 int maxCaptureHistory = 6562;
@@ -322,14 +323,14 @@ void processGo(const std::vector<std::string>& tokens) {
     Move bestMove = Move::NO_MOVE;
 
     // Opening book
-    std::string bookMove = getBookMove(board);
-    if (!bookMove.empty()) {
-        Move moveObj = uci::uciToMove(board, bookMove);
-        board.makeMove(moveObj);
-        std::cout << "info depth 0 score cp 0 nodes 0 time 0 pv " << bookMove << std::endl;
-        std::cout << "bestmove " << bookMove << std::endl;
-        return;
-    }
+    // std::string bookMove = getBookMove(board);
+    // if (!bookMove.empty()) {
+    //     Move moveObj = uci::uciToMove(board, bookMove);
+    //     board.makeMove(moveObj);
+    //     std::cout << "info depth 0 score cp 0 nodes 0 time 0 pv " << bookMove << std::endl;
+    //     std::cout << "bestmove " << bookMove << std::endl;
+    //     return;
+    // }
 
     /*--------------------------------------------------------------
     Time control:
