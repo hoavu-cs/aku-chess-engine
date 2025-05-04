@@ -59,7 +59,9 @@ inline bool isMopUpPhase(Board& board);
 inline int mopUpScore(const Board& board);
 inline void updatePV(std::vector<Move>& PV, const Move& move, const std::vector<Move>& childPV);
 inline bool promotionThreat(Board& board, Move move);
-
+inline bool nonPawnMaterial(Board& board);
+inline int pieceTypeValue(PieceType pt);
+inline bool moveThreatenedPiece(const Board& board, const Move& move);
 
 // Function definitions
 inline void evalAdjust(int& eval) {
@@ -263,3 +265,43 @@ inline int mopUpScore(const Board& board) {
     return 0;
 }
 
+inline bool nonPawnMaterial(Board& board) {
+    Color color = board.sideToMove();
+    int nonPawnCount = board.pieces(PieceType::KNIGHT, color).count() +
+                        board.pieces(PieceType::BISHOP, color).count() +
+                        board.pieces(PieceType::ROOK, color).count() +
+                        board.pieces(PieceType::QUEEN, color).count();
+    return nonPawnCount > 0;
+}
+
+inline int pieceTypeValue(PieceType pt) {
+    if (pt == PieceType::PAWN)   return PAWN_VALUE;
+    if (pt == PieceType::KNIGHT) return KNIGHT_VALUE;
+    if (pt == PieceType::BISHOP) return BISHOP_VALUE;
+    if (pt == PieceType::ROOK)   return ROOK_VALUE;
+    if (pt == PieceType::QUEEN)  return QUEEN_VALUE;
+    if (pt == PieceType::KING)   return KING_VALUE;
+    return 0;
+}
+
+inline bool moveThreatenedPiece(const Board& board, const Move& move) {
+
+    Color us = board.sideToMove();
+    Color them = ~us;
+
+    PieceType type = board.at(move.from()).type();
+    int pieceValue = pieceTypeValue(type);
+
+    Bitboard attackers = attacks::attackers(board, them, move.from());
+
+    while (attackers) {
+        int sq = attackers.lsb();
+        attackers.clear(sq);
+
+        int attackerValue = pieceTypeValue(board.at(Square(sq)).type());
+        if (attackerValue > 0 && attackerValue < pieceValue)
+            return true;
+    }
+
+    return false;
+}

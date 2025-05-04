@@ -36,7 +36,6 @@ void initializeNNUE(std::string path) {
 std::vector<Accumulator> wAccumulator (maxThreadsID);
 std::vector<Accumulator> bAccumulator (maxThreadsID);
 
-
 // Precompute the LMR table
 std::vector<std::vector<int>> lmrTable1; 
 
@@ -56,7 +55,7 @@ void precomputeLRM(int maxDepth, int maxI) {
 }
 
 // Transposition table lookup and insert.
-int tableSize = 4194304; // Maximum size of the transposition table
+int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 
@@ -70,6 +69,7 @@ struct TableEntry {
     U64 hash;
     int eval;
     int depth;
+    bool pv; // this flag is used to check if the position is or was a PV node
     Move bestMove;
     EntryType type;
 };
@@ -84,18 +84,20 @@ std::vector<LockedTableEntry> ttTable(tableSize);
 bool tableLookUp(Board& board, 
     int& depth, 
     int& eval, 
+    bool& pv,
     Move& bestMove, 
     EntryType& type,
-    std::vector<LockedTableEntry>& table) {    
+    std::vector<LockedTableEntry>& table) {  
+
     U64 hash = board.hash();
     U64 index = hash % table.size();
-
     LockedTableEntry& lockedEntry = table[index];
     std::lock_guard<std::mutex> lock(lockedEntry.mtx);  
 
     if (lockedEntry.entry.hash == hash) {
         depth = lockedEntry.entry.depth;
         eval = lockedEntry.entry.eval;
+        pv = lockedEntry.entry.pv;
         bestMove = lockedEntry.entry.bestMove;
         type = lockedEntry.entry.type;
         return true;
@@ -107,6 +109,7 @@ bool tableLookUp(Board& board,
 void tableInsert(Board& board, 
     int depth, 
     int eval, 
+    bool pv,
     Move bestMove, 
     EntryType type,
     std::vector<LockedTableEntry>& table) {
@@ -115,8 +118,12 @@ void tableInsert(Board& board,
     U64 index = hash % table.size();
     LockedTableEntry& lockedEntry = table[index];
 
+    if (lockedEntry.entry.hash == hash && lockedEntry.entry.pv) {
+        pv = true; // don't overwrite the pv node if it was set
+    }
+        
     std::lock_guard<std::mutex> lock(lockedEntry.mtx); 
-    lockedEntry.entry = {hash, eval, depth, bestMove, type}; 
+    lockedEntry.entry = {hash, eval, depth, pv, bestMove, type}; 
 }
 
 // Other global variables.
@@ -133,6 +140,15 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 
 // History table for move ordering (threadID, side to move, move index)
 std::vector<std::vector<std::vector<int>>> history(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
+
+// Inspired by Glaurung:
+// We avoid pruning quiet moves that have more historical successes than failures.
+// - A "success" is counted when a quiet move causes a beta cutoff.
+// - A "failure" is counted when the move is tried but fails to cause a cutoff,
+//   and a later move in the list does cause one.
+std::vector<std::vector<std::vector<int>>> success(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
+std::vector<std::vector<std::vector<int>>> failure(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
+
 std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 //std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<Move>(ENGINE_DEPTH + 1, 0));
@@ -204,10 +220,11 @@ int lrm(Board& board,
                       int ply, 
                       bool isPV, 
                       bool leftMost, 
-                      int threadID) 
-{
-    if (isMopUpPhase(board))
+                      int threadID) {
+
+    if (isMopUpPhase(board)) {
         return depth - 1;
+    }
 
     bool stm = board.sideToMove() == Color::WHITE;
 
@@ -216,18 +233,30 @@ int lrm(Board& board,
     } else {
         bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]);
         bool isCapture = board.isCapture(move);
-        board.makeMove(move);
-        bool giveCheck = board.inCheck();
-        board.unmakeMove(move);
+    
+        bool isKiller = std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end();
+        
+        int ttEval, ttDepth;
+        bool ttIsPV, hashMoveFound, pastPV = false;
+        EntryType ttType;
+        Move ttMove;
+        TableEntry entry;
+
+        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
+            pastPV = ttIsPV;
+        }
 
         int R = lmrTable1[depth][i];
-        if (improving || board.inCheck() || giveCheck || isPV) {
-            R--;
-        }
 
         if (!isCapture) {
             int histScore = history[threadID][stm][moveIndex(move)];
-            R -= histScore / historyLMR;
+            if (histScore < historyLMR) {
+                R++;
+            }
+        }
+
+        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV) {
+            R--;
         }
 
         return std::min(depth - R, depth - 1);
@@ -266,12 +295,12 @@ std::vector<std::pair<Move, int>> orderedMoves(
 
         // Previous PV move >= hash moves > captures/killer moves > checks > quiet moves
         Move ttMove;
-        int ttEval;
-        int ttDepth;
+        int ttEval, ttDepth;
+        bool ttIsPV;
         EntryType ttType;
         TableEntry entry;
 
-        if (tableLookUp(board, ttDepth, ttEval, ttMove, ttType, ttTable)) {
+        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
             // Hash move from the PV transposition table should be searched first 
             if (ttMove == move && ttType == EntryType::EXACT) {
                 priority = 19000 + ttEval;
@@ -333,9 +362,18 @@ std::vector<std::pair<Move, int>> orderedMoves(
 
 // Quiescence search 
 int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
+
+    // Check if the game is over. 
+    auto gameOverResult = board.isGameOver();
+    if (gameOverResult.first != GameResultReason::NONE) {
+        if (gameOverResult.first == GameResultReason::CHECKMATE) {
+            return -INF/2; 
+        }
+        return 0;
+    }
     
     nodeCount[threadID]++;
-    int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
+    bool stm = (board.sideToMove() == Color::WHITE);
     int standPat = 0;
     bool mopUp = isMopUpPhase(board);
 
@@ -360,9 +398,10 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
     if (isMopUpPhase(board)) {
+        int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
         standPat = color * mopUpScore(board);
     } else {
-        if (color == 1) {
+        if (stm == 1) {
             standPat = nnue.evaluate(wAccumulator[threadID], bAccumulator[threadID]);
         } else {
             standPat = nnue.evaluate(bAccumulator[threadID], wAccumulator[threadID]);
@@ -423,10 +462,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int threadID = nodeInfo.threadID;
     bool leftMost = nodeInfo.leftMost;
     int ply = nodeInfo.ply;
+    int rootDepth = nodeInfo.rootDepth;
 
     // Extract whether we can do singular search and NMP
     bool singularSearchOk = nodeInfo.singularSearchOk;
-    bool nmpOK = nodeInfo.nmpOk;
+    bool nmpOk = nodeInfo.nmpOk;
 
     // Extract node type and last move from nodeInfo
     NodeType nodeType = nodeInfo.nodeType;
@@ -434,8 +474,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     nodeCount[threadID]++;
     bool mopUp = isMopUpPhase(board);
-    bool endGameFlag = gamePhase(board) <= 12;
-    int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
     bool isPV = (alpha < beta - 1);
     int alpha0 = alpha; // Original alpha passed from the parent node
     bool stm = (board.sideToMove() == Color::WHITE);
@@ -474,11 +512,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Probe the transposition table
     bool found = false;
     int ttEval, ttDepth;
+    bool ttIsPV = false;
     Move ttMove;
     EntryType ttType;
     TableEntry entry;
 
-    if (tableLookUp(board, ttDepth, ttEval, ttMove, ttType, ttTable)) {
+    if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
         tableHit[threadID]++;
         if (ttDepth >= depth) found = true;
     }
@@ -499,7 +538,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     if (depth <= 0 && !board.inCheck()) {
-        return quiescence(board, alpha, beta, ply + 1, threadID);
+        int qEval = quiescence(board, alpha, beta, ply + 1, threadID);
+        evalAdjust(qEval);
+        return qEval;
     } else if (depth <= 0) {
         return negamax(board, 1, alpha, beta, PV, nodeInfo);
     }
@@ -528,38 +569,42 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         hashMoveFound);
 
     // Reverse futility pruning (RFP)
-    bool rfpCondition = !board.inCheck() && !isPV && abs(beta) < 10000;
-    int rfpMargin = rfpScale * depth + (!improving ? 0 : rfpImproving);
-    if (depth <= 4 && rfpCondition) {
+    bool rfpCondition = depth <= 4 && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    if (rfpCondition) {
+        int rfpMargin = 512 + 32 * (depth - 2);
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
         } 
     } 
 
-    // Null move pruning
+    // Null move pruning. We allow recursive NMP but not 2 consecutive Null moves.
+    // Side to move must have non-pawn material.
     const int nullDepth = 4; 
-
-    if (depth >= nullDepth 
-        && !endGameFlag // avoid null move pruning in endgame
+    bool nmpCondition = (depth >= nullDepth 
+        && nonPawnMaterial(board) 
         && !leftMost 
         && !board.inCheck() 
         && !mopUp 
-        && standPat >= beta
-        && nmpOK
-    ) {
+        && !isPV
+        && standPat >= beta - 768
+        && lastMove != Move::NULL_MOVE
+        && nmpOk);
+
+    if (nmpCondition) {
+            
         std::vector<Move> nullPV; // dummy PV
         int nullEval;
-        int reduction = depth > 6 ? 4 : 3;
+        int reduction = 4;
 
         NodeInfo nullNodeInfo = {ply + 1, 
                                 false, 
-                                false, // turn off NMP for this path
+                                true, 
                                 singularSearchOk,
+                                rootDepth,
                                 Move::NULL_MOVE,
                                 NodeType::ALL, // expected all node
                                 threadID};
 
-        //moveStack[threadID][ply] = Move::NULL_MOVE; 
         board.makeNullMove();
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, nullNodeInfo);
         evalAdjust(nullEval);
@@ -567,15 +612,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (nullEval >= beta) {
             return beta;
-        } else if (nullEval <= -INF/2 + 2) {
-            // If we don't make a move and get mated, then we should return beta + 1 to triger a
-            // re-search for this threat.
-            return beta + 1;
+        } else if (nullEval < -INF/2 + 5) {
+            // If the null move fails low, we may be faced with a threat.
+            // Return beta - 1 to signal that we need to re-search
+            return beta - 1;
         }
     }
 
 
     int bestEval = -INF;
+    int extensions = 0;
     bool searchAllFlag = false;
 
     // Simplified version of IID.
@@ -585,9 +631,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         depth = depth - 1;
     }
 
-    //Singular extension.
+    // Singular extension.
     // If the hash move is stronger than all others, extend the search.
-    bool singular = false;
     if (hashMoveFound && ttDepth >= depth - 3
                         && depth >= singularDepth
                         && ttType != EntryType::UPPERBOUND
@@ -608,8 +653,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
             NodeInfo childNodeInfo = {ply + 1, 
                                         leftMost, 
-                                        false, // turn off NMP for this path
+                                        false, // turn off NMP for singular search
                                         false, // turn off singular search for this path
+                                        rootDepth,
                                         moves[i].first,
                                         NodeType::PV,
                                         threadID};
@@ -625,13 +671,21 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (bestSEval >= sBeta) break;
         }
         
-        if (bestSEval < sBeta) singular = true;
+        if (bestSEval < sBeta) { 
+            extensions++; // singular extension
+        }
     }
 
-    // Evaluate moves.
-    int numCaptures = 0;
-    int numQuiet = 0;
+    if (board.inCheck()) {
+        extensions++;
+    }
+    if (moves.size() == 1) {
+        extensions++;
+    }
+    
+    extensions = std::clamp(extensions, 0, 1); // limit extensions to 2
 
+    // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
 
         Move move = moves[i].first;
@@ -641,6 +695,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool inCheck = board.inCheck();
         bool isCapture = board.isCapture(move);
         bool isPromoThreat = promotionThreat(board, move);
+
+        bool isPawnPush = board.at<Piece>(move.from()).type() == PieceType::PAWN;
+
         board.makeMove(move);
         bool giveCheck = board.inCheck();
         board.unmakeMove(move);
@@ -649,39 +706,55 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lrm(board, move, i, depth, ply, isPV, leftMost, threadID); 
 
+        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
+
+        // common conditions for pruning
+        bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
+        bool canPrune = !inCheck && !isPawnPush && !goodHistory;
+        
         // Late move pruning
-        bool lmpCondition = !isCapture && !isPromo && !isPromoThreat && !inCheck && !isPV;
-        int lmpValue = (lmpC0 + lmpC1 * depth + lmpC2 * depth * depth) / (lmpC3 + !improving);
-        if (lmpCondition && nextDepth <= lmpDepth && i >= std::max(1, lmpValue)) {
+        bool lmpCondition = canPrune && extensions == 0 && !isCapture && nextDepth <= 6;
+        if (i >= 5 + depth && lmpCondition) {
             continue; 
         }
 
         // History pruning       
-        bool hpCondition = !isCapture && !isPromo && !isPromoThreat && !inCheck && !isPV;
-        if (i > 0 && hpCondition) {
-            int mvIndex = moveIndex(move);
-            if (history[threadID][stm][mvIndex] < -histC0 - histC1 * nextDepth) {
-                continue;
-            } 
-        }
+        // bool hpCondition = canPrune && !isCapture && !isPV && i > 0 && nextDepth <= 4;
+        // if (hpCondition) {
+        //     int mvIndex = moveIndex(move);
+        //     if (history[threadID][stm][mvIndex] < -histC0 - histC1 * nextDepth) {
+        //         continue;
+        //     } 
+        // }
 
         // SEE pruning
-        if (isCapture && i > 0 && nextDepth <= seeDepth) {
-            int seeScore = see(board, move, threadID);
-            if (seeScore < -seeC1 * nextDepth) {
-                continue;
-            }
-        }
+        // bool seeCondition = canPrune && !isPV && isCapture && i > 0 && nextDepth <= seeDepth;
+        // if (seeCondition) {
+        //     int seeScore = see(board, move, threadID);
+        //     if (seeScore < -seeC1 * nextDepth) {
+        //         continue;
+        //     }
+        // }
 
         // Futility pruning
-        bool fpCondition = !isCapture && !isPromo && !isPromoThreat&& !inCheck && !isCapture && !giveCheck;
+        bool fpCondition = canPrune &&
+                   !isCapture &&
+                   !giveCheck &&
+                   nextDepth <= 6 &&
+                   i > 0; 
 
-        if (nextDepth <= fpDepth && fpCondition && i > 0) {
-            int margin = (fpC0 + fpC1 * depth + fpImprovingC * improving);
-            if (standPat + margin < alpha) {
-                continue;
-            } 
+        if (fpCondition) {
+            //int margin = (fpC0 + fpC1 * depth + fpImprovingC * improving);
+            int margin = (nextDepth == 1)
+                    ? 256
+                    : 512 + 32 * (nextDepth - 2);
+
+            if (standPat + margin < alpha)
+                continue; // prune move
         }
+
+
+            
 
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.makeMove(move);
@@ -690,15 +763,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo childNodeInfo = {ply + 1, 
                                 leftMost, 
-                                nmpOK,
+                                nmpOk,
                                 singularSearchOk,
+                                rootDepth,
                                 move,
                                 NodeType::PV,
                                 threadID};
 
-        if (ply < 2 * globalMaxDepth && (board.inCheck() || moves.size() == 1 || singular)) {
-            nextDepth++;
-        }
+  
         
         // PVS: Full window for the first node. 
         // Once alpha is raised, we search with null window until alpha is raised again.
@@ -780,6 +852,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 int change = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(maxHistory)) * delta;
 
                 history[threadID][stm][mvIndex] += change;
+                success[threadID][stm][mvIndex]++;
 
                 updateKillerMoves(move, ply, threadID);
             } else {
@@ -806,6 +879,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 } else {
                     change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
                     history[threadID][stm][mvIndex] -= change;
+                    failure[threadID][stm][mvIndex]++;
                 }
             
             }
@@ -835,9 +909,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
 
         if (PV.size() > 0) {
-            tableInsert(board, depth, bestEval, PV[0], type, ttTable);
+            tableInsert(board, depth, bestEval, true, PV[0], type, ttTable);
         } else {
-            tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
+            tableInsert(board, depth, bestEval, true, Move::NO_MOVE, type, ttTable);
         }
 
     } else {
@@ -848,9 +922,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (bestEval >= beta) {
             EntryType type = LOWERBOUND;
             if (PV.size() > 0) {
-                tableInsert(board, depth, bestEval, PV[0], type, ttTable);
+                tableInsert(board, depth, bestEval, false, PV[0], type, ttTable);
             } else {
-                tableInsert(board, depth, bestEval, Move::NO_MOVE, type, ttTable);
+                tableInsert(board, depth, bestEval, false, Move::NO_MOVE, type, ttTable);
             }  
         } 
 
@@ -895,6 +969,12 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
             captureHistory[i][0][j] = 0;
             captureHistory[i][1][j] = 0;
+
+            success[i][0][j] = 0;
+            success[i][1][j] = 0;
+
+            failure[i][0][j] = 0;
+            failure[i][1][j] = 0;
         }
 
         // Reset killer moves
@@ -987,7 +1067,8 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                                         leftMost, // left most flag
                                         true, // NMP ok
                                         true, // singular search ok
-                                        move, // no last move
+                                        nextDepth, // root depth
+                                        move, 
                                         NodeType::PV, // root node is always a PV node
                                         threadID};
                 
@@ -1091,7 +1172,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             return a.second > b.second;
         });
 
-        tableInsert(board, depth, bestEval, bestMove, EntryType::EXACT, ttTable);
+        tableInsert(board, depth, bestEval, true, bestMove, EntryType::EXACT, ttTable);
 
         moves = newMoves;
         previousPV = PV;

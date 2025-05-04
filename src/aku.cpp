@@ -176,7 +176,7 @@ int deltaC0 = 4;
 int deltaC1 = 3;
 int deltaC2 = 4;
 
-float lmrC0 = 0.88f;  // 82 / 100
+float lmrC0 = 0.75f;  // 82 / 100
 float lmrC1 = 0.46f;  // 39 / 100
 
 int checkExtensions = 20;
