@@ -260,7 +260,6 @@ void processPosition(const std::string& command) {
     * Processes the "setoption" command and updates the engine options.
     * @param command The full setoption command received from the GUI.   
 ---------------------------------------------------------------------------------*/
-
 void processSetOption(const std::vector<std::string>& tokens) {
 
     std::string optionName = tokens[2];
@@ -482,7 +481,7 @@ int main() {
     initializeNNUE(nnuePath);
 
     std::string egTablePath = getExecutablePath() + "/tables/";
-    syzygy::initializeTB(egTablePath);
+    syzygy::initializeSyzygy(egTablePath);
 
     uciLoop();
 

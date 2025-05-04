@@ -242,31 +242,18 @@ int lateMoveReduction(Board& board,
     } else {
         bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]);
         bool isCapture = board.isCapture(move);
-    
         bool isKiller = std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end();
         bool isMateKiller = std::find(mateKiller[threadID][ply].begin(), mateKiller[threadID][ply].end(), move) != mateKiller[threadID][ply].end();
         
-        int ttEval, ttDepth;
-        int successCount = success[threadID][stm][moveIndex(move)];
-        int failureCount = failure[threadID][stm][moveIndex(move)];
-        int historyScore = history[threadID][stm][moveIndex(move)];
+        int R = lmrTable[depth][i];
+        int ttEval, ttDepth, historyScore = history[threadID][stm][moveIndex(move)];
         bool ttIsPV, hashMoveFound, pastPV = false;
         EntryType ttType;
         Move ttMove;
         
-        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
-            pastPV = ttIsPV;
-        }
-
-        int R = lmrTable[depth][i];
-        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV || isMateKiller) {
-            R--;
-        }
-
-        if (historyScore < -8000) {
-            R++;
-        }
-
+        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) pastPV = ttIsPV;
+        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV || isMateKiller) R--;
+        if (historyScore < -8000) R++;
         return std::min(depth - R, depth - 1);
     }
 }
@@ -295,16 +282,13 @@ std::vector<std::pair<Move, int>> orderedMoves(
     U64 hash = board.hash();
 
     for (const auto& move : moves) {
-        int priority = 0;
-        bool secondary = false;
-        bool hashMove = false;
-
-        // Previous PV move >= hash moves > captures/killer moves > checks > quiet moves
         Move ttMove;
-        int ttEval, ttDepth;
-        bool ttIsPV;
         EntryType ttType;
         TableEntry entry;
+        int ttEval, ttDepth, priority = 0;
+        bool ttIsPV;
+        bool secondary = false;
+        bool hashMove = false;
 
         if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
             // Hash move from the PV transposition table should be searched first 
@@ -352,7 +336,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
         }
     }
 
-    // Sort capture, promotion, checks by priority
     std::sort(primary.begin(), primary.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
