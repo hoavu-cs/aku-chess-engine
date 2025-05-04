@@ -218,13 +218,12 @@ int see(Board& board, Move move, int threadID) {
 
 // Late move reduction 
 int lrm(Board& board, 
-                      Move move, 
-                      int i, 
-                      int depth, 
-                      int ply, 
-                      bool isPV, 
-                      bool leftMost, 
-                      int threadID) {
+        Move move, 
+        int i, 
+        int depth, 
+        int ply, 
+        bool isPV, 
+        int threadID) {
 
     if (isMopUpPhase(board)) {
         return depth - 1;
@@ -239,6 +238,7 @@ int lrm(Board& board,
         bool isCapture = board.isCapture(move);
     
         bool isKiller = std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end();
+        bool isMateKiller = std::find(mateKiller[threadID][ply].begin(), mateKiller[threadID][ply].end(), move) != mateKiller[threadID][ply].end();
         
         int ttEval, ttDepth;
         bool ttIsPV, hashMoveFound, pastPV = false;
@@ -259,7 +259,7 @@ int lrm(Board& board,
             }
         }
 
-        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV) {
+        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV || isMateKiller) {
             R--;
         }
 
@@ -708,7 +708,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (i > 0) leftMost = false;
         int eval = 0;
-        int nextDepth = lrm(board, move, i, depth, ply, isPV, leftMost, threadID); 
+        int nextDepth = lrm(board, move, i, depth, ply, isPV, threadID); 
 
         nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
 
@@ -1069,7 +1069,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int ply = 0;
                 bool newBestFlag = false;  
                 int threadID = omp_get_thread_num();
-                int nextDepth = lrm(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
+                int nextDepth = lrm(localBoard, move, i % moves.size(), depth, 0, true, threadID);
                 int eval = -INF;
 
                 NodeInfo childNodeInfo = {1, // ply of child node
@@ -1218,7 +1218,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             // If the time limit is not exceeded, we can search deeper.
             depth++;
         } else {
-            if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1])) {
+            if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1] && depth >= 14)) {
                 break; // If we go beyond the hard limit or stabilize
             } 
             depth++; // Else, we can still search deeper

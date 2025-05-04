@@ -1218,7 +1218,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             // If the time limit is not exceeded, we can search deeper.
             depth++;
         } else {
-            if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1])) {
+            if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1] && depth >= 14)) {
                 break; // If we go beyond the hard limit or stabilize
             } 
             depth++; // Else, we can still search deeper
