@@ -251,10 +251,6 @@ int lateMoveReduction(Board& board,
         }
 
         int R = lmrTable1[depth][i];
-        if (success[threadID][stm][moveIndex(move)] < depth * failure[threadID][stm][moveIndex(move)]) {
-            R++;
-        }
-
         if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV || isMateKiller) {
             R--;
         }
@@ -508,6 +504,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool found = false;
     int ttEval, ttDepth;
     bool ttIsPV = false;
+    bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]) && !board.inCheck();
     Move ttMove;
     EntryType ttType;
     TableEntry entry;
@@ -548,7 +545,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     staticEval[threadID][ply] = standPat; // store the evaluation along the path
-    bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]) && !board.inCheck();
+    
 
     
     bool hashMoveFound = false;
@@ -695,7 +692,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (rootDepth + 3) - ply - 1);
 
         // common conditions for pruning
         bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
@@ -706,18 +703,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (i >= lmpC0 + depth && lmpCondition) {
             continue; 
         }
-
-        // SEE pruning
-        // bool seeCondition = canPrune && !isPV && isCapture && i > 0 && nextDepth <= 4;
-        // if (seeCondition) {
-        //     int seeScore = see(board, move, threadID);
-        //     if (seeScore < -seeC1 * nextDepth) {
-        //         continue;
-        //     }
-        // }
-
-
-   
 
         // Futility & history pruning
         bool fpCondition = canPrune 

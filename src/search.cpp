@@ -39,7 +39,7 @@ std::vector<Accumulator> bAccumulator (maxThreadsID);
 // Precompute the LMR table
 std::vector<std::vector<int>> lmrTable1; 
 
-void precomputeLRM(int maxDepth, int maxI) {
+void precomputeLMR(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
 
@@ -217,7 +217,7 @@ int see(Board& board, Move move, int threadID) {
 }
 
 // Late move reduction 
-int lrm(Board& board, 
+int lateMoveReduction(Board& board, 
         Move move, 
         int i, 
         int depth, 
@@ -251,14 +251,6 @@ int lrm(Board& board,
         }
 
         int R = lmrTable1[depth][i];
-
-        if (!isCapture) {
-            int histScore = history[threadID][stm][moveIndex(move)];
-            if (histScore < -8000) {
-                R++;
-            }
-        }
-
         if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV || isMateKiller) {
             R--;
         }
@@ -422,10 +414,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     candidateMoves.reserve(moves.size());
 
     for (const auto& move : moves) {
-        auto victim = board.at<Piece>(move.to());
-        auto attacker = board.at<Piece>(move.from());
-        int victimValue = pieceTypeValue(victim.type());
-        int attackerValue = pieceTypeValue(attacker.type());
         int priority = see(board, move, threadID);
         candidateMoves.push_back({move, priority});
     }
@@ -516,6 +504,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool found = false;
     int ttEval, ttDepth;
     bool ttIsPV = false;
+    bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]) && !board.inCheck();
     Move ttMove;
     EntryType ttType;
     TableEntry entry;
@@ -556,7 +545,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     staticEval[threadID][ply] = standPat; // store the evaluation along the path
-    bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]) && !board.inCheck();
+    
 
     
     bool hashMoveFound = false;
@@ -580,8 +569,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     } 
 
-    // Null move pruning. We allow recursive NMP but not 2 consecutive Null moves.
-    // Side to move must have non-pawn material.
+    // Null move pruning. Side to move must have non-pawn material.
     const int nullDepth = 4; 
     bool nmpCondition = (depth >= nullDepth 
         && nonPawnMaterial(board) 
@@ -634,7 +622,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Singular extension.
     // If the hash move is stronger than all others, extend the search.
     if (hashMoveFound && ttDepth >= depth - 3
-                        && depth >= 7
+                        && depth >= singularDepth
                         && ttType != EntryType::UPPERBOUND
                         && isPV
                         && abs(ttEval) < INF/2 - 100) {
@@ -681,7 +669,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         extensions++;
     }
     
-    extensions = std::clamp(extensions, 0, 2); // limit extensions to 2 per ply
+    extensions = std::clamp(extensions, 0, 1); // limit extensions to 2 per ply
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -702,9 +690,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (i > 0) leftMost = false;
         int eval = 0;
-        int nextDepth = lrm(board, move, i, depth, ply, isPV, threadID); 
+        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, rootDepth * 2 - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (rootDepth + 3) - ply - 1);
 
         // common conditions for pruning
         bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
@@ -716,24 +704,21 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             continue; 
         }
 
-        // SEE pruning
-        // bool seeCondition = canPrune && !isPV && isCapture && i > 0 && nextDepth <= 4;
-        // if (seeCondition) {
-        //     int seeScore = see(board, move, threadID);
-        //     if (seeScore < -seeC1 * nextDepth) {
-        //         continue;
-        //     }
-        // }
-
-        // Futility pruning
-        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth && i > 0; 
+        // Futility & history pruning
+        bool fpCondition = canPrune 
+                        && !isCapture 
+                        && !giveCheck 
+                        && !isPV 
+                        && nextDepth <= fpDepth 
+                        && i > 0; 
         if (fpCondition) {
             int margin = (nextDepth == 1)
                     ? fpC0
                     : fpC1 + fpC2 * (nextDepth - 2);
 
             if (standPat + margin < alpha)
-                continue; // prune move
+                continue; 
+
         }
 
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -935,7 +920,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
     rootMoves = {};
     
     // Precompute late move reduction table
-    precomputeLRM(100, 500); 
+    precomputeLMR(100, 500); 
 
     // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
@@ -1043,7 +1028,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int ply = 0;
                 bool newBestFlag = false;  
                 int threadID = omp_get_thread_num();
-                int nextDepth = lrm(localBoard, move, i % moves.size(), depth, 0, true, threadID);
+                int nextDepth = lateMoveReduction(localBoard, move, i % moves.size(), depth, 0, true, threadID);
                 int eval = -INF;
 
                 NodeInfo childNodeInfo = {1, // ply of child node
