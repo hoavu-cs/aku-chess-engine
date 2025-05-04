@@ -722,14 +722,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             continue;
         }
 
-        // Losing SEE pruning
-        // bool seeCondition = canPrune && isCapture && !extensions && nextDepth <= 
-        // if (seeCondition) {
-        //     int seeScore = see(board, move, threadID);
-        //     if (seeScore < -100 * nextDepth) 
-        //         continue;
-        // }
-
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.makeMove(move);
         bool nullWindow = false;
