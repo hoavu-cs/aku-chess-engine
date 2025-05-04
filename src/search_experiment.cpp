@@ -138,6 +138,10 @@ std::vector<Move> previousPV; // Principal variation from the previous iteration
 std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
 
+// Mate killer moves
+std::vector<std::vector<std::vector<Move>>> mateKiller(maxThreadsID, std::vector<std::vector<Move>> 
+    (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE)));
+
 // History table for move ordering (threadID, side to move, move index)
 std::vector<std::vector<std::vector<int>>> history(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
@@ -181,7 +185,7 @@ int see(Board& board, Move move, int threadID) {
     
     // Get victim and attacker piece values
     auto victim = board.at<Piece>(move.to());
-    int victimValue = pieceValues[static_cast<int>(victim.type())];
+    int victimValue = pieceTypeValue(victim.type());
 
     board.makeMove(move);
     Movelist subsequentCaptures;
@@ -199,8 +203,8 @@ int see(Board& board, Move move, int threadID) {
 
     // Sort attackers by piece value (weakest attacker moves first)
     std::sort(attackers.begin(), attackers.end(), [&](const Move& a, const Move& b) {
-        return pieceValues[static_cast<int>(board.at<Piece>(a.from()).type())] < 
-               pieceValues[static_cast<int>(board.at<Piece>(b.from()).type())];
+        return pieceTypeValue(board.at<Piece>(a.from()).type()) < 
+        pieceTypeValue(board.at<Piece>(b.from()).type());
     });
 
     // Find the maximum gain for the opponent
@@ -266,7 +270,6 @@ int lrm(Board& board,
 // generate ordered moves for the current position
 std::vector<std::pair<Move, int>> orderedMoves(
     Board& board, 
-    int depth, 
     int ply,
     std::vector<Move>& previousPV, 
     bool leftMost,
@@ -290,7 +293,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
     for (const auto& move : moves) {
         int priority = 0;
         bool secondary = false;
-        int ply = globalMaxDepth - depth;
         bool hashMove = false;
 
         // Previous PV move >= hash moves > captures/killer moves > checks > quiet moves
@@ -325,12 +327,14 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } else if (isPromotion(move)) {
             priority = 16000; 
         } else if (board.isCapture(move)) { 
-            int victimValue = pieceValues[static_cast<int>(board.at<Piece>(move.to()).type())];
-            int attackerValue = pieceValues[static_cast<int>(board.at<Piece>(move.from()).type())];
+            int victimValue = pieceTypeValue(board.at<Piece>(move.to()).type());
+            int attackerValue = pieceTypeValue(board.at<Piece>(move.from()).type());
             int score = captureHistory[threadID][stm][moveIndex(move)];
             priority = 4000 + victimValue + score;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000;
+        } else if (std::find(mateKiller[threadID][ply].begin(), mateKiller[threadID][ply].end(), move) != mateKiller[threadID][ply].end()) {
+            priority = 16000; 
         } else {
             secondary = true;
             U64 mvIndex = moveIndex(move);
@@ -420,8 +424,8 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     for (const auto& move : moves) {
         auto victim = board.at<Piece>(move.to());
         auto attacker = board.at<Piece>(move.from());
-        int victimValue = pieceValues[static_cast<int>(victim.type())];
-        int attackerValue = pieceValues[static_cast<int>(attacker.type())];
+        int victimValue = pieceTypeValue(victim.type());
+        int attackerValue = pieceTypeValue(attacker.type());
         int priority = see(board, move, threadID);
         candidateMoves.push_back({move, priority});
     }
@@ -558,9 +562,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
     bool hashMoveFound = false;
     killer[threadID][ply + 1] = {Move::NO_MOVE, Move::NO_MOVE}; 
+    mateKiller[threadID][ply + 1] = {Move::NO_MOVE};
     
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, 
-                                                        depth, 
                                                         ply, 
                                                         previousPV, 
                                                         leftMost, 
@@ -706,7 +710,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lrm(board, move, i, depth, ply, isPV, leftMost, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
@@ -714,7 +718,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         
         // Late move pruning
         bool lmpCondition = canPrune && extensions == 0 && !isCapture && nextDepth <= 6;
-        if (i >= 5 + depth && lmpCondition) {
+        if (i >= 8 + depth && lmpCondition) {
             continue; 
         }
 
@@ -740,6 +744,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool fpCondition = canPrune &&
                    !isCapture &&
                    !giveCheck &&
+                   !isPV &&
                    nextDepth <= 6 &&
                    i > 0; 
 
@@ -836,10 +841,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
 
+        if (eval > INF/2 - 5) {
+            mateKiller[threadID][ply] = {move};
+        }
+
         // Beta cutoff.
         if (beta <= alpha) {
-
-            float delta = deltaC2  * depth * depth + deltaC1 * depth + deltaC0;
+            float delta = depth * depth;
 
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
             if (!board.isCapture(move)) {
@@ -980,6 +988,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {
             killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
+            mateKiller[i][j] = {Move::NO_MOVE};
         }
 
         nodeCount[i] = 0;
@@ -1040,7 +1049,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         std::vector<Move> PV; 
         
         if (depth == 0) {
-            moves = orderedMoves(board, depth, 0, previousPV, false, Move::NO_MOVE, 0, hashMoveFound);
+            moves = orderedMoves(board, 0, previousPV, false, Move::NO_MOVE, 0, hashMoveFound);
         }
 
         while (true) {

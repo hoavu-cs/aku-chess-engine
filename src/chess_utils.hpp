@@ -11,7 +11,7 @@ const int KNIGHT_VALUE = 320;
 const int BISHOP_VALUE = 330;
 const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
-const int KING_VALUE = 5000;
+const int KING_VALUE = 0;
 
 const int mate[64] = {
     600, 500, 500, 400, 400, 500, 500, 600,
