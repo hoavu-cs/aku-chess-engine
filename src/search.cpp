@@ -218,13 +218,12 @@ int see(Board& board, Move move, int threadID) {
 
 // Late move reduction 
 int lrm(Board& board, 
-                      Move move, 
-                      int i, 
-                      int depth, 
-                      int ply, 
-                      bool isPV, 
-                      bool leftMost, 
-                      int threadID) {
+        Move move, 
+        int i, 
+        int depth, 
+        int ply, 
+        bool isPV, 
+        int threadID) {
 
     if (isMopUpPhase(board)) {
         return depth - 1;
@@ -239,6 +238,7 @@ int lrm(Board& board,
         bool isCapture = board.isCapture(move);
     
         bool isKiller = std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end();
+        bool isMateKiller = std::find(mateKiller[threadID][ply].begin(), mateKiller[threadID][ply].end(), move) != mateKiller[threadID][ply].end();
         
         int ttEval, ttDepth;
         bool ttIsPV, hashMoveFound, pastPV = false;
@@ -254,12 +254,12 @@ int lrm(Board& board,
 
         if (!isCapture) {
             int histScore = history[threadID][stm][moveIndex(move)];
-            if (histScore < historyLMR) {
+            if (histScore < -8000) {
                 R++;
             }
         }
 
-        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV) {
+        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV || isMateKiller) {
             R--;
         }
 
@@ -573,9 +573,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         hashMoveFound);
 
     // Reverse futility pruning (RFP)
-    bool rfpCondition = depth <= 4 && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = depth <= rfpDepth && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
-        int rfpMargin = 512 + 32 * (depth - 2);
+        int rfpMargin = rfpC0 + rfpC1 * (depth - 2);
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
         } 
@@ -708,7 +708,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (i > 0) leftMost = false;
         int eval = 0;
-        int nextDepth = lrm(board, move, i, depth, ply, isPV, leftMost, threadID); 
+        int nextDepth = lrm(board, move, i, depth, ply, isPV, threadID); 
 
         nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
 
@@ -717,22 +717,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool canPrune = !inCheck && !isPawnPush && !goodHistory;
         
         // Late move pruning
-        bool lmpCondition = canPrune && extensions == 0 && !isCapture && nextDepth <= 6;
-        if (i >= 8 + depth && lmpCondition) {
+        bool lmpCondition = canPrune && extensions == 0 && !isCapture && nextDepth <= lmpDepth;
+        if (i >= lmpC0 + depth && lmpCondition) {
             continue; 
         }
 
-        // History pruning       
-        // bool hpCondition = canPrune && !isCapture && !isPV && i > 0 && nextDepth <= 4;
-        // if (hpCondition) {
-        //     int mvIndex = moveIndex(move);
-        //     if (history[threadID][stm][mvIndex] < -histC0 - histC1 * nextDepth) {
-        //         continue;
-        //     } 
-        // }
-
         // SEE pruning
-        // bool seeCondition = canPrune && !isPV && isCapture && i > 0 && nextDepth <= seeDepth;
+        // bool seeCondition = canPrune && !isPV && isCapture && i > 0 && nextDepth <= 4;
         // if (seeCondition) {
         //     int seeScore = see(board, move, threadID);
         //     if (seeScore < -seeC1 * nextDepth) {
@@ -741,25 +732,15 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // }
 
         // Futility pruning
-        bool fpCondition = canPrune &&
-                   !isCapture &&
-                   !giveCheck &&
-                   !isPV &&
-                   nextDepth <= 6 &&
-                   i > 0; 
-
+        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth && i > 0; 
         if (fpCondition) {
-            //int margin = (fpC0 + fpC1 * depth + fpImprovingC * improving);
             int margin = (nextDepth == 1)
-                    ? 256
-                    : 512 + 32 * (nextDepth - 2);
+                    ? fpC0
+                    : fpC1 + fpC2 * (nextDepth - 2);
 
             if (standPat + margin < alpha)
                 continue; // prune move
         }
-
-
-            
 
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.makeMove(move);
@@ -1069,7 +1050,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int ply = 0;
                 bool newBestFlag = false;  
                 int threadID = omp_get_thread_num();
-                int nextDepth = lrm(localBoard, move, i % moves.size(), depth, 0, true, leftMost, threadID);
+                int nextDepth = lrm(localBoard, move, i % moves.size(), depth, 0, true, threadID);
                 int eval = -INF;
 
                 NodeInfo childNodeInfo = {1, // ply of child node
