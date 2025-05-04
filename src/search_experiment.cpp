@@ -693,8 +693,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (i > 0) leftMost = false;
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
-        
-        if (nodeType == NodeType::CUT && !extensions) {
+
+        if (nodeType == NodeType::CUT && !extensions && i > 1) {
             nextDepth--;
         } 
 
