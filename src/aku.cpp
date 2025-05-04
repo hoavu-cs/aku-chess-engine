@@ -323,14 +323,14 @@ void processGo(const std::vector<std::string>& tokens) {
     Move bestMove = Move::NO_MOVE;
 
     // Opening book
-    // std::string bookMove = getBookMove(board);
-    // if (!bookMove.empty()) {
-    //     Move moveObj = uci::uciToMove(board, bookMove);
-    //     board.makeMove(moveObj);
-    //     std::cout << "info depth 0 score cp 0 nodes 0 time 0 pv " << bookMove << std::endl;
-    //     std::cout << "bestmove " << bookMove << std::endl;
-    //     return;
-    // }
+    std::string bookMove = getBookMove(board);
+    if (!bookMove.empty()) {
+        Move moveObj = uci::uciToMove(board, bookMove);
+        board.makeMove(moveObj);
+        std::cout << "info depth 0 score cp 0 nodes 0 time 0 pv " << bookMove << std::endl;
+        std::cout << "bestmove " << bookMove << std::endl;
+        return;
+    }
 
     /*--------------------------------------------------------------
     Time control:

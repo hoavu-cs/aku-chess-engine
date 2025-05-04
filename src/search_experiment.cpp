@@ -37,17 +37,17 @@ std::vector<Accumulator> wAccumulator (maxThreadsID);
 std::vector<Accumulator> bAccumulator (maxThreadsID);
 
 // Precompute the LMR table
-std::vector<std::vector<int>> lmrTable1; 
+std::vector<std::vector<int>> lmrTable; 
 
 void precomputeLMR(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
 
-    lmrTable1.resize(100 + 1, std::vector<int>(maxI + 1));
+    lmrTable.resize(100 + 1, std::vector<int>(maxI + 1));
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable1[depth][i] =  static_cast<int>(lmrC0 + lmrC1 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(lmrC0 + lmrC1 * log(depth) * log(i));
         }
     }
 
@@ -160,17 +160,6 @@ std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vec
 // Evaluations along the current path
 std::vector<std::vector<int>> staticEval(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
-// Basic piece values for move ordering
-const int pieceValues[] = {
-    0,    // No piece
-    100,  // Pawn
-    320,  // Knight
-    330,  // Bishop
-    500,  // Rook
-    900,  // Queen
-    20000 // King
-};
-
 // Update killer moves 
 inline void updateKillerMoves(const Move& move, int ply, int threadID) {
     killer[threadID][ply][0] = killer[threadID][ply][1];
@@ -178,42 +167,59 @@ inline void updateKillerMoves(const Move& move, int ply, int threadID) {
 }
 
 // Static exchange evaluation (SEE) function
-int see(Board& board, Move move, int threadID) {
-
-    nodeCount[threadID]++;
+int iterativeSEE(Board& board, Move move, int threadID) {
     int to = move.to().index();
-    
-    // Get victim and attacker piece values
+
     auto victim = board.at<Piece>(move.to());
     int victimValue = pieceTypeValue(victim.type());
 
-    board.makeMove(move);
-    Movelist subsequentCaptures;
-    movegen::legalmoves<movegen::MoveGenType::CAPTURE>(subsequentCaptures, board);
+    std::vector<int> values;
+    values.push_back(victimValue);
 
-    int opponentGain = 0;
-    
-    // Store attackers sorted by increasing value (weakest first)
-    std::vector<Move> attackers;
-    for (int i = 0; i < subsequentCaptures.size(); i++) {
-        if (subsequentCaptures[i].to() == to) {
-            attackers.push_back(subsequentCaptures[i]);
+    std::vector<Move> exchangesStack;
+    exchangesStack.push_back(move);
+
+    int depth = 0;
+    Color currentSide = board.sideToMove();
+
+    Board copy = board;
+    while (!exchangesStack.empty()) {
+        Move currentMove = exchangesStack.back();
+        exchangesStack.pop_back();
+
+        copy.makeMove(currentMove); // Make the capture
+        Movelist captures;
+        movegen::legalmoves<movegen::MoveGenType::CAPTURE>(captures, copy);
+
+        std::vector<Move> nextCaptures;
+        Move bestNextCapture = Move::NO_MOVE;
+        int bestValue = INF;
+
+        for (const Move& nextCapture : captures) {
+            if (nextCapture.to().index() != to) continue; 
+            
+            int value = pieceTypeValue(copy.at<Piece>(nextCapture.from()).type());
+            if (value < bestValue) {
+                bestValue = value;
+                bestNextCapture = nextCapture;
+            }
         }
+
+        if (bestNextCapture == Move::NO_MOVE) break;
+        
+        values.push_back(bestValue);
+        exchangesStack.push_back(bestNextCapture);
     }
 
-    // Sort attackers by piece value (weakest attacker moves first)
-    std::sort(attackers.begin(), attackers.end(), [&](const Move& a, const Move& b) {
-        return pieceTypeValue(board.at<Piece>(a.from()).type()) < 
-        pieceTypeValue(board.at<Piece>(b.from()).type());
-    });
+    int n = values.size();
+    if (n == 0) return 0;
 
-    // Find the maximum gain for the opponent
-    for (const Move& nextCapture : attackers) {
-        opponentGain = std::max(opponentGain, see(board, nextCapture, threadID));
+    int score = values[n - 1];
+    for (int i = n - 2; i >= 0; --i) {
+        score = values[i] - std::max(0, score);
     }
 
-    board.unmakeMove(move);
-    return victimValue - opponentGain;
+    return score;
 }
 
 // Late move reduction 
@@ -252,7 +258,7 @@ int lateMoveReduction(Board& board,
             pastPV = ttIsPV;
         }
 
-        int R = lmrTable1[depth][i];
+        int R = lmrTable[depth][i];
         if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV || isMateKiller) {
             R--;
         }
@@ -420,8 +426,9 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     candidateMoves.reserve(moves.size());
 
     for (const auto& move : moves) {
-        int priority = see(board, move, threadID);
-        candidateMoves.push_back({move, priority});
+        int seeScore = iterativeSEE(board, move, threadID);
+        if (seeScore < 0) continue; // Skip moves that are losing captures
+        candidateMoves.push_back({move, seeScore});
     }
 
     std::sort(candidateMoves.begin(), candidateMoves.end(), [](const auto& a, const auto& b) {
