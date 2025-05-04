@@ -153,13 +153,6 @@ int singularDepth = 5;
 int lmpDepth = 6;
 int lmpC0 = 8;
 
-
-int histC0 = 1863;
-int histC1 = 1991;
-
-int seeC1 = 118;
-int seeDepth = 15;
-
 int fpDepth = 6;
 int fpC0 = 256;
 int fpC1 = 512;
@@ -288,38 +281,26 @@ void processSetOption(const std::vector<std::string>& tokens) {
     // These are for automated tuning. Do not touch from UCI GUI/App.
 
 
-    // else if (optionName == "rfpDepth") rfpDepth = std::stoi(value);
-    // else if (optionName == "rfpC0") rfpC0 = std::stoi(value);
-    // else if (optionName == "rfpC1") rfpC1 = std::stoi(value);
+    else if (optionName == "rfpDepth") rfpDepth = std::stoi(value);
+    else if (optionName == "rfpC0") rfpC0 = std::stoi(value);
+    else if (optionName == "rfpC1") rfpC1 = std::stoi(value);
 
-    // else if (optionName == "singularDepth") singularDepth = std::stoi(value);
+    else if (optionName == "singularDepth") singularDepth = std::stoi(value);
 
-    // else if (optionName == "lmpDepth") lmpDepth = std::stoi(value);
-    // else if (optionName == "lmpC0") lmpC0 = std::stoi(value);
+    else if (optionName == "lmpDepth") lmpDepth = std::stoi(value);
+    else if (optionName == "lmpC0") lmpC0 = std::stoi(value);
 
+    else if (optionName == "fpDepth") fpDepth = std::stoi(value);
+    else if (optionName == "fpC0") fpC0 = std::stoi(value);
+    else if (optionName == "fpC1") fpC1 = std::stoi(value);
 
-    // else if (optionName == "histC0") histC0 = std::stoi(value);
-    // else if (optionName == "histC1") histC1 = std::stoi(value);
+    else if (optionName == "maxHistory") maxHistory = std::stoi(value);
+    else if (optionName == "maxCaptureHistory") maxCaptureHistory = std::stoi(value);
 
-    // else if (optionName == "seeC1") seeC1 = std::stoi(value);
-    // else if (optionName == "seeDepth") seeDepth = std::stoi(value);
+    else if (optionName == "lmrC0") lmrC0 = std::stoi(value) / 100.0f;
+    else if (optionName == "lmrC1") lmrC1 = std::stoi(value) / 100.0f;
 
-    // else if (optionName == "fpDepth") fpDepth = std::stoi(value);
-    // else if (optionName == "fpC0") fpC0 = std::stoi(value);
-    // else if (optionName == "fpC1") fpC1 = std::stoi(value);
-    // else if (optionName == "fpC2") fpImprovingC = std::stoi(value);
-
-    // else if (optionName == "maxHistory") maxHistory = std::stoi(value);
-    // else if (optionName == "maxCaptureHistory") maxCaptureHistory = std::stoi(value);
-
-    // else if (optionName == "deltaC0") deltaC0 = std::stoi(value);
-    // else if (optionName == "deltaC1") deltaC1 = std::stoi(value);
-    // else if (optionName == "deltaC2") deltaC2 = std::stoi(value);
-
-    // else if (optionName == "lmrC0") lmrC0 = std::stoi(value) / 100.0f;
-    // else if (optionName == "lmrC1") lmrC1 = std::stoi(value) / 100.0f;
-
-    // else if (optionName == "maxExtensions") maxExtensions = std::stoi(value);
+    else if (optionName == "maxExtensions") maxExtensions = std::stoi(value);
 
    
     
@@ -429,30 +410,28 @@ void processUci() {
 
 
     // For automated tuning. Do not touch from UCI GUI/App.
-    // std::cout << "option name historyLMR type spin default 7882 min 1000 max 15000" << std::endl;
 
+    std::cout << "option name rfpDepth type spin default 4 min 2 max 20" << std::endl;
+    std::cout << "option name rfpC0 type spin default 512 min 1 max 1000" << std::endl;
+    std::cout << "option name rfpC1 type spin default 32 min 1 max 1000" << std::endl;
+    
+    std::cout << "option name singularDepth type spin default 5 min 2 max 20" << std::endl;
+    
+    std::cout << "option name lmpDepth type spin default 6 min 2 max 16" << std::endl;
+    std::cout << "option name lmpC0 type spin default 8 min 1 max 100" << std::endl;
+    
+    std::cout << "option name fpDepth type spin default 6 min 1 max 20" << std::endl;
+    std::cout << "option name fpC0 type spin default 256 min 1 max 1000" << std::endl;
+    std::cout << "option name fpC1 type spin default 512 min 1 max 1000" << std::endl;
+    std::cout << "option name fpC2 type spin default 32 min 1 max 1000" << std::endl;
+    
+    std::cout << "option name maxHistory type spin default 18612 min 1000 max 50000" << std::endl;
+    std::cout << "option name maxCaptureHistory type spin default 6562 min 1000 max 50000" << std::endl;
+    
+    std::cout << "option name lmrC0 type spin default 75 min 10 max 90" << std::endl;
+    std::cout << "option name lmrC1 type spin default 45 min 10 max 90" << std::endl;
 
-    // std::cout << "option name rfpDepth type spin default 4 min 2 max 20" << std::endl;
-    // std::cout << "option name rfpC0 type spin default 512 min 1 max 1000" << std::endl;
-    // std::cout << "option name rfpC1 type spin default 32 min 1 max 1000" << std::endl;
-    
-    // std::cout << "option name singularDepth type spin default 5 min 2 max 20" << std::endl;
-    
-    // std::cout << "option name lmpDepth type spin default 6 min 2 max 16" << std::endl;
-    // std::cout << "option name lmpC0 type spin default 8 min 1 max 100" << std::endl;
-    
-    // std::cout << "option name fpDepth type spin default 6 min 1 max 20" << std::endl;
-    // std::cout << "option name fpC0 type spin default 256 min 1 max 1000" << std::endl;
-    // std::cout << "option name fpC1 type spin default 512 min 1 max 1000" << std::endl;
-    // std::cout << "option name fpC2 type spin default 32 min 1 max 1000" << std::endl;
-    
-    // std::cout << "option name maxHistory type spin default 18612 min 1000 max 50000" << std::endl;
-    // std::cout << "option name maxCaptureHistory type spin default 6562 min 1000 max 50000" << std::endl;
-    
-    // std::cout << "option name lmrC0 type spin default 75 min 20 max 90" << std::endl;
-    // std::cout << "option name lmrC1 type spin default 45 min 20 max 90" << std::endl;
-
-    // std::cout << "option name maxExtensions type spin default 4 min 1 max 20" << std::endl;
+    std::cout << "option name maxExtensions type spin default 4 min 1 max 20" << std::endl;
 
     std::cout << "uciok" << std::endl;
 }

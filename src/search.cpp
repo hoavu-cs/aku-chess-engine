@@ -469,7 +469,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int rootDepth = nodeInfo.rootDepth;
 
     // Extract whether we can do singular search and NMP
-    bool singularSearchOk = nodeInfo.singularSearchOk;
     bool nmpOk = nodeInfo.nmpOk;
 
     // Extract node type and last move from nodeInfo
@@ -590,8 +589,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && !board.inCheck() 
         && !mopUp 
         && !isPV
-        && standPat >= beta - 768
-        && lastMove != Move::NULL_MOVE
+        && standPat >= beta
         && nmpOk);
 
     if (nmpCondition) {
@@ -602,8 +600,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         NodeInfo nullNodeInfo = {ply + 1, 
                                 false, 
-                                true, 
-                                singularSearchOk,
+                                false, 
                                 rootDepth,
                                 Move::NULL_MOVE,
                                 NodeType::ALL, // expected all node
@@ -630,7 +627,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Simplified version of IID.
     // Reduce the depth to facilitate the search if no hash move found.
-    // Restricted to expected cut nodes and depth > 3.
     if (!hashMoveFound && depth >= 4 && (nodeType == NodeType::CUT || nodeType == NodeType::PV)) {
         depth = depth - 1;
     }
@@ -638,14 +634,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Singular extension.
     // If the hash move is stronger than all others, extend the search.
     if (hashMoveFound && ttDepth >= depth - 3
-                        && depth >= singularDepth
+                        && depth >= 7
                         && ttType != EntryType::UPPERBOUND
                         && isPV
-                        && singularSearchOk
                         && abs(ttEval) < INF/2 - 100) {
 
         int bestSEval = -INF;
-        int sBeta = ttEval - 2 * depth;
+        int sBeta = ttEval - 2 * depth; 
 
         for (int i = 0; i < moves.size(); i++) {
             
@@ -656,16 +651,15 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             board.makeMove(moves[i].first);
 
             NodeInfo childNodeInfo = {ply + 1, 
-                                        leftMost, 
-                                        false, // turn off NMP for singular search
-                                        false, // turn off singular search for this path
+                                        false, 
+                                        false, 
                                         rootDepth,
                                         moves[i].first,
                                         NodeType::PV,
                                         threadID};
 
-            
-            int sEval = -negamax(board, (depth - 1)/2, -sBeta, -sBeta + 1, PV, childNodeInfo);
+
+            int sEval = -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo);
             evalAdjust(sEval);
 
             subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -676,8 +670,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
         
         if (bestSEval < sBeta) { 
-            extensions++; // singular extension
-        }
+            extensions++; 
+        } 
     }
 
     if (board.inCheck()) {
@@ -687,7 +681,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         extensions++;
     }
     
-    extensions = std::clamp(extensions, 0, 1); // limit extensions to 2
+    extensions = std::clamp(extensions, 0, 2); // limit extensions to 2 per ply
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -710,7 +704,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lrm(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, rootDepth * 2 - ply - 1);
 
         // common conditions for pruning
         bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
@@ -750,7 +744,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         NodeInfo childNodeInfo = {ply + 1, 
                                 leftMost, 
                                 nmpOk,
-                                singularSearchOk,
                                 rootDepth,
                                 move,
                                 NodeType::PV,
@@ -1037,7 +1030,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             currentBestEval = -INF;
 
             #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < 6 * moves.size(); i++) {
+            for (int i = 0; i < 5 * moves.size(); i++) {
 
                 if (stopNow) continue; // Check if the time limit has been exceeded
                 
@@ -1056,7 +1049,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 NodeInfo childNodeInfo = {1, // ply of child node
                                         leftMost, // left most flag
                                         true, // NMP ok
-                                        true, // singular search ok
                                         nextDepth, // root depth
                                         move, 
                                         NodeType::PV, // root node is always a PV node

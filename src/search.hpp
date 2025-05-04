@@ -50,7 +50,6 @@ struct NodeInfo {
     int ply;
     bool leftMost;
     bool nmpOk; // flag to signal if nmp is allowed
-    bool singularSearchOk; // flag to signal if singular search is allowed
     int rootDepth; // maximum depth to search from the root
 
     Move lastMove;
