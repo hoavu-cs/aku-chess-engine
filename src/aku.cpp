@@ -142,16 +142,15 @@ void extractFiles() {
 /*--------------------------------------------------------------------------------------------- 
     Global parameters for the engine.
 ----------------------------------------------------------------------------------------------*/
-
-
 int rfpDepth = 4;
 int rfpC0 = 512;
 int rfpC1 = 32;
 
-int singularDepth = 5;
+int singularDepth = 7;
 
 int lmpDepth = 6;
 int lmpC0 = 8;
+
 
 int fpDepth = 6;
 int fpC0 = 256;
