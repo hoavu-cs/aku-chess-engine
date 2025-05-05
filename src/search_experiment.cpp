@@ -606,45 +606,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         depth = depth - 1;
     }
 
-    // Singular extension. If the hash move is stronger than all others, extend the search.
-    if (hashMoveFound && ttDepth >= depth - 3
-                        && depth >= singularDepth
-                        && ttType != EntryType::UPPERBOUND
-                        && isPV
-                        && abs(ttEval) < INF/2 - 100) {
-
-        int sEval = -INF;
-        int sBeta = ttEval - 2 * depth; 
-
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i].first == ttMove) 
-                continue; 
-            
-            addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            board.makeMove(moves[i].first);
-
-            NodeInfo childNodeInfo = {ply + 1, 
-                                        false, 
-                                        false, 
-                                        rootDepth,
-                                        moves[i].first,
-                                        NodeType::PV,
-                                        threadID};
-
-
-            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
-            evalAdjust(sEval);
-
-            subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            board.unmakeMove(moves[i].first);
-
-            if (sEval >= sBeta) break;
-        }
-        
-        if (sEval < sBeta) { 
-            extensions++; 
-        } 
-    }
 
     if (board.inCheck()) {
         extensions++;
@@ -685,26 +646,26 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         // common conditions for pruning
         bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
-        bool canPrune = !inCheck && !isPawnPush && !goodHistory;
+        bool canPrune = !inCheck && !isPawnPush && !goodHistory && i > 0;
         
         // Late move pruning
         bool lmpCondition = canPrune && extensions == 0 && !isCapture && nextDepth <= lmpDepth;
         if (lmpCondition) {
-            if (i >= std::max((lmpC0 + depth * depth) / (lmpC1 + !improving), 1)) {
+            if (i >= (lmpC0 + nextDepth * nextDepth) / (lmpC1 + !improving)) {
                 continue;
             }
         }
 
         // Futility 
-        bool fpCondition = canPrune && !extensions &&  !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth && i > 0; 
+        bool fpCondition = canPrune && !extensions &&  !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth; 
         if (fpCondition) {
-            int margin = (fpC0 + fpC1 * depth + fpC2 * improving);
+            int margin = (fpC0 + fpC1 * nextDepth + fpC2 * improving);
             if (standPat + margin < alpha)
                 continue; 
         }
 
         // History pruning
-        bool hpCondition = canPrune && !isCapture && !isPV && !extensions;
+        bool hpCondition = canPrune && !isCapture && !isPV && !extensions && nextDepth <= 2;
         if (hpCondition && history[threadID][stm][moveIndex(move)] < -1000 - 2500 * nextDepth) {
             continue;
         }
