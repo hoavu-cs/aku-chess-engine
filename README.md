@@ -1,4 +1,4 @@
-This is a fun side project to test several searching algorithms; it's not an attempt at being competitive. There are certainly several silly bugs in implementation and logic.
+This is a fun side project to test several searching algorithms; it's not an attempt at being super competitive. There are certainly several silly bugs in implementation and logic.
 
 How to Play with the Engine in a GUI: you can use any UCI-compatible GUI such as CuteChess, PyChess, etc., and add the engine to the GUI program.  
 
