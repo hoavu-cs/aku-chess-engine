@@ -86,7 +86,6 @@ struct LockedTableEntry {
     TableEntry entry;
 };
 
-
 // Helper function declarations
 void precomputeLMR(int maxDepth, int maxI);
 bool tableLookUp(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);

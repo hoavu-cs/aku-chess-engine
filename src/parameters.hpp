@@ -9,8 +9,7 @@ extern int rfpC1;
 extern int lmpDepth;
 extern int lmpC0;
 extern int lmpC1;
-extern int lmpC2;
-extern int lmpC3;
+
 
 extern int fpDepth;
 extern int fpC0;

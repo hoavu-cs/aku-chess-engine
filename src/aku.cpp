@@ -137,20 +137,20 @@ void extractFiles() {
 }
 
 // Global variables for engine parameters
-int rfpDepth = 4;
-int rfpC0 = 150;
-int rfpC1 = 100;
+int rfpDepth = 6;
+int rfpC0 = 143;
+int rfpC1 = 80;
 
 int singularDepth = 8;
 
-int lmpDepth = 5;
-int lmpC0 = 5;
+int lmpDepth = 7;
+int lmpC0 = 8;
 int lmpC1 = 1;
 
-int fpDepth = 4;
-int fpC0 = 70;
-int fpC1 = 80;
-int fpC2 = 100;
+int fpDepth = 2;
+int fpC0 = 49;
+int fpC1 = 93;
+int fpC2 = 53;
 
 int maxHistory = 18612;
 int maxCaptureHistory = 6562;
@@ -159,7 +159,6 @@ float lmrC0 = 0.75f;
 float lmrC1 = 0.45f; 
 
 int maxExtensions = 3;
-
 
 // Global variables for engine options
 int numThreads = 8;
@@ -278,9 +277,9 @@ void processSetOption(const std::vector<std::string>& tokens) {
     // else if (optionName == "lmpDepth") lmpDepth = std::stoi(value);
     // else if (optionName == "lmpC0") lmpC0 = std::stoi(value);
 
-    // else if (optionName == "fpDepth") fpDepth = std::stoi(value);
-    // else if (optionName == "fpC0") fpC0 = std::stoi(value);
-    // else if (optionName == "fpC1") fpC1 = std::stoi(value);
+    else if (optionName == "fpDepth") fpDepth = std::stoi(value);
+    else if (optionName == "fpC0") fpC0 = std::stoi(value);
+    else if (optionName == "fpC1") fpC1 = std::stoi(value);
 
     // else if (optionName == "maxHistory") maxHistory = std::stoi(value);
     // else if (optionName == "maxCaptureHistory") maxCaptureHistory = std::stoi(value);
@@ -397,20 +396,19 @@ void processUci() {
 
 
     // For automated tuning. Do not touch from UCI GUI/App.
-
-    // std::cout << "option name rfpDepth type spin default 4 min 2 max 20" << std::endl;
-    // std::cout << "option name rfpC0 type spin default 512 min 1 max 1000" << std::endl;
-    // std::cout << "option name rfpC1 type spin default 32 min 1 max 1000" << std::endl;
+    // std::cout << "option name rfpDepth type spin default 4 min 1 max 20" << std::endl;
+    // std::cout << "option name rfpC0 type spin default 150 min 1 max 1000" << std::endl;
+    // std::cout << "option name rfpC1 type spin default 100 min 1 max 1000" << std::endl;
     
     // std::cout << "option name singularDepth type spin default 5 min 2 max 20" << std::endl;
     
-    // std::cout << "option name lmpDepth type spin default 6 min 2 max 16" << std::endl;
-    // std::cout << "option name lmpC0 type spin default 8 min 1 max 100" << std::endl;
+    std::cout << "option name lmpDepth type spin default 5 min 1 max 15" << std::endl;
+    std::cout << "option name lmpC0 type spin default 8 min 1 max 15" << std::endl;
     
-    // std::cout << "option name fpDepth type spin default 6 min 1 max 20" << std::endl;
-    // std::cout << "option name fpC0 type spin default 256 min 1 max 1000" << std::endl;
-    // std::cout << "option name fpC1 type spin default 512 min 1 max 1000" << std::endl;
-    // std::cout << "option name fpC2 type spin default 32 min 1 max 1000" << std::endl;
+    std::cout << "option name fpDepth type spin default 6 min 1 max 20" << std::endl;
+    std::cout << "option name fpC0 type spin default 256 min 1 max 1000" << std::endl;
+    std::cout << "option name fpC1 type spin default 512 min 1 max 1000" << std::endl;
+    std::cout << "option name fpC2 type spin default 32 min 1 max 1000" << std::endl;
     
     // std::cout << "option name maxHistory type spin default 18612 min 1000 max 50000" << std::endl;
     // std::cout << "option name maxCaptureHistory type spin default 6562 min 1000 max 50000" << std::endl;
