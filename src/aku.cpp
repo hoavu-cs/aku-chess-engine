@@ -135,29 +135,6 @@ void extractFiles() {
     }
 }
 
-// Global variables for engine parameters
-// int rfpDepth = 2;
-// int rfpC0 = 150;
-// int rfpC1 = 80;
-
-// int singularDepth = 7;
-
-// int lmpDepth = 2;
-// int lmpC0 = 10;
-// int lmpC1 = 1;
-
-// int fpDepth = 2;
-// int fpC0 = 50;
-// int fpC1 = 100;
-// int fpC2 = 50;
-
-// int maxHistory = 18612;
-// int maxCaptureHistory = 6562;
-
-float lmrC0 = 0.75f; 
-float lmrC1 = 0.45f; 
-
-int maxExtensions = 3;
 
 // Global variables for engine options
 int numThreads = 8;
