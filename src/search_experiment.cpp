@@ -21,44 +21,51 @@
 
 using namespace chess;
 
+// Aliases, constants, and engine parameters
 typedef std::uint64_t U64;
 const int maxThreadsID = 50; 
-
+int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
+int globalMaxDepth = 0; // Maximum depth of current search
+int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 
 // Initalize NNUE
 Network nnue;
+std::vector<Accumulator> wAccumulator (maxThreadsID);
+std::vector<Accumulator> bAccumulator (maxThreadsID);
+
+// Timer and statistics
+std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; 
+std::vector<U64> nodeCount (maxThreadsID); // Node count for each thread
+std::vector<U64> tableHit (maxThreadsID); // Table hit count for each thread
 
 void initializeNNUE(std::string path) {
     std::cout << "Initializing NNUE from: " << path << std::endl;
     loadNetwork(path, nnue);
 }
 
-std::vector<Accumulator> wAccumulator (maxThreadsID);
-std::vector<Accumulator> bAccumulator (maxThreadsID);
+// Search helpers
+std::vector<Move> rootMoves (2 * ENGINE_DEPTH + 1, Move()); // Top move considered at the root
+std::vector<Move> previousPV; // Principal variation from the previous iteration
+std::vector<std::vector<std::vector<int>>> history(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
+std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
-// Precompute the LMR table
+// Inspired by Glaurung: A "success" is counted when a quiet move causes a beta cutoff.
+// A "failure" is counted when the move is tried but fails to cause a cutoff, and a later move in the list does cause one.
+std::vector<std::vector<std::vector<int>>> success(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
+std::vector<std::vector<std::vector<int>>> failure(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
+
+// Evaluations along the current path
+std::vector<std::vector<int>> staticEval(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
+//std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<Move>(ENGINE_DEPTH + 1, 0));
+
+// Killer moves for each thread and ply
+std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std::vector<Move>> 
+    (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
+
+// LMR table
 std::vector<std::vector<int>> lmrTable; 
 
-void precomputeLMR(int maxDepth, int maxI) {
-    static bool isPrecomputed = false;
-    if (isPrecomputed) return;
-
-    lmrTable.resize(100 + 1, std::vector<int>(maxI + 1));
-
-    for (int depth = maxDepth; depth >= 1; --depth) {
-        for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(lmrC0 + lmrC1 * log(depth) * log(i));
-        }
-    }
-
-    isPrecomputed = true;
-}
-
-// Transposition table lookup and insert.
-int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
-int globalMaxDepth = 0; // Maximum depth of current search
-int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
-
+// tt entry definition
 enum EntryType {
     EXACT,
     LOWERBOUND,
@@ -78,6 +85,34 @@ struct LockedTableEntry {
     std::mutex mtx;
     TableEntry entry;
 };
+
+
+// Helper function declarations
+void precomputeLMR(int maxDepth, int maxI);
+bool tableLookUp(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
+void tableInsert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
+inline void updateKillerMoves(const Move&, int, int);
+int iterativeSEE(Board&, Move, int);
+int lateMoveReduction(Board&, Move, int, int, int, bool, int);
+std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
+int quiescence(Board&, int, int, int, int);
+
+
+void precomputeLMR(int maxDepth, int maxI) {
+    static bool isPrecomputed = false;
+    if (isPrecomputed) return;
+
+    lmrTable.resize(100 + 1, std::vector<int>(maxI + 1));
+
+    for (int depth = maxDepth; depth >= 1; --depth) {
+        for (int i = maxI; i >= 1; --i) {
+            lmrTable[depth][i] =  static_cast<int>(lmrC0 + lmrC1 * log(depth) * log(i));
+        }
+    }
+
+    isPrecomputed = true;
+}
+
 
 std::vector<LockedTableEntry> ttTable(tableSize); 
 
@@ -125,40 +160,6 @@ void tableInsert(Board& board,
     std::lock_guard<std::mutex> lock(lockedEntry.mtx); 
     lockedEntry.entry = {hash, eval, depth, pv, bestMove, type}; 
 }
-
-// Other global variables.
-std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; 
-std::vector<Move> rootMoves (2 * ENGINE_DEPTH + 1, Move());
-
-std::vector<U64> nodeCount (maxThreadsID); // Node count for each thread
-std::vector<U64> tableHit (maxThreadsID); // Table hit count for each thread
-std::vector<Move> previousPV; // Principal variation from the previous iteration
-
-// Killer moves for each thread and ply
-std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std::vector<Move>> 
-    (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
-
-// Mate killer moves
-std::vector<std::vector<std::vector<Move>>> mateKiller(maxThreadsID, std::vector<std::vector<Move>> 
-    (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE)));
-
-// History table for move ordering (threadID, side to move, move index)
-std::vector<std::vector<std::vector<int>>> history(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
-
-// Inspired by Glaurung:
-// We avoid pruning quiet moves that have more historical successes than failures.
-// - A "success" is counted when a quiet move causes a beta cutoff.
-// - A "failure" is counted when the move is tried but fails to cause a cutoff,
-//   and a later move in the list does cause one.
-std::vector<std::vector<std::vector<int>>> success(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
-std::vector<std::vector<std::vector<int>>> failure(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
-
-std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
-
-//std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<Move>(ENGINE_DEPTH + 1, 0));
-
-// Evaluations along the current path
-std::vector<std::vector<int>> staticEval(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
 // Update killer moves 
 inline void updateKillerMoves(const Move& move, int ply, int threadID) {
@@ -243,7 +244,6 @@ int lateMoveReduction(Board& board,
         bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]);
         bool isCapture = board.isCapture(move);
         bool isKiller = std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end();
-        bool isMateKiller = std::find(mateKiller[threadID][ply].begin(), mateKiller[threadID][ply].end(), move) != mateKiller[threadID][ply].end();
         
         int R = lmrTable[depth][i];
         int ttEval, ttDepth, historyScore = history[threadID][stm][moveIndex(move)];
@@ -252,7 +252,7 @@ int lateMoveReduction(Board& board,
         Move ttMove;
         
         if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) pastPV = ttIsPV;
-        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV || isMateKiller) R--;
+        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV) R--;
         if (historyScore < -8000) R++;
         return std::min(depth - R, depth - 1);
     }
@@ -321,8 +321,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 4000 + victimValue + score;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000;
-        } else if (std::find(mateKiller[threadID][ply].begin(), mateKiller[threadID][ply].end(), move) != mateKiller[threadID][ply].end()) {
-            priority = 16000; 
         } else {
             secondary = true;
             U64 mvIndex = moveIndex(move);
@@ -541,12 +539,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     staticEval[threadID][ply] = standPat; // store the evaluation along the path
-    
-
-    
     bool hashMoveFound = false;
     killer[threadID][ply + 1] = {Move::NO_MOVE, Move::NO_MOVE}; 
-    mateKiller[threadID][ply + 1] = {Move::NO_MOVE};
     
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, 
                                                         ply, 
@@ -603,7 +597,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             return beta - 1;
         }
     }
-
 
     int bestEval = -INF;
     int extensions = 0;
@@ -684,6 +677,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
+        // If this is a cut node and there is no extension, we can reduce the depth by 1.
         if (nodeType == NodeType::CUT && !extensions && i > 1) {
             nextDepth--;
         } 
@@ -794,10 +788,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
-
-        if (eval > INF/2 - 5) {
-            mateKiller[threadID][ply] = {move};
-        }
 
         // Beta cutoff.
         if (beta <= alpha) {
@@ -941,7 +931,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {
             killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
-            mateKiller[i][j] = {Move::NO_MOVE};
         }
 
         nodeCount[i] = 0;

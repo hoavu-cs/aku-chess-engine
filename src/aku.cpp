@@ -46,10 +46,7 @@ const std::string ENGINE_NAME = "Aku Chess Engine";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 
-/*-------------------------------------------------------------------------------------------- 
-    Initialize endgame tablebases.
---------------------------------------------------------------------------------------------*/
-
+// Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
     #include <windows.h>
 #elif __APPLE__
@@ -139,9 +136,7 @@ void extractFiles() {
     }
 }
 
-/*--------------------------------------------------------------------------------------------- 
-    Global parameters for the engine.
-----------------------------------------------------------------------------------------------*/
+// Global variables for engine parameters
 int rfpDepth = 4;
 int rfpC0 = 150;
 int rfpC1 = 100;
@@ -151,7 +146,6 @@ int singularDepth = 8;
 int lmpDepth = 5;
 int lmpC0 = 10;
 int lmpC1 = 1;
-
 
 int fpDepth = 4;
 int fpC0 = 70;
@@ -167,12 +161,11 @@ float lmrC1 = 0.45f;
 int maxExtensions = 3;
 
 
-/*-------------------------------------------------------------------------------------------- 
-    Global variables
--------------------------------------------------------------------------------------------- */
+// Global variables for engine options
 int numThreads = 8;
 int depth = 50;
 bool chess960 = false;
+bool internalOpening = true;
 
 std::string getBookMove(Board& board) {
     std::vector<std::string> possibleMoves;
@@ -214,10 +207,8 @@ std::string getBookMove(Board& board) {
 // Global Board State
 Board board;
 
-/**
- * Parses the "position" command and updates the board state.
- * @param command The full position command received from the GUI.
- */
+
+// Parses the "position" command and updates the board state.
 void processPosition(const std::string& command) {
 
     std::istringstream iss(command);
@@ -256,10 +247,8 @@ void processPosition(const std::string& command) {
     }
 }
 
-/*--------------------------------------------------------------------------------
-    * Processes the "setoption" command and updates the engine options.
-    * @param command The full setoption command received from the GUI.   
----------------------------------------------------------------------------------*/
+
+// Processes the "setoption" command and updates the engine options.
 void processSetOption(const std::vector<std::string>& tokens) {
 
     std::string optionName = tokens[2];
@@ -275,31 +264,31 @@ void processSetOption(const std::vector<std::string>& tokens) {
     } else if (optionName == "UCI_Chess960") {
         chess960 = (value == "true");
         board.set960(chess960);
-    } 
+    } else if (optionName == "Internal_Opening_Book") {
+        internalOpening = (value == "true");
+    }
     
     // These are for automated tuning. Do not touch from UCI GUI/App.
+    // else if (optionName == "rfpDepth") rfpDepth = std::stoi(value);
+    // else if (optionName == "rfpC0") rfpC0 = std::stoi(value);
+    // else if (optionName == "rfpC1") rfpC1 = std::stoi(value);
 
+    // else if (optionName == "singularDepth") singularDepth = std::stoi(value);
 
-    else if (optionName == "rfpDepth") rfpDepth = std::stoi(value);
-    else if (optionName == "rfpC0") rfpC0 = std::stoi(value);
-    else if (optionName == "rfpC1") rfpC1 = std::stoi(value);
+    // else if (optionName == "lmpDepth") lmpDepth = std::stoi(value);
+    // else if (optionName == "lmpC0") lmpC0 = std::stoi(value);
 
-    else if (optionName == "singularDepth") singularDepth = std::stoi(value);
+    // else if (optionName == "fpDepth") fpDepth = std::stoi(value);
+    // else if (optionName == "fpC0") fpC0 = std::stoi(value);
+    // else if (optionName == "fpC1") fpC1 = std::stoi(value);
 
-    else if (optionName == "lmpDepth") lmpDepth = std::stoi(value);
-    else if (optionName == "lmpC0") lmpC0 = std::stoi(value);
+    // else if (optionName == "maxHistory") maxHistory = std::stoi(value);
+    // else if (optionName == "maxCaptureHistory") maxCaptureHistory = std::stoi(value);
 
-    else if (optionName == "fpDepth") fpDepth = std::stoi(value);
-    else if (optionName == "fpC0") fpC0 = std::stoi(value);
-    else if (optionName == "fpC1") fpC1 = std::stoi(value);
+    // else if (optionName == "lmrC0") lmrC0 = std::stoi(value) / 100.0f;
+    // else if (optionName == "lmrC1") lmrC1 = std::stoi(value) / 100.0f;
 
-    else if (optionName == "maxHistory") maxHistory = std::stoi(value);
-    else if (optionName == "maxCaptureHistory") maxCaptureHistory = std::stoi(value);
-
-    else if (optionName == "lmrC0") lmrC0 = std::stoi(value) / 100.0f;
-    else if (optionName == "lmrC1") lmrC1 = std::stoi(value) / 100.0f;
-
-    else if (optionName == "maxExtensions") maxExtensions = std::stoi(value);
+    // else if (optionName == "maxExtensions") maxExtensions = std::stoi(value);
 
    
     
@@ -309,9 +298,8 @@ void processSetOption(const std::vector<std::string>& tokens) {
 }
 
 
-/**
- * Processes the "go" command and finds the best move.
- */
+
+// Processes the "go" command and finds the best move.
 void processGo(const std::vector<std::string>& tokens) {
 
     // Default settings
@@ -322,21 +310,21 @@ void processGo(const std::vector<std::string>& tokens) {
     Move bestMove = Move::NO_MOVE;
 
     // Opening book
-    std::string bookMove = getBookMove(board);
-    if (!bookMove.empty()) {
-        Move moveObj = uci::uciToMove(board, bookMove);
-        board.makeMove(moveObj);
-        std::cout << "info depth 0 score cp 0 nodes 0 time 0 pv " << bookMove << std::endl;
-        std::cout << "bestmove " << bookMove << std::endl;
-        return;
+    if (internalOpening) {
+        std::string bookMove = getBookMove(board);
+        if (!bookMove.empty()) {
+            Move moveObj = uci::uciToMove(board, bookMove);
+            board.makeMove(moveObj);
+            std::cout << "info depth 0 score cp 0 nodes 0 time 0 pv " << bookMove << std::endl;
+            std::cout << "bestmove " << bookMove << std::endl;
+            return;
+        }
     }
 
-    /*--------------------------------------------------------------
-    Time control:
-    Option 1: movetime <x>
-    Option 2: wtime <x> btime <x> winc <x> binc <x> movestogo <x>
-    ---------------------------------------------------------------*/
 
+    // Time control:
+    // Option 1: movetime <x>
+    // Option 2: wtime <x> btime <x> winc <x> binc <x> movestogo <x>
     int wtime = 0, btime = 0, winc = 0, binc = 0, movestogo = 0, movetime = 0;
     for (size_t i = 1; i < tokens.size(); ++i) {
         if (tokens[i] == "wtime" && i + 1 < tokens.size()) {
@@ -396,9 +384,8 @@ void processGo(const std::vector<std::string>& tokens) {
     }
 }
 
-/**
- * Handles the "uci" command and sends engine information.
- */
+
+// Handles the "uci" command and sends engine information
 void processUci() {
     std::cout << "id name " << ENGINE_NAME << std::endl;
     std::cout << "id author " << ENGINE_AUTHOR << std::endl;
@@ -406,38 +393,38 @@ void processUci() {
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
     std::cout << "option name Hash type spin default 256 min 128 max 1024" << std::endl;
     std::cout << "option name UCI_Chess960 type check default false" << std::endl;
+    std::cout << "option name Internal_Opening_Book type check default true" << std::endl;
 
 
     // For automated tuning. Do not touch from UCI GUI/App.
 
-    std::cout << "option name rfpDepth type spin default 4 min 2 max 20" << std::endl;
-    std::cout << "option name rfpC0 type spin default 512 min 1 max 1000" << std::endl;
-    std::cout << "option name rfpC1 type spin default 32 min 1 max 1000" << std::endl;
+    // std::cout << "option name rfpDepth type spin default 4 min 2 max 20" << std::endl;
+    // std::cout << "option name rfpC0 type spin default 512 min 1 max 1000" << std::endl;
+    // std::cout << "option name rfpC1 type spin default 32 min 1 max 1000" << std::endl;
     
-    std::cout << "option name singularDepth type spin default 5 min 2 max 20" << std::endl;
+    // std::cout << "option name singularDepth type spin default 5 min 2 max 20" << std::endl;
     
-    std::cout << "option name lmpDepth type spin default 6 min 2 max 16" << std::endl;
-    std::cout << "option name lmpC0 type spin default 8 min 1 max 100" << std::endl;
+    // std::cout << "option name lmpDepth type spin default 6 min 2 max 16" << std::endl;
+    // std::cout << "option name lmpC0 type spin default 8 min 1 max 100" << std::endl;
     
-    std::cout << "option name fpDepth type spin default 6 min 1 max 20" << std::endl;
-    std::cout << "option name fpC0 type spin default 256 min 1 max 1000" << std::endl;
-    std::cout << "option name fpC1 type spin default 512 min 1 max 1000" << std::endl;
-    std::cout << "option name fpC2 type spin default 32 min 1 max 1000" << std::endl;
+    // std::cout << "option name fpDepth type spin default 6 min 1 max 20" << std::endl;
+    // std::cout << "option name fpC0 type spin default 256 min 1 max 1000" << std::endl;
+    // std::cout << "option name fpC1 type spin default 512 min 1 max 1000" << std::endl;
+    // std::cout << "option name fpC2 type spin default 32 min 1 max 1000" << std::endl;
     
-    std::cout << "option name maxHistory type spin default 18612 min 1000 max 50000" << std::endl;
-    std::cout << "option name maxCaptureHistory type spin default 6562 min 1000 max 50000" << std::endl;
+    // std::cout << "option name maxHistory type spin default 18612 min 1000 max 50000" << std::endl;
+    // std::cout << "option name maxCaptureHistory type spin default 6562 min 1000 max 50000" << std::endl;
     
-    std::cout << "option name lmrC0 type spin default 75 min 10 max 90" << std::endl;
-    std::cout << "option name lmrC1 type spin default 45 min 10 max 90" << std::endl;
+    // std::cout << "option name lmrC0 type spin default 75 min 10 max 90" << std::endl;
+    // std::cout << "option name lmrC1 type spin default 45 min 10 max 90" << std::endl;
 
-    std::cout << "option name maxExtensions type spin default 4 min 1 max 20" << std::endl;
+    // std::cout << "option name maxExtensions type spin default 4 min 1 max 20" << std::endl;
 
     std::cout << "uciok" << std::endl;
 }
 
-/**
- * Main UCI loop to process commands from the GUI.
- */
+
+// Main UCI loop to process commands from the GUI.
 void uciLoop() {
     std::string line;
     
@@ -484,6 +471,5 @@ int main() {
     syzygy::initializeSyzygy(egTablePath);
 
     uciLoop();
-
     return 0;
 }
