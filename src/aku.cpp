@@ -144,7 +144,7 @@ int rfpC1 = 100;
 int singularDepth = 8;
 
 int lmpDepth = 5;
-int lmpC0 = 10;
+int lmpC0 = 5;
 int lmpC1 = 1;
 
 int fpDepth = 4;

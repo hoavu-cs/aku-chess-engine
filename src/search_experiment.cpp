@@ -237,8 +237,9 @@ int lateMoveReduction(Board& board,
     }
 
     bool stm = board.sideToMove() == Color::WHITE;
+    bool isPromThreat = promotionThreat(board, move);
 
-    if (i <= 1 || depth <= 3) {
+    if (i <= 2 || depth <= 3 || isPromThreat) {
         return depth - 1;
     } else {
         bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]);
@@ -408,7 +409,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
 
     for (const auto& move : moves) {
         int seeScore = iterativeSEE(board, move, threadID);
-        if (seeScore < 0) continue; // Skip moves that are losing captures
         candidateMoves.push_back({move, seeScore});
     }
 
@@ -682,7 +682,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             nextDepth--;
         } 
 
-        nextDepth = std::min(nextDepth + extensions, (rootDepth + 3) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
@@ -984,8 +984,8 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         bool hashMoveFound = false;
 
         bool stopNow = false;
-        int alpha = (depth > 6) ? evals[depth - 1] - 100 : -INF;
-        int beta  = (depth > 6) ? evals[depth - 1] + 100 : INF;
+        int alpha = (depth > 6) ? evals[depth - 1] - 150 : -INF;
+        int beta  = (depth > 6) ? evals[depth - 1] + 150 : INF;
 
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
