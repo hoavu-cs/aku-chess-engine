@@ -1,25 +1,18 @@
 This is just a fun side project that I'm playing (to test several searching algorithms); it's not an attempt at being competitive.
 
-# How to Play with the Engine in a GUI
-To play on a GUI, you can use any UCI-compatible GUI such as CuteChess, PyChess, etc., and add the engine to the GUI program.  
+How to Play with the Engine in a GUI: you can use any UCI-compatible GUI such as CuteChess, PyChess, etc., and add the engine to the GUI program.  
 
-
-## Strength and Performance
-The engine currently plays rapid chess at an estimated **~3100-3400 ELO** (subject to further testing). The main goal is to improve the strength through exploring new ideas in the search algorithm. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible). 
+The engine currently plays rapid chess at an estimated 3100-3400 ELO (subject to further testing). The main goal is to improve the strength through exploring new ideas in the search algorithm. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible). 
 
 This is a fun side project so any suggestion is welcome. 
-
-## Evaluation Method
 
 - This engine uses NNUE (Efficiently Updatable Neural Network) evaluation.  
 - The engine has its own NNUE inference implementation for the vanilla NNUE (768 -> 512)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. Currently trying larger architecture.
 - For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce).
 
-## Online Version
-
 Play online at: [Lichess](https://lichess.org/@/AkuBot)
 
-## Acknowledgements
+Acknowledgements
 
 - **Bitboard and move generation library**: [chess-library](https://github.com/Disservin/chess-library)
 - **Syzygy probe library**: [Fathom](https://github.com/jdart1/Fathom)
