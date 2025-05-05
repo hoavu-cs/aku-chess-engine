@@ -105,7 +105,7 @@ void precomputeLMR(int maxDepth, int maxI) {
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(lmrC0 + lmrC1 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.45 * log(depth) * log(i));
         }
     }
 
@@ -533,7 +533,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         hashMoveFound);
 
     // Reverse futility pruning (RFP)
-    bool rfpCondition = depth <= rfpDepth && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = depth <= 2 && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
         int rfpMargin = 330 * depth;
         if (standPat - rfpMargin > beta) {
@@ -716,6 +716,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Beta cutoff.
         if (beta <= alpha) {
             float delta = depth * depth;
+            const int maxHistory = 18000;
+            const int maxCaptureHistory = 6000;
 
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
             if (!board.isCapture(move)) {

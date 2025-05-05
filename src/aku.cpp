@@ -137,23 +137,23 @@ void extractFiles() {
 }
 
 // Global variables for engine parameters
-int rfpDepth = 2;
-int rfpC0 = 150;
-int rfpC1 = 80;
+// int rfpDepth = 2;
+// int rfpC0 = 150;
+// int rfpC1 = 80;
 
-int singularDepth = 7;
+// int singularDepth = 7;
 
-int lmpDepth = 2;
-int lmpC0 = 10;
-int lmpC1 = 1;
+// int lmpDepth = 2;
+// int lmpC0 = 10;
+// int lmpC1 = 1;
 
-int fpDepth = 2;
-int fpC0 = 50;
-int fpC1 = 100;
-int fpC2 = 50;
+// int fpDepth = 2;
+// int fpC0 = 50;
+// int fpC1 = 100;
+// int fpC2 = 50;
 
-int maxHistory = 18612;
-int maxCaptureHistory = 6562;
+// int maxHistory = 18612;
+// int maxCaptureHistory = 6562;
 
 float lmrC0 = 0.75f; 
 float lmrC1 = 0.45f; 
@@ -267,30 +267,6 @@ void processSetOption(const std::vector<std::string>& tokens) {
         internalOpening = (value == "true");
     }
     
-    // These are for automated tuning. Do not touch from UCI GUI/App.
-    // else if (optionName == "rfpDepth") rfpDepth = std::stoi(value);
-    // else if (optionName == "rfpC0") rfpC0 = std::stoi(value);
-    // else if (optionName == "rfpC1") rfpC1 = std::stoi(value);
-
-    // else if (optionName == "singularDepth") singularDepth = std::stoi(value);
-
-    // else if (optionName == "lmpDepth") lmpDepth = std::stoi(value);
-    // else if (optionName == "lmpC0") lmpC0 = std::stoi(value);
-
-    else if (optionName == "fpDepth") fpDepth = std::stoi(value);
-    else if (optionName == "fpC0") fpC0 = std::stoi(value);
-    else if (optionName == "fpC1") fpC1 = std::stoi(value);
-
-    // else if (optionName == "maxHistory") maxHistory = std::stoi(value);
-    // else if (optionName == "maxCaptureHistory") maxCaptureHistory = std::stoi(value);
-
-    // else if (optionName == "lmrC0") lmrC0 = std::stoi(value) / 100.0f;
-    // else if (optionName == "lmrC1") lmrC1 = std::stoi(value) / 100.0f;
-
-    // else if (optionName == "maxExtensions") maxExtensions = std::stoi(value);
-
-   
-    
     else {
         std::cerr << "Unknown option: " << optionName << std::endl;
     }
@@ -393,31 +369,6 @@ void processUci() {
     std::cout << "option name Hash type spin default 256 min 128 max 1024" << std::endl;
     std::cout << "option name UCI_Chess960 type check default false" << std::endl;
     std::cout << "option name Internal_Opening_Book type check default true" << std::endl;
-
-
-    // For automated tuning. Do not touch from UCI GUI/App.
-    // std::cout << "option name rfpDepth type spin default 4 min 1 max 20" << std::endl;
-    // std::cout << "option name rfpC0 type spin default 150 min 1 max 1000" << std::endl;
-    // std::cout << "option name rfpC1 type spin default 100 min 1 max 1000" << std::endl;
-    
-    // std::cout << "option name singularDepth type spin default 5 min 2 max 20" << std::endl;
-    
-    std::cout << "option name lmpDepth type spin default 5 min 1 max 15" << std::endl;
-    std::cout << "option name lmpC0 type spin default 8 min 1 max 15" << std::endl;
-    
-    std::cout << "option name fpDepth type spin default 6 min 1 max 20" << std::endl;
-    std::cout << "option name fpC0 type spin default 256 min 1 max 1000" << std::endl;
-    std::cout << "option name fpC1 type spin default 512 min 1 max 1000" << std::endl;
-    std::cout << "option name fpC2 type spin default 32 min 1 max 1000" << std::endl;
-    
-    // std::cout << "option name maxHistory type spin default 18612 min 1000 max 50000" << std::endl;
-    // std::cout << "option name maxCaptureHistory type spin default 6562 min 1000 max 50000" << std::endl;
-    
-    // std::cout << "option name lmrC0 type spin default 75 min 10 max 90" << std::endl;
-    // std::cout << "option name lmrC1 type spin default 45 min 10 max 90" << std::endl;
-
-    // std::cout << "option name maxExtensions type spin default 4 min 1 max 20" << std::endl;
-
     std::cout << "uciok" << std::endl;
 }
 
