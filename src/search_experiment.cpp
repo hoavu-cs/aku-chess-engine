@@ -602,49 +602,49 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool searchAllFlag = false;
 
     // Simplified version of IID. Reduce the depth to facilitate the search if no hash move found.
-    if (!hashMoveFound && depth >= 4 && (nodeType == NodeType::CUT || nodeType == NodeType::PV)) {
+    if (!hashMoveFound && depth >= 2 && (nodeType == NodeType::CUT || nodeType == NodeType::PV)) {
         depth = depth - 1;
     }
 
     // Singular extension. If the hash move is stronger than all others, extend the search.
-    // if (hashMoveFound && ttDepth >= depth - 3
-    //                     && depth >= singularDepth
-    //                     && ttType != EntryType::UPPERBOUND
-    //                     && isPV
-    //                     && abs(ttEval) < INF/2 - 100) {
+    if (hashMoveFound && ttDepth >= depth - 3
+                        && depth >= singularDepth
+                        && ttType != EntryType::UPPERBOUND
+                        && isPV
+                        && abs(ttEval) < INF/2 - 100) {
 
-    //     int sEval = -INF;
-    //     int sBeta = ttEval - 2 * depth; 
+        int sEval = -INF;
+        int sBeta = ttEval - 2 * depth; 
 
-    //     for (int i = 0; i < moves.size(); i++) {
-    //         if (moves[i].first == ttMove) 
-    //             continue; 
+        for (int i = 0; i < moves.size(); i++) {
+            if (moves[i].first == ttMove) 
+                continue; 
             
-    //         addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-    //         board.makeMove(moves[i].first);
+            addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            board.makeMove(moves[i].first);
 
-    //         NodeInfo childNodeInfo = {ply + 1, 
-    //                                     false, 
-    //                                     false, 
-    //                                     rootDepth,
-    //                                     moves[i].first,
-    //                                     NodeType::PV,
-    //                                     threadID};
+            NodeInfo childNodeInfo = {ply + 1, 
+                                        false, 
+                                        false, 
+                                        rootDepth,
+                                        moves[i].first,
+                                        NodeType::PV,
+                                        threadID};
 
 
-    //         sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
-    //         evalAdjust(sEval);
+            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
+            evalAdjust(sEval);
 
-    //         subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-    //         board.unmakeMove(moves[i].first);
+            subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            board.unmakeMove(moves[i].first);
 
-    //         if (sEval >= sBeta) break;
-    //     }
+            if (sEval >= sBeta) break;
+        }
         
-    //     if (sEval < sBeta) { 
-    //         extensions++; 
-    //     } 
-    // }
+        if (sEval < sBeta) { 
+            extensions++; 
+        } 
+    }
 
     if (board.inCheck()) {
         extensions++;

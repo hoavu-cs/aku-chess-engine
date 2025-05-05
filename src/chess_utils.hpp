@@ -153,6 +153,7 @@ inline bool promotionThreat(Board& board, Move move) {
             return true;
         }
     }
+    return false;
 }
 
 inline bool isMopUpPhase(Board& board) {

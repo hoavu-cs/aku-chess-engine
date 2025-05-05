@@ -137,13 +137,13 @@ void extractFiles() {
 }
 
 // Global variables for engine parameters
-int rfpDepth = 6;
+int rfpDepth = 4;
 int rfpC0 = 143;
 int rfpC1 = 80;
 
-int singularDepth = 8;
+int singularDepth = 7;
 
-int lmpDepth = 7;
+int lmpDepth = 4;
 int lmpC0 = 8;
 int lmpC1 = 1;
 
@@ -156,7 +156,7 @@ int maxHistory = 18612;
 int maxCaptureHistory = 6562;
 
 float lmrC0 = 0.75f; 
-float lmrC1 = 0.45f; 
+float lmrC1 = 0.75f; 
 
 int maxExtensions = 3;
 
