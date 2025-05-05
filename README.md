@@ -1,37 +1,17 @@
-This engine was renamed from **Donbot** to **Aku**
+This is a fun side project to test several searching algorithms; it's not an attempt at being super competitive. There are certainly several silly bugs in the implementation and logic.
 
-# How to Play with the Engine in a GUI
+How to Play with the Engine in a GUI: you can use any UCI-compatible GUI such as CuteChess, PyChess, etc., and add the engine to the GUI program.  
 
-To play on a GUI, you can use any UCI-compatible GUI such as **CuteChess**, **PyChess**, etc., and add the engine to the GUI program.  
-The binaries for **Windows** and **MacOS** can be downloaded from the [releases](https://github.com/hoavu-cs/donbot-chess-engine/releases/) or just download the repository and call "make aku" from inside the src folder.
-You can also build the code by calling "make aku" from inside the src directory. The executable will be in the bin directory.
+The engine currently plays rapid chess at an estimated 3100-3300 ELO (subject to further testing and vary greatly because I often make random changes to test new ideas). The main goal is to improve the strength through exploring new ideas in the search algorithm. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible). 
 
-A few interesting features
-- Support Windows, MacOS, and Linux.
-- Self-contained 3-4 endgame tablebases.
-- NNUE evaluation.
-- Supports chess960.
-- Lightweight < 10Mb.
-
-## Strength and Performance
-
-The engine currently plays rapid chess at an estimated **~3100-3400 ELO** (subject to further testing). The main goal is to improve the strength through exploring new ideas in the search algorithm. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible). 
-
-This is a fun side project so any suggestion is welcome. Currently, the engine is pretty strong and based on some simple techniques and NNUE evaluation. 
-
-## Evaluation Method
+This is a fun side project so any suggestion is welcome. 
 
 - This engine uses NNUE (Efficiently Updatable Neural Network) evaluation.  
-
-- The engine has its own NNUE inference implementation for the vanilla NNUE (768 -> 512)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. Currently trying larger architecture.
-
+- The engine has its NNUE inference for the vanilla NNUE (768 -> 512)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. 
 - For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce).
 
-## Online Version
 
-Play online at: [Lichess](https://lichess.org/@/AkuBot)
-
-## Acknowledgements
+Acknowledgements
 
 - **Bitboard and move generation library**: [chess-library](https://github.com/Disservin/chess-library)
 - **Syzygy probe library**: [Fathom](https://github.com/jdart1/Fathom)
