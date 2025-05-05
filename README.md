@@ -1,17 +1,10 @@
-This engine was renamed from **Donbot** to **Aku**
+This is just a fun side project.
 
 # How to Play with the Engine in a GUI
 
 To play on a GUI, you can use any UCI-compatible GUI such as **CuteChess**, **PyChess**, etc., and add the engine to the GUI program.  
 The binaries for **Windows** and **MacOS** can be downloaded from the [releases](https://github.com/hoavu-cs/donbot-chess-engine/releases/) or just download the repository and call "make aku" from inside the src folder.
 You can also build the code by calling "make aku" from inside the src directory. The executable will be in the bin directory.
-
-A few interesting features
-- Support Windows, MacOS, and Linux.
-- Self-contained 3-4 endgame tablebases.
-- NNUE evaluation.
-- Supports chess960.
-- Lightweight < 10Mb.
 
 ## Strength and Performance
 
