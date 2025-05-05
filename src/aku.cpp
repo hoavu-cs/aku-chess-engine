@@ -36,7 +36,6 @@
 #include <cstdio>  
 #include <stdexcept> 
 #include "assets.hpp"
-#include "parameters.hpp"
 #include "syzygy.hpp"
 
 using namespace chess;

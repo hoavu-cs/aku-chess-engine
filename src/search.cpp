@@ -10,9 +10,7 @@
 #include <filesystem>
 #include <mutex>
 
-#include "nnue.hpp"
-#include "parameters.hpp"
-#include "../lib/fathom/src/tbprobe.h"
+#include "nnue.hpp"#include "../lib/fathom/src/tbprobe.h"
 #include "search.hpp"
 #include "chess_utils.hpp"
 #include "utils.hpp"
@@ -91,7 +89,7 @@ void precomputeLMR(int maxDepth, int maxI);
 bool tableLookUp(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
 void tableInsert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
 inline void updateKillerMoves(const Move&, int, int);
-int iterativeSEE(Board&, Move, int);
+int see(Board&, Move, int);
 int lateMoveReduction(Board&, Move, int, int, int, bool, int);
 std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
 int quiescence(Board&, int, int, int, int);
@@ -105,7 +103,7 @@ void precomputeLMR(int maxDepth, int maxI) {
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(lmrC0 + lmrC1 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.45 * log(depth) * log(i));
         }
     }
 
@@ -167,60 +165,43 @@ inline void updateKillerMoves(const Move& move, int ply, int threadID) {
 }
 
 // Static exchange evaluation (SEE) function
-int iterativeSEE(Board& board, Move move, int threadID) {
-    int to = move.to().index();
+int see(Board& board, Move move, int threadID) {
 
+    nodeCount[threadID]++;
+    int to = move.to().index();
+    
+    // Get victim and attacker piece values
     auto victim = board.at<Piece>(move.to());
     int victimValue = pieceTypeValue(victim.type());
 
-    std::vector<int> values;
-    values.push_back(victimValue);
+    board.makeMove(move);
+    Movelist subsequentCaptures;
+    movegen::legalmoves<movegen::MoveGenType::CAPTURE>(subsequentCaptures, board);
 
-    std::vector<Move> exchangesStack;
-    exchangesStack.push_back(move);
-
-    int depth = 0;
-    Color currentSide = board.sideToMove();
-
-    Board copy = board;
-    while (!exchangesStack.empty()) {
-        Move currentMove = exchangesStack.back();
-        exchangesStack.pop_back();
-
-        copy.makeMove(currentMove); // Make the capture
-        Movelist captures;
-        movegen::legalmoves<movegen::MoveGenType::CAPTURE>(captures, copy);
-
-        std::vector<Move> nextCaptures;
-        Move bestNextCapture = Move::NO_MOVE;
-        int bestValue = INF;
-
-        for (const Move& nextCapture : captures) {
-            if (nextCapture.to().index() != to) continue; 
-            
-            int value = pieceTypeValue(copy.at<Piece>(nextCapture.from()).type());
-            if (value < bestValue) {
-                bestValue = value;
-                bestNextCapture = nextCapture;
-            }
+    int opponentGain = 0;
+    
+    // Store attackers sorted by increasing value (weakest first)
+    std::vector<Move> attackers;
+    for (int i = 0; i < subsequentCaptures.size(); i++) {
+        if (subsequentCaptures[i].to() == to) {
+            attackers.push_back(subsequentCaptures[i]);
         }
-
-        if (bestNextCapture == Move::NO_MOVE) break;
-        
-        values.push_back(bestValue);
-        exchangesStack.push_back(bestNextCapture);
     }
 
-    int n = values.size();
-    if (n == 0) return 0;
+    // Sort attackers by piece value (weakest attacker moves first)
+    std::sort(attackers.begin(), attackers.end(), [&](const Move& a, const Move& b) {
+        return pieceTypeValue(board.at<Piece>(a.from()).type()) < pieceTypeValue(board.at<Piece>(b.from()).type());
+    });
 
-    int score = values[n - 1];
-    for (int i = n - 2; i >= 0; --i) {
-        score = values[i] - std::max(0, score);
+    // Find the maximum gain for the opponent
+    for (const Move& nextCapture : attackers) {
+        opponentGain = std::max(opponentGain, see(board, nextCapture, threadID));
     }
 
-    return score;
+    board.unmakeMove(move);
+    return victimValue - opponentGain;
 }
+
 
 // Late move reduction 
 int lateMoveReduction(Board& board, 
@@ -407,7 +388,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     candidateMoves.reserve(moves.size());
 
     for (const auto& move : moves) {
-        int seeScore = iterativeSEE(board, move, threadID);
+        int seeScore = see(board, move, threadID);
         candidateMoves.push_back({move, seeScore});
     }
 
@@ -550,9 +531,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         hashMoveFound);
 
     // Reverse futility pruning (RFP)
-    bool rfpCondition = depth <= rfpDepth && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = depth <= 2 && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
-        int rfpMargin = rfpC0 * depth + rfpC1 * (!improving);
+        int rfpMargin = 330 * depth;
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
         } 
@@ -602,49 +583,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool searchAllFlag = false;
 
     // Simplified version of IID. Reduce the depth to facilitate the search if no hash move found.
-    if (!hashMoveFound && depth >= 4 && (nodeType == NodeType::CUT || nodeType == NodeType::PV)) {
+    if (!hashMoveFound && depth >= 2 && (nodeType == NodeType::CUT || nodeType == NodeType::PV)) {
         depth = depth - 1;
     }
 
-    // Singular extension. If the hash move is stronger than all others, extend the search.
-    if (hashMoveFound && ttDepth >= depth - 3
-                        && depth >= singularDepth
-                        && ttType != EntryType::UPPERBOUND
-                        && isPV
-                        && abs(ttEval) < INF/2 - 100) {
-
-        int sEval = -INF;
-        int sBeta = ttEval - 2 * depth; 
-
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i].first == ttMove) 
-                continue; 
-            
-            addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            board.makeMove(moves[i].first);
-
-            NodeInfo childNodeInfo = {ply + 1, 
-                                        false, 
-                                        false, 
-                                        rootDepth,
-                                        moves[i].first,
-                                        NodeType::PV,
-                                        threadID};
-
-
-            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
-            evalAdjust(sEval);
-
-            subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            board.unmakeMove(moves[i].first);
-
-            if (sEval >= sBeta) break;
-        }
-        
-        if (sEval < sBeta) { 
-            extensions++; 
-        } 
-    }
 
     if (board.inCheck()) {
         extensions++;
@@ -676,37 +618,18 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        // If this is a cut node and there is no extension, we can reduce the depth by 1.
-        if (nodeType == NodeType::CUT && !extensions && i > 1) {
-            nextDepth--;
-        } 
-
         nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
-        bool canPrune = !inCheck && !isPawnPush && !goodHistory;
-        
-        // Late move pruning
-        bool lmpCondition = canPrune && extensions == 0 && !isCapture && nextDepth <= lmpDepth;
-        if (lmpCondition) {
-            if (i >= std::max((lmpC0 + depth * depth) / (lmpC1 + !improving), 1)) {
-                continue;
-            }
-        }
-
+        bool canPrune = !inCheck && !isPawnPush && !goodHistory && i > 0;
+    
         // Futility 
-        bool fpCondition = canPrune && !extensions &&  !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth && i > 0; 
+        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= 2; 
         if (fpCondition) {
-            int margin = (fpC0 + fpC1 * depth + fpC2 * improving);
+            int margin = 330 * nextDepth;
             if (standPat + margin < alpha)
                 continue; 
-        }
-
-        // History pruning
-        bool hpCondition = canPrune && !isCapture && !isPV && !extensions;
-        if (hpCondition && history[threadID][stm][moveIndex(move)] < -1000 - 2500 * nextDepth) {
-            continue;
         }
 
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -791,6 +714,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Beta cutoff.
         if (beta <= alpha) {
             float delta = depth * depth;
+            const int maxHistory = 18000;
+            const int maxCaptureHistory = 6000;
 
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
             if (!board.isCapture(move)) {

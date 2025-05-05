@@ -11,7 +11,6 @@
 #include <mutex>
 
 #include "nnue.hpp"
-#include "parameters.hpp"
 #include "../lib/fathom/src/tbprobe.h"
 #include "search.hpp"
 #include "chess_utils.hpp"
