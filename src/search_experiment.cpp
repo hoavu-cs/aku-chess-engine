@@ -558,7 +558,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int R2 = seeds[threadID] % moves.size();
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = depth <= 2 && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = (depth <= 5) && (ply >= 4) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
         int rfpMargin = 300 * depth + 100 * (!improving);
         if (standPat - rfpMargin > beta) {
@@ -694,7 +694,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // Late move pruning 
-        bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 2;
+        bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 4 && ply >= 4;
         if (lmpCondition) {
             if (i >= std::max((5 + nextDepth * nextDepth) / (1 + !improving), 1)) {
                 continue;
