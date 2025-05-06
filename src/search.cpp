@@ -63,6 +63,9 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // LMR table
 std::vector<std::vector<int>> lmrTable; 
 
+// Random seeds for LMR
+std::vector<uint32_t> seeds(maxThreadsID);
+
 // tt entry definition
 enum EntryType {
     EXACT,
@@ -166,42 +169,59 @@ inline void updateKillerMoves(const Move& move, int ply, int threadID) {
 
 // Static exchange evaluation (SEE) function
 int see(Board& board, Move move, int threadID) {
-
-    nodeCount[threadID]++;
     int to = move.to().index();
-    
-    // Get victim and attacker piece values
+
     auto victim = board.at<Piece>(move.to());
     int victimValue = pieceTypeValue(victim.type());
 
-    board.makeMove(move);
-    Movelist subsequentCaptures;
-    movegen::legalmoves<movegen::MoveGenType::CAPTURE>(subsequentCaptures, board);
+    std::vector<int> values;
+    values.push_back(victimValue);
 
-    int opponentGain = 0;
-    
-    // Store attackers sorted by increasing value (weakest first)
-    std::vector<Move> attackers;
-    for (int i = 0; i < subsequentCaptures.size(); i++) {
-        if (subsequentCaptures[i].to() == to) {
-            attackers.push_back(subsequentCaptures[i]);
+    std::vector<Move> exchangesStack;
+    exchangesStack.push_back(move);
+
+    int depth = 0;
+    Color currentSide = board.sideToMove();
+
+    Board copy = board;
+    while (!exchangesStack.empty()) {
+        Move currentMove = exchangesStack.back();
+        exchangesStack.pop_back();
+
+        copy.makeMove(currentMove); // Make the capture
+        Movelist captures;
+        movegen::legalmoves<movegen::MoveGenType::CAPTURE>(captures, copy);
+
+        std::vector<Move> nextCaptures;
+        Move bestNextCapture = Move::NO_MOVE;
+        int bestValue = INF;
+
+        for (const Move& nextCapture : captures) {
+            if (nextCapture.to().index() != to) continue; 
+            
+            int value = pieceTypeValue(copy.at<Piece>(nextCapture.from()).type());
+            if (value < bestValue) {
+                bestValue = value;
+                bestNextCapture = nextCapture;
+            }
         }
+
+        if (bestNextCapture == Move::NO_MOVE) break;
+        
+        values.push_back(bestValue);
+        exchangesStack.push_back(bestNextCapture);
     }
 
-    // Sort attackers by piece value (weakest attacker moves first)
-    std::sort(attackers.begin(), attackers.end(), [&](const Move& a, const Move& b) {
-        return pieceTypeValue(board.at<Piece>(a.from()).type()) < pieceTypeValue(board.at<Piece>(b.from()).type());
-    });
+    int n = values.size();
+    if (n == 0) return 0;
 
-    // Find the maximum gain for the opponent
-    for (const Move& nextCapture : attackers) {
-        opponentGain = std::max(opponentGain, see(board, nextCapture, threadID));
+    int score = values[n - 1];
+    for (int i = n - 2; i >= 0; --i) {
+        score = values[i] - std::max(0, score);
     }
 
-    board.unmakeMove(move);
-    return victimValue - opponentGain;
+    return score;
 }
-
 
 // Late move reduction 
 int lateMoveReduction(Board& board, 
@@ -587,6 +607,42 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         depth = depth - 1;
     }
 
+    // Singular extension. If the hash move is stronger than all others, extend the search.
+    if (hashMoveFound && ttDepth >= depth - 3
+        && depth >= 7
+        && ttType != EntryType::UPPERBOUND
+        && isPV
+        && abs(ttEval) < INF/2 - 100) {
+
+        int sEval = -INF;
+        int sBeta = ttEval - 2 * depth; 
+
+        for (int i = 0; i < moves.size(); i++) {
+        if (moves[i].first == ttMove) 
+            continue; 
+
+            addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            board.makeMove(moves[i].first);
+
+            NodeInfo childNodeInfo = {ply + 1, 
+                                    false, 
+                                    false, 
+                                    rootDepth,
+                                    moves[i].first,
+                                    NodeType::PV,
+                                    threadID};
+            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
+            evalAdjust(sEval);
+
+            subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            board.unmakeMove(moves[i].first);
+            if (sEval >= sBeta) break;
+        }
+        if (sEval < sBeta) { 
+            extensions++; 
+        } 
+    }
+
 
     if (board.inCheck()) {
         extensions++;
@@ -632,6 +688,20 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue; 
         }
 
+        // Late move pruning 
+        bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 2;
+        if (lmpCondition) {
+            if (i >= std::max((5 + nextDepth * nextDepth) / (1 + !improving), 1)) {
+                continue;
+            }
+        }
+
+        // History pruning
+        bool hpCondition = canPrune && !isCapture && !isPV && !extensions && nextDepth <= 2;
+        if (hpCondition && history[threadID][stm][moveIndex(move)] < -1000 - 2500 * nextDepth) {
+            continue;
+        }
+
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.makeMove(move);
         bool nullWindow = false;
@@ -646,7 +716,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                 threadID};
 
   
-        
         // PVS: Full window for the first node. 
         // Once alpha is raised, we search with null window until alpha is raised again.
         // If alpha is raised on a null window or reduced depth, we search with full window and full depth.
@@ -860,6 +929,8 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         nodeCount[i] = 0;
         tableHit[i] = 0;
 
+        seeds[i] = rand();
+
         // Make accumulators for each thread
         makeAccumulators(board, wAccumulator[i], bAccumulator[i], nnue);
     }
@@ -922,7 +993,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             currentBestEval = -INF;
 
             #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < 5 * moves.size(); i++) {
+            for (int i = 0; i < 3 * moves.size(); i++) {
 
                 if (stopNow) continue; // Check if the time limit has been exceeded
                 
