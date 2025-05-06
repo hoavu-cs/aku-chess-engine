@@ -21,7 +21,7 @@ use bullet_lib::{
     },
 };
 
-const HIDDEN_SIZE: usize = 1024;
+const HIDDEN_SIZE: usize = 256;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -40,16 +40,16 @@ fn main() {
     //trainer.load_from_checkpoint("checkpoints/simple512_v4-40/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple1024_v2".to_string(),
+        net_id: "simple256".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
-            start_superbatch: 41,
-            end_superbatch: 350,
+            start_superbatch: 1,
+            end_superbatch: 100,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.3, step: 40 },
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 18 },
         save_rate: 10,
     };
 
