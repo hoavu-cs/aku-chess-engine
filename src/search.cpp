@@ -106,7 +106,7 @@ void precomputeLMR(int maxDepth, int maxI) {
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.45 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.55 * log(depth) * log(i));
         }
     }
 
@@ -502,10 +502,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     Move ttMove;
     EntryType ttType;
     TableEntry entry;
+    bool probCutFound = false;
 
     if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
         tableHit[threadID]++;
         if (ttDepth >= depth) found = true;
+        else if (ttDepth > depth - 3) probCutFound = true; // found a slightly shallower depth entry
     }
 
     if (found && !isPV) {
@@ -549,7 +551,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         lastMove, 
                                                         threadID,
                                                         hashMoveFound);
-
+    
+    seeds[threadID] = fastRand(seeds[threadID]); 
+    int R1 = seeds[threadID] % moves.size(); 
+    seeds[threadID] = fastRand(seeds[threadID]);
+    int R2 = seeds[threadID] % moves.size();
+    
     // Reverse futility pruning (RFP)
     bool rfpCondition = depth <= 2 && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
@@ -603,7 +610,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool searchAllFlag = false;
 
     // Simplified version of IID. Reduce the depth to facilitate the search if no hash move found.
-    if (!hashMoveFound && depth >= 2 && (nodeType == NodeType::CUT || nodeType == NodeType::PV)) {
+    if (!hashMoveFound && depth >= 4) {
         depth = depth - 1;
     }
 
@@ -695,13 +702,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue;
             }
         }
-
-        // History pruning
-        bool hpCondition = canPrune && !isCapture && !isPV && !extensions && nextDepth <= 2;
-        if (hpCondition && history[threadID][stm][moveIndex(move)] < -1000 - 2500 * nextDepth) {
-            continue;
-        }
-
+    
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.makeMove(move);
         bool nullWindow = false;

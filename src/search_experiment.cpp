@@ -502,10 +502,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     Move ttMove;
     EntryType ttType;
     TableEntry entry;
+    bool probCutFound = false;
 
     if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
         tableHit[threadID]++;
         if (ttDepth >= depth) found = true;
+        else if (ttDepth > depth - 3) probCutFound = true; // found a slightly shallower depth entry
     }
 
     if (found && !isPV) {
@@ -549,11 +551,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         lastMove, 
                                                         threadID,
                                                         hashMoveFound);
-
+    
+    seeds[threadID] = fastRand(seeds[threadID]); 
+    int R1 = seeds[threadID] % moves.size(); 
+    seeds[threadID] = fastRand(seeds[threadID]);
+    int R2 = seeds[threadID] % moves.size();
+    
     // Reverse futility pruning (RFP)
     bool rfpCondition = depth <= 2 && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
-        int rfpMargin = 330 * depth;
+        int rfpMargin = 300 * depth + 100 * (!improving);
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
         } 
@@ -574,7 +581,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             
         std::vector<Move> nullPV; // dummy PV
         int nullEval;
-        int reduction = 4;
+        int reduction = 3;
 
         NodeInfo nullNodeInfo = {ply + 1, 
                                 false, 
@@ -592,8 +599,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (nullEval >= beta) {
             return beta;
         } else if (nullEval < -INF/2 + 5) {
-            // If the null move fails low, we may be faced with a threat.
-            // Return beta - 1 to signal that we need to re-search
             return beta - 1;
         }
     }
@@ -674,7 +679,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (2 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
