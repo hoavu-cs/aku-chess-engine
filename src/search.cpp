@@ -10,7 +10,8 @@
 #include <filesystem>
 #include <mutex>
 
-#include "nnue.hpp"#include "../lib/fathom/src/tbprobe.h"
+#include "nnue.hpp"
+#include "../lib/fathom/src/tbprobe.h"
 #include "search.hpp"
 #include "chess_utils.hpp"
 #include "utils.hpp"
@@ -54,7 +55,6 @@ std::vector<std::vector<std::vector<int>>> failure(maxThreadsID, std::vector<std
 
 // Evaluations along the current path
 std::vector<std::vector<int>> staticEval(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
-//std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<Move>(ENGINE_DEPTH + 1, 0));
 
 // Killer moves for each thread and ply
 std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std::vector<Move>> 
@@ -618,13 +618,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (2 + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
         bool canPrune = !inCheck && !isPawnPush && !goodHistory && i > 0;
     
-        // Futility 
+        // Futility  pruning
         bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= 2; 
         if (fpCondition) {
             int margin = 330 * nextDepth;
