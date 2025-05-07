@@ -97,7 +97,6 @@ int lateMoveReduction(Board&, Move, int, int, int, bool, int);
 std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
 int quiescence(Board&, int, int, int, int);
 
-
 void precomputeLMR(int maxDepth, int maxI) {
     static bool isPrecomputed = false;
     if (isPrecomputed) return;
@@ -112,7 +111,6 @@ void precomputeLMR(int maxDepth, int maxI) {
 
     isPrecomputed = true;
 }
-
 
 std::vector<LockedTableEntry> ttTable(tableSize); 
 
@@ -558,9 +556,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int R2 = seeds[threadID] % moves.size();
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = depth <= 2 && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = (depth <= 4) && (ply >= 6) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
-        int rfpMargin = 330 * depth;
+        int rfpMargin = 300 * depth + 100 * (!improving);
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
         } 
@@ -581,7 +579,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             
         std::vector<Move> nullPV; // dummy PV
         int nullEval;
-        int reduction = 4;
+        int reduction = 3;
 
         NodeInfo nullNodeInfo = {ply + 1, 
                                 false, 
@@ -599,8 +597,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (nullEval >= beta) {
             return beta;
         } else if (nullEval < -INF/2 + 5) {
-            // If the null move fails low, we may be faced with a threat.
-            // Return beta - 1 to signal that we need to re-search
             return beta - 1;
         }
     }
@@ -613,43 +609,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (!hashMoveFound && depth >= 4) {
         depth = depth - 1;
     }
-
-    // Singular extension. If the hash move is stronger than all others, extend the search.
-    if (hashMoveFound && ttDepth >= depth - 3
-        && depth >= 7
-        && ttType != EntryType::UPPERBOUND
-        && isPV
-        && abs(ttEval) < INF/2 - 100) {
-
-        int sEval = -INF;
-        int sBeta = ttEval - 2 * depth; 
-
-        for (int i = 0; i < moves.size(); i++) {
-        if (moves[i].first == ttMove) 
-            continue; 
-
-            addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            board.makeMove(moves[i].first);
-
-            NodeInfo childNodeInfo = {ply + 1, 
-                                    false, 
-                                    false, 
-                                    rootDepth,
-                                    moves[i].first,
-                                    NodeType::PV,
-                                    threadID};
-            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
-            evalAdjust(sEval);
-
-            subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            board.unmakeMove(moves[i].first);
-            if (sEval >= sBeta) break;
-        }
-        if (sEval < sBeta) { 
-            extensions++; 
-        } 
-    }
-
 
     if (board.inCheck()) {
         extensions++;
@@ -688,7 +647,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool canPrune = !inCheck && !isPawnPush && !goodHistory && i > 0;
     
         // Futility  pruning
-        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= 2; 
+        bool fpCondition = canPrune && !isCapture && extensions == 0 &&!giveCheck && !isPV && nextDepth <= 2 && ply >= 4; 
         if (fpCondition) {
             int margin = 330 * nextDepth;
             if (standPat + margin < alpha)
@@ -696,9 +655,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // Late move pruning 
-        bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 2;
+        bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 2 && ply >= 6;
         if (lmpCondition) {
-            if (i >= std::max((5 + nextDepth * nextDepth) / (1 + !improving), 1)) {
+            if (i >= std::max((8 + nextDepth * nextDepth) / (1 + !improving), 1)) {
                 continue;
             }
         }
@@ -832,7 +791,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             break;
         } 
     }
-
 
     if (isPV) {
         // If the bestEval is in (alpha0, beta), then bestEval is EXACT.
