@@ -306,3 +306,4 @@ inline bool moveThreatenedPiece(const Board& board, const Move& move) {
 
     return false;
 }
+

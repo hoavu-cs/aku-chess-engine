@@ -550,13 +550,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         threadID,
                                                         hashMoveFound);
     
-    seeds[threadID] = fastRand(seeds[threadID]); 
-    int R1 = seeds[threadID] % moves.size(); 
-    seeds[threadID] = fastRand(seeds[threadID]);
-    int R2 = seeds[threadID] % moves.size();
+
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = (depth <= 4) && (ply >= 6) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = (depth <= 4) && (ply >= rootDepth / 2) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
         int rfpMargin = 300 * depth + 100 * (!improving);
         if (standPat - rfpMargin > beta) {
@@ -647,7 +644,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool canPrune = !inCheck && !isPawnPush && !goodHistory && i > 0;
     
         // Futility  pruning
-        bool fpCondition = canPrune && !isCapture && extensions == 0 &&!giveCheck && !isPV && nextDepth <= 2 && ply >= 4; 
+        bool fpCondition = canPrune && !isCapture && extensions == 0 &&!giveCheck && !isPV && nextDepth <= 2 && ply >= rootDepth / 2; 
         if (fpCondition) {
             int margin = 330 * nextDepth;
             if (standPat + margin < alpha)
@@ -655,7 +652,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // Late move pruning 
-        bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 2 && ply >= 6;
+        bool lmpCondition = canPrune && !isPV && extensions == 0  && !isCapture && nextDepth <= 2 && ply >= rootDepth / 2;
         if (lmpCondition) {
             if (i >= std::max((8 + nextDepth * nextDepth) / (1 + !improving), 1)) {
                 continue;
