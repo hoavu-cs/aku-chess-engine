@@ -556,14 +556,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int R2 = seeds[threadID] % moves.size();
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = (depth <= 4) 
-                        && !board.inCheck() 
-                        && !isPV 
-                        && !ttIsPV 
-                        && abs(beta) < 10000;
-
+    bool rfpCondition = (depth <= 4) && (ply >= 6) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
-        int rfpMargin = 300 * depth;
+        int rfpMargin = 300 * depth + 100 * (!improving);
         if (standPat - rfpMargin > beta) {
             return (standPat + beta)  / 2;
         } 
@@ -652,45 +647,20 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool canPrune = !inCheck && !isPawnPush && !goodHistory && i > 0;
     
         // Futility  pruning
-
-        // bool fpCondition = canPrune 
-        //                     && !isCapture 
-        //                     && extensions == 0 
-        //                     &&!giveCheck 
-        //                     && !isPV 
-        //                     && nextDepth <= fpDepth 
-        //                     && ply >= fpPly; 
-        // if (fpCondition) {
-        //     int margin = 330 * nextDepth;
-        //     if (standPat + margin < alpha)
-        //         continue; 
-        // }
+        bool fpCondition = canPrune && !isCapture && extensions == 0 &&!giveCheck && !isPV && nextDepth <= 2 && ply >= 4; 
+        if (fpCondition) {
+            int margin = 330 * nextDepth;
+            if (standPat + margin < alpha)
+                continue; 
+        }
 
         // Late move pruning 
-        bool lmpCondition = canPrune 
-                            && !isPV 
-                            && extensions == 0 
-                            && !isCapture;
+        bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 2 && ply >= 6;
         if (lmpCondition) {
-            if (i >= (1 + 2 * nextDepth * nextDepth) / (2 - improving)) {
+            if (i >= std::max((8 + nextDepth * nextDepth) / (1 + !improving), 1)) {
                 continue;
             }
         }
-
-        // History pruning
-        bool hpCondition = canPrune 
-                            && !isPV 
-                            && extensions == 0 
-                            && !isCapture
-                            && nextDepth <= 5
-                            && i > 2;
-        if (hpCondition) {
-            int historyScore = history[threadID][stm][moveIndex(move)];
-            if (historyScore < 500 + 100 * nextDepth * nextDepth) {
-                continue;
-            }
-        }
-
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.makeMove(move);
@@ -773,8 +743,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Beta cutoff.
         if (beta <= alpha) {
             float delta = depth * depth;
-            const int maxHistory = 16384;
-            const int maxCaptureHistory = 1024;
+            const int maxHistory = 18000;
+            const int maxCaptureHistory = 6000;
 
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
             if (!board.isCapture(move)) {
