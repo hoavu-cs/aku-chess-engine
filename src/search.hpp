@@ -37,7 +37,6 @@ extern int tableSize; // Maximum size of the transposition table
 
 struct NodeInfo {
     int ply;
-    bool leftMost;
     bool nmpOk; // flag to signal if nmp is allowed
     int rootDepth; // maximum depth to search from the root
     Move lastMove;

@@ -22,7 +22,7 @@ using namespace chess;
 
 // Aliases, constants, and engine parameters
 typedef std::uint64_t U64;
-const int maxThreadsID = 50; 
+const int maxThreadsID = 12; 
 int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
 int globalMaxDepth = 0; // Maximum depth of current search
 int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
@@ -45,7 +45,29 @@ void initializeNNUE(std::string path) {
 // Search helpers
 std::vector<Move> rootMoves (2 * ENGINE_DEPTH + 1, Move()); // Top move considered at the root
 std::vector<Move> previousPV; // Principal variation from the previous iteration
+
 std::vector<std::vector<std::vector<int>>> history(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
+
+
+// Continuation history (thread, stm, piece, prevTo, currPiece, currTo)
+// std::vector<std::vector<std::vector<std::vector<std::vector<std::vector<int>>>>>> contHistory(
+//     maxThreadsID,
+//     std::vector<std::vector<std::vector<std::vector<std::vector<int>>>>>(
+//         2,      // side to move: White / Black
+//         std::vector<std::vector<std::vector<std::vector<int>>>>(
+//             6,  // prevPiece
+//             std::vector<std::vector<std::vector<int>>>(
+//                 64,  // prevTo
+//                 std::vector<std::vector<int>>(
+//                     6,  // currPiece
+//                     std::vector<int>(64, 0) // currTo
+//                 )
+//             )
+//         )
+//     )
+// );
+
+
 std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Inspired by Glaurung: A "success" is counted when a quiet move causes a beta cutoff.
@@ -262,7 +284,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
     Board& board, 
     int ply,
     std::vector<Move>& previousPV, 
-    bool leftMost,
     Move lastMove,
     int threadID,
     bool& hashMoveFound) {
@@ -306,12 +327,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
       
         if (hashMove) continue;
         
-        if (previousPV.size() > ply && leftMost) {
-            if (previousPV[ply] == move) {
-                priority = 20000; // PV move
-                hashMoveFound = true;
-            }
-        } else if (isPromotion(move)) {
+        if (isPromotion(move)) {
             priority = 16000; 
         } else if (board.isCapture(move)) { 
             int victimValue = pieceTypeValue(board.at<Piece>(move.to()).type());
@@ -444,9 +460,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     int threadID = nodeInfo.threadID;
-    bool leftMost = nodeInfo.leftMost;
     int ply = nodeInfo.ply;
     int rootDepth = nodeInfo.rootDepth;
+
+    std::vector<Move> badQuiets; // quiet moves that fail to raise alpha
+    std::vector<Move> badCaptures; // bad tacticals (captures/promos) that fail to raise alpha
 
     // Extract whether we can do singular search and NMP
     bool nmpOk = nodeInfo.nmpOk;
@@ -545,7 +563,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, 
                                                         ply, 
                                                         previousPV, 
-                                                        leftMost, 
                                                         lastMove, 
                                                         threadID,
                                                         hashMoveFound);
@@ -556,19 +573,18 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int R2 = seeds[threadID] % moves.size();
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = (depth <= 4) && (ply >= 6) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = (depth <= 9) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
-        int rfpMargin = 300 * depth + 100 * (!improving);
-        if (standPat - rfpMargin > beta) {
-            return (standPat + beta)  / 2;
-        } 
-    } 
+        int rfpMargin = 100 + 50 * depth + 100 * (1 - improving);
+        if (standPat >= beta + rfpMargin) {
+            return (standPat + beta) / 2;
+        }
+    }
 
     // Null move pruning. Side to move must have non-pawn material.
     const int nullDepth = 4; 
     bool nmpCondition = (depth >= nullDepth 
         && nonPawnMaterial(board) 
-        && !leftMost 
         && !board.inCheck() 
         && !mopUp 
         && !isPV
@@ -582,7 +598,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int reduction = 3;
 
         NodeInfo nullNodeInfo = {ply + 1, 
-                                false, 
                                 false, 
                                 rootDepth,
                                 Move::NULL_MOVE,
@@ -636,28 +651,29 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool giveCheck = board.inCheck();
         board.unmakeMove(move);
 
-        if (i > 0) leftMost = false;
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (2 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool goodHistory = success[threadID][stm][moveIndex(move)] >= failure[threadID][stm][moveIndex(move)];
         bool canPrune = !inCheck && !isPawnPush && !goodHistory && i > 0;
     
         // Futility  pruning
-        bool fpCondition = canPrune && !isCapture && extensions == 0 &&!giveCheck && !isPV && nextDepth <= 2 && ply >= 4; 
+        bool fpCondition = canPrune && !isCapture && extensions == 0 && !giveCheck && !isPV && nextDepth <= 4;
         if (fpCondition) {
-            int margin = 330 * nextDepth;
-            if (standPat + margin < alpha)
-                continue; 
+            int margin = 100 + 100 * nextDepth + 100 * improving;
+            if (standPat + margin < alpha) {
+                continue;
+            }
         }
 
-        // Late move pruning 
-        bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 2 && ply >= 6;
+        // Late move pruning for quiet moves
+        bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 5;
         if (lmpCondition) {
-            if (i >= std::max((8 + nextDepth * nextDepth) / (1 + !improving), 1)) {
+            int divisor = improving ? 1 : 2;
+            if (i >= (4 + nextDepth * nextDepth) / divisor) {
                 continue;
             }
         }
@@ -668,7 +684,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool reducedDepth = nextDepth < depth - 1;
 
         NodeInfo childNodeInfo = {ply + 1, 
-                                leftMost, 
                                 nmpOk,
                                 rootDepth,
                                 move,
@@ -737,55 +752,54 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             updatePV(PV, move, childPV);
         } 
 
+        if (eval < alpha) {
+            if (isCapture) {
+                badCaptures.push_back(move);
+            } else {
+                badQuiets.push_back(move);
+            }
+        }
+
         bestEval = std::max(bestEval, eval);
         alpha = std::max(alpha, eval);
 
         // Beta cutoff.
         if (beta <= alpha) {
-            float delta = depth * depth;
-            const int maxHistory = 18000;
-            const int maxCaptureHistory = 6000;
+            
+            constexpr int maxHist = 15000;
+            constexpr int maxCapHist = 5000;
+
+            int mvIndex = moveIndex(move);
+            int currentScore = isCapture ? 
+                                captureHistory[threadID][stm][mvIndex] : 
+                                history[threadID][stm][mvIndex];
+            
+            int limit = isCapture ? maxCapHist : maxHist;
+            int delta = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(limit)) * depth * depth;
 
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
-            if (!board.isCapture(move)) {
+            if (!isCapture) {
                 updateKillerMoves(move, ply, threadID);
-                
-                // tapered change new score = old score - (1 - old score / maxHistory) * depth * depth
-                // the closer the old score is to maxHistory, the less change is applied.
-                int mvIndex = moveIndex(move);
-                int currentScore = history[threadID][stm][mvIndex];
-                int change = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(maxHistory)) * delta;
-
-                history[threadID][stm][mvIndex] += change;
+                history[threadID][stm][mvIndex] += delta;
+                history[threadID][stm][mvIndex] = std::clamp(history[threadID][stm][mvIndex], -maxHist, maxHist);
                 success[threadID][stm][mvIndex]++;
 
-                updateKillerMoves(move, ply, threadID);
+                // penalize bad quiet moves
+                for (auto& badMv : badQuiets) {
+                    int badMvIndex = moveIndex(badMv);
+                    history[threadID][stm][badMvIndex] -= delta;
+                    history[threadID][stm][badMvIndex] = std::clamp(history[threadID][stm][badMvIndex], -maxHist, maxHist);
+                    failure[threadID][stm][badMvIndex]++;
+                }
             } else {
-                int mvIndex = moveIndex(move);
-                int currentScore = captureHistory[threadID][stm][mvIndex];
-                int change = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(maxCaptureHistory)) * delta;
-
-                captureHistory[threadID][stm][mvIndex] += change;
+                captureHistory[threadID][stm][mvIndex] += delta;
+                captureHistory[threadID][stm][mvIndex] = std::clamp(captureHistory[threadID][stm][mvIndex], -maxCapHist, maxCapHist);
             }
 
-            for (int j = 0; j < i; j++) {
-                int mvIndex = moveIndex(moves[j].first);
-                bool isCapture = board.isCapture(moves[j].first);
-            
-                int currentHistScore = isCapture ? 
-                                        captureHistory[threadID][stm][mvIndex] : 
-                                        history[threadID][stm][mvIndex];
-            
-                int change = 0;
-
-                if (isCapture) {
-                    change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxCaptureHistory)) * delta;
-                    captureHistory[threadID][stm][mvIndex] -= change;
-                } else {
-                    change = (1.0 - static_cast<float>(std::abs(currentHistScore)) / static_cast<float>(maxHistory)) * delta;
-                    history[threadID][stm][mvIndex] -= change;
-                    failure[threadID][stm][mvIndex]++;
-                }            
+            for (auto& move : badCaptures) {
+                int badMvIndex = moveIndex(move);
+                captureHistory[threadID][stm][badMvIndex] -= delta;
+                captureHistory[threadID][stm][badMvIndex] = std::clamp(captureHistory[threadID][stm][badMvIndex], -maxCapHist, maxCapHist);
             }
  
             break;
@@ -945,7 +959,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         std::vector<Move> PV; 
         
         if (depth == 0) {
-            moves = orderedMoves(board, 0, previousPV, false, Move::NO_MOVE, 0, hashMoveFound);
+            moves = orderedMoves(board, 0, previousPV, Move::NO_MOVE, 0, hashMoveFound);
         }
 
         while (true) {
@@ -961,7 +975,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 Board localBoard = board;
                 staticEval[omp_get_thread_num()][0] = standPat;
 
-                bool leftMost = (i == 0);
                 int ply = 0;
                 bool newBestFlag = false;  
                 int threadID = omp_get_thread_num();
@@ -969,7 +982,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 int eval = -INF;
 
                 NodeInfo childNodeInfo = {1, // ply of child node
-                                        leftMost, // left most flag
                                         true, // NMP ok
                                         nextDepth, // root depth
                                         move, 

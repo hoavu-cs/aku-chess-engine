@@ -62,6 +62,7 @@ inline bool promotionThreat(Board& board, Move move);
 inline bool nonPawnMaterial(Board& board);
 inline int pieceTypeValue(PieceType pt);
 inline bool moveThreatenedPiece(const Board& board, const Move& move);
+inline int movePieceIndex(Board& board, const Move& move);
 
 // Function definitions
 inline void evalAdjust(int& eval) {
@@ -307,3 +308,23 @@ inline bool moveThreatenedPiece(const Board& board, const Move& move) {
     return false;
 }
 
+inline int movePieceIndex(Board& board, const Move& move) {
+    Piece piece = board.at(move.from());
+    int pieceIndex;
+
+    if (piece.type() == PieceType::PAWN) {
+        pieceIndex = 0;
+    } else if (piece.type() == PieceType::KNIGHT) {
+        pieceIndex = 1;
+    } else if (piece.type() == PieceType::BISHOP) {
+        pieceIndex = 2;
+    } else if (piece.type() == PieceType::ROOK) {
+        pieceIndex = 3;
+    } else if (piece.type() == PieceType::QUEEN) {
+        pieceIndex = 4;
+    } else if (piece.type() == PieceType::KING) {
+        pieceIndex = 5;
+    } 
+
+    return pieceIndex;
+}
