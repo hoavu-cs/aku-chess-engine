@@ -237,7 +237,7 @@ int lateMoveReduction(Board& board,
     bool stm = board.sideToMove() == Color::WHITE;
     bool isPromThreat = promotionThreat(board, move);
 
-    if (i <= 1 || depth <= 3 || isPromThreat) {
+    if (i <= 2 || depth <= 3 || isPromThreat) {
         return depth - 1;
     } else {
         bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]);

@@ -13,24 +13,20 @@
 using namespace chess;
 
 constexpr int INPUT_SIZE = 768;
-constexpr int HIDDEN_SIZE = 768;
+constexpr int HIDDEN_SIZE = 512;
 constexpr int SCALE = 400;
 constexpr int QA = 255;
 constexpr int QB = 64;
 
-/*--------------------------------------------------------------------------------------------
-    Calculate index of a piece, square, and side to move
-    Square: 0 - 63
-    PieceType: Pawn = 0, Knight = 1, Bishop = 2, Rook = 3, Queen = 4, King = 5
-    Side: us = 0, them = 1
---------------------------------------------------------------------------------------------*/
+// Calculate index of a piece, square, and side to move
+// Square: 0 - 63
+// PieceType: Pawn = 0, Knight = 1, Bishop = 2, Rook = 3, Queen = 4, King = 5
+// Side: us = 0, them = 1
 inline int calculateIndex(int side, int pieceType, int square) {
     return side * 64 * 6 + pieceType * 64 + square;
 }
 
-/*--------------------------------------------------------------------------------------------
-    PieceType to piece index
---------------------------------------------------------------------------------------------*/
+// PieceType to piece index
 inline int pieceTypeToIndex(PieceType type) {
     if (type == PieceType::PAWN) return 0;
     if (type == PieceType::KNIGHT) return 1;
@@ -41,30 +37,22 @@ inline int pieceTypeToIndex(PieceType type) {
     return -1; // Invalid piece type
 }
 
-/*--------------------------------------------------------------------------------------------
-    Clip ReLU
---------------------------------------------------------------------------------------------*/
+// Clip ReLU
 inline int crelu(int16_t x) {
     int val = static_cast<int>(x);
     return std::clamp(val, 0, static_cast<int>(QA));
 }
 
-/*--------------------------------------------------------------------------------------------
-    Square Clip ReLU (SCReLU)
---------------------------------------------------------------------------------------------*/
+// Square Clip ReLU (SCReLU)
 inline int screlu(int16_t x) {
     int val = std::clamp(static_cast<int>(x), 0, static_cast<int>(QA));
     return val * val;
 }
 
-/*--------------------------------------------------------------------------------------------
-    Forward declaration
---------------------------------------------------------------------------------------------*/
+// Forward declaration
 struct Network;
 
-/*--------------------------------------------------------------------------------------------
-    Accumulator
---------------------------------------------------------------------------------------------*/
+// Accumulator
 struct Accumulator {
     std::array<int16_t, HIDDEN_SIZE> vals;
 
@@ -73,18 +61,13 @@ struct Accumulator {
     void removeFeature(size_t feature_idx, const Network& net);
 };
 
-
-/*--------------------------------------------------------------------------------------------
-    768 -> HIDDEN_SIZE x 2 -> 1
-    Network architecture:
-    x1 : 768 for side-to-move
-    x2 : 768 for not-side-to-move
-
-    h1 = Wx1 + b  
-    h2 = Wx2 + b
-
-    o = O1 * relu(h1) + O2 * relu(h2) + c
---------------------------------------------------------------------------------------------*/
+// 768 -> HIDDEN_SIZE x 2 -> 1
+// Network architecture:
+// x1 : 768 for side-to-move
+// x2 : 768 for not-side-to-move
+// h1 = Wx1 + b  
+// h2 = Wx2 + b
+// o = O1 * relu(h1) + O2 * relu(h2) + c
 struct Network {
     std::array<Accumulator, 768> featureWeights;
     Accumulator feature_bias;
@@ -110,9 +93,7 @@ struct Network {
     }
 };
 
-/*--------------------------------------------------------------------------------------------
-    Accumulator functions.
---------------------------------------------------------------------------------------------*/
+// Accumulator functions
 inline Accumulator Accumulator::fromBias(const Network& net) {
     return net.feature_bias;
 }
@@ -132,9 +113,8 @@ inline void Accumulator::removeFeature(size_t feature_idx, const Network& net) {
 }
 
 
-/*--------------------------------------------------------------------------------------------
-    Load network from file.
---------------------------------------------------------------------------------------------*/
+
+// Load network from file
 bool loadNetwork(const std::string& filepath, Network& net) {
     std::ifstream stream(filepath, std::ios::binary);
     if (!stream.is_open()) {
@@ -167,9 +147,8 @@ bool loadNetwork(const std::string& filepath, Network& net) {
     return true;
 }
 
-/*--------------------------------------------------------------------------------------------
-    Create accumulators for white and black pieces.
---------------------------------------------------------------------------------------------*/
+
+// Create accumulators for white and black pieces.
 inline int mirrorSquare(int sq) {
     return (sq ^ 56); // flips rank (A1 to A8, H2 to H7, etc.)
 }
@@ -230,11 +209,10 @@ void makeAccumulators(Board& board, Accumulator& whiteAccumulator, Accumulator& 
     }
 }
 
-/*--------------------------------------------------------------------------------------------
-    Update accumulator given a move.
-    Work in progress: need to consider castling &  enpassant.
-    To be called before board.makeMove(move).
---------------------------------------------------------------------------------------------*/
+
+// Update accumulator given a move.
+// Work in progress: need to consider castling &  enpassant.
+// To be called before board.makeMove(move).
 void addAccumulators(Board& board, 
                         Move& move, 
                         Accumulator& whiteAccumulator, 
@@ -317,10 +295,9 @@ void addAccumulators(Board& board,
     }
 }
 
-/*--------------------------------------------------------------------------------------------
-    Update accumulator given an unmakeMove.
-    To be called before board.unmakeMove(move).
---------------------------------------------------------------------------------------------*/
+
+// Update accumulator given an unmakeMove.
+// To be called before board.unmakeMove(move).
 void subtractAccumulators(Board& board, 
                                 Move& move, 
                                 Accumulator& whiteAccumulator, 

@@ -2,7 +2,7 @@
 #pragma once
 #include "incbin.h"
 
-INCBIN(nnue_weights, "nnue/nnue_weights_768_v2.bin");
+INCBIN(nnue_weights, "nnue/nnue_weights_512_v4.bin");
 
 struct NNUEFile {
     const char* name;
@@ -15,7 +15,6 @@ const NNUEFile nnueWeightFile = {
     gnnue_weightsData,
     gnnue_weightsSize
 };
-
 
 INCBIN(KBBvK_rtbw, "tables/KBBvK.rtbw");
 INCBIN(KBBvK_rtbz, "tables/KBBvK.rtbz");
