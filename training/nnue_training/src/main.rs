@@ -21,7 +21,7 @@ use bullet_lib::{
     },
 };
 
-const HIDDEN_SIZE: usize = 256;
+const HIDDEN_SIZE: usize = 768;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -37,16 +37,16 @@ fn main() {
         .add_layer(1)
         .build();
     
-    //trainer.load_from_checkpoint("checkpoints/simple512_v4-40/");
+    trainer.load_from_checkpoint("checkpoints/simple768-55/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple256".to_string(),
+        net_id: "simple768".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
-            batch_size: 16_384,
+            batch_size: 40000,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 100,
+            end_superbatch: 55,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
         lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 18 },
@@ -55,7 +55,7 @@ fn main() {
 
     trainer.set_optimiser_params(optimiser::AdamWParams::default());
 
-    let settings = LocalSettings { threads: 8, test_set: None, output_directory: "checkpoints", batch_queue_size: 64 };
+    let settings = LocalSettings { threads: 8, test_set: None, output_directory: "checkpoints_v2", batch_queue_size: 64 };
 
     // loading from a SF binpack
     let data_loader = {

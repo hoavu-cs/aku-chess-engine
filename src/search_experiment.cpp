@@ -551,9 +551,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int R2 = seeds[threadID] % moves.size();
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = (depth <= 4) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = (depth <= 8) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
-        int rfpMargin = 300 * depth + 100 * (1 - improving);
+        int rfpMargin = 100 * depth + 100 * (1 - improving);
         if (standPat >= beta + rfpMargin) {
             return (standPat + beta) / 2;
         }
@@ -573,7 +573,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             
         std::vector<Move> nullPV; // dummy PV
         int nullEval;
-        int reduction = 3;
+        int reduction = 3 + depth / 6;
 
         NodeInfo nullNodeInfo = {ply + 1, 
                                 false, 
@@ -589,9 +589,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (nullEval >= beta) {
             return beta;
-        } else if (nullEval < standPat - 300) {
+        } else if (nullEval < -INF/2 + 5) {
             // threat extensions
-            extensions++;
+            return beta - 1;
         }
     }
 
@@ -604,7 +604,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Singular extension. If the hash move is stronger than all others, extend the search.
     if (hashMoveFound && ttDepth >= depth - 3
-        && depth >= 7
+        && depth >= 8
         && ttType != EntryType::UPPERBOUND
         && isPV
         && abs(ttEval) < INF/2 - 100) {
@@ -642,7 +642,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (board.inCheck()) extensions++;
     if (moves.size() == 1) extensions++;
     
-    extensions = std::clamp(extensions, 0, 2); // limit extensions to 2 per ply
+    extensions = std::clamp(extensions, 0, 1); // limit extensions to 2 per ply
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -664,7 +664,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (5 + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -672,7 +672,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Futility  pruning
         bool fpCondition = canPrune && !isCapture && extensions == 0 && !giveCheck && !isPV && nextDepth <= 2;
         if (fpCondition) {
-            int margin = 300 * nextDepth + 100 * improving;
+            int margin = 100 + 100 * nextDepth + 100 * improving;
             if (standPat + margin < alpha) {
                 continue;
             }
@@ -682,7 +682,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 4;
         if (lmpCondition) {
             int divisor = improving ? 1 : 2;
-            if (i >= (4 + nextDepth * nextDepth) / divisor) {
+            if (i >= (6 + nextDepth * nextDepth) / divisor) {
                 continue;
             }
         }

@@ -13,7 +13,7 @@
 using namespace chess;
 
 constexpr int INPUT_SIZE = 768;
-constexpr int HIDDEN_SIZE = 512;
+constexpr int HIDDEN_SIZE = 768;
 constexpr int SCALE = 400;
 constexpr int QA = 255;
 constexpr int QB = 64;
