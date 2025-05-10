@@ -512,9 +512,15 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     }
 
+    // if (found && isPV) {
+    //     if (ttType == EntryType::EXACT 
+    //         || (ttType == EntryType::LOWERBOUND && ttEval >= beta)) {
+    //         return ttEval;
+    //     } 
+    // }
+
     if (found && isPV) {
-        if (ttType == EntryType::EXACT 
-            || (ttType == EntryType::LOWERBOUND && ttEval >= beta)) {
+        if ((ttType == EntryType::LOWERBOUND || ttType == EntryType::EXACT) && ttEval >= beta) {
             return ttEval;
         } 
     }
@@ -551,9 +557,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int R2 = seeds[threadID] % moves.size();
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = (depth <= 8) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = (depth <= 4) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
-        int rfpMargin = 100 * depth + 100 * (1 - improving);
+        int rfpMargin = 300 * depth + 100 * (1 - improving);
         if (standPat >= beta + rfpMargin) {
             return (standPat + beta) / 2;
         }
@@ -603,41 +609,41 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Singular extension. If the hash move is stronger than all others, extend the search.
-    if (hashMoveFound && ttDepth >= depth - 3
-        && depth >= 8
-        && ttType != EntryType::UPPERBOUND
-        && isPV
-        && abs(ttEval) < INF/2 - 100) {
+    // if (hashMoveFound && ttDepth >= depth - 3
+    //     && depth >= 8
+    //     && ttType != EntryType::UPPERBOUND
+    //     && isPV
+    //     && abs(ttEval) < INF/2 - 100) {
 
-        int sEval = -INF;
-        int sBeta = ttEval - 2 * depth; 
+    //     int sEval = -INF;
+    //     int sBeta = ttEval - 3 * depth; 
 
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i].first == ttMove) 
-                continue; 
+    //     for (int i = 0; i < moves.size(); i++) {
+    //         if (moves[i].first == ttMove) 
+    //             continue; 
 
-            addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            board.makeMove(moves[i].first);
+    //         addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+    //         board.makeMove(moves[i].first);
 
-            NodeInfo childNodeInfo = {ply + 1, 
-                                    false, 
-                                    rootDepth,
-                                    moves[i].first,
-                                    NodeType::PV,
-                                    threadID};
+    //         NodeInfo childNodeInfo = {ply + 1, 
+    //                                 false, 
+    //                                 rootDepth,
+    //                                 moves[i].first,
+    //                                 NodeType::PV,
+    //                                 threadID};
 
 
-            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
-            evalAdjust(sEval);
+    //         sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
+    //         evalAdjust(sEval);
 
-            subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            board.unmakeMove(moves[i].first);
+    //         subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+    //         board.unmakeMove(moves[i].first);
 
-            if (sEval >= sBeta) break;
-        }
+    //         if (sEval >= sBeta) break;
+    //     }
 
-        if (sEval < sBeta) extensions++; // singular extension
-    }
+    //     if (sEval < sBeta) extensions++; // singular extension
+    // }
 
     if (board.inCheck()) extensions++;
     if (moves.size() == 1) extensions++;
@@ -664,7 +670,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (5 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -672,7 +678,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Futility  pruning
         bool fpCondition = canPrune && !isCapture && extensions == 0 && !giveCheck && !isPV && nextDepth <= 2;
         if (fpCondition) {
-            int margin = 100 + 100 * nextDepth + 100 * improving;
+            int margin = 300 * nextDepth + 100 * improving;
             if (standPat + margin < alpha) {
                 continue;
             }
@@ -682,7 +688,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 4;
         if (lmpCondition) {
             int divisor = improving ? 1 : 2;
-            if (i >= (6 + nextDepth * nextDepth) / divisor) {
+            if (i >= (5 + nextDepth * nextDepth) / divisor) {
                 continue;
             }
         }
@@ -761,7 +767,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             updatePV(PV, move, childPV);
         } 
 
-        if (eval < alpha) {
+        if (eval <= alpha) {
             if (isCapture) {
                 badCaptures.push_back(move);
             } else {
