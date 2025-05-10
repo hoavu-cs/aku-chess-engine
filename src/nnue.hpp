@@ -1,13 +1,11 @@
 #pragma once
 
 #include <vector>
-#include <cmath>
-#include <algorithm>
 #include <array>
 #include <fstream>
 #include <cstdint>
-#include <string>
 #include <iostream>
+#include <immintrin.h>
 #include "chess.hpp"
 
 using namespace chess;
@@ -17,6 +15,21 @@ constexpr int HIDDEN_SIZE = 512;
 constexpr int SCALE = 400;
 constexpr int QA = 255;
 constexpr int QB = 64;
+
+// Function Declarations
+inline int calculateIndex(int side, int pieceType, int square);
+inline int pieceTypeToIndex(PieceType type);
+inline int crelu(int16_t x);
+inline int screlu(int16_t x);
+inline int mirrorSquare(int sq);
+struct Accumulator;
+struct Network;
+bool loadNetwork(const std::string& filepath, Network& net);
+void makeAccumulators(Board& board, Accumulator& whiteAccumulator, Accumulator& blackAccumulator, Network& evalNetwork);
+void addAccumulators(Board& board, Move& move, Accumulator& whiteAccumulator, Accumulator& blackAccumulator, Network& evalNetwork);
+void subtractAccumulators(Board& board, Move& move, Accumulator& whiteAccumulator, Accumulator& blackAccumulator, Network& evalNetwork);
+
+// Function Definitions
 
 // Calculate index of a piece, square, and side to move
 // Square: 0 - 63
@@ -49,13 +62,9 @@ inline int screlu(int16_t x) {
     return val * val;
 }
 
-// Forward declaration
-struct Network;
-
 // Accumulator
 struct Accumulator {
-    std::array<int16_t, HIDDEN_SIZE> vals;
-
+    alignas(32) std::array<int16_t, HIDDEN_SIZE> vals;
     static Accumulator fromBias(const Network& net);
     void addFeature(size_t feature_idx, const Network& net);
     void removeFeature(size_t feature_idx, const Network& net);
@@ -69,7 +78,7 @@ struct Accumulator {
 // h2 = Wx2 + b
 // o = O1 * relu(h1) + O2 * relu(h2) + c
 struct Network {
-    std::array<Accumulator, 768> featureWeights;
+    alignas(32) std::array<Accumulator, 768> featureWeights;
     Accumulator feature_bias;
     std::array<int16_t, 2 * HIDDEN_SIZE> outputWeights;
     int16_t output_bias;
@@ -112,8 +121,6 @@ inline void Accumulator::removeFeature(size_t feature_idx, const Network& net) {
     }
 }
 
-
-
 // Load network from file
 bool loadNetwork(const std::string& filepath, Network& net) {
     std::ifstream stream(filepath, std::ios::binary);
@@ -133,8 +140,7 @@ bool loadNetwork(const std::string& filepath, Network& net) {
                 HIDDEN_SIZE * sizeof(int16_t));
 
     // Load output weights: 2 x 512 int16_t
-    stream.read(reinterpret_cast<char*>(net.outputWeights.data()),
-                2 * HIDDEN_SIZE * sizeof(int16_t));
+    stream.read(reinterpret_cast<char*>(net.outputWeights.data()), 2 * HIDDEN_SIZE * sizeof(int16_t));
 
     // Load output bias: 1 int16_t
     stream.read(reinterpret_cast<char*>(&net.output_bias), sizeof(int16_t));
@@ -158,40 +164,29 @@ void makeAccumulators(Board& board, Accumulator& whiteAccumulator, Accumulator& 
     whiteAccumulator = Accumulator::fromBias(evalNetwork);
     blackAccumulator = Accumulator::fromBias(evalNetwork);
 
-    Bitboard whitePawns = board.pieces(PieceType::PAWN, Color::WHITE);
-    Bitboard whiteKnights = board.pieces(PieceType::KNIGHT, Color::WHITE);
-    Bitboard whiteBishops = board.pieces(PieceType::BISHOP, Color::WHITE);
-    Bitboard whiteRooks = board.pieces(PieceType::ROOK, Color::WHITE);
-    Bitboard whiteQueens = board.pieces(PieceType::QUEEN, Color::WHITE);
-    Bitboard whiteKings = board.pieces(PieceType::KING, Color::WHITE);
+    Bitboard bitboards[12] = {
+        board.pieces(PieceType::PAWN, Color::WHITE),
+        board.pieces(PieceType::KNIGHT, Color::WHITE),
+        board.pieces(PieceType::BISHOP, Color::WHITE),
+        board.pieces(PieceType::ROOK, Color::WHITE),
+        board.pieces(PieceType::QUEEN, Color::WHITE),
+        board.pieces(PieceType::KING, Color::WHITE),
 
-    Bitboard blackPawns = board.pieces(PieceType::PAWN, Color::BLACK);
-    Bitboard blackKnights = board.pieces(PieceType::KNIGHT, Color::BLACK);
-    Bitboard blackBishops = board.pieces(PieceType::BISHOP, Color::BLACK);
-    Bitboard blackRooks = board.pieces(PieceType::ROOK, Color::BLACK);
-    Bitboard blackQueens = board.pieces(PieceType::QUEEN, Color::BLACK);
-    Bitboard blackKings = board.pieces(PieceType::KING, Color::BLACK);
+        board.pieces(PieceType::PAWN, Color::BLACK),
+        board.pieces(PieceType::KNIGHT, Color::BLACK),
+        board.pieces(PieceType::BISHOP, Color::BLACK),
+        board.pieces(PieceType::ROOK, Color::BLACK),
+        board.pieces(PieceType::QUEEN, Color::BLACK),
+        board.pieces(PieceType::KING, Color::BLACK)
+    };
 
     for (int i = 0; i < 12; i++) {
-        Bitboard bb;
-        if (i == 0) bb = whitePawns;
-        else if (i == 1) bb = whiteKnights;
-        else if (i == 2) bb = whiteBishops;
-        else if (i == 3) bb = whiteRooks;
-        else if (i == 4) bb = whiteQueens;
-        else if (i == 5) bb = whiteKings;
-        else if (i == 6) bb = blackPawns;
-        else if (i == 7) bb = blackKnights;
-        else if (i == 8) bb = blackBishops;
-        else if (i == 9) bb = blackRooks;
-        else if (i == 10) bb = blackQueens;
-        else if (i == 11) bb = blackKings;
+        Bitboard bb = bitboards[i];
 
         while (bb) {
             int sq = bb.lsb();
             int msq = mirrorSquare(sq);
             bb.clear(sq);
-        
             int type = i % 6;
             bool white = (i < 6);
         
@@ -208,7 +203,6 @@ void makeAccumulators(Board& board, Accumulator& whiteAccumulator, Accumulator& 
         
     }
 }
-
 
 // Update accumulator given a move.
 // Work in progress: need to consider castling &  enpassant.
@@ -295,7 +289,6 @@ void addAccumulators(Board& board,
     }
 }
 
-
 // Update accumulator given an unmakeMove.
 // To be called before board.unmakeMove(move).
 void subtractAccumulators(Board& board, 
@@ -333,7 +326,6 @@ void subtractAccumulators(Board& board,
     int pieceIdx = pieceTypeToIndex(pieceType);
 
     if (color == Color::WHITE) {
-
         int fromIdxUs = calculateIndex(0, pieceIdx, move.from().index());
         int toIdxUs = calculateIndex(0, pieceIdx, move.to().index());
         int fromIdxThem = calculateIndex(1, pieceIdx, mirrorSquare(move.from().index()));
@@ -342,7 +334,6 @@ void subtractAccumulators(Board& board,
         // Calculate index of from and to from "us" perspective
         whiteAccumulator.addFeature(fromIdxUs, evalNetwork);
         whiteAccumulator.removeFeature(toIdxUs, evalNetwork);
-
         blackAccumulator.addFeature(fromIdxThem, evalNetwork);
         blackAccumulator.removeFeature(toIdxThem, evalNetwork);
 
@@ -354,15 +345,11 @@ void subtractAccumulators(Board& board,
             // Put the black piece back in its original position from white's perspective
             int captureIndexUs = calculateIndex(1, capturedIdx, move.to().index());
             whiteAccumulator.addFeature(captureIndexUs, evalNetwork);
-
             // Put the black piece back in its original position from black's perspective
             int captureIndexThem = calculateIndex(0, capturedIdx, mirrorSquare(move.to().index()));
             blackAccumulator.addFeature(captureIndexThem, evalNetwork); 
         }
-
-
     } else {
-
         int fromIdxUs = calculateIndex(0, pieceIdx, mirrorSquare(move.from().index()));
         int toIdxUs = calculateIndex(0, pieceIdx, mirrorSquare(move.to().index()));
         int fromIdxThem = calculateIndex(1, pieceIdx, move.from().index());
@@ -370,7 +357,6 @@ void subtractAccumulators(Board& board,
 
         blackAccumulator.removeFeature(fromIdxUs, evalNetwork);
         blackAccumulator.addFeature(toIdxUs, evalNetwork);
-
         whiteAccumulator.removeFeature(fromIdxThem, evalNetwork);
         whiteAccumulator.addFeature(toIdxThem, evalNetwork);
 
@@ -381,12 +367,10 @@ void subtractAccumulators(Board& board,
             // Put the white piece back from black's perspective
             int captureIndexUs = calculateIndex(1, capturedIdx, mirrorSquare(move.to().index()));
             blackAccumulator.addFeature(captureIndexUs, evalNetwork);
-
             // Put the white piece from white's perspective
             int captureIndexThem = calculateIndex(0, capturedIdx, move.to().index());
             whiteAccumulator.addFeature(captureIndexThem, evalNetwork);
         }
-
     }
 
     board.makeMove(move);

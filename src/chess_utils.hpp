@@ -13,17 +13,6 @@ const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 0;
 
-const int mate[64] = {
-    600, 500, 500, 400, 400, 500, 500, 600,
-    500, 500, 150, 150, 150, 150, 200, 500,
-    500, 150, 50,  50,  50,  50,  150, 500,
-    400, 150, 50,  0,   0,   50,  150, 400,
-    400, 150, 50,  0,   0,   50,  150, 400,
-    500, 150, 50,  50,  50,  50,  150, 500,
-    500, 200, 150, 150, 150, 150, 200, 500,
-    600, 500, 500, 400, 400, 500, 500, 600
-};
-
 const int bnMateLightSquares[64] = {
     0, 10, 20, 30, 40, 50, 60, 70,
     10, 20, 30, 40, 50, 60, 70, 60,
@@ -85,9 +74,9 @@ inline void updatePV(std::vector<Move>& PV, const Move& move, const std::vector<
 
 inline int gamePhase (const Board& board) {
     return board.pieces(PieceType::KNIGHT).count() +
-                board.pieces(PieceType::BISHOP).count() +
-                board.pieces(PieceType::ROOK).count() * 2 +
-                board.pieces(PieceType::QUEEN).count() * 4;
+            board.pieces(PieceType::BISHOP).count() +
+            board.pieces(PieceType::ROOK).count() * 2 +
+            board.pieces(PieceType::QUEEN).count() * 4;
 }
 
 inline int manhattanDistance(const Square& sq1, const Square& sq2) {
@@ -290,19 +279,17 @@ inline bool moveThreatenedPiece(const Board& board, const Move& move) {
 
     Color us = board.sideToMove();
     Color them = ~us;
-
+    Bitboard attackers = attacks::attackers(board, them, move.from());
     PieceType type = board.at(move.from()).type();
     int pieceValue = pieceTypeValue(type);
-
-    Bitboard attackers = attacks::attackers(board, them, move.from());
 
     while (attackers) {
         int sq = attackers.lsb();
         attackers.clear(sq);
-
         int attackerValue = pieceTypeValue(board.at(Square(sq)).type());
-        if (attackerValue > 0 && attackerValue < pieceValue)
+        if (attackerValue > 0 && attackerValue < pieceValue) {
             return true;
+        }
     }
 
     return false;

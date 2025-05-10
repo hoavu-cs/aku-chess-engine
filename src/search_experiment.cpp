@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <string>
 #include <vector>
@@ -25,7 +24,7 @@ typedef std::uint64_t U64;
 const int maxThreadsID = 12; 
 int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
 int globalMaxDepth = 0; // Maximum depth of current search
-int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
+int engineDepth = 99; // Maximum search depth for the current engine version
 
 // Initalize NNUE
 Network nnue;
@@ -43,18 +42,18 @@ void initializeNNUE(std::string path) {
 }
 
 // Search helpers
-std::vector<Move> rootMoves (2 * ENGINE_DEPTH + 1, Move()); // Top move considered at the root
+std::vector<Move> rootMoves (2 * engineDepth + 1, Move()); // Top move considered at the root
 std::vector<Move> previousPV; // Principal variation from the previous iteration
 
 std::vector<std::vector<std::vector<int>>> history(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Evaluations along the current path
-std::vector<std::vector<int>> staticEval(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
+std::vector<std::vector<int>> staticEval(maxThreadsID, std::vector<int>(engineDepth + 1, 0)); 
 
 // Killer moves for each thread and ply
 std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std::vector<Move>> 
-    (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
+    (engineDepth + 1, std::vector<Move>(1, Move::NO_MOVE))); 
 
 // LMR table
 std::vector<std::vector<int>> lmrTable; 
@@ -85,7 +84,6 @@ struct LockedTableEntry {
 
 std::vector<LockedTableEntry> ttTable(tableSize); 
 
-
 // Helper function declarations
 void precomputeLMR(int maxDepth, int maxI);
 bool tableLookUp(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
@@ -95,7 +93,6 @@ int see(Board&, Move, int);
 int lateMoveReduction(Board&, Move, int, int, int, bool, int);
 std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
 int quiescence(Board&, int, int, int, int);
-
 
 // Function definitions
 void precomputeLMR(int maxDepth, int maxI) {
@@ -902,7 +899,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         }
 
         // Reset killer moves
-        for (int j = 0; j < ENGINE_DEPTH; j++) {
+        for (int j = 0; j < engineDepth; j++) {
             killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
         }
 
@@ -916,7 +913,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
     }
 
     std::vector<std::pair<Move, int>> moves;
-    std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
+    std::vector<int> evals (2 * engineDepth + 1, 0);
     
     // Syzygy tablebase probe
     Move syzygyMove;
@@ -950,7 +947,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
     int standPat = nnue.evaluate(wAccumulator[0], bAccumulator[0]);
     int depth = 0;
 
-    while (depth <= std::min(ENGINE_DEPTH, maxDepth)) {
+    while (depth <= std::min(engineDepth, maxDepth)) {
         globalMaxDepth = depth;
 
         // Track the best move for the current depth
@@ -1129,8 +1126,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         }
         
         if (!timeLimitExceeded) {
-            // If the time limit is not exceeded, we can search deeper.
-            depth++;
+            depth++; // If the time limit is not exceeded, we can search deeper.
         } else {
             if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1] && depth >= 14)) {
                 break; // If we go beyond the hard limit or stabilize

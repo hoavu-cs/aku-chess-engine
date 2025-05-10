@@ -97,11 +97,9 @@ namespace syzygy {
             } else {
                 wdl = 0;
             }
-    
             return true;
         } else {
             return false;
         }
     }
-
 }

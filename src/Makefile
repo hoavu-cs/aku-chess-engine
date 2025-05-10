@@ -22,4 +22,4 @@ aku: aku.cpp search.cpp  ../lib/fathom/src/tbprobe.c | ../bin
 clean:
 	rm -rf ../bin ../lib/Fathom/src/*.o
 
-.PHONY: all aku aku_experiment debug clean
+.PHONY: all aku aku_experiment clean
