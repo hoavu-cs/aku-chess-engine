@@ -70,7 +70,7 @@ struct Accumulator {
     void removeFeature(size_t feature_idx, const Network& net);
 };
 
-// 768 -> HIDDEN_SIZE x 2 -> 1
+// (768 -> HIDDEN_SIZE) x 2 -> 1
 // Network architecture:
 // x1 : 768 for side-to-move
 // x2 : 768 for not-side-to-move
@@ -107,17 +107,17 @@ inline Accumulator Accumulator::fromBias(const Network& net) {
     return net.feature_bias;
 }
 
-inline void Accumulator::addFeature(size_t feature_idx, const Network& net) {
+inline void Accumulator::addFeature(size_t featureIdx, const Network& net) {
     #pragma omp simd
     for (size_t i = 0; i < HIDDEN_SIZE; ++i) {
-        vals[i] += net.featureWeights[feature_idx].vals[i];
+        vals[i] += net.featureWeights[featureIdx].vals[i];
     }
 }
 
-inline void Accumulator::removeFeature(size_t feature_idx, const Network& net) {
+inline void Accumulator::removeFeature(size_t featureIdx, const Network& net) {
     #pragma omp simd
     for (size_t i = 0; i < HIDDEN_SIZE; ++i) {
-        vals[i] -= net.featureWeights[feature_idx].vals[i];
+        vals[i] -= net.featureWeights[featureIdx].vals[i];
     }
 }
 
@@ -129,7 +129,7 @@ bool loadNetwork(const std::string& filepath, Network& net) {
         return false;
     }
 
-    // Load feature weights: 768 x 64 = 393216 int16_t
+    // Layer 1
     for (int i = 0; i < INPUT_SIZE; ++i) {
         stream.read(reinterpret_cast<char*>(net.featureWeights[i].vals.data()),
                     HIDDEN_SIZE * sizeof(int16_t));

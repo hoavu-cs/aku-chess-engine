@@ -36,7 +36,7 @@
 //         .build();
 
 
-//     trainer.load_from_checkpoint("checkpoints_v2/simple768-20/");
+//     trainer.load_from_checkpoint("checkpoints_v2/deep_simple_256-30/");
 
 //     let schedule = TrainingSchedule {
 //         net_id: "deep_simple_256".to_string(),
@@ -44,8 +44,8 @@
 //         steps: TrainingSteps {
 //             batch_size: 16_384,
 //             batches_per_superbatch: 6104,
-//             start_superbatch: 1,
-//             end_superbatch: 100,
+//             start_superbatch: 31,
+//             end_superbatch: 200,
 //         },
 //         wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
 //         lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 50 },
@@ -119,25 +119,25 @@ fn main() {
         .add_layer(1)
         .build();
     
-    trainer.load_from_checkpoint("checkpoints_v2/simple512v5-70/");
+    //trainer.load_from_checkpoint("checkpoints_v2/simple512v5-70/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple512v5".to_string(),
+        net_id: "simple512v6".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
-            start_superbatch: 71,
-            end_superbatch: 150,
+            start_superbatch: 1,
+            end_superbatch: 120,
         },
-        wdl_scheduler: wdl::ConstantWDL { value: 0.75 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 40 },
+        wdl_scheduler: wdl::ConstantWDL { value: 0.05 },
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 30 },
         save_rate: 10,
     };
 
     trainer.set_optimiser_params(optimiser::AdamWParams::default());
 
-    let settings = LocalSettings { threads: 8, test_set: None, output_directory: "checkpoints_v2", batch_queue_size: 64 };
+    let settings = LocalSettings { threads: 8, test_set: None, output_directory: "checkpoints_may", batch_queue_size: 64 };
 
     // loading from a SF binpack
     let data_loader = {

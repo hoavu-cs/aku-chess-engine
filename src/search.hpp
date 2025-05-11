@@ -14,7 +14,6 @@ struct NodeInfo {
     int ply;
     bool nmpOk; // flag to signal if nmp is allowed
     int rootDepth; // maximum depth to search from the root
-    Move lastMove;
     NodeType nodeType;
     int threadID;
 };

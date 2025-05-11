@@ -52,6 +52,7 @@ inline bool nonPawnMaterial(Board& board);
 inline int pieceTypeValue(PieceType pt);
 inline bool moveThreatenedPiece(const Board& board, const Move& move);
 inline int movePieceIndex(Board& board, const Move& move);
+inline int movePDIndex(Board& board, const Move& move);
 
 // Function definitions
 inline void evalAdjust(int& eval) {
@@ -276,7 +277,6 @@ inline int pieceTypeValue(PieceType pt) {
 }
 
 inline bool moveThreatenedPiece(const Board& board, const Move& move) {
-
     Color us = board.sideToMove();
     Color them = ~us;
     Bitboard attackers = attacks::attackers(board, them, move.from());
@@ -297,7 +297,7 @@ inline bool moveThreatenedPiece(const Board& board, const Move& move) {
 
 inline int movePieceIndex(Board& board, const Move& move) {
     Piece piece = board.at(move.from());
-    int pieceIndex;
+    int pieceIndex = -1;
 
     if (piece.type() == PieceType::PAWN) {
         pieceIndex = 0;
@@ -314,4 +314,8 @@ inline int movePieceIndex(Board& board, const Move& move) {
     } 
 
     return pieceIndex;
+}
+
+inline int movePDIndex(Board& board, const Move& move) {
+    return movePieceIndex(board, move) * 64 + move.to().index();
 }

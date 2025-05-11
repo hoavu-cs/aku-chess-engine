@@ -91,7 +91,7 @@ void tableInsert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTabl
 inline void updateKillerMoves(const Move&, int, int);
 int see(Board&, Move, int);
 int lateMoveReduction(Board&, Move, int, int, int, bool, int);
-std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
+std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, int, bool&);
 int quiescence(Board&, int, int, int, int);
 
 // Function definitions
@@ -259,7 +259,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
     Board& board, 
     int ply,
     std::vector<Move>& previousPV, 
-    Move lastMove,
     int threadID,
     bool& hashMoveFound) {
 
@@ -446,7 +445,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Extract node type and last move from nodeInfo
     NodeType nodeType = nodeInfo.nodeType;
-    Move lastMove = nodeInfo.lastMove;
 
     nodeCount[threadID]++;
     bool mopUp = isMopUpPhase(board);
@@ -544,7 +542,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     std::vector<std::pair<Move, int>> moves = orderedMoves(board, 
                                                         ply, 
                                                         previousPV, 
-                                                        lastMove, 
                                                         threadID,
                                                         hashMoveFound);
     
@@ -581,7 +578,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         NodeInfo nullNodeInfo = {ply + 1, 
                                 false, 
                                 rootDepth,
-                                Move::NULL_MOVE,
                                 NodeType::ALL, // expected all node
                                 threadID};
 
@@ -698,7 +694,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         NodeInfo childNodeInfo = {ply + 1, 
                                 nmpOk,
                                 rootDepth,
-                                move,
                                 NodeType::PV,
                                 threadID};
 
@@ -963,7 +958,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         std::vector<Move> PV; 
         
         if (depth == 0) {
-            moves = orderedMoves(board, 0, previousPV, Move::NO_MOVE, 0, hashMoveFound);
+            moves = orderedMoves(board, 0, previousPV, 0, hashMoveFound);
         }
 
         while (true) {
@@ -988,7 +983,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 NodeInfo childNodeInfo = {1, // ply of child node
                                         true, // NMP ok
                                         nextDepth, // root depth
-                                        move, 
                                         NodeType::PV, // root node is always a PV node
                                         threadID};
                 
