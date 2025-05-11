@@ -58,9 +58,6 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // Move stack for each thread
 std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<int>(engineDepth + 1, 0));
 
-// Counter moves for each thread indexed by (thread, piece * 64 + square, piece * 64 + square)
-std::vector<std::vector<int>> counterMoves(maxThreadsID, std::vector<int>(6 * 64, 0));
-
 // LMR table 
 std::vector<std::vector<int>> lmrTable; 
 
@@ -306,16 +303,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
       
         if (hashMove) continue;
 
-        // int mvPDIndex = movePDIndex(board, move);
-        // int prevPDIndex = -1;
-        // if (ply > 0) {
-        //     prevPDIndex = moveStack[threadID][ply - 1];
-        //     if (prevPDIndex != -1 && counterMoves[threadID][prevPDIndex] == mvPDIndex) {
-        //         priority += 300;
-        //     }
-        // }
-
-        if (isPromotion(move)) {
+        if (isPromotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
             int victimValue = pieceTypeValue(board.at<Piece>(move.to()).type());
@@ -632,6 +620,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue; 
 
             addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            moveStack[threadID][ply] = movePDIndex(board, moves[i].first);
             board.makeMove(moves[i].first);
 
             NodeInfo childNodeInfo = {ply + 1, 
@@ -825,11 +814,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 captureHistory[threadID][stm][badMvIndex] = std::clamp(captureHistory[threadID][stm][badMvIndex], -maxCapHist, maxCapHist);
             }
 
-            // Update counter move
-            // if (ply > 0 && moveStack[threadID][ply - 1] != -1) {
-            //     counterMoves[threadID][moveStack[threadID][ply - 1]] = movePDIndex(board, move);
-            // }
- 
             break;
         } 
     }

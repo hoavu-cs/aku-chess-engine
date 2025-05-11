@@ -11,7 +11,7 @@
 using namespace chess;
 
 constexpr int INPUT_SIZE = 768;
-constexpr int HIDDEN_SIZE = 512;
+constexpr int HIDDEN_SIZE = 1024;
 constexpr int SCALE = 400;
 constexpr int QA = 255;
 constexpr int QB = 64;
@@ -81,7 +81,7 @@ struct Network {
     alignas(32) std::array<Accumulator, 768> featureWeights;
     Accumulator feature_bias;
     std::array<int16_t, 2 * HIDDEN_SIZE> outputWeights;
-    int16_t output_bias;
+    int16_t outputBias;
 
     int evaluate(const Accumulator& us, const Accumulator& them) const {
         int output = 0;
@@ -93,7 +93,7 @@ struct Network {
         }
     
         output /= QA;
-        output += static_cast<int>(output_bias);
+        output += static_cast<int>(outputBias);
 
         output *= SCALE;
         output /= QA * QB;
@@ -143,7 +143,7 @@ bool loadNetwork(const std::string& filepath, Network& net) {
     stream.read(reinterpret_cast<char*>(net.outputWeights.data()), 2 * HIDDEN_SIZE * sizeof(int16_t));
 
     // Load output bias: 1 int16_t
-    stream.read(reinterpret_cast<char*>(&net.output_bias), sizeof(int16_t));
+    stream.read(reinterpret_cast<char*>(&net.outputBias), sizeof(int16_t));
 
     if (!stream) {
         std::cerr << "Failed to read full network from file.\n";

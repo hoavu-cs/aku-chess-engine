@@ -55,7 +55,10 @@ std::vector<std::vector<int>> staticEval(maxThreadsID, std::vector<int>(engineDe
 std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std::vector<Move>> 
     (engineDepth + 1, std::vector<Move>(1, Move::NO_MOVE))); 
 
-// LMR table
+// Move stack for each thread
+std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<int>(engineDepth + 1, 0));
+
+// LMR table 
 std::vector<std::vector<int>> lmrTable; 
 
 // Random seeds for LMR
@@ -91,7 +94,7 @@ void tableInsert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTabl
 inline void updateKillerMoves(const Move&, int, int);
 int see(Board&, Move, int);
 int lateMoveReduction(Board&, Move, int, int, int, bool, int);
-std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, int, bool&);
+std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
 int quiescence(Board&, int, int, int, int);
 
 // Function definitions
@@ -103,13 +106,12 @@ void precomputeLMR(int maxDepth, int maxI) {
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.50 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.65 * log(depth) * log(i));
         }
     }
 
     isPrecomputed = true;
 }
-
 
 bool tableLookUp(Board& board, 
     int& depth, 
@@ -234,10 +236,10 @@ int lateMoveReduction(Board& board,
     bool stm = board.sideToMove() == Color::WHITE;
     bool isPromThreat = promotionThreat(board, move);
 
-    if (i <= 2 || depth <= 3 || isPromThreat) {
+    if (i <= 1 || depth <= 3 || isPromThreat) {
         return depth - 1;
     } else {
-        bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]);
+        bool improving = ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply] && !board.inCheck();
         bool isCapture = board.isCapture(move);
         bool isKiller = std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end();
         
@@ -300,8 +302,8 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } 
       
         if (hashMove) continue;
-        
-        if (isPromotion(move)) {
+
+        if (isPromotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
             int victimValue = pieceTypeValue(board.at<Piece>(move.to()).type());
@@ -309,7 +311,7 @@ std::vector<std::pair<Move, int>> orderedMoves(
             int score = captureHistory[threadID][stm][moveIndex(move)];
             priority = 4000 + victimValue + score;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
-            priority = 4000;
+            priority = 4000; // killer move
         } else {
             secondary = true;
             U64 mvIndex = moveIndex(move);
@@ -487,7 +489,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool found = false;
     int ttEval, ttDepth, extensions = 0;
     bool ttIsPV = false;
-    bool improving = (ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply]) && !board.inCheck();
+    bool improving = ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply] && !board.inCheck();
+
     Move ttMove;
     EntryType ttType;
     TableEntry entry;
@@ -551,9 +554,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int R2 = seeds[threadID] % moves.size();
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = (depth <= 4) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = (depth <= 8) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
-        int rfpMargin = 300 * depth + 100 * (1 - improving);
+        int rfpMargin = 100 + 100 * depth + 100 * (1 - improving);
         if (standPat >= beta + rfpMargin) {
             return (standPat + beta) / 2;
         }
@@ -573,15 +576,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             
         std::vector<Move> nullPV; // dummy PV
         int nullEval;
-        int reduction = 3 + depth / 6;
+        int reduction = 3;
 
         NodeInfo nullNodeInfo = {ply + 1, 
                                 false, 
                                 rootDepth,
                                 NodeType::ALL, // expected all node
                                 threadID};
-
+        moveStack[threadID][ply] = -1;
         board.makeNullMove();
+        nullPV.push_back(Move::NULL_MOVE);
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, nullNodeInfo);
         evalAdjust(nullEval);
         board.unmakeNullMove();
@@ -602,41 +606,41 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Singular extension. If the hash move is stronger than all others, extend the search.
-    // if (hashMoveFound && ttDepth >= depth - 3
-    //     && depth >= 8
-    //     && ttType != EntryType::UPPERBOUND
-    //     && isPV
-    //     && abs(ttEval) < INF/2 - 100) {
+    if (hashMoveFound && ttDepth >= depth - 3
+        && depth >= 7
+        && ttType != EntryType::UPPERBOUND
+        && isPV
+        && abs(ttEval) < INF/2 - 100) {
 
-    //     int sEval = -INF;
-    //     int sBeta = ttEval - 3 * depth; 
+        int sEval = -INF;
+        int sBeta = ttEval - 3 * depth; 
 
-    //     for (int i = 0; i < moves.size(); i++) {
-    //         if (moves[i].first == ttMove) 
-    //             continue; 
+        for (int i = 0; i < moves.size(); i++) {
+            if (moves[i].first == ttMove) 
+                continue; 
 
-    //         addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-    //         board.makeMove(moves[i].first);
+            addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            moveStack[threadID][ply] = movePDIndex(board, moves[i].first);
+            board.makeMove(moves[i].first);
 
-    //         NodeInfo childNodeInfo = {ply + 1, 
-    //                                 false, 
-    //                                 rootDepth,
-    //                                 moves[i].first,
-    //                                 NodeType::PV,
-    //                                 threadID};
+            NodeInfo childNodeInfo = {ply + 1, 
+                                    false, 
+                                    rootDepth,
+                                    NodeType::PV,
+                                    threadID};
 
 
-    //         sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
-    //         evalAdjust(sEval);
+            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
+            evalAdjust(sEval);
 
-    //         subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-    //         board.unmakeMove(moves[i].first);
+            subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            board.unmakeMove(moves[i].first);
 
-    //         if (sEval >= sBeta) break;
-    //     }
+            if (sEval >= sBeta) break;
+        }
 
-    //     if (sEval < sBeta) extensions++; // singular extension
-    // }
+        if (sEval < sBeta) extensions++; // singular extension
+    }
 
     if (board.inCheck()) extensions++;
     if (moves.size() == 1) extensions++;
@@ -669,25 +673,27 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool canPrune = !inCheck && !isPawnPush && i > 0;
     
         // Futility  pruning
-        bool fpCondition = canPrune && !isCapture && extensions == 0 && !giveCheck && !isPV && nextDepth <= 2;
+        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= 2;
         if (fpCondition) {
-            int margin = 300 * nextDepth + 100 * improving;
+            int margin = 100 + 100 * nextDepth + 100 * improving;
             if (standPat + margin < alpha) {
                 continue;
             }
         }
 
         // Late move pruning for quiet moves
-        bool lmpCondition = canPrune && !isPV && extensions == 0 && !isCapture && nextDepth <= 4;
+        bool lmpCondition = canPrune && !isPV && !isCapture && nextDepth <= 4;
         if (lmpCondition) {
             int divisor = improving ? 1 : 2;
-            if (i >= (5 + nextDepth * nextDepth) / divisor) {
+            if (i >= (6 + nextDepth * nextDepth) / divisor) {
                 continue;
             }
         }
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+        moveStack[threadID][ply] = movePDIndex(board, move);
         board.makeMove(move);
+        
         bool nullWindow = false;
         bool reducedDepth = nextDepth < depth - 1;
 
@@ -746,6 +752,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             childNodeInfo.nodeType = NodeType::PV;
 
             addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            moveStack[threadID][ply] = movePDIndex(board, move);
             board.makeMove(move);
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
@@ -773,8 +780,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Beta cutoff.
         if (beta <= alpha) {
             
-            constexpr int maxHist = 15000;
-            constexpr int maxCapHist = 5000;
+            constexpr int maxHist = 9000;//15000;
+            constexpr int maxCapHist = 3000;//5000;
 
             int mvIndex = moveIndex(move);
             int currentScore = isCapture ? 
@@ -801,12 +808,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 captureHistory[threadID][stm][mvIndex] = std::clamp(captureHistory[threadID][stm][mvIndex], -maxCapHist, maxCapHist);
             }
 
-            for (auto& move : badCaptures) {
-                int badMvIndex = moveIndex(move);
+            for (auto& badCap : badCaptures) {
+                int badMvIndex = moveIndex(badCap);
                 captureHistory[threadID][stm][badMvIndex] -= delta;
                 captureHistory[threadID][stm][badMvIndex] = std::clamp(captureHistory[threadID][stm][badMvIndex], -maxCapHist, maxCapHist);
             }
- 
+
             break;
         } 
     }
@@ -849,7 +856,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 tableInsert(board, depth, bestEval, false, Move::NO_MOVE, type, ttTable);
             }  
         } 
-
     }
     
     return bestEval;
@@ -987,6 +993,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                                         threadID};
                 
                 addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+                moveStack[threadID][ply] = movePDIndex(localBoard, move);
                 localBoard.makeMove(move);
 
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
@@ -1013,6 +1020,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 if (newBestFlag && depth > 8 && nextDepth < depth - 1) {
 
                     addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+                    moveStack[threadID][ply] = movePDIndex(localBoard, move);
                     localBoard.makeMove(move);
 
                     eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
