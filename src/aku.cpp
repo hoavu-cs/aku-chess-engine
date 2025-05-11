@@ -39,6 +39,19 @@ using namespace chess;
 const std::string ENGINE_NAME = "Aku Chess Engine";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
+// Engine parameters
+int rfpDepth = 8;
+int rfpC1 = 100;
+int rfpC2 = 100;
+int rfpC3 = 100;
+
+int fpDepth = 2;
+int fpC1 = 100;
+int fpC2 = 100;
+int fpC3 = 100;
+
+int lmpDepth = 4;
+int lmpC1 = 6;
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
@@ -234,6 +247,29 @@ void processSetOption(const std::vector<std::string>& tokens) {
     } else if (optionName == "Internal_Opening_Book") {
         internalOpening = (value == "true");
     }
+
+    // For spsa tuning. Comment out for final build.
+    else if (optionName == "rfpDepth") {
+        rfpDepth = std::stoi(value);
+    } else if (optionName == "rfpC1") {
+        rfpC1 = std::stoi(value);
+    } else if (optionName == "rfpC2") {
+        rfpC2 = std::stoi(value);
+    } else if (optionName == "rfpC3") {
+        rfpC3 = std::stoi(value);
+    } else if (optionName == "fpDepth") {
+        fpDepth = std::stoi(value);
+    } else if (optionName == "fpC1") {
+        fpC1 = std::stoi(value);
+    } else if (optionName == "fpC2") {
+        fpC2 = std::stoi(value);
+    } else if (optionName == "fpC3") {
+        fpC3 = std::stoi(value);
+    } else if (optionName == "lmpDepth") {
+        lmpDepth = std::stoi(value);
+    } else if (optionName == "lmpC1") {
+        lmpC1 = std::stoi(value);
+    }
     
     else {
         std::cerr << "Unknown option: " << optionName << std::endl;
@@ -282,7 +318,7 @@ void processGo(const std::vector<std::string>& tokens) {
             movestogo = std::stoi(tokens[i + 1]); // Moves remaining
         } else if (tokens[i] == "movetime" && i + 1 < tokens.size()) {
             movetime = std::stoi(tokens[i + 1]); // Time per move
-        }
+        } 
     }
 
     double adjust = 0.6;
@@ -337,6 +373,21 @@ void processUci() {
     std::cout << "option name Hash type spin default 256 min 128 max 1024" << std::endl;
     std::cout << "option name UCI_Chess960 type check default false" << std::endl;
     std::cout << "option name Internal_Opening_Book type check default true" << std::endl;
+
+    // For spsa tuning. Comment out for final build.
+    std::cout << "option name rfpDepth type spin default 8 min 2 max 20" << std::endl;
+    std::cout << "option name rfpC1 type spin default 100 min 1 max 1000" << std::endl;
+    std::cout << "option name rfpC2 type spin default 100 min 1 max 1000" << std::endl;
+    std::cout << "option name rfpC3 type spin default 100 min 1 max 1000" << std::endl;
+
+    std::cout << "option name fpDepth type spin default 2 min 1 max 6" << std::endl;
+    std::cout << "option name fpC1 type spin default 100 min 1 max 1000" << std::endl;
+    std::cout << "option name fpC2 type spin default 100 min 1 max 1000" << std::endl;
+    std::cout << "option name fpC3 type spin default 100 min 1 max 1000" << std::endl;
+
+    std::cout << "option name lmpDepth type spin default 4 min 1 max 6" << std::endl;
+    std::cout << "option name lmpC1 type spin default 6 min 1 max 1000" << std::endl;
+    
     std::cout << "uciok" << std::endl;
 }
 
