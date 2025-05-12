@@ -40,6 +40,7 @@ const std::string ENGINE_NAME = "Aku Chess Engine";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 // Engine parameters
+// Engine parameters
 int rfpDepth = 7;
 int rfpC1 = 8;
 int rfpC2 = 52;
@@ -53,13 +54,9 @@ int fpC3 = 137;
 int lmpDepth = 3;
 int lmpC1 = 10;
 
-int hpDepth = 4;
-int hpC1 = 3000;
-int hpC2 = 3000;
-int hpC3 = 1000;
-
 float lmr1 = 0.75f;
 float lmr2 = 0.65f;
+
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
@@ -277,15 +274,19 @@ void processSetOption(const std::vector<std::string>& tokens) {
         lmpDepth = std::stoi(value);
     } else if (optionName == "lmpC1") {
         lmpC1 = std::stoi(value);
-    } else if (optionName == "hpDepth") {
-        hpDepth = std::stoi(value);
-    } else if (optionName == "hpC1") {
-        hpC1 = std::stoi(value);
-    } else if (optionName == "hpC2") {
-        hpC2 = std::stoi(value);
-    } else if (optionName == "hpC3") {
-        hpC3 = std::stoi(value);
-    } else if (optionName == "lmr1") {
+    } 
+    
+    // else if (optionName == "hpDepth") {
+    //     hpDepth = std::stoi(value);
+    // } else if (optionName == "hpC1") {
+    //     hpC1 = std::stoi(value);
+    // } else if (optionName == "hpC2") {
+    //     hpC2 = std::stoi(value);
+    // } else if (optionName == "hpC3") {
+    //     hpC3 = std::stoi(value);
+    // } 
+    
+    else if (optionName == "lmr1") {
         lmr1 = std::stof(value) / 100.0f;
     } else if (optionName == "lmr2") {
         lmr2 = std::stof(value) / 100.0f;
@@ -408,10 +409,10 @@ void processUci() {
     std::cout << "option name lmpDepth type spin default 4 min 1 max 6" << std::endl;
     std::cout << "option name lmpC1 type spin default 6 min 1 max 1000" << std::endl;
 
-    std::cout << "option name hpDepth type spin default 4 min 1 max 20" << std::endl;
-    std::cout << "option name hpC1 type spin default 3000 min 100 max 20000" << std::endl;
-    std::cout << "option name hpC2 type spin default 3000 min 100 max 20000" << std::endl;
-    std::cout << "option name hpC3 type spin default 1000 min 100 max 20000" << std::endl;
+    // std::cout << "option name hpDepth type spin default 4 min 1 max 20" << std::endl;
+    // std::cout << "option name hpC1 type spin default 3000 min 100 max 20000" << std::endl;
+    // std::cout << "option name hpC2 type spin default 3000 min 100 max 20000" << std::endl;
+    // std::cout << "option name hpC3 type spin default 1000 min 100 max 20000" << std::endl;
 
     std::cout << "option name lmr1 type spin default 75 min 10 max 99" << std::endl;
     std::cout << "option name lmr2 type spin default 65 min 10 max 99" << std::endl;

@@ -59,6 +59,10 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // Move stack for each thread
 std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<int>(engineDepth + 1, 0));
 
+// Top counter moves
+const int numCounterMoves = 10;
+std::vector<std::vector<std::pair<int, int>>> counterMoves(maxThreadsID, std::vector(numCounterMoves, std::pair<int, int>(0, 0)));
+
 // LMR table 
 std::vector<std::vector<int>> lmrTable; 
 
@@ -93,6 +97,7 @@ void precomputeLMR(int maxDepth, int maxI);
 bool tableLookUp(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
 void tableInsert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
 inline void updateKillerMoves(const Move&, int, int);
+inline void updateCounterMoves(int, int, int);
 int see(Board&, Move, int);
 int lateMoveReduction(Board&, Move, int, int, int, bool, int);
 std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
@@ -164,6 +169,15 @@ inline void updateKillerMoves(const Move& move, int ply, int threadID) {
     killer[threadID][ply][0] = killer[threadID][ply][1];
     killer[threadID][ply][1] = move;
 }
+
+// Update counter moves
+inline void updateCounterMoves(int mvIndex1, int mvIndex2, int threadID) {
+    auto& buf = counterMoves[threadID];
+    std::rotate(buf.begin(), buf.begin() + 1, buf.end());
+    buf.back() = {mvIndex1, mvIndex2};
+}
+
+
 
 // Static exchange evaluation (SEE) function
 int see(Board& board, Move move, int threadID) {
@@ -304,6 +318,14 @@ std::vector<std::pair<Move, int>> orderedMoves(
       
         if (hashMove) continue;
 
+        int previousMvIndex = ply > 0 ? moveStack[threadID][ply - 1] : -1;
+        int currentMvIndex = moveIndex(move);
+
+        bool isCounterMove = false;
+        if (std::find(counterMoves[threadID].begin(), counterMoves[threadID].end(), std::make_pair(previousMvIndex, currentMvIndex)) != counterMoves[threadID].end()) {
+            isCounterMove = true;
+        }
+
         if (isPromotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
@@ -313,6 +335,8 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 4000 + victimValue + score;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000; // killer move
+        } else if (isCounterMove) {
+            priority = 3800; // counter move
         } else {
             secondary = true;
             U64 mvIndex = moveIndex(move);
@@ -621,7 +645,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue; 
 
             addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            moveStack[threadID][ply] = movePDIndex(board, moves[i].first);
+            moveStack[threadID][ply] = moveIndex(moves[i].first);
             board.makeMove(moves[i].first);
 
             NodeInfo childNodeInfo = {ply + 1, 
@@ -693,17 +717,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // History pruning for quiet moves with very negative history score
-        bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth;
-        if (hpCondition) {
-            int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
-            int historyScore = history[threadID][stm][moveIndex(move)];
-            if (historyScore < margin) {
-                continue;
-            }
-        }
+        // bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth;
+        // if (hpCondition) {
+        //     int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
+        //     int historyScore = history[threadID][stm][moveIndex(move)];
+        //     if (historyScore < margin) {
+        //         continue;
+        //     }
+        // }
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-        moveStack[threadID][ply] = movePDIndex(board, move);
+        moveStack[threadID][ply] = moveIndex(move);
         board.makeMove(move);
         
         bool nullWindow = false;
@@ -764,7 +788,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             childNodeInfo.nodeType = NodeType::PV;
 
             addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            moveStack[threadID][ply] = movePDIndex(board, move);
+            moveStack[threadID][ply] = moveIndex(move);
             board.makeMove(move);
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
@@ -814,6 +838,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                     int badMvIndex = moveIndex(badMv);
                     history[threadID][stm][badMvIndex] -= delta;
                     history[threadID][stm][badMvIndex] = std::clamp(history[threadID][stm][badMvIndex], -maxHist, maxHist);
+                }
+
+                // counter moves
+                if (ply > 0 && moveStack[threadID][ply - 1] != -1)  {
+                    updateCounterMoves(moveStack[threadID][ply - 1], mvIndex, threadID);
                 }
             } else {
                 captureHistory[threadID][stm][mvIndex] += delta;
@@ -1005,7 +1034,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                                         threadID};
                 
                 addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-                moveStack[threadID][ply] = movePDIndex(localBoard, move);
+                moveStack[threadID][ply] = moveIndex(move);
                 localBoard.makeMove(move);
 
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
@@ -1032,7 +1061,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 if (newBestFlag && depth > 8 && nextDepth < depth - 1) {
 
                     addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-                    moveStack[threadID][ply] = movePDIndex(localBoard, move);
+                    moveStack[threadID][ply] = moveIndex(move);
                     localBoard.makeMove(move);
 
                     eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
