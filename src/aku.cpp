@@ -41,16 +41,16 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 // Engine parameters
 int rfpDepth = 7;
-int rfpC1 = 12;
-int rfpC2 = 50;
+int rfpC1 = 8;
+int rfpC2 = 52;
 int rfpC3 = 147;
 
-int fpDepth = 3;
-int fpC1 = 116;
-int fpC2 = 130;
-int fpC3 = 135;
+int fpDepth = 2;
+int fpC1 = 122;
+int fpC2 = 122;
+int fpC3 = 137;
 
-int lmpDepth = 4;
+int lmpDepth = 3;
 int lmpC1 = 10;
 
 // Initialize Syzygy tablebases and NNUE weights.
