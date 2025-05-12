@@ -53,6 +53,11 @@ int fpC3 = 137;
 int lmpDepth = 3;
 int lmpC1 = 10;
 
+int hpDepth = 4;
+int hpC1 = 3000;
+int hpC2 = 3000;
+int hpC3 = 1000;
+
 float lmr1 = 0.75f;
 float lmr2 = 0.65f;
 

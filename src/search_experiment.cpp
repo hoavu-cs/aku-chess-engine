@@ -691,6 +691,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue;
             }
         }
+
+        // History pruning for quiet moves with very negative history score
+        bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth;
+        if (hpCondition) {
+            int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
+            int historyScore = history[threadID][stm][moveIndex(move)];
+            if (historyScore < margin) {
+                continue;
+            }
+        }
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         moveStack[threadID][ply] = movePDIndex(board, move);
