@@ -119,7 +119,7 @@ fn main() {
         .add_layer(1)
         .build();
     
-    //trainer.load_from_checkpoint("checkpoints_v2/simple512v5-70/");
+    trainer.load_from_checkpoint("checkpoints_may/simple1024_v3-80/");
 
     let schedule = TrainingSchedule {
         net_id: "simple1024_v3".to_string(),
@@ -127,12 +127,12 @@ fn main() {
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
-            start_superbatch: 1,
-            end_superbatch: 100,
+            start_superbatch: 81,
+            end_superbatch: 150,
         },
         wdl_scheduler: wdl::ConstantWDL { value: 0.01 },
         lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 25 },
-        save_rate: 10,
+        save_rate: 5,
     };
 
     trainer.set_optimiser_params(optimiser::AdamWParams::default());
