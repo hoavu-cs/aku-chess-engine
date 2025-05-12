@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <mutex>
 
 #include "nnue.hpp"
@@ -60,7 +61,7 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<int>(engineDepth + 1, 0));
 
 // Top counter moves
-const int numCounterMoves = 10;
+const int numCounterMoves = 5;
 std::vector<std::vector<std::pair<int, int>>> counterMoves(maxThreadsID, std::vector(numCounterMoves, std::pair<int, int>(0, 0)));
 
 // LMR table 
@@ -176,8 +177,6 @@ inline void updateCounterMoves(int mvIndex1, int mvIndex2, int threadID) {
     std::rotate(buf.begin(), buf.begin() + 1, buf.end());
     buf.back() = {mvIndex1, mvIndex2};
 }
-
-
 
 // Static exchange evaluation (SEE) function
 int see(Board& board, Move move, int threadID) {
