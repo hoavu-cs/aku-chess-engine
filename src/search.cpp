@@ -16,6 +16,7 @@
 #include "utils.hpp"
 #include "syzygy.hpp"
 #include "chess.hpp"
+#include "params.hpp"
 
 using namespace chess;
 
@@ -554,9 +555,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int R2 = seeds[threadID] % moves.size();
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = (depth <= 8) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = (depth <= rfpDepth) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
     if (rfpCondition) {
-        int rfpMargin = 100 + 100 * depth + 100 * (1 - improving);
+        int rfpMargin = rfpC1 + rfpC2 * depth + rfpC3 * (1 - improving);
         if (standPat >= beta + rfpMargin) {
             return (standPat + beta) / 2;
         }
@@ -671,21 +672,22 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
-    
+
+
         // Futility  pruning
-        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= 2;
+        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth;
         if (fpCondition) {
-            int margin = 100 + 100 * nextDepth + 100 * improving;
+            int margin = fpC1 + fpC2 * nextDepth + fpC3 * improving;
             if (standPat + margin < alpha) {
                 continue;
             }
         }
 
         // Late move pruning for quiet moves
-        bool lmpCondition = canPrune && !isPV && !isCapture && nextDepth <= 4;
+        bool lmpCondition = canPrune && !isPV && !isCapture && nextDepth <= lmpDepth;
         if (lmpCondition) {
             int divisor = improving ? 1 : 2;
-            if (i >= (6 + nextDepth * nextDepth) / divisor) {
+            if (i >= (lmpC1 + nextDepth * nextDepth) / divisor) {
                 continue;
             }
         }
