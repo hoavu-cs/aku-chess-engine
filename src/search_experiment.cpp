@@ -23,10 +23,11 @@ using namespace chess;
 
 // Aliases, constants, and engine parameters
 typedef std::uint64_t U64;
-const int maxThreadsID = 12; 
+constexpr int maxThreadsID = 12; 
 int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
 int globalMaxDepth = 0; // Maximum depth of current search
 int engineDepth = 99; // Maximum search depth for the current engine version
+constexpr int numCounterMoves = 5; // Most recent counter moves to be considered
 
 // Initalize NNUE
 Network nnue;
@@ -61,7 +62,6 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<int>(engineDepth + 1, 0));
 
 // Top counter moves
-const int numCounterMoves = 5;
 std::vector<std::vector<std::pair<int, int>>> counterMoves(maxThreadsID, std::vector(numCounterMoves, std::pair<int, int>(0, 0)));
 
 // LMR table 
