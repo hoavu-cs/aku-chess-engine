@@ -16,7 +16,7 @@ all: aku aku_experiment
 ../bin/aku_experiment:
 	@mkdir -p ../bin/aku_experiment
 
-aku: aku.cpp search.cpp ../lib/fathom/src/tbprobe.c | ../bin
+aku: aku.cpp search.cpp ../lib/fathom/src/tbprobe.c | 
 	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/fathom/src -o ../bin/aku/aku $^ -lm
 
 aku_experiment: aku.cpp search_experiment.cpp ../lib/fathom/src/tbprobe.c | ../bin/aku_experiment
