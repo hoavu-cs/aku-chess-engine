@@ -53,6 +53,9 @@ int fpC3 = 137;
 int lmpDepth = 3;
 int lmpC1 = 10;
 
+float lmr1 = 0.75f;
+float lmr2 = 0.65f;
+
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
     #include <windows.h>
@@ -269,6 +272,10 @@ void processSetOption(const std::vector<std::string>& tokens) {
         lmpDepth = std::stoi(value);
     } else if (optionName == "lmpC1") {
         lmpC1 = std::stoi(value);
+    } else if (optionName == "lmr1") {
+        lmr1 = std::stof(value) / 100.0f;
+    } else if (optionName == "lmr2") {
+        lmr2 = std::stof(value) / 100.0f;
     }
     
     else {
@@ -387,6 +394,9 @@ void processUci() {
 
     std::cout << "option name lmpDepth type spin default 4 min 1 max 6" << std::endl;
     std::cout << "option name lmpC1 type spin default 6 min 1 max 1000" << std::endl;
+
+    std::cout << "option name lmr1 type spin default 75 min 10 max 99" << std::endl;
+    std::cout << "option name lmr2 type spin default 65 min 10 max 99" << std::endl;
     
     std::cout << "uciok" << std::endl;
 }

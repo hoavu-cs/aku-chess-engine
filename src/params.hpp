@@ -12,3 +12,6 @@ extern int fpC3;
 
 extern int lmpDepth;
 extern int lmpC1;
+
+extern float lmr1;
+extern float lmr2;

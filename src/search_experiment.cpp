@@ -107,7 +107,7 @@ void precomputeLMR(int maxDepth, int maxI) {
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.65 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(lmr1 + lmr2 * log(depth) * log(i));
         }
     }
 
