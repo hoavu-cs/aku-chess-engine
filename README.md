@@ -4,6 +4,8 @@ How to Play with the Engine in a GUI: you can use any UCI-compatible GUI such as
 
 The engine currently plays rapid chess at an estimated 3100-3300 ELO (subject to further testing and vary greatly because I often make random changes to test new ideas). The main goal is to improve the strength through exploring new ideas in the search algorithm. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible). 
 
+To build, simply call "make aku" from "src" and make sure "bin/aku" folder exists.
+
 This is a fun side project so any suggestion is welcome. 
 
 - This engine uses NNUE (Efficiently Updatable Neural Network) evaluation.  
