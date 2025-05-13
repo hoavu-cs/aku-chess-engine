@@ -5,7 +5,6 @@
 #include <fstream>
 #include <cstdint>
 #include <iostream>
-#include <immintrin.h>
 #include "chess.hpp"
 
 using namespace chess;
