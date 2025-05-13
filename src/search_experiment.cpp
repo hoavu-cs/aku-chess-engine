@@ -27,7 +27,6 @@ constexpr int maxThreadsID = 12;
 int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
 int globalMaxDepth = 0; // Maximum depth of current search
 int engineDepth = 99; // Maximum search depth for the current engine version
-constexpr int numCounterMoves = 5; // Most recent counter moves to be considered
 
 // Initalize NNUE
 Network nnue;
@@ -61,8 +60,6 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // Move stack for each thread
 std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<int>(engineDepth + 1, 0));
 
-// Top counter moves
-std::vector<std::vector<std::pair<int, int>>> counterMoves(maxThreadsID, std::vector(numCounterMoves, std::pair<int, int>(0, 0)));
 
 // LMR table 
 std::vector<std::vector<int>> lmrTable; 
@@ -98,7 +95,6 @@ void precomputeLMR(int maxDepth, int maxI);
 bool tableLookUp(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
 void tableInsert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
 inline void updateKillerMoves(const Move&, int, int);
-inline void updateCounterMoves(int, int, int);
 int see(Board&, Move, int);
 int lateMoveReduction(Board&, Move, int, int, int, bool, int);
 std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
@@ -169,13 +165,6 @@ void tableInsert(Board& board,
 inline void updateKillerMoves(const Move& move, int ply, int threadID) {
     killer[threadID][ply][0] = killer[threadID][ply][1];
     killer[threadID][ply][1] = move;
-}
-
-// Update counter moves
-inline void updateCounterMoves(int mvIndex1, int mvIndex2, int threadID) {
-    auto& buf = counterMoves[threadID];
-    std::rotate(buf.begin(), buf.begin() + 1, buf.end());
-    buf.back() = {mvIndex1, mvIndex2};
 }
 
 // Static exchange evaluation (SEE) function
@@ -320,10 +309,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
         int previousMvIndex = ply > 0 ? moveStack[threadID][ply - 1] : -1;
         int currentMvIndex = moveIndex(move);
 
-        bool isCounterMove = false;
-        if (std::find(counterMoves[threadID].begin(), counterMoves[threadID].end(), std::make_pair(previousMvIndex, currentMvIndex)) != counterMoves[threadID].end()) {
-            isCounterMove = true;
-        }
 
         if (isPromotion(move)) {                   
             priority = 16000; 
@@ -334,8 +319,6 @@ std::vector<std::pair<Move, int>> orderedMoves(
             priority = 4000 + victimValue + score;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000; // killer move
-        } else if (isCounterMove) {
-            priority = 3800; // counter move
         } else {
             secondary = true;
             U64 mvIndex = moveIndex(move);
@@ -838,11 +821,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                     history[threadID][stm][badMvIndex] -= delta;
                     history[threadID][stm][badMvIndex] = std::clamp(history[threadID][stm][badMvIndex], -maxHist, maxHist);
                 }
-
-                // counter moves
-                if (ply > 0 && moveStack[threadID][ply - 1] != -1)  {
-                    updateCounterMoves(moveStack[threadID][ply - 1], mvIndex, threadID);
-                }
             } else {
                 captureHistory[threadID][stm][mvIndex] += delta;
                 captureHistory[threadID][stm][mvIndex] = std::clamp(captureHistory[threadID][stm][mvIndex], -maxCapHist, maxCapHist);
@@ -946,7 +924,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
         nodeCount[i] = 0;
         tableHit[i] = 0;
-
         seeds[i] = rand();
 
         // Make accumulators for each thread
