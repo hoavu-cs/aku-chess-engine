@@ -20,3 +20,6 @@ extern int hpC3;
 
 extern float lmr1;
 extern float lmr2;
+
+extern float lmr3;
+extern float lmr4;
