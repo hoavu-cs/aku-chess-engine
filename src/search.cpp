@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <mutex>
 
 #include "nnue.hpp"
@@ -22,7 +23,7 @@ using namespace chess;
 
 // Aliases, constants, and engine parameters
 typedef std::uint64_t U64;
-const int maxThreadsID = 12; 
+constexpr int maxThreadsID = 12; 
 int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
 int globalMaxDepth = 0; // Maximum depth of current search
 int engineDepth = 99; // Maximum search depth for the current engine version
@@ -58,6 +59,7 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 
 // Move stack for each thread
 std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<int>(engineDepth + 1, 0));
+
 
 // LMR table 
 std::vector<std::vector<int>> lmrTable; 
@@ -107,7 +109,7 @@ void precomputeLMR(int maxDepth, int maxI) {
 
     for (int depth = maxDepth; depth >= 1; --depth) {
         for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(0.75 + 0.65 * log(depth) * log(i));
+            lmrTable[depth][i] =  static_cast<int>(lmr1 + lmr2 * log(depth) * log(i));
         }
     }
 
@@ -303,6 +305,10 @@ std::vector<std::pair<Move, int>> orderedMoves(
         } 
       
         if (hashMove) continue;
+
+        int previousMvIndex = ply > 0 ? moveStack[threadID][ply - 1] : -1;
+        int currentMvIndex = moveIndex(move);
+
 
         if (isPromotion(move)) {                   
             priority = 16000; 
@@ -621,7 +627,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue; 
 
             addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            moveStack[threadID][ply] = movePDIndex(board, moves[i].first);
+            moveStack[threadID][ply] = moveIndex(moves[i].first);
             board.makeMove(moves[i].first);
 
             NodeInfo childNodeInfo = {ply + 1, 
@@ -668,7 +674,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -691,9 +697,19 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue;
             }
         }
+
+        // History pruning for quiet moves with very negative history score
+        // bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth;
+        // if (hpCondition) {
+        //     int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
+        //     int historyScore = history[threadID][stm][moveIndex(move)];
+        //     if (historyScore < margin) {
+        //         continue;
+        //     }
+        // }
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-        moveStack[threadID][ply] = movePDIndex(board, move);
+        moveStack[threadID][ply] = moveIndex(move);
         board.makeMove(move);
         
         bool nullWindow = false;
@@ -754,7 +770,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             childNodeInfo.nodeType = NodeType::PV;
 
             addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            moveStack[threadID][ply] = movePDIndex(board, move);
+            moveStack[threadID][ply] = moveIndex(move);
             board.makeMove(move);
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
@@ -908,7 +924,6 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
         nodeCount[i] = 0;
         tableHit[i] = 0;
-
         seeds[i] = rand();
 
         // Make accumulators for each thread
@@ -995,7 +1010,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                                         threadID};
                 
                 addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-                moveStack[threadID][ply] = movePDIndex(localBoard, move);
+                moveStack[threadID][ply] = moveIndex(move);
                 localBoard.makeMove(move);
 
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
@@ -1022,7 +1037,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
                 if (newBestFlag && depth > 8 && nextDepth < depth - 1) {
 
                     addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-                    moveStack[threadID][ply] = movePDIndex(localBoard, move);
+                    moveStack[threadID][ply] = moveIndex(move);
                     localBoard.makeMove(move);
 
                     eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
