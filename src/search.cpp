@@ -789,9 +789,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        // bestEval = std::max(bestEval, eval);
-        // alpha = std::max(alpha, eval);
-
         // Beta cutoff.
         if (beta <= alpha) {
             
