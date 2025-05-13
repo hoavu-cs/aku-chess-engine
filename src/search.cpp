@@ -516,16 +516,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             return ttEval;
         } 
     }
-
-    // if (found && isPV) {
-    //     if (ttType == EntryType::EXACT 
-    //         || (ttType == EntryType::LOWERBOUND && ttEval >= beta)) {
-    //         return ttEval;
-    //     } 
-    // }
-
+    
     if (found && isPV) {
-        if ((ttType == EntryType::LOWERBOUND || ttType == EntryType::EXACT) && ttEval >= beta) {
+        if ((ttType == EntryType::EXACT  || ttType == EntryType::LOWERBOUND) && ttEval >= beta) {
             return ttEval;
         } 
     }
@@ -780,9 +773,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             board.unmakeMove(move);
         }
 
-        if (eval > alpha) {
-            updatePV(PV, move, childPV);
-        } 
+        if (eval > bestEval) {
+            bestEval = eval;
+            if (bestEval > alpha) {
+                alpha = bestEval;
+                updatePV(PV, move, childPV);
+            }
+        }
 
         if (eval <= alpha) {
             if (isCapture) {
@@ -792,8 +789,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        bestEval = std::max(bestEval, eval);
-        alpha = std::max(alpha, eval);
+        // bestEval = std::max(bestEval, eval);
+        // alpha = std::max(alpha, eval);
 
         // Beta cutoff.
         if (beta <= alpha) {
@@ -915,6 +912,9 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
 
             captureHistory[i][0][j] = 0;
             captureHistory[i][1][j] = 0;
+
+
+
         }
 
         // Reset killer moves
