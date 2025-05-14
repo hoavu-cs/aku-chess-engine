@@ -982,8 +982,8 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
             currentBestEval = -INF;
 
             // A very crude lazysmp implementation.
-            #pragma omp parallel for schedule(dynamic, moves.size())
-            for (int i = 0; i < numThreads * moves.size(); i++) {
+            #pragma omp parallel for schedule(dynamic, 1)
+            for (int i = 0; i < moves.size(); i++) {
 
                 if (stopNow) continue; // Check if the time limit has been exceeded
                 
