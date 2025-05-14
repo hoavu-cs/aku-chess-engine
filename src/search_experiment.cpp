@@ -60,6 +60,7 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // Move stack for each thread
 std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<int>(engineDepth + 1, 0));
 
+
 // LMR table 
 std::vector<std::vector<int>> lmrTable; 
 
@@ -405,7 +406,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
 
     for (const auto& move : moves) {
         int seeScore = see(board, move, threadID);
-        if (seeScore < 0) continue; 
         candidateMoves.push_back({move, seeScore});
     }
 
@@ -692,14 +692,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // History pruning for quiet moves with very negative history score
-        // bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth;
-        // if (hpCondition) {
-        //     int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
-        //     int historyScore = history[threadID][stm][moveIndex(move)];
-        //     if (historyScore < margin) {
-        //         continue;
-        //     }
-        // }
+        bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth;
+        if (hpCondition) {
+            int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
+            int historyScore = history[threadID][stm][moveIndex(move)];
+            if (historyScore < margin) {
+                continue;
+            }
+        }
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         moveStack[threadID][ply] = moveIndex(move);
