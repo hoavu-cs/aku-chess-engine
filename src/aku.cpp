@@ -400,7 +400,7 @@ void processGo(const std::vector<std::string>& tokens) {
             }
         }
     }
-    bestMove = findBestMove(board, numThreads, depth, timeLimit);
+    bestMove = rootSearch(board, numThreads, depth, timeLimit);
 
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove, chess960)  << std::endl;

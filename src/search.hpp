@@ -21,5 +21,5 @@ struct NodeInfo {
 void initializeNNUE(std::string path);
 void initializeTB(std::string path);
 int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeInfo& nodeInfo);
-Move findBestMove(Board &board, int numThreads, int maxDepth, int timeLimit);
+Move rootSearch(Board &board, int numThreads, int maxDepth, int timeLimit);
 
