@@ -981,7 +981,7 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         while (true) {
             currentBestEval = -INF;
 
-            // A very crude lazysmp implementation.
+            // A very crude root splitting parallelization.
             #pragma omp parallel for schedule(dynamic, 1)
             for (int i = 0; i < moves.size(); i++) {
 
