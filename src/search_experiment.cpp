@@ -60,7 +60,6 @@ std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std
 // Move stack for each thread
 std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<int>(engineDepth + 1, 0));
 
-
 // LMR table 
 std::vector<std::vector<int>> lmrTable; 
 
@@ -406,6 +405,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
 
     for (const auto& move : moves) {
         int seeScore = see(board, move, threadID);
+        if (seeScore < 0) continue; 
         candidateMoves.push_back({move, seeScore});
     }
 
