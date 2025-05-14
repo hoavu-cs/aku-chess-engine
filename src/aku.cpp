@@ -63,9 +63,9 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 //
 int rfpDepth = 8;
-int rfpC1 = 41;
-int rfpC2 = 66;
-int rfpC3 = 131;
+int rfpC1 = 37;
+int rfpC2 = 65;
+int rfpC3 = 130;
 
 int fpDepth = 4;
 int fpC1 = 140;
@@ -77,11 +77,11 @@ int lmpC1 = 11;
 
 int hpDepth = 6;
 int hpC1 = 1;
-int hpC2 = 257;
+int hpC2 = 247;
 int hpC3 = 11;
 
-float lmr1 = 0.85f;
-float lmr2 = 0.68f;
+float lmr1 = 0.80f;
+float lmr2 = 0.74f;
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32

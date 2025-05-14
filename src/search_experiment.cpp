@@ -667,7 +667,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -981,8 +981,9 @@ Move findBestMove(Board& board, int numThreads = 4, int maxDepth = 30, int timeL
         while (true) {
             currentBestEval = -INF;
 
-            #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < 3 * moves.size(); i++) {
+            // A very crude lazysmp implementation.
+            #pragma omp parallel for schedule(dynamic, numThreads)
+            for (int i = 0; i < numThreads * moves.size(); i++) {
 
                 if (stopNow) continue; // Check if the time limit has been exceeded
                 
