@@ -606,41 +606,41 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Singular extension. If the hash move is stronger than all others, extend the search.
-    // if (hashMoveFound && ttDepth >= depth - 3
-    //     && depth >= 7
-    //     && ttType != EntryType::UPPERBOUND
-    //     && isPV
-    //     && abs(ttEval) < INF/2 - 100) {
+    if (hashMoveFound && ttDepth >= depth - 3
+        && depth >= 7
+        && ttType != EntryType::UPPERBOUND
+        && isPV
+        && abs(ttEval) < INF/2 - 100) {
 
-    //     int sEval = -INF;
-    //     int sBeta = ttEval - 3 * depth; 
+        int sEval = -INF;
+        int sBeta = ttEval - 2 * depth; 
 
-    //     for (int i = 0; i < moves.size(); i++) {
-    //         if (moves[i].first == ttMove) 
-    //             continue; 
+        for (int i = 0; i < moves.size(); i++) {
+            if (moves[i].first == ttMove) 
+                continue; 
 
-    //         addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-    //         moveStack[threadID][ply] = moveIndex(moves[i].first);
-    //         board.makeMove(moves[i].first);
+            addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            moveStack[threadID][ply] = moveIndex(moves[i].first);
+            board.makeMove(moves[i].first);
 
-    //         NodeInfo childNodeInfo = {ply + 1, 
-    //                                 false, 
-    //                                 rootDepth,
-    //                                 NodeType::PV,
-    //                                 threadID};
+            NodeInfo childNodeInfo = {ply + 1, 
+                                    false, 
+                                    rootDepth,
+                                    NodeType::PV,
+                                    threadID};
 
 
-    //         sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
-    //         evalAdjust(sEval);
+            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
+            evalAdjust(sEval);
 
-    //         subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-    //         board.unmakeMove(moves[i].first);
+            subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            board.unmakeMove(moves[i].first);
 
-    //         if (sEval >= sBeta) break;
-    //     }
+            if (sEval >= sBeta) break;
+        }
 
-    //     if (sEval < sBeta) extensions++; // singular extension
-    // }
+        if (sEval < sBeta) extensions++; // singular extension
+    }
 
     if (board.inCheck()) extensions++;
     if (moves.size() == 1) extensions++;
@@ -667,7 +667,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -692,14 +692,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // History pruning for quiet moves with very negative history score
-        // bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth;
-        // if (hpCondition) {
-        //     int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
-        //     int historyScore = history[threadID][stm][moveIndex(move)];
-        //     if (historyScore < margin) {
-        //         continue;
-        //     }
-        // }
+        bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth;
+        if (hpCondition) {
+            int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
+            int historyScore = history[threadID][stm][moveIndex(move)];
+            if (historyScore < margin) {
+                continue;
+            }
+        }
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         moveStack[threadID][ply] = moveIndex(move);
@@ -909,9 +909,6 @@ Move rootSearch(Board& board, int numThreads = 4, int maxDepth = 30, int timeLim
 
             captureHistory[i][0][j] = 0;
             captureHistory[i][1][j] = 0;
-
-
-
         }
 
         // Reset killer moves
@@ -984,8 +981,9 @@ Move rootSearch(Board& board, int numThreads = 4, int maxDepth = 30, int timeLim
         while (true) {
             currentBestEval = -INF;
 
+            // A very crude root splitting parallelization.
             #pragma omp parallel for schedule(dynamic, 1)
-            for (int i = 0; i < 3 * moves.size(); i++) {
+            for (int i = 0; i < moves.size(); i++) {
 
                 if (stopNow) continue; // Check if the time limit has been exceeded
                 
@@ -1149,6 +1147,33 @@ Move rootSearch(Board& board, int numThreads = 4, int maxDepth = 30, int timeLim
             } 
             depth++; // Else, we can still search deeper
         }
+
+        // Before going to the next depth, average the history scores across threads to avoid instability.
+        for (int j = 0; j < 64 * 64; ++j) {
+            int hisSum0 = 0, hisSum1 = 0;
+            int capSum0 = 0, capSum1 = 0;
+
+            for (int i = 0; i < numThreads; ++i) {
+                hisSum0 += history[i][0][j];
+                hisSum1 += history[i][1][j];
+                capSum0 += captureHistory[i][0][j];
+                capSum1 += captureHistory[i][1][j];
+            }
+
+            int avgHis0 = hisSum0 / numThreads;
+            int avgHis1 = hisSum1 / numThreads;
+            int avgCap0 = capSum0 / numThreads;
+            int avgCap1 = capSum1 / numThreads;
+
+            for (int i = 0; i < numThreads; ++i) {
+                history[i][0][j] = avgHis0;
+                history[i][1][j] = avgHis1;
+                captureHistory[i][0][j] = avgCap0;
+                captureHistory[i][1][j] = avgCap1;
+            }
+        }
+
+
     }
 
     return bestMove; 
