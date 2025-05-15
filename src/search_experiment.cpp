@@ -601,7 +601,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int bestEval = -INF;
 
     // Simplified version of IID. Reduce the depth to facilitate the search if no hash move found.
-    if (!hashMoveFound && depth >= 4) {
+    if (!hashMoveFound && depth >= 2) {
         depth = depth - 1;
     }
 
@@ -671,6 +671,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
+
 
         // Futility  pruning
         bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth;
@@ -1159,16 +1160,16 @@ Move rootSearch(Board& board, int numThreads = 4, int maxDepth = 30, int timeLim
                 capSum1 += captureHistory[i][1][j];
             }
 
-            int avgHis0 = hisSum0 / numThreads;
-            int avgHis1 = hisSum1 / numThreads;
-            int avgCap0 = capSum0 / numThreads;
-            int avgCap1 = capSum1 / numThreads;
+            // int avgHis0 = hisSum0 / numThreads;
+            // int avgHis1 = hisSum1 / numThreads;
+            // int avgCap0 = capSum0 / numThreads;
+            // int avgCap1 = capSum1 / numThreads;
 
             for (int i = 0; i < numThreads; ++i) {
-                history[i][0][j] = avgHis0;
-                history[i][1][j] = avgHis1;
-                captureHistory[i][0][j] = avgCap0;
-                captureHistory[i][1][j] = avgCap1;
+                history[i][0][j] = hisSum0;
+                history[i][1][j] = hisSum1;
+                captureHistory[i][0][j] = capSum0;
+                captureHistory[i][1][j] = capSum1;
             }
         }
 
