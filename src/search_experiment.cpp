@@ -1161,15 +1161,16 @@ Move rootSearch(Board& board, int numThreads = 4, int maxDepth = 30, int timeLim
             }
 
 
-            // int avgHis0 = hisSum0 / numThreads;
-            // int avgHis1 = hisSum1 / numThreads;
-            // int avgCap0 = capSum0 / numThreads;
-            // int avgCap1 = capSum1 / numThreads;
+            int avgHis0 = hisSum0 / numThreads;
+            int avgHis1 = hisSum1 / numThreads;
+            int avgCap0 = capSum0 / numThreads;
+            int avgCap1 = capSum1 / numThreads;
+
             for (int i = 0; i < numThreads; ++i) {
-                history[i][0][j] = hisSum0;
-                history[i][1][j] = hisSum1;
-                captureHistory[i][0][j] = capSum0;
-                captureHistory[i][1][j] = capSum1;
+                history[i][0][j] = avgHis0;
+                history[i][1][j] = avgHis1;
+                captureHistory[i][0][j] = avgCap0;
+                captureHistory[i][1][j] = avgCap1;
             }
         }
     }
