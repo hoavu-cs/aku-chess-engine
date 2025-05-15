@@ -60,6 +60,8 @@ int hpC3 = 203;
 
 int iidDepth = 2;
 
+int maxExtensions = 3;
+
 float lmr1 = 0.80f;
 float lmr2 = 0.62f;
 
@@ -293,6 +295,10 @@ void processSetOption(const std::vector<std::string>& tokens) {
 
     else if (optionName == "iidDepth") {
         iidDepth = std::stoi(value);
+    } 
+
+    else if (optionName == "maxExtensions") {
+        maxExtensions = std::stoi(value);
     }
     
     else if (optionName == "lmr1") {
@@ -424,6 +430,8 @@ void processUci() {
     std::cout << "option name hpC3 type spin default 1000 min 1 max 20000" << std::endl;
 
     std::cout << "option name iidDepth type spin default 4 min 1 max 20" << std::endl;
+
+    std::cout << "option name maxExtensions type spin default 3 min 0 max 20" << std::endl;
 
     std::cout << "option name lmr1 type spin default 75 min 10 max 99" << std::endl;
     std::cout << "option name lmr2 type spin default 65 min 10 max 99" << std::endl;

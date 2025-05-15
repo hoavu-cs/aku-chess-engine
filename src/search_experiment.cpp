@@ -667,7 +667,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (maxExtensions + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -1149,30 +1149,29 @@ Move rootSearch(Board& board, int numThreads = 4, int maxDepth = 30, int timeLim
         }
 
         // Before going to the next depth, average the history scores across threads to avoid instability.
-        for (int j = 0; j < 64 * 64; ++j) {
-            int hisSum0 = 0, hisSum1 = 0;
-            int capSum0 = 0, capSum1 = 0;
+        // for (int j = 0; j < 64 * 64; ++j) {
+        //     int hisSum0 = 0, hisSum1 = 0;
+        //     int capSum0 = 0, capSum1 = 0;
 
-            for (int i = 0; i < numThreads; ++i) {
-                hisSum0 += history[i][0][j];
-                hisSum1 += history[i][1][j];
-                capSum0 += captureHistory[i][0][j];
-                capSum1 += captureHistory[i][1][j];
-            }
+        //     for (int i = 0; i < numThreads; ++i) {
+        //         hisSum0 += history[i][0][j];
+        //         hisSum1 += history[i][1][j];
+        //         capSum0 += captureHistory[i][0][j];
+        //         capSum1 += captureHistory[i][1][j];
+        //     }
 
+        //     int avgHis0 = hisSum0 / numThreads;
+        //     int avgHis1 = hisSum1 / numThreads;
+        //     int avgCap0 = capSum0 / numThreads;
+        //     int avgCap1 = capSum1 / numThreads;
 
-            int avgHis0 = hisSum0 / numThreads;
-            int avgHis1 = hisSum1 / numThreads;
-            int avgCap0 = capSum0 / numThreads;
-            int avgCap1 = capSum1 / numThreads;
-
-            for (int i = 0; i < numThreads; ++i) {
-                history[i][0][j] = avgHis0;
-                history[i][1][j] = avgHis1;
-                captureHistory[i][0][j] = avgCap0;
-                captureHistory[i][1][j] = avgCap1;
-            }
-        }
+        //     for (int i = 0; i < numThreads; ++i) {
+        //         history[i][0][j] = avgHis0;
+        //         history[i][1][j] = avgHis1;
+        //         captureHistory[i][0][j] = avgCap0;
+        //         captureHistory[i][1][j] = avgCap1;
+        //     }
+        // }
     }
 
     return bestMove; 

@@ -19,6 +19,7 @@ extern int hpC2;
 extern int hpC3;
 
 extern int iidDepth;
+extern int maxExtensions;
 
 extern float lmr1;
 extern float lmr2;
