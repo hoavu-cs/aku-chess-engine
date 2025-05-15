@@ -18,5 +18,7 @@ extern int hpC1;
 extern int hpC2;
 extern int hpC3;
 
+extern int iidDepth;
+
 extern float lmr1;
 extern float lmr2;
