@@ -672,7 +672,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
 
-
         // Futility  pruning
         bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth;
         if (fpCondition) {

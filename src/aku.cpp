@@ -39,29 +39,7 @@ using namespace chess;
 const std::string ENGINE_NAME = "Aku Chess Engine";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
-// Engine parameters
-// int rfpDepth = 7;
-// int rfpC1 = 8;
-// int rfpC2 = 52;
-// int rfpC3 = 147;
-
-// int fpDepth = 2;
-// int fpC1 = 122;
-// int fpC2 = 122;
-// int fpC3 = 137;
-
-// int lmpDepth = 3;
-// int lmpC1 = 10;
-
-// int hpDepth = 5;
-// int hpC1 = 50;
-// int hpC2 = 200;
-// int hpC3 = 100;
-
-// float lmr1 = 0.75f;
-// float lmr2 = 0.65f;
-
-//
+// Engine tunable parameters
 int rfpDepth = 4;
 int rfpC1 = 63;
 int rfpC2 = 21;
