@@ -24,6 +24,9 @@ using namespace chess;
 // Aliases, constants, and engine parameters
 typedef std::uint64_t U64;
 constexpr int maxThreadsID = 12; 
+constexpr int maxHist = 9000;//15000;
+constexpr int maxCapHist = 3000;//5000;
+
 int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
 int globalMaxDepth = 0; // Maximum depth of current search
 int engineDepth = 99; // Maximum search depth for the current engine version
@@ -792,8 +795,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Beta cutoff.
         if (beta <= alpha) {
             
-            constexpr int maxHist = 9000;//15000;
-            constexpr int maxCapHist = 3000;//5000;
+
 
             int mvIndex = moveIndex(move);
             int currentScore = isCapture ? 
@@ -1148,7 +1150,7 @@ Move rootSearch(Board& board, int numThreads = 4, int maxDepth = 30, int timeLim
             depth++; // Else, we can still search deeper
         }
 
-        // Before going to the next depth, average the history scores across threads to avoid instability.
+        // Before going to the next depth, sum the history scores across threads to avoid instability.
         for (int j = 0; j < 64 * 64; ++j) {
             int hisSum0 = 0, hisSum1 = 0;
             int capSum0 = 0, capSum1 = 0;
@@ -1160,16 +1162,16 @@ Move rootSearch(Board& board, int numThreads = 4, int maxDepth = 30, int timeLim
                 capSum1 += captureHistory[i][1][j];
             }
 
-            int avgHis0 = hisSum0 / numThreads;
-            int avgHis1 = hisSum1 / numThreads;
-            int avgCap0 = capSum0 / numThreads;
-            int avgCap1 = capSum1 / numThreads;
+            hisSum0 = std::clamp(hisSum0, -maxHist, maxHist);
+            hisSum1 = std::clamp(hisSum1, -maxHist, maxHist);
+            capSum0 = std::clamp(capSum0, -maxCapHist, maxCapHist);
+            capSum1 = std::clamp(capSum1, -maxCapHist, maxCapHist);
 
             for (int i = 0; i < numThreads; ++i) {
-                history[i][0][j] = avgHis0;
-                history[i][1][j] = avgHis1;
-                captureHistory[i][0][j] = avgCap0;
-                captureHistory[i][1][j] = avgCap1;
+                history[i][0][j] = hisSum0;
+                history[i][1][j] = hisSum1;
+                captureHistory[i][0][j] = capSum0;
+                captureHistory[i][1][j] = capSum1;
             }
         }
     }
