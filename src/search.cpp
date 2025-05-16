@@ -792,8 +792,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Beta cutoff.
         if (beta <= alpha) {
             
-            constexpr int maxHist = 9000;//15000;
-            constexpr int maxCapHist = 3000;//5000;
+            constexpr int maxHist = 9000;
+            constexpr int maxCapHist = 3000;
 
             int mvIndex = moveIndex(move);
             int currentScore = isCapture ? 

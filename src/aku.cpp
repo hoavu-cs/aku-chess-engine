@@ -58,7 +58,7 @@ int hpC1 = 97;
 int hpC2 = 703;
 int hpC3 = 203;
 
-int iidDepth = 2;
+int iidDepth = 4;
 
 int maxExtensions = 3;
 
