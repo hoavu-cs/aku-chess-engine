@@ -1078,10 +1078,6 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             depth++; // If the time limit is not exceeded, we can search deeper.
         } else {
             if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1] && depth >= 14)) {
-                if (threadID == 0) {
-                    #pragma omp critical
-                    stopSearch = true; // Stop the search if the main thread is done.
-                }
                 break; // If we go beyond the hard limit or stabilize
             } 
             depth++; // Else, we can still search deeper
