@@ -60,7 +60,11 @@ int hpC3 = 203;
 
 int iidDepth = 4;
 
-int maxExtensions = 3;
+int cutNodeExitDepth = 2;
+int cutNodeExitMove = 15;
+
+int singularC1 = 2;
+int singularC2 = 25;
 
 float lmr1 = 0.80f;
 float lmr2 = 0.62f;
@@ -297,9 +301,24 @@ void processSetOption(const std::vector<std::string>& tokens) {
         iidDepth = std::stoi(value);
     } 
 
-    else if (optionName == "maxExtensions") {
-        maxExtensions = std::stoi(value);
+    else if (optionName == "cutNodeExitDepth") {
+        cutNodeExitDepth = std::stoi(value);
+    } else if (optionName == "cutNodeExitMove") {
+        cutNodeExitMove = std::stoi(value);
+    } 
+
+
+    else if (optionName == "singularC1") {
+        singularC1 = std::stoi(value);
+    } 
+    else if (optionName == "singularC2") {
+        singularC2 = std::stoi(value);
+    } 
+
+    else if (optionName == "lmr1") {
+        lmr1 = std::stoi(value) / 100.0f;
     }
+
     
     else if (optionName == "lmr1") {
         lmr1 = std::stof(value) / 100.0f;
@@ -411,27 +430,31 @@ void processUci() {
     std::cout << "option name Internal_Opening_Book type check default true" << std::endl;
 
     // For spsa tuning. Comment out for final build.
-    std::cout << "option name rfpDepth type spin default 8 min 02 max 20" << std::endl;
-    std::cout << "option name rfpC1 type spin default 100 min 1 max 1000" << std::endl;
-    std::cout << "option name rfpC2 type spin default 100 min 1 max 1000" << std::endl;
-    std::cout << "option name rfpC3 type spin default 100 min 1 max 1000" << std::endl;
+    std::cout << "option name rfpDepth type spin default 8 min 0 max 20000" << std::endl;
+    std::cout << "option name rfpC1 type spin default 100 min 0 max 20000" << std::endl;
+    std::cout << "option name rfpC2 type spin default 100 min 0 max 20000" << std::endl;
+    std::cout << "option name rfpC3 type spin default 100 min 0 max 20000" << std::endl;
 
-    std::cout << "option name fpDepth type spin default 2 min 0 max 6" << std::endl;
-    std::cout << "option name fpC1 type spin default 100 min 1 max 1000" << std::endl;
-    std::cout << "option name fpC2 type spin default 100 min 1 max 1000" << std::endl;
-    std::cout << "option name fpC3 type spin default 100 min 1 max 1000" << std::endl;
+    std::cout << "option name fpDepth type spin default 2 min 0 max 20000" << std::endl;
+    std::cout << "option name fpC1 type spin default 100 min 0 max 20000" << std::endl;
+    std::cout << "option name fpC2 type spin default 100 min 0 max 20000" << std::endl;
+    std::cout << "option name fpC3 type spin default 100 min 0 max 20000" << std::endl;
 
-    std::cout << "option name lmpDepth type spin default 4 min 0 max 6" << std::endl;
-    std::cout << "option name lmpC1 type spin default 6 min 1 max 1000" << std::endl;
+    std::cout << "option name lmpDepth type spin default 4 min 0 max 20000" << std::endl;
+    std::cout << "option name lmpC1 type spin default 6 min 0 max 20000" << std::endl;
 
-    std::cout << "option name hpDepth type spin default 4 min 0 max 20" << std::endl;
-    std::cout << "option name hpC1 type spin default 3000 min 1 max 20000" << std::endl;
-    std::cout << "option name hpC2 type spin default 3000 min 1 max 20000" << std::endl;
-    std::cout << "option name hpC3 type spin default 1000 min 1 max 20000" << std::endl;
+    std::cout << "option name hpDepth type spin default 4 min 0 max 20000" << std::endl;
+    std::cout << "option name hpC1 type spin default 3000 min 0 max 20000" << std::endl;
+    std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
+    std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
 
-    std::cout << "option name iidDepth type spin default 4 min 1 max 20" << std::endl;
+    std::cout << "option name iidDepth type spin default 4 min 1 max 20000" << std::endl;
 
-    std::cout << "option name maxExtensions type spin default 3 min 0 max 20" << std::endl;
+    std::cout << "option name cutNodeExitDepth type spin default 2 min 0 max 20000" << std::endl;
+    std::cout << "option name cutNodeExitMove type spin default 15 min 5 max 20000" << std::endl;
+    
+    std::cout << "option name singularC1 type spin default 1 min 0 max 100" << std::endl;
+    std::cout << "option name singularC2 type spin default 25 min 0 max 200" << std::endl;
 
     std::cout << "option name lmr1 type spin default 75 min 10 max 99" << std::endl;
     std::cout << "option name lmr2 type spin default 65 min 10 max 99" << std::endl;

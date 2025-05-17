@@ -19,7 +19,12 @@ extern int hpC2;
 extern int hpC3;
 
 extern int iidDepth;
-extern int maxExtensions;
+
+extern int cutNodeExitDepth;
+extern int cutNodeExitMove;
+
+extern int singularC1;
+extern int singularC2;
 
 extern float lmr1;
 extern float lmr2;

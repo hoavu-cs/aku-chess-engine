@@ -605,7 +605,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && abs(ttEval) < INF/2 - 100) {
 
         int sEval = -INF;
-        int sBeta = ttEval - 2 * depth; 
+        int sBeta = ttEval - singularC1 * depth - singularC2; 
 
         for (int i = 0; i < moves.size(); i++) {
             if (moves[i].first == ttMove) 
@@ -659,7 +659,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -695,9 +695,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // If we are at an expected CUT node and fail to have a beta cutoff after trying many moves,
         // this is likely raising alpha so we can save some time by returning beta - 1 
         // to trigger a full window search in the ancestor node.
-        // if (nodeType == NodeType::CUT && i > 19 && ply >= 10) {
-        //     return beta - 1;
-        // }
+        if (nodeType == NodeType::CUT && i > cutNodeExitMove && nextDepth <= cutNodeExitDepth) {
+            return beta - 1;
+        }
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         moveStack[threadID][ply] = moveIndex(move);
@@ -979,7 +979,6 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
 
                 if (eval > currentBestEval && nextDepth < depth - 1) {
                     // Re-search with full depth if we have a new best move
-
                     addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                     moveStack[threadID][ply] = moveIndex(move);
                     localBoard.makeMove(move);
