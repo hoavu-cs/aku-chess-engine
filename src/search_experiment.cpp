@@ -923,10 +923,9 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         int currentBestEval = -INF;
         bool hashMoveFound = false;
 
-        int alpha = (depth > 6) ? evals[depth - 1] - 150 : -INF;
-        int beta  = (depth > 6) ? evals[depth - 1] + 150 : INF;
+        int alpha = (depth > 6) ? evals[depth - 1] - 200 : -INF;
+        int beta  = (depth > 6) ? evals[depth - 1] + 200 : INF;
         
-
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
         
@@ -937,12 +936,10 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         while (true) {
             currentBestEval = -INF;
             int alpha0 = alpha;
+            newMoves.clear();
             
             for (int i = 0; i < moves.size(); i++) {
-                if (stopSearch) {
-                    break;
-                } 
-                
+
                 Move move = moves[i].first;
                 std::vector<Move> childPV; 
                 Board localBoard = board;
@@ -998,17 +995,8 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
                     currentBestMove = move;
                     alpha = std::max(alpha, currentBestEval);
                     updatePV(PV, move, childPV);
-                } else if (eval == currentBestEval) {
-                    // This is mostly for Syzygy tablebase.
-                    // Prefer the move that is a capture or a pawn move.
-                    if (localBoard.isCapture(move) || localBoard.at<Piece>(move.from()).type() == PieceType::PAWN) {
-                        currentBestEval = eval;
-                        currentBestMove = move;
-                        alpha = std::max(alpha, currentBestEval);
-                        updatePV(PV, move, childPV);
-                    }
-                }
-
+                } 
+                
                 if (alpha >= beta) {
                     break;
                 }
@@ -1026,6 +1014,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
                 break;
             }
         }
+        
         
         if (stopSearch) {
             break;

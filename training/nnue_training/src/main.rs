@@ -103,7 +103,7 @@ use bullet_lib::{
     },
 };
 
-const HIDDEN_SIZE: usize = 768;
+const HIDDEN_SIZE: usize = 1024;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -122,17 +122,17 @@ fn main() {
     //trainer.load_from_checkpoint("checkpoints_may/simple1024_v3-80/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple768_v7".to_string(),
+        net_id: "simple1024_v6".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 50,
+            end_superbatch: 60,
         },
-        wdl_scheduler: wdl::ConstantWDL { value: 0.00 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.1, step: 18 },
-        save_rate: 5,
+        wdl_scheduler: wdl::ConstantWDL { value: 0.10 },
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.2, step: 16 },
+        save_rate: 10,
     };
 
     trainer.set_optimiser_params(optimiser::AdamWParams::default());
@@ -140,10 +140,10 @@ fn main() {
     let settings = LocalSettings { threads: 8, test_set: None, output_directory: "checkpoints_may", batch_queue_size: 64 };
 
     // loading from a SF binpack
-    let data_loader = {
+    let _data_loader = {
         let file_path = "janfebmaraprmayjun.binpack";
         let buffer_size_mb = 1024;
-        let threads = 8;
+        let threads = 4;
         fn filter(entry: &TrainingDataEntry) -> bool {
             entry.ply >= 16
                 && !entry.pos.is_checked(entry.pos.side_to_move())
@@ -154,9 +154,6 @@ fn main() {
 
         loader::SfBinpackLoader::new(file_path, buffer_size_mb, threads, filter)
     };
-
-    // loading directly from a `BulletFormat` file
-    //let data_loader = loader::DirectSequentialDataLoader::new(&["test80-2024-02-feb-2tb7p.min-v2.v6.binpack"]);
 
     trainer.run(&schedule, &settings, &data_loader);
 
