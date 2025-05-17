@@ -917,12 +917,11 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
     int depth = 0;
 
     while (depth <= std::min(ENGINE_DEPTH, maxDepth)) {
-
-        // Track the best move for the current depth
-        Move currentBestMove = Move();
+        Move currentBestMove = Move(); // Track the best move for the current depth
         int currentBestEval = -INF;
         bool hashMoveFound = false;
 
+        // Aspiration window
         int alpha = (depth > 6) ? evals[depth - 1] - 200 : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + 200 : INF;
         
@@ -952,7 +951,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
                 NodeInfo childNodeInfo = {1, // ply of child node
                                         true, // NMP ok
                                         nextDepth, // root depth
-                                        NodeType::PV, // root node is always a PV node
+                                        NodeType::PV, // child of a root node is a PV node
                                         threadID};
                 
                 addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -987,9 +986,9 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
                     break;
                 }
 
-                newMoves.push_back({move, eval});
+                newMoves.push_back({move, eval}); // Store the move and its evaluation
 
-                // Found the new best move
+                // If found the new best move
                 if (eval > currentBestEval) {
                     currentBestEval = eval;
                     currentBestMove = move;
@@ -1007,6 +1006,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             }
 
             if (currentBestEval <= alpha0 || currentBestEval >= beta) {
+                // Evaluation is outside the aspiration window, so we need to widen the window
                 alpha = -INF;
                 beta = INF;
                 newMoves.clear();
@@ -1015,8 +1015,8 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             }
         }
         
-        
         if (stopSearch) {
+            // Avoid updating best move if the search was interrupted
             break;
         }
 
@@ -1040,9 +1040,8 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         }
 
         std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
-        if (threadID == 0) {
-            // Only print the analysis for the main thread
-            std::cout << analysis << std::endl;
+        if (threadID == 0) {            
+            std::cout << analysis << std::endl; // Only print the analysis for the main thread
         }
         
         if (moves.size() == 1) {
@@ -1077,7 +1076,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
     return bestMove; 
 }
 
-Move parallelRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit) {
+Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit) {
     
     precomputeLMR(100, 500);  // Precompute late move reduction table
     Move bestMove = Move(); 

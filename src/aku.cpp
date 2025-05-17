@@ -429,7 +429,7 @@ void processGo(const std::vector<std::string>& tokens) {
             }
         }
     }
-    bestMove = parallelRootSearch(board, numThreads, depth, timeLimit);
+    bestMove = lazysmpRootSearch(board, numThreads, depth, timeLimit);
 
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove, chess960)  << std::endl;
