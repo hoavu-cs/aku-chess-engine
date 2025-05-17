@@ -661,7 +661,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -924,9 +924,9 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         bool hashMoveFound = false;
 
         // Aspiration window
-        int window = 25;
-        int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
-        int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
+        int window = 50;
+        int alpha = (depth > 8) ? evals[depth - 1] - window : -INF;
+        int beta  = (depth > 8) ? evals[depth - 1] + window : INF;
         
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
@@ -1026,8 +1026,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         }
         
         if (stopSearch) {
-            // Avoid updating best move if the search was interrupted
-            break;
+            break; // Avoid updating best move if the search was interrupted
         }
 
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
