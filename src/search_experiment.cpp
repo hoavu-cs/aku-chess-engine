@@ -23,20 +23,22 @@ using namespace chess;
 
 // Aliases, constants, and engine parameters
 typedef std::uint64_t U64;
-constexpr int maxThreadsID = 12; 
+constexpr int MAX_THREADS = 12;  // Maximum number of threads supported by the engine
+constexpr int ENGINE_DEPTH = 99; // Maximum search depth supported by the engine
+constexpr int MAX_ASPIRATION_SZ = 300;
+
 int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
-int ENGINE_DEPTH = 99; // Maximum search depth for the current engine version
 bool stopSearch = false; // To signal if the search should stop once the main thread is done
 
-// Initalize NNUE
+// Initalize NNUE, black and white accumulators
 Network nnue;
-std::vector<Accumulator> wAccumulator (maxThreadsID);
-std::vector<Accumulator> bAccumulator (maxThreadsID);
+std::vector<Accumulator> wAccumulator (MAX_THREADS); 
+std::vector<Accumulator> bAccumulator (MAX_THREADS);
 
 // Timer and statistics
 std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; 
-std::vector<U64> nodeCount (maxThreadsID); // Node count for each thread
-std::vector<U64> tableHit (maxThreadsID); // Table hit count for each thread
+std::vector<U64> nodeCount (MAX_THREADS); // Node count for each thread
+std::vector<U64> tableHit (MAX_THREADS); // Table hit count for each thread
 
 void initializeNNUE(std::string path) {
     std::cout << "Initializing NNUE from: " << path << std::endl;
@@ -44,25 +46,25 @@ void initializeNNUE(std::string path) {
 }
 
 
-std::vector<std::vector<std::vector<int>>> history(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
-std::vector<std::vector<std::vector<int>>> captureHistory(maxThreadsID, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
+std::vector<std::vector<std::vector<int>>> history(MAX_THREADS, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
+std::vector<std::vector<std::vector<int>>> captureHistory(MAX_THREADS, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Evaluations along the current path
-std::vector<std::vector<int>> staticEval(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
+std::vector<std::vector<int>> staticEval(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
 // Killer moves for each thread and ply
-std::vector<std::vector<std::vector<Move>>> killer(maxThreadsID, std::vector<std::vector<Move>> 
+std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
 
 // Move stack for each thread
-std::vector<std::vector<int>> moveStack(maxThreadsID, std::vector<int>(ENGINE_DEPTH + 1, 0));
+std::vector<std::vector<int>> moveStack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
 
 
 // LMR table 
 std::vector<std::vector<int>> lmrTable; 
 
 // Random seeds for LMR
-std::vector<uint32_t> seeds(maxThreadsID);
+std::vector<uint32_t> seeds(MAX_THREADS);
 
 // tt entry definition
 enum EntryType {
@@ -426,7 +428,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
 }
 
 // Negamax main search function
-int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeInfo& nodeInfo) {
+int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeData& nodeInfo) {
 
     // Stop the search if hard deadline is reached
     auto currentTime = std::chrono::high_resolution_clock::now();
@@ -570,7 +572,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int nullEval;
         int reduction = 3;
 
-        NodeInfo nullNodeInfo = {ply + 1, 
+        NodeData nullNodeInfo = {ply + 1, 
                                 false, 
                                 rootDepth,
                                 NodeType::ALL, // expected all node
@@ -615,14 +617,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             moveStack[threadID][ply] = moveIndex(moves[i].first);
             board.makeMove(moves[i].first);
 
-            NodeInfo childNodeInfo = {ply + 1, 
+            NodeData childNodeData = {ply + 1, 
                                     false, 
                                     rootDepth,
                                     NodeType::PV,
                                     threadID};
 
 
-            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeInfo));
+            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeData));
             evalAdjust(sEval);
 
             subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -699,7 +701,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool nullWindow = false;
         bool reducedDepth = nextDepth < depth - 1;
 
-        NodeInfo childNodeInfo = {ply + 1, 
+        NodeData childNodeData = {ply + 1, 
                                 nmpOk,
                                 rootDepth,
                                 NodeType::PV,
@@ -718,8 +720,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } else if (isPV) {
                 childNodeType = NodeType::PV;
             } 
-            childNodeInfo.nodeType = childNodeType;
-            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeInfo);
+            childNodeData.nodeType = childNodeType;
+            eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeData);
             evalAdjust(eval);
         } else {
             // If we are in a PV node and search the next child on a null window, we expect
@@ -735,9 +737,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } else if (!isPV && nodeType == NodeType::CUT) {
                 childNodeType = NodeType::ALL;
             }
-            childNodeInfo.nodeType = childNodeType;
+            childNodeData.nodeType = childNodeType;
 
-            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, childNodeInfo);
+            eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, childNodeData);
             evalAdjust(eval);
         }
         
@@ -751,13 +753,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if ((eval > alpha) && (nullWindow || reducedDepth) && isPV) {
 
             // Now this child becomes a PV node.
-            childNodeInfo.nodeType = NodeType::PV;
+            childNodeData.nodeType = NodeType::PV;
 
             addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
             moveStack[threadID][ply] = moveIndex(move);
             board.makeMove(move);
 
-            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeInfo);
+            eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeData);
             evalAdjust(eval);
 
             subtractAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -922,8 +924,9 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         bool hashMoveFound = false;
 
         // Aspiration window
-        int alpha = (depth > 6) ? evals[depth - 1] - 200 : -INF;
-        int beta  = (depth > 6) ? evals[depth - 1] + 200 : INF;
+        int window = 25;
+        int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
+        int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
         
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
@@ -948,7 +951,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
                 int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, threadID);
                 int eval = -INF;
 
-                NodeInfo childNodeInfo = {1, // ply of child node
+                NodeData childNodeData = {1, // ply of child node
                                         true, // NMP ok
                                         nextDepth, // root depth
                                         NodeType::PV, // child of a root node is a PV node
@@ -958,7 +961,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
                 moveStack[threadID][ply] = moveIndex(move);
                 localBoard.makeMove(move);
 
-                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeInfo);
+                eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeData);
                 evalAdjust(eval);
 
                 subtractAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -975,7 +978,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
                     moveStack[threadID][ply] = moveIndex(move);
                     localBoard.makeMove(move);
 
-                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeInfo);
+                    eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeData);
                     evalAdjust(eval);
 
                     subtractAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -1007,8 +1010,15 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
 
             if (currentBestEval <= alpha0 || currentBestEval >= beta) {
                 // Evaluation is outside the aspiration window, so we need to widen the window
-                alpha = -INF;
-                beta = INF;
+                window *= 2;
+                if (window > MAX_ASPIRATION_SZ) {
+                    alpha = -INF;
+                    beta = INF;
+                } else {
+                    alpha = evals[depth - 1] - window;
+                    beta = evals[depth - 1] + window;
+                }
+  
                 newMoves.clear();
             } else {
                 break;
@@ -1034,7 +1044,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         moves = newMoves;
 
         U64 totalNodeCount = 0, totalTableHit = 0;
-        for (int i = 0; i < maxThreadsID; i++) {
+        for (int i = 0; i < MAX_THREADS; i++) {
             totalNodeCount += nodeCount[i];
             totalTableHit += tableHit[i];
         }
@@ -1088,7 +1098,7 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
         ttTable = std::vector<LockedTableEntry>(tableSize);
     }
     
-    for (int i = 0; i < maxThreadsID; i++) {
+    for (int i = 0; i < MAX_THREADS; i++) {
         // Reset history scores 
         for (int j = 0; j < 64 * 64; j++) {
             history[i][0][j] = 0;

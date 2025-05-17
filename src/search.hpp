@@ -10,7 +10,7 @@ constexpr int INF = 1000000;
 constexpr int SZYZYGY_INF = 40000;
 extern int tableSize; // Maximum size of the transposition table
 
-struct NodeInfo {
+struct NodeData {
     int ply;
     bool nmpOk; // flag to signal if nmp is allowed
     int rootDepth; // maximum depth to search from the root
@@ -20,8 +20,8 @@ struct NodeInfo {
 
 void initializeNNUE(std::string path);
 void initializeTB(std::string path);
-int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeInfo& nodeInfo);
+int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeData& nodeInfo);
 Move rootSearch(Board &board, int maxDepth, int timeLimit, int threadID);
-Move parallelRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit);
+Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit);
 
 
