@@ -25,3 +25,4 @@ extern int singularC2;
 
 extern float lmr1;
 extern float lmr2;
+extern int lmrK;

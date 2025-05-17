@@ -90,11 +90,12 @@ int hpC3 = 340;
 
 int iidDepth = 4;
 
-int singularC1 = 3;
-int singularC2 = 12;
+int singularC1 = 2;
+int singularC2 = 10;
 
 float lmr1 = 0.80f;
 float lmr2 = 0.62f;
+int lmrK = 1;
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
@@ -334,17 +335,14 @@ void processSetOption(const std::vector<std::string>& tokens) {
     else if (optionName == "singularC2") {
         singularC2 = std::stoi(value);
     } 
-
-    else if (optionName == "lmr1") {
-        lmr1 = std::stoi(value) / 100.0f;
-    }
-
     
     else if (optionName == "lmr1") {
         lmr1 = std::stof(value) / 100.0f;
     } else if (optionName == "lmr2") {
         lmr2 = std::stof(value) / 100.0f;
-    } 
+    } else if (optionName == "lmrK") {
+        lmrK = std::stoi(value);
+    }
     
     else {
         std::cerr << "Unknown option: " << optionName << std::endl;
@@ -470,11 +468,12 @@ void processUci() {
 
     std::cout << "option name iidDepth type spin default 4 min 1 max 20000" << std::endl;
 
-    std::cout << "option name singularC1 type spin default 1 min 0 max 100" << std::endl;
-    std::cout << "option name singularC2 type spin default 25 min 0 max 200" << std::endl;
+    std::cout << "option name singularC1 type spin default 1 min 0 max 20000" << std::endl;
+    std::cout << "option name singularC2 type spin default 25 min 0 max 20000" << std::endl;
 
     std::cout << "option name lmr1 type spin default 75 min 10 max 99" << std::endl;
     std::cout << "option name lmr2 type spin default 65 min 10 max 99" << std::endl;
+    std::cout << "option name lmrK type spin default 1 min 0 max 20000" << std::endl;
 
     std::cout << "uciok" << std::endl;
 }

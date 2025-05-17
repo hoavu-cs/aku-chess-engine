@@ -661,7 +661,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -924,7 +924,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         bool hashMoveFound = false;
 
         // Aspiration window
-        int window = 50;
+        int window = 150;
         int alpha = (depth > 8) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 8) ? evals[depth - 1] + window : INF;
         
@@ -942,13 +942,13 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             
             for (int i = 0; i < moves.size(); i++) {
 
-                Move move = moves[i].first;
+                Move move = moves[(i + threadID) % moves.size()].first;
                 std::vector<Move> childPV; 
                 Board localBoard = board;
                 staticEval[threadID][0] = standPat;
 
                 int ply = 0;
-                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, threadID);
+                int nextDepth = lateMoveReduction(localBoard, move, (i + threadID) % moves.size(), depth, 0, true, threadID);
                 int eval = -INF;
 
                 NodeData childNodeData = {1, // ply of child node
@@ -1010,14 +1010,14 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
 
             if (currentBestEval <= alpha0 || currentBestEval >= beta) {
                 // Evaluation is outside the aspiration window, so we need to widen the window
-                window *= 2;
-                if (window > MAX_ASPIRATION_SZ) {
-                    alpha = -INF;
-                    beta = INF;
-                } else {
-                    alpha = evals[depth - 1] - window;
-                    beta = evals[depth - 1] + window;
-                }
+                // window *= 2;
+                // if (window > MAX_ASPIRATION_SZ) {
+                alpha = -INF;
+                beta = INF;
+                // } else {
+                //     alpha = evals[depth - 1] - window;
+                //     beta = evals[depth - 1] + window;
+                // }
   
                 newMoves.clear();
             } else {
