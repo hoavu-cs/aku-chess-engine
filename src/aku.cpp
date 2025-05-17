@@ -39,6 +39,36 @@ using namespace chess;
 const std::string ENGINE_NAME = "Aku Chess Engine";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
+// // Engine tunable parameters
+// int rfpDepth = 4;
+// int rfpC1 = 63;
+// int rfpC2 = 21;
+// int rfpC3 = 67;
+
+// int fpDepth = 3;
+// int fpC1 = 106;
+// int fpC2 = 100;
+// int fpC3 = 203;
+
+// int lmpDepth = 1;
+// int lmpC1 = 11;
+
+// int hpDepth = 2;
+// int hpC1 = 97;
+// int hpC2 = 703;
+// int hpC3 = 203;
+
+// int iidDepth = 4;
+
+// int cutNodeExitDepth = 2;
+// int cutNodeExitMove = 15;
+
+// int singularC1 = 2;
+// int singularC2 = 25;
+
+// float lmr1 = 0.80f;
+// float lmr2 = 0.62f;
+
 // Engine tunable parameters
 int rfpDepth = 4;
 int rfpC1 = 63;
@@ -51,20 +81,20 @@ int fpC2 = 100;
 int fpC3 = 203;
 
 int lmpDepth = 1;
-int lmpC1 = 11;
+int lmpC1 = 13;
 
 int hpDepth = 2;
-int hpC1 = 97;
-int hpC2 = 703;
-int hpC3 = 203;
+int hpC1 = 183;
+int hpC2 = 787;
+int hpC3 = 340;
 
 int iidDepth = 4;
 
+int singularC1 = 3;
+int singularC2 = 12;
+
 int cutNodeExitDepth = 2;
 int cutNodeExitMove = 15;
-
-int singularC1 = 2;
-int singularC2 = 25;
 
 float lmr1 = 0.80f;
 float lmr2 = 0.62f;
