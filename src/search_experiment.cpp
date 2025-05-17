@@ -943,9 +943,6 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         while (true) {
             currentBestEval = -INF;
             for (int i = 0; i < moves.size(); i++) {
-
-                //std::cout << "move " << i << " of " << moves.size() << std::endl;
-
                 if (stopSearch) {
                     break;
                 } 
