@@ -238,7 +238,7 @@ int lateMoveReduction(Board& board,
     bool stm = board.sideToMove() == Color::WHITE;
     bool isPromThreat = promotionThreat(board, move);
 
-    if (i <= 1 || depth <= 3 || isPromThreat) {
+    if (i <= lmrK || depth <= 3 || isPromThreat) {
         return depth - 1;
     } else {
         bool improving = ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply] && !board.inCheck();
@@ -251,8 +251,22 @@ int lateMoveReduction(Board& board,
         EntryType ttType;
         Move ttMove;
         
-        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) pastPV = ttIsPV;
-        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV) R--;
+        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
+            pastPV = ttIsPV;
+        }
+
+        if (improving || isPV || isKiller  || pastPV) {
+            R--;
+        }
+
+        if (board.inCheck()) {
+            R--;
+        }
+        
+        if (isCapture) {
+            R--;
+        }
+
         if (historyScore < -8000) R++;
         return std::min(depth - R, depth - 1);
     }
@@ -343,6 +357,13 @@ std::vector<std::pair<Move, int>> orderedMoves(Board& board, int ply, int thread
 
 // Quiescence search 
 int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
+
+    // Stop the search if hard deadline is reached
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    if (currentTime >= hardDeadline || stopSearch) {
+        stopSearch = true;
+        return 0;
+    }
 
     // Check if the game is over. 
     auto gameOverResult = board.isGameOver();
@@ -639,7 +660,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (board.inCheck()) extensions++;
     if (moves.size() == 1) extensions++;
     
-    extensions = std::clamp(extensions, 0, 1); // limit extensions to 2 per ply
+    extensions = std::clamp(extensions, 0, 2); // limit extensions to 2 per ply
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -661,7 +682,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -942,13 +963,13 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             
             for (int i = 0; i < moves.size(); i++) {
 
-                Move move = moves[(i + threadID) % moves.size()].first;
+                Move move = moves[i].first;
                 std::vector<Move> childPV; 
                 Board localBoard = board;
                 staticEval[threadID][0] = standPat;
 
                 int ply = 0;
-                int nextDepth = lateMoveReduction(localBoard, move, (i + threadID) % moves.size(), depth, 0, true, threadID);
+                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, threadID);
                 int eval = -INF;
 
                 NodeData childNodeData = {1, // ply of child node

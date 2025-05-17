@@ -71,31 +71,31 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 // Engine tunable parameters
 int rfpDepth = 4;
-int rfpC1 = 63;
-int rfpC2 = 21;
-int rfpC3 = 67;
+int rfpC1 = 65;
+int rfpC2 = 35;
+int rfpC3 = 65;
 
 int fpDepth = 3;
-int fpC1 = 106;
-int fpC2 = 100;
-int fpC3 = 203;
+int fpC1 = 130;
+int fpC2 = 115;
+int fpC3 = 200;
 
 int lmpDepth = 1;
-int lmpC1 = 11;
+int lmpC1 = 12;
 
 int hpDepth = 2;
-int hpC1 = 183;
-int hpC2 = 787;
-int hpC3 = 340;
+int hpC1 = 294;
+int hpC2 = 887;
+int hpC3 = 284;
 
 int iidDepth = 4;
 
 int singularC1 = 2;
-int singularC2 = 10;
+int singularC2 = 0;
 
-float lmr1 = 0.80f;
-float lmr2 = 0.62f;
-int lmrK = 1;
+float lmr1 = 0.75f;
+float lmr2 = 0.65;
+int lmrK = 0;
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
