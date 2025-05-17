@@ -20,9 +20,6 @@ extern int hpC3;
 
 extern int iidDepth;
 
-extern int cutNodeExitDepth;
-extern int cutNodeExitMove;
-
 extern int singularC1;
 extern int singularC2;
 

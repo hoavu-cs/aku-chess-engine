@@ -659,7 +659,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -690,13 +690,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (historyScore < margin) {
                 continue;
             }
-        }
-
-        // If we are at an expected CUT node and fail to have a beta cutoff after trying many moves,
-        // this is likely raising alpha so we can save some time by returning beta - 1 
-        // to trigger a full window search in the ancestor node.
-        if (nodeType == NodeType::CUT && i > cutNodeExitMove && nextDepth <= cutNodeExitDepth) {
-            return beta - 1;
         }
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -932,6 +925,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
 
         int alpha = (depth > 6) ? evals[depth - 1] - 150 : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + 150 : INF;
+        
 
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
@@ -942,6 +936,8 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
 
         while (true) {
             currentBestEval = -INF;
+            int alpha0 = alpha;
+            
             for (int i = 0; i < moves.size(); i++) {
                 if (stopSearch) {
                     break;
@@ -1000,6 +996,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
                 if (eval > currentBestEval) {
                     currentBestEval = eval;
                     currentBestMove = move;
+                    alpha = std::max(alpha, currentBestEval);
                     updatePV(PV, move, childPV);
                 } else if (eval == currentBestEval) {
                     // This is mostly for Syzygy tablebase.
@@ -1007,8 +1004,13 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
                     if (localBoard.isCapture(move) || localBoard.at<Piece>(move.from()).type() == PieceType::PAWN) {
                         currentBestEval = eval;
                         currentBestMove = move;
+                        alpha = std::max(alpha, currentBestEval);
                         updatePV(PV, move, childPV);
                     }
+                }
+
+                if (alpha >= beta) {
+                    break;
                 }
             }
 
@@ -1016,7 +1018,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
                 break;
             }
 
-            if (currentBestEval <= alpha || currentBestEval >= beta) {
+            if (currentBestEval <= alpha0 || currentBestEval >= beta) {
                 alpha = -INF;
                 beta = INF;
                 newMoves.clear();

@@ -81,7 +81,7 @@ int fpC2 = 100;
 int fpC3 = 203;
 
 int lmpDepth = 1;
-int lmpC1 = 13;
+int lmpC1 = 11;
 
 int hpDepth = 2;
 int hpC1 = 183;
@@ -92,9 +92,6 @@ int iidDepth = 4;
 
 int singularC1 = 3;
 int singularC2 = 12;
-
-int cutNodeExitDepth = 2;
-int cutNodeExitMove = 15;
 
 float lmr1 = 0.80f;
 float lmr2 = 0.62f;
@@ -331,13 +328,6 @@ void processSetOption(const std::vector<std::string>& tokens) {
         iidDepth = std::stoi(value);
     } 
 
-    else if (optionName == "cutNodeExitDepth") {
-        cutNodeExitDepth = std::stoi(value);
-    } else if (optionName == "cutNodeExitMove") {
-        cutNodeExitMove = std::stoi(value);
-    } 
-
-
     else if (optionName == "singularC1") {
         singularC1 = std::stoi(value);
     } 
@@ -480,9 +470,6 @@ void processUci() {
 
     std::cout << "option name iidDepth type spin default 4 min 1 max 20000" << std::endl;
 
-    std::cout << "option name cutNodeExitDepth type spin default 2 min 0 max 20000" << std::endl;
-    std::cout << "option name cutNodeExitMove type spin default 15 min 5 max 20000" << std::endl;
-    
     std::cout << "option name singularC1 type spin default 1 min 0 max 100" << std::endl;
     std::cout << "option name singularC2 type spin default 25 min 0 max 200" << std::endl;
 
