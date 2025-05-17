@@ -695,9 +695,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // If we are at an expected CUT node and fail to have a beta cutoff after trying many moves,
         // this is likely raising alpha so we can save some time by returning beta - 1 
         // to trigger a full window search in the ancestor node.
-        if (nodeType == NodeType::CUT && i > 19 && ply >= 10) {
-            return beta - 1;
-        }
+        // if (nodeType == NodeType::CUT && i > 19 && ply >= 10) {
+        //     return beta - 1;
+        // }
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         moveStack[threadID][ply] = moveIndex(move);
