@@ -96,6 +96,7 @@ std::vector<LockedTableEntry> ttTable(tableSize);
 
 // Helper function declarations
 void precomputeLMR(int maxDepth, int maxI);
+void resetSearchFlags();
 bool tableLookUp(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
 void tableInsert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
 inline void updateKillerMoves(const Move&, int, int);
@@ -118,6 +119,14 @@ void precomputeLMR(int maxDepth, int maxI) {
     }
 
     isPrecomputed = true;
+}
+
+void resetSearchFlags() {
+    stopSearch = false;
+    completeSearch = false;
+    for (int d = 0; d < ENGINE_DEPTH; d++) {
+        completeDepth[d] = false;
+    }
 }
 
 bool tableLookUp(Board& board, 
@@ -1116,11 +1125,7 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
     Move bestMove = Move(); 
 
     // Reset the flags
-    stopSearch = false; 
-    completeSearch = false; 
-    for (int i = 0; i < ENGINE_DEPTH; i++) {
-        completeDepth[i] = false;
-    }
+    resetSearchFlags();
 
     // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
@@ -1161,5 +1166,6 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
             stopSearch = true; // Stop all running threads
         }
     }
+
     return bestMove; 
 }
