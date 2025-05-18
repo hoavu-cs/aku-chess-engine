@@ -39,27 +39,31 @@ using namespace chess;
 const std::string ENGINE_NAME = "Aku Chess Engine";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
-// // Engine tunable parameters
-int rfpDepth = 4;
-int rfpC1 = 63;
-int rfpC2 = 21;
-int rfpC3 = 67;
+// Engine tunable parameters
+int rfpDepth = 2;
+int rfpC1 = 65;
+int rfpC2 = 35;
+int rfpC3 = 65;
 
-int fpDepth = 3;
-int fpC1 = 106;
-int fpC2 = 100;
-int fpC3 = 203;
+int fpDepth = 2;
+int fpC1 = 130;
+int fpC2 = 115;
+int fpC3 = 200;
 
 int lmpDepth = 1;
-int lmpC1 = 11;
+int lmpC1 = 12;
 
 int hpDepth = 2;
-int hpC1 = 97;
-int hpC2 = 850;
-int hpC3 = 203;
+int hpC1 = 294;
+int hpC2 = 887;
+int hpC3 = 284;
+int iidDepth = 4;
 
-float lmr1 = 0.80f;
-float lmr2 = 0.62f;
+int singularC1 = 2;
+int singularC2 = 0;
+
+float lmr1 = 0.75f;
+float lmr2 = 0.65;
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
@@ -279,26 +283,26 @@ void processSetOption(const std::vector<std::string>& tokens) {
         lmpC1 = std::stoi(value);
     } 
     
-    else if (optionName == "hpDepth") {
-        hpDepth = std::stoi(value);
-    } else if (optionName == "hpC1") {
-        hpC1 = std::stoi(value);
-    } else if (optionName == "hpC2") {
-        hpC2 = std::stoi(value);
-    } else if (optionName == "hpC3") {
-        hpC3 = std::stoi(value);
+    // else if (optionName == "hpDepth") {
+    //     hpDepth = std::stoi(value);
+    // } else if (optionName == "hpC1") {
+    //     hpC1 = std::stoi(value);
+    // } else if (optionName == "hpC2") {
+    //     hpC2 = std::stoi(value);
+    // } else if (optionName == "hpC3") {
+    //     hpC3 = std::stoi(value);
+    // } 
+
+    else if (optionName == "iidDepth") {
+        iidDepth = std::stoi(value);
     } 
 
-    // else if (optionName == "iidDepth") {
-    //     iidDepth = std::stoi(value);
-    // } 
-
-    // else if (optionName == "singularC1") {
-    //     singularC1 = std::stoi(value);
-    // } 
-    // else if (optionName == "singularC2") {
-    //     singularC2 = std::stoi(value);
-    // } 
+    else if (optionName == "singularC1") {
+        singularC1 = std::stoi(value);
+    } 
+    else if (optionName == "singularC2") {
+        singularC2 = std::stoi(value);
+    } 
     
     else if (optionName == "lmr1") {
         lmr1 = std::stof(value) / 100.0f;
@@ -389,7 +393,7 @@ void processGo(const std::vector<std::string>& tokens) {
             }
         }
     }
-    bestMove = rootSearch(board, numThreads, depth, timeLimit);
+    bestMove = lazysmpRootSearch(board, numThreads, depth, timeLimit);
 
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove, chess960)  << std::endl;
@@ -423,10 +427,10 @@ void processUci() {
     std::cout << "option name lmpDepth type spin default 4 min 0 max 20000" << std::endl;
     std::cout << "option name lmpC1 type spin default 6 min 0 max 20000" << std::endl;
 
-    std::cout << "option name hpDepth type spin default 4 min 0 max 20000" << std::endl;
-    std::cout << "option name hpC1 type spin default 3000 min 0 max 20000" << std::endl;
-    std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
-    std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
+    // std::cout << "option name hpDepth type spin default 4 min 0 max 20000" << std::endl;
+    // std::cout << "option name hpC1 type spin default 3000 min 0 max 20000" << std::endl;
+    // std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
+    // std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
 
     // std::cout << "option name iidDepth type spin default 4 min 1 max 20000" << std::endl;
 

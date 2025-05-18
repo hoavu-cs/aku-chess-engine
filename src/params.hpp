@@ -21,8 +21,7 @@ extern int hpC3;
 extern float lmr1;
 extern float lmr2;
 
-// extern int iidDepth;
-// extern int singularC1;
-// extern int singularC2;
+extern int singularC1;
+extern int singularC2;
 
 
