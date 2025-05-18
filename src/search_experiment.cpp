@@ -261,22 +261,8 @@ int lateMoveReduction(Board& board,
         EntryType ttType;
         Move ttMove;
         
-        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
-            pastPV = ttIsPV;
-        }
-
-        if (improving || isPV || isKiller  || pastPV) {
-            R--;
-        }
-
-        if (board.inCheck()) {
-            R--;
-        }
-        
-        if (isCapture) {
-            R--;
-        }
-
+        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) pastPV = ttIsPV;
+        if (improving || board.inCheck() || isPV || isKiller || isCapture || pastPV) R--;
         if (historyScore < -8000) R++;
         return std::min(depth - R, depth - 1);
     }
@@ -637,7 +623,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && abs(ttEval) < INF/2 - 100) {
 
         int sEval = -INF;
-        int sBeta = ttEval - singularC1 * depth - singularC2; 
+        int sBeta = ttEval - 2 * depth; 
 
         for (int i = 0; i < moves.size(); i++) {
             if (moves[i].first == ttMove) 
@@ -999,7 +985,7 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
 
                 // Check for stop search flag
                 if (stopSearch) {
-                    break;
+                    return {bestMove, depth - 1}; 
                 }
 
                 if (eval > currentBestEval && nextDepth < depth - 1) {
@@ -1016,7 +1002,7 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
                 }
 
                 if (stopSearch) {
-                    break;
+                    return {bestMove, depth - 1}; 
                 }
 
                 newMoves.push_back({move, eval}); // Store the move and its evaluation
@@ -1034,10 +1020,6 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
                 }
             }
 
-            if (stopSearch) {
-                break;
-            }
-
             if (currentBestEval <= alpha0 || currentBestEval >= beta) {
                 alpha = -INF;
                 beta = INF;
@@ -1045,10 +1027,6 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
             } else {
                 break;
             }
-        }
-        
-        if (stopSearch) {
-            break; // Avoid updating best move if the search was interrupted
         }
 
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
@@ -1072,14 +1050,12 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
 
         #pragma omp critical
         {
-            if (!completeDepth[depth] && !stopSearch) {       
+        //     if (!completeDepth[depth] && !stopSearch) {       
                 std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
                 std::cout << analysis << std::endl; // Print the analysis for the thread that finished first
                 completeDepth[depth] = true; // Mark this depth as complete
-            }
+        //     }
         }
-        
-
         
         if (moves.size() == 1) {
             return {moves[0].first, 0}; // If there is only one move, return it immediately.
@@ -1161,7 +1137,7 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
             stopSearch = true; // Stop all running threads
         }
 
-        if (depth > highestDepth) {
+        if (depth >= highestDepth) {
             highestDepth = depth;
             bestMove = move; // Update the best move if this thread found a deeper search
         }

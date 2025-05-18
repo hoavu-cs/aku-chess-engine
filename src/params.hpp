@@ -13,12 +13,12 @@ extern int fpC3;
 extern int lmpDepth;
 extern int lmpC1;
 
-extern int hpDepth;
-extern int hpC1;
-extern int hpC2;
-extern int hpC3;
+// extern int hpDepth;
+// extern int hpC1;
+// extern int hpC2;
+// extern int hpC3;
 
-extern int iidDepth;
+// extern int iidDepth;
 
 extern int singularC1;
 extern int singularC2;

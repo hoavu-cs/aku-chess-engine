@@ -70,31 +70,23 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 // float lmr2 = 0.62f;
 
 // Engine tunable parameters
-int rfpDepth = 4;
-int rfpC1 = 65;
-int rfpC2 = 35;
-int rfpC3 = 65;
+int rfpDepth = 5;
+int rfpC1 = 68;
+int rfpC2 = 32;
+int rfpC3 = 84;
 
-int fpDepth = 3;
-int fpC1 = 130;
-int fpC2 = 115;
+int fpDepth = 4;
+int fpC1 = 144;
+int fpC2 = 114;
 int fpC3 = 200;
 
 int lmpDepth = 1;
 int lmpC1 = 12;
 
-int hpDepth = 2;
-int hpC1 = 294;
-int hpC2 = 887;
-int hpC3 = 284;
-
 int iidDepth = 4;
 
-int singularC1 = 2;
-int singularC2 = 0;
-
-float lmr1 = 0.75f;
-float lmr2 = 0.65;
+float lmr1 = 0.79f;
+float lmr2 = 0.61f;
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
@@ -314,26 +306,26 @@ void processSetOption(const std::vector<std::string>& tokens) {
         lmpC1 = std::stoi(value);
     } 
     
-    else if (optionName == "hpDepth") {
-        hpDepth = std::stoi(value);
-    } else if (optionName == "hpC1") {
-        hpC1 = std::stoi(value);
-    } else if (optionName == "hpC2") {
-        hpC2 = std::stoi(value);
-    } else if (optionName == "hpC3") {
-        hpC3 = std::stoi(value);
-    } 
+    // else if (optionName == "hpDepth") {
+    //     hpDepth = std::stoi(value);
+    // } else if (optionName == "hpC1") {
+    //     hpC1 = std::stoi(value);
+    // } else if (optionName == "hpC2") {
+    //     hpC2 = std::stoi(value);
+    // } else if (optionName == "hpC3") {
+    //     hpC3 = std::stoi(value);
+    // } 
 
-    else if (optionName == "iidDepth") {
-        iidDepth = std::stoi(value);
-    } 
+    // else if (optionName == "iidDepth") {
+    //     iidDepth = std::stoi(value);
+    // } 
 
-    else if (optionName == "singularC1") {
-        singularC1 = std::stoi(value);
-    } 
-    else if (optionName == "singularC2") {
-        singularC2 = std::stoi(value);
-    } 
+    // else if (optionName == "singularC1") {
+    //     singularC1 = std::stoi(value);
+    // } 
+    // else if (optionName == "singularC2") {
+    //     singularC2 = std::stoi(value);
+    // } 
     
     else if (optionName == "lmr1") {
         lmr1 = std::stof(value) / 100.0f;
@@ -458,15 +450,15 @@ void processUci() {
     std::cout << "option name lmpDepth type spin default 4 min 0 max 20000" << std::endl;
     std::cout << "option name lmpC1 type spin default 6 min 0 max 20000" << std::endl;
 
-    std::cout << "option name hpDepth type spin default 4 min 0 max 20000" << std::endl;
-    std::cout << "option name hpC1 type spin default 3000 min 0 max 20000" << std::endl;
-    std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
-    std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
+    // std::cout << "option name hpDepth type spin default 4 min 0 max 20000" << std::endl;
+    // std::cout << "option name hpC1 type spin default 3000 min 0 max 20000" << std::endl;
+    // std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
+    // std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
 
-    std::cout << "option name iidDepth type spin default 4 min 1 max 20000" << std::endl;
+    // std::cout << "option name iidDepth type spin default 4 min 1 max 20000" << std::endl;
 
-    std::cout << "option name singularC1 type spin default 1 min 0 max 20000" << std::endl;
-    std::cout << "option name singularC2 type spin default 25 min 0 max 20000" << std::endl;
+    // std::cout << "option name singularC1 type spin default 1 min 0 max 20000" << std::endl;
+    // std::cout << "option name singularC2 type spin default 25 min 0 max 20000" << std::endl;
 
     std::cout << "option name lmr1 type spin default 75 min 10 max 99" << std::endl;
     std::cout << "option name lmr2 type spin default 65 min 10 max 99" << std::endl;
