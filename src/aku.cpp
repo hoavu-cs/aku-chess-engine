@@ -40,53 +40,26 @@ const std::string ENGINE_NAME = "Aku Chess Engine";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 // // Engine tunable parameters
-// int rfpDepth = 4;
-// int rfpC1 = 63;
-// int rfpC2 = 21;
-// int rfpC3 = 67;
+int rfpDepth = 4;
+int rfpC1 = 63;
+int rfpC2 = 21;
+int rfpC3 = 67;
 
-// int fpDepth = 3;
-// int fpC1 = 106;
-// int fpC2 = 100;
-// int fpC3 = 203;
-
-// int lmpDepth = 1;
-// int lmpC1 = 11;
-
-// int hpDepth = 2;
-// int hpC1 = 97;
-// int hpC2 = 703;
-// int hpC3 = 203;
-
-// int iidDepth = 4;
-
-// int cutNodeExitDepth = 2;
-// int cutNodeExitMove = 15;
-
-// int singularC1 = 2;
-// int singularC2 = 25;
-
-// float lmr1 = 0.80f;
-// float lmr2 = 0.62f;
-
-// Engine tunable parameters
-int rfpDepth = 5;
-int rfpC1 = 68;
-int rfpC2 = 32;
-int rfpC3 = 84;
-
-int fpDepth = 4;
-int fpC1 = 144;
-int fpC2 = 114;
-int fpC3 = 200;
+int fpDepth = 3;
+int fpC1 = 106;
+int fpC2 = 100;
+int fpC3 = 203;
 
 int lmpDepth = 1;
-int lmpC1 = 12;
+int lmpC1 = 11;
 
-int iidDepth = 4;
+int hpDepth = 2;
+int hpC1 = 97;
+int hpC2 = 703;
+int hpC3 = 203;
 
-float lmr1 = 0.79f;
-float lmr2 = 0.61f;
+float lmr1 = 0.80f;
+float lmr2 = 0.62f;
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
@@ -416,7 +389,7 @@ void processGo(const std::vector<std::string>& tokens) {
             }
         }
     }
-    bestMove = lazysmpRootSearch(board, numThreads, depth, timeLimit);
+    bestMove = rootSearch(board, numThreads, depth, timeLimit);
 
     if (bestMove != Move::NO_MOVE) {
         std::cout << "bestmove " << uci::moveToUci(bestMove, chess960)  << std::endl;
