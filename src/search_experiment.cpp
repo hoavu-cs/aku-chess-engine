@@ -905,7 +905,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 //     Hard deadline: 2x time limit
 //     - Case 1: As long as we are within the time limit, we search as deep as we can.
 //     - Case 2: Stop if we reach the hard deadline or certain depth.
-Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int threadID = 0) {
+std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int threadID = 0) {
 
     // Time management variables
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -941,7 +941,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             try {
                 Board boardCopy = board;
                 boardCopy.makeMove(syzygyMove);
-                return syzygyMove;  // Valid move, return it
+                return {syzygyMove, score};  // Valid move, return it
             } catch (const std::exception&) {
                 // In case somehow the move is invalid, continue with the search
             }
@@ -1073,20 +1073,16 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             totalNodeCount += nodeCount[i];
             totalTableHit += tableHit[i];
         }
-
+ 
         #pragma omp critical
         {
-            if (!completeDepth[depth] && !completeSearch) {       
-                std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
-                std::cout << analysis << std::endl; // Print the analysis for the thread that finished first
-                completeDepth[depth] = true; // Mark this depth as complete
-            }
+            std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
+            std::cout << analysis << std::endl; 
         }
-        
 
-        
+ 
         if (moves.size() == 1) {
-            return moves[0].first; // If there is only one move, return it immediately.
+            return {moves[0].first, standPat}; // If there is only one move, return it immediately.
         }
 
         auto currentTime = std::chrono::high_resolution_clock::now();
@@ -1114,7 +1110,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         }
     }
 
-    return bestMove; 
+    return {bestMove, bestEval}; // Return the best move and its evaluation
 }
 
 Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit) {
@@ -1154,17 +1150,55 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
         makeAccumulators(board, wAccumulator[i], bAccumulator[i], nnue);
     }
 
+    std::vector<std::pair<Move, int>> threadMoves(numThreads);
+    std::vector<int> threadScores(numThreads);
+    std::vector<std::pair<Move, int>> voteMap;
+
+    bool mateFound = false;
+    Move mateMove = Move::NO_MOVE;
+
     #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < numThreads; i++) {
-        // Each thread will run its own root search. 
         Board localBoard = board;
-        Move move = rootSearch(localBoard, maxDepth, timeLimit, i);
-        if (!completeSearch) {
-            bestMove = move; 
-            completeSearch = true; // Mark the search as complete once a thread finishes
-            stopSearch = true; // Stop all running threads
+        auto [move, score] = rootSearch(localBoard, maxDepth, timeLimit, i);
+
+        if (move == Move::NO_MOVE) continue;
+
+        #pragma omp critical
+        {
+            bool found = false;
+            for (auto& entry : voteMap) {
+                if (entry.first == move) {
+                    entry.second++; // one more vote for this move
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                voteMap.emplace_back(move, 1); // first vote for this move
+            }
+        }
+
+        if (score > INF/2 - 30) {
+            mateFound = true; 
+            mateMove = move; 
+            stopSearch = true; 
         }
     }
 
-    return bestMove; 
+    if (mateFound) {
+        return mateMove; // Return the forced mate move if found
+    }
+
+    // Pick move with the most votes
+    int maxVotes = -1;
+    for (const auto& [move, count] : voteMap) {
+        if (count > maxVotes) {
+            bestMove = move;
+            maxVotes = count;
+        }
+    }
+
+    return bestMove;
+
 }
