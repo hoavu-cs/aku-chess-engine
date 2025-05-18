@@ -120,9 +120,6 @@ void precomputeLMR(int maxDepth, int maxI) {
 
 void resetSearchFlags() {
     stopSearch = false;
-    for (int d = 0; d < ENGINE_DEPTH; d++) {
-        completeDepth[d] = false;
-    }
 }
 
 bool tableLookUp(Board& board, 
@@ -701,7 +698,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        // Late move pruning for quiet moves
+        // Further reduction for quiet moves
         bool lmpCondition = canPrune && !isPV && !isCapture && nextDepth <= lmpDepth;
         if (lmpCondition) {
             int divisor = improving ? 1 : 2;
@@ -710,7 +707,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        // History pruning for quiet moves with very negative history score
+        // Further reduction for quiet moves with lower history scores
         bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth;
         if (hpCondition) {
             int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
@@ -1057,15 +1054,9 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
             totalNodeCount += nodeCount[i];
             totalTableHit += tableHit[i];
         }
-
-        // #pragma omp critical
-        // {
-        //     if (!completeDepth[depth] && !stopSearch) {       
+    
         std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
         std::cout << analysis << std::endl; // Print the analysis for the thread that finished first
-        //         completeDepth[depth] = true; // Mark this depth as complete
-        //     }
-        // }
         
         if (moves.size() == 1) {
             return {moves[0].first, 0}; // If there is only one move, return it immediately.
@@ -1105,7 +1096,6 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
     omp_set_num_threads(numThreads); // Set the number of threads for OpenMP
     Move bestMove = Move(); 
 
-    // Reset the flags
     resetSearchFlags();
 
     // Update if the size for the transposition table changes.
