@@ -55,7 +55,7 @@ int lmpC1 = 11;
 
 int hpDepth = 2;
 int hpC1 = 97;
-int hpC2 = 703;
+int hpC2 = 850;
 int hpC3 = 203;
 
 float lmr1 = 0.80f;
@@ -279,15 +279,15 @@ void processSetOption(const std::vector<std::string>& tokens) {
         lmpC1 = std::stoi(value);
     } 
     
-    // else if (optionName == "hpDepth") {
-    //     hpDepth = std::stoi(value);
-    // } else if (optionName == "hpC1") {
-    //     hpC1 = std::stoi(value);
-    // } else if (optionName == "hpC2") {
-    //     hpC2 = std::stoi(value);
-    // } else if (optionName == "hpC3") {
-    //     hpC3 = std::stoi(value);
-    // } 
+    else if (optionName == "hpDepth") {
+        hpDepth = std::stoi(value);
+    } else if (optionName == "hpC1") {
+        hpC1 = std::stoi(value);
+    } else if (optionName == "hpC2") {
+        hpC2 = std::stoi(value);
+    } else if (optionName == "hpC3") {
+        hpC3 = std::stoi(value);
+    } 
 
     // else if (optionName == "iidDepth") {
     //     iidDepth = std::stoi(value);
@@ -423,10 +423,10 @@ void processUci() {
     std::cout << "option name lmpDepth type spin default 4 min 0 max 20000" << std::endl;
     std::cout << "option name lmpC1 type spin default 6 min 0 max 20000" << std::endl;
 
-    // std::cout << "option name hpDepth type spin default 4 min 0 max 20000" << std::endl;
-    // std::cout << "option name hpC1 type spin default 3000 min 0 max 20000" << std::endl;
-    // std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
-    // std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
+    std::cout << "option name hpDepth type spin default 4 min 0 max 20000" << std::endl;
+    std::cout << "option name hpC1 type spin default 3000 min 0 max 20000" << std::endl;
+    std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
+    std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
 
     // std::cout << "option name iidDepth type spin default 4 min 1 max 20000" << std::endl;
 
