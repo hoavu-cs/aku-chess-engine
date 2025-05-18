@@ -52,13 +52,18 @@ std::vector<std::vector<std::vector<int>>> captureHistory(MAX_THREADS, std::vect
 // Evaluations along the current path
 std::vector<std::vector<int>> staticEval(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
+// complete[i] is set to true if the search at depth i is complete by one of the threads
+std::vector<bool> completeDepth(ENGINE_DEPTH + 1, false); 
+
+// set to true if the search is completed by one of the threads
+bool completeSearch = false; 
+
 // Killer moves for each thread and ply
 std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
 
 // Move stack for each thread
 std::vector<std::vector<int>> moveStack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
-
 
 // LMR table 
 std::vector<std::vector<int>> lmrTable; 
@@ -238,7 +243,7 @@ int lateMoveReduction(Board& board,
     bool stm = board.sideToMove() == Color::WHITE;
     bool isPromThreat = promotionThreat(board, move);
 
-    if (i <= lmrK || depth <= 3 || isPromThreat) {
+    if (i <= 1 || depth <= 3 || isPromThreat) {
         return depth - 1;
     } else {
         bool improving = ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply] && !board.inCheck();
@@ -946,8 +951,8 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
 
         // Aspiration window
         int window = 150;
-        int alpha = (depth > 8) ? evals[depth - 1] - window : -INF;
-        int beta  = (depth > 8) ? evals[depth - 1] + window : INF;
+        int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
+        int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
         
         std::vector<std::pair<Move, int>> newMoves;
         std::vector<Move> PV; 
@@ -963,13 +968,13 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             
             for (int i = 0; i < moves.size(); i++) {
 
-                Move move = moves[i].first;
+                Move move = moves[(i + threadID) % moves.size()].first;
                 std::vector<Move> childPV; 
                 Board localBoard = board;
                 staticEval[threadID][0] = standPat;
 
                 int ply = 0;
-                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, threadID);
+                int nextDepth = lateMoveReduction(localBoard, move, (i + threadID) % moves.size(), depth, 0, true, threadID);
                 int eval = -INF;
 
                 NodeData childNodeData = {1, // ply of child node
@@ -1030,16 +1035,8 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             }
 
             if (currentBestEval <= alpha0 || currentBestEval >= beta) {
-                // Evaluation is outside the aspiration window, so we need to widen the window
-                // window *= 2;
-                // if (window > MAX_ASPIRATION_SZ) {
                 alpha = -INF;
                 beta = INF;
-                // } else {
-                //     alpha = evals[depth - 1] - window;
-                //     beta = evals[depth - 1] + window;
-                // }
-  
                 newMoves.clear();
             } else {
                 break;
@@ -1069,10 +1066,16 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             totalTableHit += tableHit[i];
         }
 
-        std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
-        if (threadID == 0) {            
-            std::cout << analysis << std::endl; // Only print the analysis for the main thread
+        #pragma omp critical
+        {
+            if (!completeDepth[depth]) {       
+                std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
+                std::cout << analysis << std::endl; // Print the analysis for the thread that finished first
+                completeDepth[depth] = true; // Mark this depth as complete
+            }
         }
+        
+
         
         if (moves.size() == 1) {
             return moves[0].first; // If there is only one move, return it immediately.
@@ -1109,9 +1112,15 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
 Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit) {
     
     precomputeLMR(100, 500);  // Precompute late move reduction table
-    Move bestMove = Move(); 
     omp_set_num_threads(numThreads); // Set the number of threads for OpenMP
-    stopSearch = false; // Reset the stop search flag
+    Move bestMove = Move(); 
+
+    // Reset the flags
+    stopSearch = false; 
+    completeSearch = false; 
+    for (int i = 0; i < ENGINE_DEPTH; i++) {
+        completeDepth[i] = false;
+    }
 
     // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
@@ -1143,12 +1152,13 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < numThreads; i++) {
-        // Each thread will run its own root search. Thread 0 is the main thread.
+        // Each thread will run its own root search. 
         Board localBoard = board;
         Move move = rootSearch(localBoard, maxDepth, timeLimit, i);
-        if (i == 0) {
-            stopSearch = true; // Signal to stop the search after the first thread finishes.
-            bestMove = move; // Set the best move to the first thread's move.
+        if (!completeSearch) {
+            bestMove = move; 
+            completeSearch = true; // Mark the search as complete once a thread finishes
+            stopSearch = true; // Stop all running threads
         }
     }
     return bestMove; 

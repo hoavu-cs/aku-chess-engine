@@ -95,7 +95,6 @@ int singularC2 = 0;
 
 float lmr1 = 0.75f;
 float lmr2 = 0.65;
-int lmrK = 0;
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
@@ -340,9 +339,7 @@ void processSetOption(const std::vector<std::string>& tokens) {
         lmr1 = std::stof(value) / 100.0f;
     } else if (optionName == "lmr2") {
         lmr2 = std::stof(value) / 100.0f;
-    } else if (optionName == "lmrK") {
-        lmrK = std::stoi(value);
-    }
+    } 
     
     else {
         std::cerr << "Unknown option: " << optionName << std::endl;
@@ -473,7 +470,6 @@ void processUci() {
 
     std::cout << "option name lmr1 type spin default 75 min 10 max 99" << std::endl;
     std::cout << "option name lmr2 type spin default 65 min 10 max 99" << std::endl;
-    std::cout << "option name lmrK type spin default 1 min 0 max 20000" << std::endl;
 
     std::cout << "uciok" << std::endl;
 }
