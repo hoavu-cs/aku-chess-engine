@@ -55,9 +55,6 @@ std::vector<std::vector<int>> staticEval(MAX_THREADS, std::vector<int>(ENGINE_DE
 // complete[i] is set to true if the search at depth i is complete by one of the threads
 std::vector<bool> completeDepth(ENGINE_DEPTH + 1, false); 
 
-// set to true if the search is completed by one of the threads
-bool completeSearch = false; 
-
 // Killer moves for each thread and ply
 std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std::vector<Move>> 
     (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
@@ -123,7 +120,6 @@ void precomputeLMR(int maxDepth, int maxI) {
 
 void resetSearchFlags() {
     stopSearch = false;
-    completeSearch = false;
     for (int d = 0; d < ENGINE_DEPTH; d++) {
         completeDepth[d] = false;
     }
@@ -905,7 +901,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 //     Hard deadline: 2x time limit
 //     - Case 1: As long as we are within the time limit, we search as deep as we can.
 //     - Case 2: Stop if we reach the hard deadline or certain depth.
-Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int threadID = 0) {
+std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int threadID = 0) {
 
     // Time management variables
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -941,7 +937,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             try {
                 Board boardCopy = board;
                 boardCopy.makeMove(syzygyMove);
-                return syzygyMove;  // Valid move, return it
+                return {syzygyMove, 0};  // Valid move, return it
             } catch (const std::exception&) {
                 // In case somehow the move is invalid, continue with the search
             }
@@ -976,13 +972,13 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
             
             for (int i = 0; i < moves.size(); i++) {
 
-                Move move = moves[(i + threadID) % moves.size()].first;
+                Move move = moves[i].first;
                 std::vector<Move> childPV; 
                 Board localBoard = board;
                 staticEval[threadID][0] = standPat;
 
                 int ply = 0;
-                int nextDepth = lateMoveReduction(localBoard, move, (i + threadID) % moves.size(), depth, 0, true, threadID);
+                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, threadID);
                 int eval = -INF;
 
                 NodeData childNodeData = {1, // ply of child node
@@ -1076,7 +1072,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
 
         #pragma omp critical
         {
-            if (!completeDepth[depth] && !completeSearch) {       
+            if (!completeDepth[depth] && !stopSearch) {       
                 std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
                 std::cout << analysis << std::endl; // Print the analysis for the thread that finished first
                 completeDepth[depth] = true; // Mark this depth as complete
@@ -1086,7 +1082,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
 
         
         if (moves.size() == 1) {
-            return moves[0].first; // If there is only one move, return it immediately.
+            return {moves[0].first, 0}; // If there is only one move, return it immediately.
         }
 
         auto currentTime = std::chrono::high_resolution_clock::now();
@@ -1114,7 +1110,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
         }
     }
 
-    return bestMove; 
+    return {bestMove, depth}; 
 }
 
 Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit) {
@@ -1154,15 +1150,20 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
         makeAccumulators(board, wAccumulator[i], bAccumulator[i], nnue);
     }
 
+    int highestDepth = -INF;
+
     #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < numThreads; i++) {
         // Each thread will run its own root search. 
         Board localBoard = board;
-        Move move = rootSearch(localBoard, maxDepth, timeLimit, i);
-        if (!completeSearch) {
-            bestMove = move; 
-            completeSearch = true; // Mark the search as complete once a thread finishes
+        auto [move, depth] = rootSearch(localBoard, maxDepth, timeLimit, i);
+        if (!stopSearch) {
             stopSearch = true; // Stop all running threads
+        }
+
+        if (depth > highestDepth) {
+            highestDepth = depth;
+            bestMove = move; // Update the best move if this thread found a deeper search
         }
     }
 
