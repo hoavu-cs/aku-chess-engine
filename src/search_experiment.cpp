@@ -331,7 +331,6 @@ std::vector<std::pair<Move, int>> orderedMoves(Board& board, int ply, int thread
         int previousMvIndex = ply > 0 ? moveStack[threadID][ply - 1] : -1;
         int currentMvIndex = moveIndex(move);
 
-
         if (isPromotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
