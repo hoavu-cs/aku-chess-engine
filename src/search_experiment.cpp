@@ -1076,7 +1076,7 @@ Move rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thre
 
         #pragma omp critical
         {
-            if (!completeDepth[depth]) {       
+            if (!completeDepth[depth] && !completeSearch) {       
                 std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
                 std::cout << analysis << std::endl; // Print the analysis for the thread that finished first
                 completeDepth[depth] = true; // Mark this depth as complete
