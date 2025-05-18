@@ -644,7 +644,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (board.inCheck()) extensions++;
     if (moves.size() == 1) extensions++;
     
-    extensions = std::clamp(extensions, 0, 2); // limit extensions to 2 per ply
+    extensions = std::clamp(extensions, 0, 1); // limit extensions to 2 per ply
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -697,13 +697,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (historyScore < margin) {
                 continue;
             }
-        }
-
-        // If we are at an expected CUT node and fail to have a beta cutoff after trying many moves,
-        // this is likely raising alpha so we can save some time by returning beta - 1 
-        // to trigger a full window search in the ancestor node.
-        if (nodeType == NodeType::CUT && i > 19 && ply >= 10) {
-            return beta - 1;
         }
     
         addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -840,9 +833,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                     captureHistory[stm][badMvIndex] -= delta;
                     captureHistory[stm][badMvIndex] = std::clamp(captureHistory[stm][badMvIndex], -maxCapHist, maxCapHist);
                 }
-
             }
-
             break;
         } 
     }
