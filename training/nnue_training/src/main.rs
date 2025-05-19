@@ -103,7 +103,7 @@ use bullet_lib::{
     },
 };
 
-const HIDDEN_SIZE: usize = 1024;
+const HIDDEN_SIZE: usize = 768;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -122,16 +122,16 @@ fn main() {
     //trainer.load_from_checkpoint("checkpoints_may/simple1024_v3-80/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple1024_v6".to_string(),
+        net_id: "simple768_v5".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 60,
+            end_superbatch: 80,
         },
-        wdl_scheduler: wdl::ConstantWDL { value: 0.10 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.2, step: 16 },
+        wdl_scheduler: wdl::ConstantWDL { value: 0.2 },
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.2, step: 20 },
         save_rate: 10,
     };
 
@@ -140,7 +140,7 @@ fn main() {
     let settings = LocalSettings { threads: 8, test_set: None, output_directory: "checkpoints_may", batch_queue_size: 64 };
 
     // loading from a SF binpack
-    let _data_loader = {
+    let data_loader = {
         let file_path = "janfebmaraprmayjun.binpack";
         let buffer_size_mb = 1024;
         let threads = 4;

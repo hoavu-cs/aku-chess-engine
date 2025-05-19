@@ -894,7 +894,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 //     Hard deadline: 2x time limit
 //     - Case 1: As long as we are within the time limit, we search as deep as we can.
 //     - Case 2: Stop if we reach the hard deadline or certain depth.
-std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int threadID = 0) {
+std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int threadID = 0) {
 
     // Time management variables
     auto startTime = std::chrono::high_resolution_clock::now();
@@ -930,7 +930,7 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
             try {
                 Board boardCopy = board;
                 boardCopy.makeMove(syzygyMove);
-                return {syzygyMove, 0};  // Valid move, return it
+                return {syzygyMove, 0, score, {syzygyMove}};
             } catch (const std::exception&) {
                 // In case somehow the move is invalid, continue with the search
             }
@@ -940,10 +940,11 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
     // Start the search
     int standPat = nnue.evaluate(wAccumulator[threadID], bAccumulator[threadID]);
     int depth = 0;
+    std::vector<Move> PV; 
 
     while (depth <= std::min(ENGINE_DEPTH, maxDepth)) {
-        Move currentBestMove = Move(); // Track the best move for the current depth
-        int currentBestEval = -INF;
+        Move currBestMove = Move(); // Track the best move for the current depth
+        int currBestEval = -INF;
         bool hashMoveFound = false;
 
         // Aspiration window
@@ -952,16 +953,17 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
         
         std::vector<std::pair<Move, int>> newMoves;
-        std::vector<Move> PV; 
+        
         
         if (depth == 0) {
             moves = orderedMoves(board, 0, 0, hashMoveFound);
         }
 
         while (true) {
-            currentBestEval = -INF;
+            currBestEval = -INF;
             int alpha0 = alpha;
             newMoves.clear();
+            std::vector<Move> currPV;
             
             for (int i = 0; i < moves.size(); i++) {
 
@@ -992,10 +994,10 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
 
                 // Check for stop search flag
                 if (stopSearch) {
-                    return {bestMove, depth - 1};
+                    return {bestMove, depth - 1, bestEval, PV};
                 }
 
-                if (eval > currentBestEval && nextDepth < depth - 1) {
+                if (eval > currBestEval && nextDepth < depth - 1) {
                     // Re-search with full depth if we have a new best move
                     addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                     moveStack[threadID][ply] = moveIndex(move);
@@ -1006,20 +1008,20 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
 
                     subtractAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                     localBoard.unmakeMove(move);
-                }
 
-                if (stopSearch) {
-                    return {bestMove, depth - 1};
+                    if (stopSearch) {
+                        return {bestMove, depth - 1, bestEval, PV};
+                    }
                 }
 
                 newMoves.push_back({move, eval}); // Store the move and its evaluation
 
                 // If found the new best move
-                if (eval > currentBestEval) {
-                    currentBestEval = eval;
-                    currentBestMove = move;
-                    alpha = std::max(alpha, currentBestEval);
-                    updatePV(PV, move, childPV);
+                if (eval > currBestEval) {
+                    currBestEval = eval;
+                    currBestMove = move;
+                    alpha = std::max(alpha, currBestEval);
+                    updatePV(currPV, move, childPV);
                 } 
                 
                 if (alpha >= beta) {
@@ -1027,18 +1029,20 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
                 }
             }
 
-            if (currentBestEval <= alpha0 || currentBestEval >= beta) {
+            if (currBestEval <= alpha0 || currBestEval >= beta) {
                 alpha = -INF;
                 beta = INF;
                 newMoves.clear();
             } else {
+                PV = currPV;
                 break;
             }
         }
         
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
-        bestMove = currentBestMove;
-        bestEval = currentBestEval;
+        bestMove = currBestMove;
+        bestEval = currBestEval;
+        
 
         // Sort the moves by evaluation for the next iteration
         std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
@@ -1055,11 +1059,15 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
             totalTableHit += tableHit[i];
         }
     
-        std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
-        std::cout << analysis << std::endl; // Print the analysis for the thread that finished first
+        if (threadID == 0){
+            // Only print the analysis for the first thread to avoid clutter 
+            std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
+            std::cout << analysis << std::endl;
+        }
+
         
         if (moves.size() == 1) {
-            return {moves[0].first, 0}; // If there is only one move, return it immediately.
+            return {moves[0].first, 0, standPat, {moves[0].first}}; // If there is only one move, return it immediately.
         }
 
         auto currentTime = std::chrono::high_resolution_clock::now();
@@ -1087,7 +1095,7 @@ std::pair<Move, int> rootSearch(Board& board, int maxDepth = 30, int timeLimit =
         }
     }
 
-    return {bestMove, depth}; 
+    return {bestMove, depth, bestEval, PV};
 }
 
 Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit) {
@@ -1097,6 +1105,7 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
     Move bestMove = Move(); 
 
     resetSearchFlags();
+    auto startTime = std::chrono::high_resolution_clock::now();
 
     // Update if the size for the transposition table changes.
     if (ttTable.size() != tableSize) {
@@ -1126,22 +1135,37 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
         makeAccumulators(board, wAccumulator[i], bAccumulator[i], nnue);
     }
 
-    int highestDepth = -INF;
+    int depth = -1;
+    int eval = -INF;
+    std::vector<Move> PV;
 
     #pragma omp parallel for schedule(dynamic, 1)
     for (int i = 0; i < numThreads; i++) {
         // Each thread will run its own root search. 
         Board localBoard = board;
-        auto [move, depth] = rootSearch(localBoard, maxDepth, timeLimit, i);
+        auto [threadMove, threadDepth, threadEval, threadPV] = rootSearch(localBoard, maxDepth, timeLimit, i);
         if (!stopSearch) {
             stopSearch = true; // Stop all running threads
         }
 
-        if (depth > highestDepth) {
-            highestDepth = depth;
-            bestMove = move; // Update the best move if this thread found a deeper search
+        if (threadDepth > depth) { 
+            // Get the result from the thread with the highest depth without extensions
+            depth = threadDepth;
+            bestMove = threadMove; 
+            eval = threadEval; 
+            PV = threadPV; 
         }
     }
 
+    // Print the final analysis
+    int totalNodeCount = 0;
+    int totalTableHit = 0;
+    for (int i = 0; i < numThreads; i++) {
+        totalNodeCount += nodeCount[i];
+        totalTableHit += tableHit[i];
+    }
+    
+    std::string analysis = formatAnalysis(depth, eval, totalNodeCount, totalTableHit, startTime, PV, board);
+    std::cout << analysis << std::endl;
     return bestMove; 
 }

@@ -21,5 +21,5 @@ struct NodeData {
 void initializeNNUE(std::string path);
 void initializeTB(std::string path);
 int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeData& nodeInfo);
-std::pair<Move, int> rootSearch(Board &board, int maxDepth, int timeLimit, int threadID);
+std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board &board, int maxDepth, int timeLimit, int threadID);
 Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit);
