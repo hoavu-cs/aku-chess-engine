@@ -565,7 +565,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     seeds[threadID] = fastRand(seeds[threadID]);
     int R2 = seeds[threadID] % moves.size();
 
-    bool captureTTMove = found && ttMove != Move::NO_MOVE && board.isCapture(ttMove);
+    //bool captureTTMove = found && ttMove != Move::NO_MOVE && board.isCapture(ttMove);
     
     // Reverse futility pruning (RFP)
     bool rfpCondition = (depth <= rfpDepth) 
@@ -573,7 +573,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && !isPV 
                         && !ttIsPV 
                         && abs(beta) < 10000
-                        && !captureTTMove;
+                        && !board.isCapture(ttMove);
     if (rfpCondition) {
         int rfpMargin = rfpC1 + rfpC2 * depth + rfpC3 * (1 - improving);
         if (standPat >= beta + rfpMargin) {
