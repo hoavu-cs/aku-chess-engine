@@ -1145,7 +1145,7 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
         Board localBoard = board;
         auto [threadMove, threadDepth, threadEval, threadPV] = rootSearch(localBoard, maxDepth, timeLimit, i);
         if (!stopSearch) {
-            stopSearch = true; // Stop all running threads
+            stopSearch = true; // Stop all running threads once one thread finishes
         }
 
         if (threadDepth > depth) { 
