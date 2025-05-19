@@ -64,20 +64,20 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 // float lmr1 = 0.75f;
 // float lmr2 = 0.65;
 
-int rfpDepth = 4;
+int rfpDepth = 3;
 int rfpC1 = 95;
 int rfpC2 = 106;
 int rfpC3 = 23;
 
-int fpDepth = 4;
+int fpDepth = 3;
 int fpC1 = 158;
 int fpC2 = 93;
 int fpC3 = 214;
 
-int lmpDepth = 1;
+int lmpDepth = 0;
 int lmpC1 = 12;
 
-int hpDepth = 2;
+int hpDepth = 3;
 int hpC1 = 304;
 int hpC2 = 913;
 int hpC3 = 306;
