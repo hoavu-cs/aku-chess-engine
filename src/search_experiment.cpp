@@ -451,7 +451,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
 }
 
 // Negamax main search function
-int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeData& nodeInfo) {
+int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeData& data) {
 
     // Stop the search if hard deadline is reached
     auto currentTime = std::chrono::high_resolution_clock::now();
@@ -460,18 +460,18 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return 0;
     }
 
-    int threadID = nodeInfo.threadID;
-    int ply = nodeInfo.ply;
-    int rootDepth = nodeInfo.rootDepth;
+    int threadID = data.threadID;
+    int ply = data.ply;
+    int rootDepth = data.rootDepth;
 
     std::vector<Move> badQuiets; // quiet moves that fail to raise alpha
     std::vector<Move> badCaptures; // bad tacticals (captures/promos) that fail to raise alpha
 
     // Extract whether we can do singular search and NMP
-    bool nmpOk = nodeInfo.nmpOk;
+    bool nmpOk = data.nmpOk;
 
     // Extract node type and last move from nodeInfo
-    NodeType nodeType = nodeInfo.nodeType;
+    NodeType nodeType = data.nodeType;
 
     nodeCount[threadID]++;
     bool mopUp = isMopUpPhase(board);
@@ -546,7 +546,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         evalAdjust(qEval);
         return qEval;
     } else if (depth <= 0) {
-        return negamax(board, 1, alpha, beta, PV, nodeInfo);
+        return negamax(board, 1, alpha, beta, PV, data);
     }
 
     int standPat = 0;
@@ -595,7 +595,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int nullEval;
         int reduction = 3;
 
-        NodeData nullNodeInfo = {ply + 1, 
+        NodeData nullData = {ply + 1, 
                                 false, 
                                 rootDepth,
                                 NodeType::ALL, // expected all node
@@ -603,7 +603,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         moveStack[threadID][ply] = -1;
         board.makeNullMove();
         nullPV.push_back(Move::NULL_MOVE);
-        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, nullNodeInfo);
+        nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, nullData);
         evalAdjust(nullEval);
         board.unmakeNullMove();
 
@@ -1139,14 +1139,14 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
     int eval = -INF;
     std::vector<Move> PV;
 
-    #pragma omp parallel for schedule(dynamic, 1)
+    #pragma omp parallel for schedule (static, 1)
     for (int i = 0; i < numThreads; i++) {
         // Each thread will run its own root search. 
         Board localBoard = board;
         auto [threadMove, threadDepth, threadEval, threadPV] = rootSearch(localBoard, maxDepth, timeLimit, i);
-        if (!stopSearch) {
-            stopSearch = true; // Stop all running threads once one thread finishes
-        }
+        // if (!stopSearch) {
+        //     stopSearch = true; // Stop all running threads once one thread finishes
+        // }
 
         if (threadDepth > depth) { 
             // Get the result from the thread with the highest depth without extensions
