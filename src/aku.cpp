@@ -86,7 +86,7 @@ int singularC1 = 2;
 int singularC2 = 0;
 
 float lmr1 = 0.75f;
-float lmr2 = 0.55;
+float lmr2 = 0.55f;
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32

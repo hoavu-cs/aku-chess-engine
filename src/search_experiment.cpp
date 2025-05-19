@@ -514,12 +514,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     Move ttMove;
     EntryType ttType;
     TableEntry entry;
-    bool probCutFound = false;
+    bool ttHit = false;
 
     if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
         tableHit[threadID]++;
         if (ttDepth >= depth) found = true;
-        else if (ttDepth > depth - 3) probCutFound = true; // found a slightly shallower depth entry
+        ttHit = true;
     }
 
     if (found && !isPV) {
@@ -545,11 +545,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     int standPat = 0;
-    if (stm == 1) {
-        standPat = nnue.evaluate(wAccumulator[threadID], bAccumulator[threadID]);
+    if (ttHit) {
+        standPat = ttEval;
     } else {
-        standPat = nnue.evaluate(bAccumulator[threadID], wAccumulator[threadID]);
+        if (stm == 1) {
+            standPat = nnue.evaluate(wAccumulator[threadID], bAccumulator[threadID]);
+        } else {
+            standPat = nnue.evaluate(bAccumulator[threadID], wAccumulator[threadID]);
+        }
     }
+
     
     staticEval[threadID][ply] = standPat; // store the evaluation along the path
     bool hashMoveFound = false;
