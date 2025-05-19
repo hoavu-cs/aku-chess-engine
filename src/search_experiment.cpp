@@ -42,7 +42,7 @@ std::vector<U64> tableHit (MAX_THREADS); // Table hit count for each thread
 
 void initializeNNUE(std::string path) {
     std::cout << "Initializing NNUE from: " << path << std::endl;
-    loadNetwork(path, nnue);
+    load_network(path, nnue);
 }
 
 
@@ -426,13 +426,13 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     });
 
     for (auto& [move, priority] : candidateMoves) {
-        addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+        add_accumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.makeMove(move);
         
         int score = 0;
         score = -quiescence(board, -beta, -alpha, ply + 1, threadID);
 
-        subtractAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+        subtract_accumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.unmakeMove(move);
 
         bestScore = std::max(bestScore, score);
@@ -643,7 +643,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     //         if (moves[i].first == ttMove) 
     //             continue; 
 
-    //         addAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+    //         add_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
     //         moveStack[threadID][ply] = moveIndex(moves[i].first);
     //         board.makeMove(moves[i].first);
 
@@ -657,7 +657,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     //         sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeData));
     //         evalAdjust(sEval);
 
-    //         subtractAccumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+    //         subtract_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
     //         board.unmakeMove(moves[i].first);
 
     //         if (sEval >= sBeta) break;
@@ -724,7 +724,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
     
-        addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+        add_accumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         moveStack[threadID][ply] = moveIndex(move);
         board.makeMove(move);
         
@@ -773,7 +773,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             evalAdjust(eval);
         }
         
-        subtractAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+        subtract_accumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
         board.unmakeMove(move);
     
         // If we raised alpha in a null window search or reduced depth search, re-search with full window and full depth.
@@ -785,14 +785,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             // Now this child becomes a PV node.
             childNodeData.nodeType = NodeType::PV;
 
-            addAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            add_accumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
             moveStack[threadID][ply] = moveIndex(move);
             board.makeMove(move);
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeData);
             evalAdjust(eval);
 
-            subtractAccumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            subtract_accumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
             board.unmakeMove(move);
         }
 
@@ -989,14 +989,14 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
                                         NodeType::PV, // child of a root node is a PV node
                                         threadID};
                 
-                addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+                add_accumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                 moveStack[threadID][ply] = moveIndex(move);
                 localBoard.makeMove(move);
 
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeData);
                 evalAdjust(eval);
 
-                subtractAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+                subtract_accumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                 localBoard.unmakeMove(move);
 
                 // Check for stop search flag
@@ -1006,14 +1006,14 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
 
                 if (eval > currBestEval && nextDepth < depth - 1) {
                     // Re-search with full depth if we have a new best move
-                    addAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+                    add_accumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                     moveStack[threadID][ply] = moveIndex(move);
                     localBoard.makeMove(move);
 
                     eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeData);
                     evalAdjust(eval);
 
-                    subtractAccumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
+                    subtract_accumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                     localBoard.unmakeMove(move);
 
                     if (stopSearch) {
@@ -1139,7 +1139,7 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
         seeds[i] = rand();
 
         // Make accumulators for each thread
-        makeAccumulators(board, wAccumulator[i], bAccumulator[i], nnue);
+        make_accumulators(board, wAccumulator[i], bAccumulator[i], nnue);
     }
 
     int depth = -1;
