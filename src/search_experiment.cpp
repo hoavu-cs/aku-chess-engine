@@ -93,7 +93,6 @@ std::vector<LockedTableEntry> ttTable(tableSize);
 
 // Helper function declarations
 void precomputeLMR(int maxDepth, int maxI);
-void resetSearchFlags();
 bool tableLookUp(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
 void tableInsert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
 inline void updateKillerMoves(const Move&, int, int);
@@ -116,10 +115,6 @@ void precomputeLMR(int maxDepth, int maxI) {
     }
 
     isPrecomputed = true;
-}
-
-void resetSearchFlags() {
-    stopSearch = false;
 }
 
 bool tableLookUp(Board& board, 
@@ -569,9 +564,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int R1 = seeds[threadID] % moves.size(); 
     seeds[threadID] = fastRand(seeds[threadID]);
     int R2 = seeds[threadID] % moves.size();
+
+    bool captureTTMove = found && ttMove != Move::NO_MOVE && board.isCapture(ttMove);
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = (depth <= rfpDepth) && !board.inCheck() && !isPV && !ttIsPV && abs(beta) < 10000;
+    bool rfpCondition = (depth <= rfpDepth) 
+                        && !board.inCheck() 
+                        && !isPV 
+                        && !ttIsPV 
+                        && abs(beta) < 10000
+                        && !captureTTMove;
     if (rfpCondition) {
         int rfpMargin = rfpC1 + rfpC2 * depth + rfpC3 * (1 - improving);
         if (standPat >= beta + rfpMargin) {
@@ -662,7 +664,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (board.inCheck()) extensions++;
     if (moves.size() == 1) extensions++;
     
-    extensions = std::clamp(extensions, 0, 2); // limit extensions to 2 per ply
+    extensions = std::clamp(extensions, 0, 1); // limit extensions to 2 per ply
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -690,7 +692,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool canPrune = !inCheck && !isPawnPush && i > 0;
 
         // Futility  pruning
-        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth;
+        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth && !ttIsPV;
         if (fpCondition) {
             int margin = fpC1 + fpC2 * nextDepth + fpC3 * improving;
             if (standPat + margin < alpha) {
@@ -708,12 +710,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // Further reduction for quiet moves with lower history scores
-        bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth;
+        bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth && !ttIsPV;
         if (hpCondition) {
             int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
             int historyScore = history[threadID][stm][moveIndex(move)];
             if (historyScore < margin) {
-                nextDepth--;
+                continue;
             }
         }
     
@@ -922,7 +924,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
         }
 
         if (syzygyMove != Move::NO_MOVE) {
-            std::cout << "info depth 0 score cp " << score 
+            std::cout << "info depth 0 score " << score  << " cp "
                         << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
         }
         
@@ -1082,16 +1084,16 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
         if (depth >= 6 
             && abs(evals[depth - 1]) >= INF/2 - 100 
             && abs(evals[depth]) >= INF/2 - 100) {
-            break; // If we are in a forced mate sequence, we can stop the search.
+            break; // If two consecutive depths found mate, stop searching.
         }
         
         if (!timeLimitExceeded) {
             depth++; // If the time limit is not exceeded, we can search deeper.
         } else {
             if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1] && depth >= 14)) {
-                break; // If we go beyond the hard limit or stabilize
+                break; // If we go beyond the hard limit or stabilize.
             } 
-            depth++; // Else, we can still search deeper
+            depth++; 
         }
     }
 
@@ -1104,7 +1106,7 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
     omp_set_num_threads(numThreads); // Set the number of threads for OpenMP
     Move bestMove = Move(); 
 
-    resetSearchFlags();
+    stopSearch = false;
     auto startTime = std::chrono::high_resolution_clock::now();
 
     // Update if the size for the transposition table changes.
@@ -1141,19 +1143,15 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
 
     #pragma omp parallel for schedule (static, 1)
     for (int i = 0; i < numThreads; i++) {
-        // Each thread will run its own root search. 
         Board localBoard = board;
         auto [threadMove, threadDepth, threadEval, threadPV] = rootSearch(localBoard, maxDepth, timeLimit, i);
-        // if (!stopSearch) {
-        //     stopSearch = true; // Stop all running threads once one thread finishes
-        // }
-
-        if (threadDepth > depth) { 
+        if (i == 0) { 
             // Get the result from the thread with the highest depth without extensions
             depth = threadDepth;
             bestMove = threadMove; 
             eval = threadEval; 
             PV = threadPV; 
+            stopSearch = true; // Stop all threads
         }
     }
 

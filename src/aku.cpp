@@ -178,7 +178,7 @@ void extractFiles() {
 }
 
 // Global variables for engine options
-int numThreads = 8;
+int numThreads = 4;
 int depth = 50;
 bool chess960 = false;
 bool internalOpening = true;
@@ -426,7 +426,7 @@ void processGo(const std::vector<std::string>& tokens) {
 void processUci() {
     std::cout << "id name " << ENGINE_NAME << std::endl;
     std::cout << "id author " << ENGINE_AUTHOR << std::endl;
-    std::cout << "option name Threads type spin default 8 min 1 max 10" << std::endl;
+    std::cout << "option name Threads type spin default 4 min 1 max 10" << std::endl;
     std::cout << "option name Depth type spin default 99 min 1 max 99" << std::endl;
     std::cout << "option name Hash type spin default 256 min 128 max 1024" << std::endl;
     std::cout << "option name UCI_Chess960 type check default false" << std::endl;
