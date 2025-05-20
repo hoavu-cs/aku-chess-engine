@@ -640,48 +640,48 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Singular extension. If the hash move is stronger than all others, extend the search.
-    if (hashMoveFound && ttDepth >= depth - 3
-        && depth > 4
-        && ttType != EntryType::UPPERBOUND
-        && abs(ttEval) < INF/2 - 100) {
+    // if (hashMoveFound && ttDepth >= depth - 3
+    //     && depth > 4
+    //     && ttType != EntryType::UPPERBOUND
+    //     && abs(ttEval) < INF/2 - 100) {
 
-        int sEval = -INF;
-        int sBeta = ttEval - singularC1 * depth - singularC2; 
+    //     int sEval = -INF;
+    //     int sBeta = ttEval - singularC1 * depth - singularC2; 
 
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i].first == ttMove) 
-                continue; 
+    //     for (int i = 0; i < moves.size(); i++) {
+    //         if (moves[i].first == ttMove) 
+    //             continue; 
 
-            add_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            moveStack[threadID][ply] = move_index(moves[i].first);
-            board.makeMove(moves[i].first);
+    //         add_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+    //         moveStack[threadID][ply] = move_index(moves[i].first);
+    //         board.makeMove(moves[i].first);
 
-            NodeData childNodeData = {ply + 1, 
-                                    false, 
-                                    rootDepth,
-                                    NodeType::PV,
-                                    threadID};
+    //         NodeData childNodeData = {ply + 1, 
+    //                                 false, 
+    //                                 rootDepth,
+    //                                 NodeType::PV,
+    //                                 threadID};
 
 
-            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeData));
-            eval_adjust(sEval);
+    //         sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeData));
+    //         eval_adjust(sEval);
 
-            subtract_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            board.unmakeMove(moves[i].first);
+    //         subtract_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+    //         board.unmakeMove(moves[i].first);
 
-            if (sEval >= sBeta) {
-                break;
-            } 
+    //         if (sEval >= sBeta) {
+    //             break;
+    //         } 
 
-        }
+    //     }
 
-        if (sEval < sBeta) {
-            extensions++; // singular extension
-            if (sEval < sBeta - 40) {
-                extensions++; // double extension 
-            }
-        }
-    }
+    //     if (sEval < sBeta) {
+    //         extensions++; // singular extension
+    //         if (sEval < sBeta - 40) {
+    //             extensions++; // double extension 
+    //         }
+    //     }
+    // }
 
     if (board.inCheck() && std::abs(standPat) > 75) {
         extensions++;
@@ -713,7 +713,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = late_move_reduction(board, move, i, depth, ply, isPV, nodeType, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (rootDepth + 1) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (rootDepth + 2) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
