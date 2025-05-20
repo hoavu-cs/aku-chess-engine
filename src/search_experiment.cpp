@@ -173,7 +173,7 @@ int see(Board& board, Move move, int threadID) {
     int to = move.to().index();
 
     auto victim = board.at<Piece>(move.to());
-    int victimValue = pieceTypeValue(victim.type());
+    int victimValue = piece_type_value(victim.type());
 
     std::vector<int> values;
     values.push_back(victimValue);
@@ -200,7 +200,7 @@ int see(Board& board, Move move, int threadID) {
         for (const Move& nextCapture : captures) {
             if (nextCapture.to().index() != to) continue; 
             
-            int value = pieceTypeValue(copy.at<Piece>(nextCapture.from()).type());
+            int value = piece_type_value(copy.at<Piece>(nextCapture.from()).type());
             if (value < bestValue) {
                 bestValue = value;
                 bestNextCapture = nextCapture;
@@ -233,12 +233,12 @@ int lateMoveReduction(Board& board,
         bool isPV, 
         int threadID) {
 
-    if (isMopUpPhase(board)) {
+    if (is_mopup(board)) {
         return depth - 1;
     }
 
     bool stm = board.sideToMove() == Color::WHITE;
-    bool isPromThreat = promotionThreat(board, move);
+    bool isPromThreat = promotion_threat(board, move);
 
     if (i <= 1 || depth <= 3 || isPromThreat) {
         return depth - 1;
@@ -248,7 +248,7 @@ int lateMoveReduction(Board& board,
         bool isKiller = std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end();
         
         int R = lmrTable[depth][i];
-        int ttEval, ttDepth, historyScore = history[threadID][stm][moveIndex(move)];
+        int ttEval, ttDepth, historyScore = history[threadID][stm][move_index(move)];
         bool ttIsPV, hashMoveFound, pastPV = false;
         EntryType ttType;
         Move ttMove;
@@ -313,20 +313,20 @@ std::vector<std::pair<Move, int>> orderedMoves(Board& board, int ply, int thread
         if (hashMove) continue;
 
         int previousMvIndex = ply > 0 ? moveStack[threadID][ply - 1] : -1;
-        int currentMvIndex = moveIndex(move);
+        int currentMvIndex = move_index(move);
 
-        if (isPromotion(move)) {                   
+        if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
-            int victimValue = pieceTypeValue(board.at<Piece>(move.to()).type());
-            int attackerValue = pieceTypeValue(board.at<Piece>(move.from()).type());
-            int score = captureHistory[threadID][stm][moveIndex(move)];
+            int victimValue = piece_type_value(board.at<Piece>(move.to()).type());
+            int attackerValue = piece_type_value(board.at<Piece>(move.from()).type());
+            int score = captureHistory[threadID][stm][move_index(move)];
             priority = 4000 + victimValue + score;
         } else if (std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end()) {
             priority = 4000; // killer move
         } else {
             secondary = true;
-            U64 mvIndex = moveIndex(move);
+            U64 mvIndex = move_index(move);
             priority = history[threadID][stm][mvIndex];
         } 
 
@@ -374,7 +374,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     nodeCount[threadID]++;
     bool stm = (board.sideToMove() == Color::WHITE);
     int standPat = 0;
-    bool mopUp = isMopUpPhase(board);
+    bool mopUp = is_mopup(board);
 
     // Probe Syzygy tablebases
     Move syzygyMove = Move::NO_MOVE;
@@ -396,9 +396,9 @@ int quiescence(Board& board, int alpha, int beta, int ply, int threadID) {
     Movelist moves;
     movegen::legalmoves<movegen::MoveGenType::CAPTURE>(moves, board);
 
-    if (isMopUpPhase(board)) {
+    if (is_mopup(board)) {
         int color = (board.sideToMove() == Color::WHITE) ? 1 : -1;
-        standPat = color * mopUpScore(board);
+        standPat = color * mopup_score(board);
     } else {
         if (stm == 1) {
             standPat = nnue.evaluate(wAccumulator[threadID], bAccumulator[threadID]);
@@ -469,7 +469,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     NodeType nodeType = data.nodeType;
 
     nodeCount[threadID]++;
-    bool mopUp = isMopUpPhase(board);
+    bool mopUp = is_mopup(board);
     bool isPV = (alpha < beta - 1);
     int alpha0 = alpha; // Original alpha passed from the parent node
     bool stm = (board.sideToMove() == Color::WHITE);
@@ -538,7 +538,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
     if (depth <= 0 && !board.inCheck()) {
         int qEval = quiescence(board, alpha, beta, ply + 1, threadID);
-        evalAdjust(qEval);
+        eval_adjust(qEval);
         return qEval;
     } else if (depth <= 0) {
         return negamax(board, 1, alpha, beta, PV, data);
@@ -589,7 +589,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Null move pruning. Side to move must have non-pawn material.
     const int nullDepth = 4; 
     bool nmpCondition = (depth >= nullDepth 
-        && nonPawnMaterial(board) 
+        && non_pawn_material(board) 
         && !board.inCheck() 
         && !mopUp 
         && !isPV
@@ -611,7 +611,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.makeNullMove();
         nullPV.push_back(Move::NULL_MOVE);
         nullEval = -negamax(board, depth - reduction, -beta, -(beta - 1), nullPV, nullData);
-        evalAdjust(nullEval);
+        eval_adjust(nullEval);
         board.unmakeNullMove();
 
         if (nullEval >= beta) {
@@ -644,7 +644,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     //             continue; 
 
     //         add_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-    //         moveStack[threadID][ply] = moveIndex(moves[i].first);
+    //         moveStack[threadID][ply] = move_index(moves[i].first);
     //         board.makeMove(moves[i].first);
 
     //         NodeData childNodeData = {ply + 1, 
@@ -655,7 +655,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
 
     //         sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeData));
-    //         evalAdjust(sEval);
+    //         eval_adjust(sEval);
 
     //         subtract_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
     //         board.unmakeMove(moves[i].first);
@@ -677,10 +677,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         Move move = moves[i].first;
         std::vector<Move> childPV;
         
-        bool isPromo = isPromotion(move);
+        bool isPromo = is_promotion(move);
         bool inCheck = board.inCheck();
         bool isCapture = board.isCapture(move);
-        bool isPromoThreat = promotionThreat(board, move);
+        bool isPromoThreat = promotion_threat(board, move);
 
         bool isPawnPush = board.at<Piece>(move.from()).type() == PieceType::PAWN;
 
@@ -718,14 +718,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth && !ttIsPV;
         if (hpCondition) {
             int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
-            int historyScore = history[threadID][stm][moveIndex(move)];
+            int historyScore = history[threadID][stm][move_index(move)];
             if (historyScore < margin) {
                 continue;
             }
         }
     
         add_accumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-        moveStack[threadID][ply] = moveIndex(move);
+        moveStack[threadID][ply] = move_index(move);
         board.makeMove(move);
         
         bool nullWindow = false;
@@ -752,7 +752,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } 
             childNodeData.nodeType = childNodeType;
             eval = -negamax(board, nextDepth, -beta, -alpha, childPV, childNodeData);
-            evalAdjust(eval);
+            eval_adjust(eval);
         } else {
             // If we are in a PV node and search the next child on a null window, we expect
             // the child to be a CUT node. 
@@ -770,7 +770,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             childNodeData.nodeType = childNodeType;
 
             eval = -negamax(board, nextDepth, -(alpha + 1), -alpha, childPV, childNodeData);
-            evalAdjust(eval);
+            eval_adjust(eval);
         }
         
         subtract_accumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
@@ -786,11 +786,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             childNodeData.nodeType = NodeType::PV;
 
             add_accumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-            moveStack[threadID][ply] = moveIndex(move);
+            moveStack[threadID][ply] = move_index(move);
             board.makeMove(move);
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, childNodeData);
-            evalAdjust(eval);
+            eval_adjust(eval);
 
             subtract_accumulators(board, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
             board.unmakeMove(move);
@@ -800,7 +800,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             bestEval = eval;
             if (bestEval > alpha) {
                 alpha = bestEval;
-                updatePV(PV, move, childPV);
+                update_pv(PV, move, childPV);
             }
         }
 
@@ -818,7 +818,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             constexpr int maxHist = 9000;
             constexpr int maxCapHist = 3000;
 
-            int mvIndex = moveIndex(move);
+            int mvIndex = move_index(move);
             int currentScore = isCapture ? 
                                 captureHistory[threadID][stm][mvIndex] : 
                                 history[threadID][stm][mvIndex];
@@ -834,7 +834,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
                 // penalize bad quiet moves
                 for (auto& badMv : badQuiets) {
-                    int badMvIndex = moveIndex(badMv);
+                    int badMvIndex = move_index(badMv);
                     history[threadID][stm][badMvIndex] -= delta;
                     history[threadID][stm][badMvIndex] = std::clamp(history[threadID][stm][badMvIndex], -maxHist, maxHist);
                 }
@@ -844,7 +844,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
 
             for (auto& badCap : badCaptures) {
-                int badMvIndex = moveIndex(badCap);
+                int badMvIndex = move_index(badCap);
                 captureHistory[threadID][stm][badMvIndex] -= delta;
                 captureHistory[threadID][stm][badMvIndex] = std::clamp(captureHistory[threadID][stm][badMvIndex], -maxCapHist, maxCapHist);
             }
@@ -990,11 +990,11 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
                                         threadID};
                 
                 add_accumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-                moveStack[threadID][ply] = moveIndex(move);
+                moveStack[threadID][ply] = move_index(move);
                 localBoard.makeMove(move);
 
                 eval = -negamax(localBoard, nextDepth, -beta, -alpha, childPV, childNodeData);
-                evalAdjust(eval);
+                eval_adjust(eval);
 
                 subtract_accumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                 localBoard.unmakeMove(move);
@@ -1007,11 +1007,11 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
                 if (eval > currBestEval && nextDepth < depth - 1) {
                     // Re-search with full depth if we have a new best move
                     add_accumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
-                    moveStack[threadID][ply] = moveIndex(move);
+                    moveStack[threadID][ply] = move_index(move);
                     localBoard.makeMove(move);
 
                     eval = -negamax(localBoard, depth - 1, -beta, -alpha, childPV, childNodeData);
-                    evalAdjust(eval);
+                    eval_adjust(eval);
 
                     subtract_accumulators(localBoard, move, wAccumulator[threadID], bAccumulator[threadID], nnue);
                     localBoard.unmakeMove(move);
@@ -1028,7 +1028,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
                     currBestEval = eval;
                     currBestMove = move;
                     alpha = std::max(alpha, currBestEval);
-                    updatePV(currPV, move, childPV);
+                    update_pv(currPV, move, childPV);
                 } 
                 
                 if (alpha >= beta) {

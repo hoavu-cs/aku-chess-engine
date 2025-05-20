@@ -13,7 +13,7 @@ const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int KING_VALUE = 0;
 
-const int bnMateLightSquares[64] = {
+const int bn_mate_light_squares[64] = {
     0, 10, 20, 30, 40, 50, 60, 70,
     10, 20, 30, 40, 50, 60, 70, 60,
     20, 30, 40, 50, 60, 70, 60, 50,
@@ -24,7 +24,7 @@ const int bnMateLightSquares[64] = {
     70, 60, 50, 40, 30, 20, 10, 0
 };
 
-const int bnMateDarkSquares[64] = {
+const int bn_mate_dark_squares[64] = {
     70, 60, 50, 40, 30, 20, 10, 0,
     60, 70, 60, 50, 40, 30, 20, 10,
     50, 60, 70, 60, 50, 40, 30, 20,
@@ -36,26 +36,22 @@ const int bnMateDarkSquares[64] = {
 };
 
 // Function declarations
-inline void evalAdjust(int& eval);
-inline int gamePhase(const Board& board);
-inline int manhattanDistance(const Square& sq1, const Square& sq2);
-inline int minDistance(const Square& sq1, const Square& sq2);
-inline int minDistanceToEdge(const Square& sq);
-inline U64 moveIndex(const Move& move);
-inline bool isCastling(const Move& move);
-inline bool isPromotion(const Move& move);
-inline bool isMopUpPhase(Board& board);
-inline int mopUpScore(const Board& board);
-inline void updatePV(std::vector<Move>& PV, const Move& move, const std::vector<Move>& childPV);
-inline bool promotionThreat(Board& board, Move move);
-inline bool nonPawnMaterial(Board& board);
-inline int pieceTypeValue(PieceType pt);
-inline bool moveThreatenedPiece(const Board& board, const Move& move);
-inline int movePieceIndex(Board& board, const Move& move);
-inline int movePDIndex(Board& board, const Move& move);
+inline void eval_adjust(int& eval);
+inline int game_phase(const Board& board);
+inline int manhattan_distance(const Square& sq1, const Square& sq2);
+inline int min_distance(const Square& sq1, const Square& sq2);
+inline U64 move_index(const Move& move);
+inline bool is_castling(const Move& move);
+inline bool is_promotion(const Move& move);
+inline bool is_mopup(Board& board);
+inline int mopup_score(const Board& board);
+inline void update_pv(std::vector<Move>& PV, const Move& move, const std::vector<Move>& childPV);
+inline bool promotion_threat(Board& board, Move move);
+inline bool non_pawn_material(Board& board);
+inline int piece_type_value(PieceType pt);
 
 // Function definitions
-inline void evalAdjust(int& eval) {
+inline void eval_adjust(int& eval) {
     if (eval >= INF/2 - 100) {
         eval--; 
     } else if (eval <= -INF/2 + 100) {
@@ -67,45 +63,39 @@ inline void evalAdjust(int& eval) {
     }
 }
 
-inline void updatePV(std::vector<Move>& PV, const Move& move, const std::vector<Move>& childPV) {
+inline void update_pv(std::vector<Move>& PV, const Move& move, const std::vector<Move>& childPV) {
     PV.clear();
     PV.push_back(move);
     PV.insert(PV.end(), childPV.begin(), childPV.end());
 }
 
-inline int gamePhase (const Board& board) {
+inline int game_phase (const Board& board) {
     return board.pieces(PieceType::KNIGHT).count() +
             board.pieces(PieceType::BISHOP).count() +
             board.pieces(PieceType::ROOK).count() * 2 +
             board.pieces(PieceType::QUEEN).count() * 4;
 }
 
-inline int manhattanDistance(const Square& sq1, const Square& sq2) {
+inline int manhattan_distance(const Square& sq1, const Square& sq2) {
     return std::abs(sq1.file() - sq2.file()) + std::abs(sq1.rank() - sq2.rank());
 }
 
-inline int minDistance(const Square& sq, const Square& sq2) {
+inline int min_distance(const Square& sq, const Square& sq2) {
     return std::min(std::abs(sq.file() - sq2.file()), std::abs(sq.rank() - sq2.rank()));
 }
 
-inline int minDistanceToEdge(const Square& sq) {
-    int file = sq.index() % 8;
-    int rank = sq.index() / 8;
-    return std::min(std::min(file, 7 - file), std::min(rank, 7 - rank));
-}
-
-inline U64 moveIndex(const Move& move) {
+inline U64 move_index(const Move& move) {
     return move.from().index() * 64 + move.to().index();
 }
 
-inline bool isCastling(const Move& move) {
+inline bool is_castling(const Move& move) {
     if (move.typeOf() & Move::CASTLING) {
         return true;
     } 
     return false;
 }
 
-inline bool isPromotion(const Move& move) {
+inline bool is_promotion(const Move& move) {
     if (move.typeOf() & Move::PROMOTION) {
         if (move.promotionType() == PieceType::QUEEN) {
             return true;
@@ -114,62 +104,71 @@ inline bool isPromotion(const Move& move) {
     return false;
 }
 
-inline bool isPassedPawn(int sqIndex, Color color, const Bitboard& theirPawns) {
+inline bool is_passed_pawn(int sqIndex, Color color, const Bitboard& theirPawns) {
     int file = sqIndex % 8;
     int rank = sqIndex / 8;
     Bitboard copy = theirPawns;
     while (copy) {
-        int sqIndex2 = copy.lsb(), file2 = sqIndex2 % 8, rank2 = sqIndex2 / 8;
-        if (std::abs(file - file2) <= 1 && rank2 > rank && color == Color::WHITE) 
+        int sq_index_2 = copy.lsb(), file_2 = sq_index_2 % 8, rank_2 = sq_index_2 / 8;
+        if (std::abs(file - file_2) <= 1 && rank_2 > rank && color == Color::WHITE) 
             return false; 
-        if (std::abs(file - file2) <= 1 && rank2 < rank && color == Color::BLACK) 
+        if (std::abs(file - file_2) <= 1 && rank_2 < rank && color == Color::BLACK) 
             return false; 
-        copy.clear(sqIndex2);
+        copy.clear(sq_index_2);
     }
     return true;  
 }
 
-inline bool promotionThreat(Board& board, Move move) {
+inline bool promotion_threat(Board& board, Move move) {
     if (board.at(move.from()).type() != PieceType::PAWN) return false;
 
     Color color = board.sideToMove();
     PieceType type = board.at<Piece>(move.from()).type();
-    int destinationIndex = move.to().index();
-    int toRank = destinationIndex / 8;
-    Bitboard theirPawns = board.pieces(PieceType::PAWN, !color);
-    bool isPassedPawnFlag = isPassedPawn(destinationIndex, color, theirPawns);
-    if (isPassedPawnFlag) {
-        if ((color == Color::WHITE && toRank > 3) || 
-            (color == Color::BLACK && toRank < 4)) {
+    int destination_index = move.to().index();
+    int to_rank = destination_index / 8;
+
+    Bitboard their_pawns = board.pieces(PieceType::PAWN, !color);
+    bool is_passed_pawn_flag = is_passed_pawn(destination_index, color, their_pawns);
+
+    if (is_passed_pawn_flag) {
+        if ((color == Color::WHITE && to_rank > 3) || 
+            (color == Color::BLACK && to_rank < 4)) {
             return true;
         }
     }
+
     return false;
 }
 
-inline bool isMopUpPhase(Board& board) {
-    int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
-    int blackPawnsCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
 
-    int whiteKnightsCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
-    int blackKnightsCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
+inline bool is_mopup(Board& board) {
+    int white_pawns_count = board.pieces(PieceType::PAWN, Color::WHITE).count();
+    int black_pawns_count = board.pieces(PieceType::PAWN, Color::BLACK).count();
 
-    int whiteBishopsCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
-    int blackBishopsCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
+    int white_knights_count = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
+    int black_knights_count = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
 
-    int whiteRooksCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
-    int blackRooksCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
+    int white_bishops_count = board.pieces(PieceType::BISHOP, Color::WHITE).count();
+    int black_bishops_count = board.pieces(PieceType::BISHOP, Color::BLACK).count();
 
-    int whiteQueensCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
-    int blackQueensCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
+    int white_rooks_count = board.pieces(PieceType::ROOK, Color::WHITE).count();
+    int black_rooks_count = board.pieces(PieceType::ROOK, Color::BLACK).count();
 
-    const int whiteMaterial = whitePawnsCount + whiteKnightsCount * 3 + whiteBishopsCount * 3 + whiteRooksCount * 5 + whiteQueensCount * 10;
-    const int blackMaterial = blackPawnsCount + blackKnightsCount * 3 + blackBishopsCount * 3 + blackRooksCount * 5 + blackQueensCount * 10;    
+    int white_queens_count = board.pieces(PieceType::QUEEN, Color::WHITE).count();
+    int black_queens_count = board.pieces(PieceType::QUEEN, Color::BLACK).count();
 
-    if (whitePawnsCount > 0 || blackPawnsCount > 0) {
-        // if there are pawns, it's not a settled
+    const int white_material = white_pawns_count + white_knights_count * 3 +
+                               white_bishops_count * 3 + white_rooks_count * 5 +
+                               white_queens_count * 10;
+
+    const int black_material = black_pawns_count + black_knights_count * 3 +
+                               black_bishops_count * 3 + black_rooks_count * 5 +
+                               black_queens_count * 10;
+
+    if (white_pawns_count > 0 || black_pawns_count > 0) {
+        // if there are pawns, it's not settled
         return false;
-    } else if (std::abs(whiteMaterial - blackMaterial) > 4) {
+    } else if (std::abs(white_material - black_material) > 4) {
         // This covers cases such as KQvK, KRvK, KQvKR, KBBvK
         return true;
     }
@@ -178,95 +177,104 @@ inline bool isMopUpPhase(Board& board) {
     return false;
 }
 
-inline int mopUpScore(const Board& board) {
 
-    int whitePawnsCount = board.pieces(PieceType::PAWN, Color::WHITE).count();
-    int blackPawnsCount = board.pieces(PieceType::PAWN, Color::BLACK).count();
+inline int mopup_score(const Board& board) {
 
-    int whiteKnightsCount = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
-    int blackKnightsCount = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
+    int white_pawns_count = board.pieces(PieceType::PAWN, Color::WHITE).count();
+    int black_pawns_count = board.pieces(PieceType::PAWN, Color::BLACK).count();
 
-    int whiteBishopsCount = board.pieces(PieceType::BISHOP, Color::WHITE).count();
-    int blackBishopsCount = board.pieces(PieceType::BISHOP, Color::BLACK).count();
+    int white_knights_count = board.pieces(PieceType::KNIGHT, Color::WHITE).count();
+    int black_knights_count = board.pieces(PieceType::KNIGHT, Color::BLACK).count();
 
-    int whiteRooksCount = board.pieces(PieceType::ROOK, Color::WHITE).count();
-    int blackRooksCount = board.pieces(PieceType::ROOK, Color::BLACK).count();
+    int white_bishops_count = board.pieces(PieceType::BISHOP, Color::WHITE).count();
+    int black_bishops_count = board.pieces(PieceType::BISHOP, Color::BLACK).count();
 
-    int whiteQueensCount = board.pieces(PieceType::QUEEN, Color::WHITE).count();
-    int blackQueensCount = board.pieces(PieceType::QUEEN, Color::BLACK).count();
+    int white_rooks_count = board.pieces(PieceType::ROOK, Color::WHITE).count();
+    int black_rooks_count = board.pieces(PieceType::ROOK, Color::BLACK).count();
 
-    const int whiteMaterial = whitePawnsCount 
-                            + whiteKnightsCount * 3 
-                            + whiteBishopsCount * 3 
-                            + whiteRooksCount * 5 
-                            + whiteQueensCount * 10;
-    const int blackMaterial = blackPawnsCount 
-                            + blackKnightsCount * 3 
-                            + blackBishopsCount * 3 
-                            + blackRooksCount * 5 
-                            + blackQueensCount * 10;   
+    int white_queens_count = board.pieces(PieceType::QUEEN, Color::WHITE).count();
+    int black_queens_count = board.pieces(PieceType::QUEEN, Color::BLACK).count();
 
-    Color winningColor = whiteMaterial > blackMaterial ? Color::WHITE : Color::BLACK;
+    const int white_material = white_pawns_count 
+                            + white_knights_count * 3 
+                            + white_bishops_count * 3 
+                            + white_rooks_count * 5 
+                            + white_queens_count * 10;
 
-    Bitboard pieces = board.pieces(PieceType::PAWN, winningColor) | board.pieces(PieceType::KNIGHT, winningColor) | 
-                    board.pieces(PieceType::BISHOP, winningColor) | board.pieces(PieceType::ROOK, winningColor) | 
-                    board.pieces(PieceType::QUEEN, winningColor);
+    const int black_material = black_pawns_count 
+                            + black_knights_count * 3 
+                            + black_bishops_count * 3 
+                            + black_rooks_count * 5 
+                            + black_queens_count * 10;
 
 
-    Square winningKingSq = Square(board.pieces(PieceType::KING, winningColor).lsb());
-    Square losingKingSq = Square(board.pieces(PieceType::KING, !winningColor).lsb());
-    int losingKingSqIndex = losingKingSq.index();
+    Color winning_color = white_material > black_material ? Color::WHITE : Color::BLACK;
 
-    int kingDist = manhattanDistance(winningKingSq, losingKingSq);
+    Bitboard pieces = board.pieces(PieceType::PAWN, winning_color) |
+                    board.pieces(PieceType::KNIGHT, winning_color) |
+                    board.pieces(PieceType::BISHOP, winning_color) |
+                    board.pieces(PieceType::ROOK, winning_color) |
+                    board.pieces(PieceType::QUEEN, winning_color);
 
-    int winningMaterialScore = winningColor == Color::WHITE ? whiteMaterial : blackMaterial;
-    int losingMaterialScore = winningColor == Color::WHITE ? blackMaterial : whiteMaterial;
-    int materialScore = 100 * (winningMaterialScore - losingMaterialScore);
+    Square winning_king_sq = Square(board.pieces(PieceType::KING, winning_color).lsb());
+    Square losing_king_sq = Square(board.pieces(PieceType::KING, !winning_color).lsb());
+    int losing_king_sq_index = losing_king_sq.index();
 
-    bool bnMate = (winningColor == Color::WHITE && whiteQueensCount == 0 && whiteRooksCount == 0 && whiteBishopsCount == 1 && whiteKnightsCount == 1) 
-                || (winningColor == Color::BLACK && blackQueensCount == 0 && blackRooksCount == 0 && blackBishopsCount == 1 && blackKnightsCount == 1);
+    int king_dist = manhattan_distance(winning_king_sq, losing_king_sq);
+
+    int winning_material_score = winning_color == Color::WHITE ? white_material : black_material;
+    int losing_material_score = winning_color == Color::WHITE ? black_material : white_material;
+    int material_score = 100 * (winning_material_score - losing_material_score);
+
+    bool bn_mate = (winning_color == Color::WHITE &&
+                    white_queens_count == 0 && white_rooks_count == 0 &&
+                    white_bishops_count == 1 && white_knights_count == 1) ||
+                (winning_color == Color::BLACK &&
+                    black_queens_count == 0 && black_rooks_count == 0 &&
+                    black_bishops_count == 1 && black_knights_count == 1);
 
     int e4 = 28;
     int a1 = 0;
     int h1 = 7;
     int a8 = 56;
     int h8 = 63;
-    
-    if (bnMate) {
+
+    if (bn_mate) {
         // Typically not needed thanks to Syzygy tablebase.
         Bitboard bishop;
-        if (winningColor == Color::WHITE) {
+        if (winning_color == Color::WHITE) {
             bishop = board.pieces(PieceType::BISHOP, Color::WHITE);
         } else {
             bishop = board.pieces(PieceType::BISHOP, Color::BLACK);
         }
 
-        Square bishopSq = Square(bishop.lsb());
-        int bishopRank = bishop.lsb() / 8;
-        int bishopFile = bishop.lsb() % 8;
+        Square bishop_sq = Square(bishop.lsb());
+        int bishop_rank = bishop.lsb() / 8;
+        int bishop_file = bishop.lsb() % 8;
 
-        bool darkSquareBishop = (bishopRank + bishopFile) % 2 == 0;
-        const int *bnMateTable = darkSquareBishop ? bnMateDarkSquares : bnMateLightSquares;
-        int score = 5000 + materialScore + 150 * (14 - kingDist) + materialScore + 100 * bnMateTable[losingKingSqIndex];
-        return winningColor == Color::WHITE ? score : -score;
+        bool dark_square_bishop = (bishop_rank + bishop_file) % 2 == 0;
+        const int* bn_mate_table = dark_square_bishop ? bn_mate_dark_squares : bn_mate_light_squares;
+        int score = 5000 + material_score + 150 * (14 - king_dist) + material_score + 100 * bn_mate_table[losing_king_sq_index];
+        return winning_color == Color::WHITE ? score : -score;
     }
 
-    int score = 5000 + 150 * (14 - kingDist) + materialScore + 475 * manhattanDistance(losingKingSq, Square(e4)) ;
-    return winningColor == Color::WHITE ? score : -score;
-    
+    int score = 5000 + 150 * (14 - king_dist) + material_score + 475 * manhattan_distance(losing_king_sq, Square(e4));
+    return winning_color == Color::WHITE ? score : -score;
+
     return 0;
+
 }
 
-inline bool nonPawnMaterial(Board& board) {
+inline bool non_pawn_material(Board& board) {
     Color color = board.sideToMove();
-    int nonPawnCount = board.pieces(PieceType::KNIGHT, color).count() +
+    int non_pawn_count = board.pieces(PieceType::KNIGHT, color).count() +
                         board.pieces(PieceType::BISHOP, color).count() +
                         board.pieces(PieceType::ROOK, color).count() +
                         board.pieces(PieceType::QUEEN, color).count();
-    return nonPawnCount > 0;
+    return non_pawn_count > 0;
 }
 
-inline int pieceTypeValue(PieceType pt) {
+inline int piece_type_value(PieceType pt) {
     if (pt == PieceType::PAWN)   return PAWN_VALUE;
     if (pt == PieceType::KNIGHT) return KNIGHT_VALUE;
     if (pt == PieceType::BISHOP) return BISHOP_VALUE;
@@ -274,48 +282,4 @@ inline int pieceTypeValue(PieceType pt) {
     if (pt == PieceType::QUEEN)  return QUEEN_VALUE;
     if (pt == PieceType::KING)   return KING_VALUE;
     return 0;
-}
-
-inline bool moveThreatenedPiece(const Board& board, const Move& move) {
-    Color us = board.sideToMove();
-    Color them = ~us;
-    Bitboard attackers = attacks::attackers(board, them, move.from());
-    PieceType type = board.at(move.from()).type();
-    int pieceValue = pieceTypeValue(type);
-
-    while (attackers) {
-        int sq = attackers.lsb();
-        attackers.clear(sq);
-        int attackerValue = pieceTypeValue(board.at(Square(sq)).type());
-        if (attackerValue > 0 && attackerValue < pieceValue) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-inline int movePieceIndex(Board& board, const Move& move) {
-    Piece piece = board.at(move.from());
-    int pieceIndex = -1;
-
-    if (piece.type() == PieceType::PAWN) {
-        pieceIndex = 0;
-    } else if (piece.type() == PieceType::KNIGHT) {
-        pieceIndex = 1;
-    } else if (piece.type() == PieceType::BISHOP) {
-        pieceIndex = 2;
-    } else if (piece.type() == PieceType::ROOK) {
-        pieceIndex = 3;
-    } else if (piece.type() == PieceType::QUEEN) {
-        pieceIndex = 4;
-    } else if (piece.type() == PieceType::KING) {
-        pieceIndex = 5;
-    } 
-
-    return pieceIndex;
-}
-
-inline int movePDIndex(Board& board, const Move& move) {
-    return movePieceIndex(board, move) * 64 + move.to().index();
 }
