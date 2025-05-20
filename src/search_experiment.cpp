@@ -559,11 +559,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Use hash table's evaluation instead of NNUE if the position is found
     if (ttHit) {
-        // if (ttType == EntryType::EXACT 
-        //     || (ttType == EntryType::LOWERBOUND && ttEval > standPat)
-        //     || (ttType == EntryType::UPPERBOUND && ttEval < standPat)) {
+        if (ttType == EntryType::EXACT 
+            || (ttType == EntryType::LOWERBOUND && ttEval > standPat)
+            || (ttType == EntryType::UPPERBOUND && ttEval < standPat)) {
             standPat = ttEval;
-        //}
+        }
     } 
     
     staticEval[threadID][ply] = standPat; // store the evaluation along the path
@@ -672,10 +672,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (sEval >= sBeta) {
                 break;
             } 
+
         }
 
         if (sEval < sBeta) {
-            extensions++; // If one move is much better than the others, we extend the search.
+            extensions++; // singular extension
+            if (sEval < sBeta - 40) {
+                extensions++; // double extension 
+            }
         }
     }
 
@@ -687,7 +691,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         extensions++;
     }
     
-    extensions = std::clamp(extensions, 0, 2); // limit extensions to 2 per ply
+    extensions = std::clamp(extensions, 0, 3); // limit extensions to 2 per ply
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -709,7 +713,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = late_move_reduction(board, move, i, depth, ply, isPV, nodeType, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (rootDepth + 3) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (rootDepth + 1) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
