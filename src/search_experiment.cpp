@@ -544,17 +544,22 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return negamax(board, 1, alpha, beta, PV, data);
     }
 
+    
     int standPat = 0;
-    if (ttHit) {
-        standPat = ttEval;
+    if (stm == 1) {
+        standPat = nnue.evaluate(wAccumulator[threadID], bAccumulator[threadID]);
     } else {
-        if (stm == 1) {
-            standPat = nnue.evaluate(wAccumulator[threadID], bAccumulator[threadID]);
-        } else {
-            standPat = nnue.evaluate(bAccumulator[threadID], wAccumulator[threadID]);
-        }
+        standPat = nnue.evaluate(bAccumulator[threadID], wAccumulator[threadID]);
     }
 
+    // Use hash table's evaluation instead of NNUE if the position is found
+    if (ttHit) {
+        if (ttType == EntryType::EXACT 
+            || (ttType == EntryType::LOWERBOUND && ttEval > standPat)
+            || (ttType == EntryType::UPPERBOUND && ttEval < standPat)) {
+            standPat = ttEval;
+        }
+    } 
     
     staticEval[threadID][ply] = standPat; // store the evaluation along the path
     bool hashMoveFound = false;
@@ -565,9 +570,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                                         threadID,
                                                         hashMoveFound);
     
-    seeds[threadID] = fastRand(seeds[threadID]); 
+    seeds[threadID] = fast_rand(seeds[threadID]); 
     int R1 = seeds[threadID] % moves.size(); 
-    seeds[threadID] = fastRand(seeds[threadID]);
+    seeds[threadID] = fast_rand(seeds[threadID]);
     int R2 = seeds[threadID] % moves.size();
 
     //bool captureTTMove = found && ttMove != Move::NO_MOVE && board.isCapture(ttMove);
@@ -1068,7 +1073,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
     
         if (threadID == 0){
             // Only print the analysis for the first thread to avoid clutter 
-            std::string analysis = formatAnalysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
+            std::string analysis = format_analysis(depth, bestEval, totalNodeCount, totalTableHit, startTime, PV, board);
             std::cout << analysis << std::endl;
         }
 
@@ -1168,7 +1173,7 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
         totalTableHit += tableHit[i];
     }
     
-    std::string analysis = formatAnalysis(depth, eval, totalNodeCount, totalTableHit, startTime, PV, board);
+    std::string analysis = format_analysis(depth, eval, totalNodeCount, totalTableHit, startTime, PV, board);
     std::cout << analysis << std::endl;
     return bestMove; 
 }
