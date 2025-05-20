@@ -559,11 +559,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Use hash table's evaluation instead of NNUE if the position is found
     if (ttHit) {
-        if (ttType == EntryType::EXACT 
-            || (ttType == EntryType::LOWERBOUND && ttEval > standPat)
-            || (ttType == EntryType::UPPERBOUND && ttEval < standPat)) {
+        // if (ttType == EntryType::EXACT 
+        //     || (ttType == EntryType::LOWERBOUND && ttEval > standPat)
+        //     || (ttType == EntryType::UPPERBOUND && ttEval < standPat)) {
             standPat = ttEval;
-        }
+        //}
     } 
     
     staticEval[threadID][ply] = standPat; // store the evaluation along the path
@@ -676,11 +676,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (sEval < sBeta) {
             extensions++; // If one move is much better than the others, we extend the search.
-            if (sEval < sBeta - 40) {
-                extensions++; // Double extension
-            }
-        } else if (sBeta >= beta && !isPV) {
-            return sBeta; // Multicut
         }
     }
 
@@ -714,7 +709,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = late_move_reduction(board, move, i, depth, ply, isPV, nodeType, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (rootDepth + 3) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
