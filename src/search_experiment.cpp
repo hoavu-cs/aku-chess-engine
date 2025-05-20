@@ -26,6 +26,8 @@ typedef std::uint64_t U64;
 constexpr int MAX_THREADS = 12;  // Maximum number of threads supported by the engine
 constexpr int ENGINE_DEPTH = 99; // Maximum search depth supported by the engine
 constexpr int MAX_ASPIRATION_SZ = 300;
+constexpr int MAX_HIST = 9000;
+constexpr int MAX_CAP_HIST = 3000;
 
 int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stopSearch = false; // To signal if the search should stop once the main thread is done
@@ -89,17 +91,19 @@ struct LockedTableEntry {
     TableEntry entry;
 };
 
-std::vector<LockedTableEntry> ttTable(tableSize); 
+std::vector<LockedTableEntry> tt_table(tableSize); 
 
 // Helper function declarations
 void precompute_lmr(int max_depth, int max_i);
+inline void update_history(Board&, Move, int, int);
 bool tableLookUp(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
 void tableInsert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
 inline void updateKillerMoves(const Move&, int, int);
 int see(Board&, Move, int);
-int lateMoveReduction(Board&, Move, int, int, int, bool, int);
+int late_move_reduction(Board&, Move, int, int, int, bool, NodeType, int);
 std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
 int quiescence(Board&, int, int, int, int);
+inline void update_history(Board&, Move, int);
 
 // Function definitions
 void precompute_lmr(int max_depth, int max_i) {
@@ -225,13 +229,14 @@ int see(Board& board, Move move, int threadID) {
 }
 
 // Late move reduction 
-int lateMoveReduction(Board& board, 
+int late_move_reduction(Board& board, 
         Move move, 
         int i, 
         int depth, 
         int ply, 
-        bool isPV, 
-        int threadID) {
+        bool is_pv, 
+        NodeType node_type,
+        int thread_id) {
 
     if (is_mopup(board)) {
         return depth - 1;
@@ -243,21 +248,20 @@ int lateMoveReduction(Board& board,
     if (i <= 1 || depth <= 3 || isPromThreat) {
         return depth - 1;
     } else {
-        bool improving = ply >= 2 && staticEval[threadID][ply - 2] < staticEval[threadID][ply] && !board.inCheck();
-        bool isCapture = board.isCapture(move);
-        bool isKiller = std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end();
+        bool improving = ply >= 2 && staticEval[thread_id][ply - 2] < staticEval[thread_id][ply] && !board.inCheck();
+        bool is_capture = board.isCapture(move);
         
         int R = lmr_table[depth][i];
-        int ttEval, ttDepth, historyScore = history[threadID][stm][move_index(move)];
-        bool ttIsPV, hashMoveFound, pastPV = false;
-        EntryType ttType;
-        Move ttMove;
+        int tt_eval, tt_depth, history_score = history[thread_id][stm][move_index(move)];
+        bool tt_is_pv, past_pv = false;
+        EntryType tt_type;
+        Move tt_move;
         
-        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
-            pastPV = ttIsPV;
+        if (tableLookUp(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table)) {
+            past_pv = tt_is_pv; 
         }
 
-        if (improving || isPV || isKiller  || pastPV || isCapture) {
+        if (improving || is_pv  || past_pv || is_capture) {
             R--;
         }
 
@@ -265,7 +269,11 @@ int lateMoveReduction(Board& board,
             R--;
         }
 
-        if (historyScore < -8000) R++;
+        if (node_type == NodeType::CUT) {
+            R++;
+        }
+
+        if (history_score < -8000) R++;
         return std::min(depth - R, depth - 1);
     }
 }
@@ -295,7 +303,7 @@ std::vector<std::pair<Move, int>> orderedMoves(Board& board, int ply, int thread
         bool secondary = false;
         bool hashMove = false;
 
-        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
+        if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, tt_table)) {
             // Hash move from the PV transposition table should be searched first 
             if (ttMove == move && ttType == EntryType::EXACT) {
                 priority = 19000 + ttEval;
@@ -516,7 +524,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     TableEntry entry;
     bool ttHit = false;
 
-    if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, ttTable)) {
+    if (tableLookUp(board, ttDepth, ttEval, ttIsPV, ttMove, ttType, tt_table)) {
         tableHit[threadID]++;
         if (ttDepth >= depth) found = true;
         ttHit = true;
@@ -526,6 +534,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (ttType == EntryType::EXACT
             || (ttType == EntryType::LOWERBOUND && ttEval >= beta)
             || (ttType == EntryType::UPPERBOUND && ttEval <= alpha)) {
+            
             return ttEval;
         } 
     }
@@ -670,14 +679,22 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         if (sEval < sBeta) {
-            extensions++; // singular extension
+            extensions++; // If one move is much better than the others, we extend the search.
+            if (sEval < sBeta - 40) {
+                extensions++; // Double extension
+            }
         } else if (sBeta >= beta && !isPV) {
             return sBeta; // Multicut
         }
     }
 
-    if (board.inCheck()) extensions++;
-    if (moves.size() == 1) extensions++;
+    if (board.inCheck() && std::abs(standPat) > 75) {
+        extensions++;
+    }
+
+    if (moves.size() == 1) {
+        extensions++;
+    }
     
     extensions = std::clamp(extensions, 0, 2); // limit extensions to 2 per ply
 
@@ -699,7 +716,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.unmakeMove(move);
 
         int eval = 0;
-        int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
+        int nextDepth = late_move_reduction(board, move, i, depth, ply, isPV, nodeType, threadID); 
 
         nextDepth = std::min(nextDepth + extensions, (rootDepth) - ply - 1);
 
@@ -825,38 +842,37 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Beta cutoff.
         if (beta <= alpha) {
             
-            constexpr int maxHist = 9000;
-            constexpr int maxCapHist = 3000;
+
 
             int mvIndex = move_index(move);
             int currentScore = isCapture ? 
                                 captureHistory[threadID][stm][mvIndex] : 
                                 history[threadID][stm][mvIndex];
             
-            int limit = isCapture ? maxCapHist : maxHist;
+            int limit = isCapture ? MAX_CAP_HIST : MAX_HIST;
             int delta = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(limit)) * depth * depth;
 
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
             if (!isCapture) {
                 updateKillerMoves(move, ply, threadID);
                 history[threadID][stm][mvIndex] += delta;
-                history[threadID][stm][mvIndex] = std::clamp(history[threadID][stm][mvIndex], -maxHist, maxHist);
+                history[threadID][stm][mvIndex] = std::clamp(history[threadID][stm][mvIndex], -MAX_HIST, MAX_HIST);
 
                 // penalize bad quiet moves
                 for (auto& badMv : badQuiets) {
                     int badMvIndex = move_index(badMv);
                     history[threadID][stm][badMvIndex] -= delta;
-                    history[threadID][stm][badMvIndex] = std::clamp(history[threadID][stm][badMvIndex], -maxHist, maxHist);
+                    history[threadID][stm][badMvIndex] = std::clamp(history[threadID][stm][badMvIndex], -MAX_HIST, MAX_HIST);
                 }
             } else {
                 captureHistory[threadID][stm][mvIndex] += delta;
-                captureHistory[threadID][stm][mvIndex] = std::clamp(captureHistory[threadID][stm][mvIndex], -maxCapHist, maxCapHist);
+                captureHistory[threadID][stm][mvIndex] = std::clamp(captureHistory[threadID][stm][mvIndex], -MAX_CAP_HIST, MAX_CAP_HIST);
             }
 
             for (auto& badCap : badCaptures) {
                 int badMvIndex = move_index(badCap);
                 captureHistory[threadID][stm][badMvIndex] -= delta;
-                captureHistory[threadID][stm][badMvIndex] = std::clamp(captureHistory[threadID][stm][badMvIndex], -maxCapHist, maxCapHist);
+                captureHistory[threadID][stm][badMvIndex] = std::clamp(captureHistory[threadID][stm][badMvIndex], -MAX_CAP_HIST, MAX_CAP_HIST);
             }
 
             break;
@@ -883,9 +899,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
 
         if (PV.size() > 0) {
-            tableInsert(board, depth, bestEval, true, PV[0], type, ttTable);
+            tableInsert(board, depth, bestEval, true, PV[0], type, tt_table);
         } else {
-            tableInsert(board, depth, bestEval, true, Move::NO_MOVE, type, ttTable);
+            tableInsert(board, depth, bestEval, true, Move::NO_MOVE, type, tt_table);
         }
 
     } else {
@@ -896,9 +912,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (bestEval >= beta) {
             EntryType type = LOWERBOUND;
             if (PV.size() > 0) {
-                tableInsert(board, depth, bestEval, false, PV[0], type, ttTable);
+                tableInsert(board, depth, bestEval, false, PV[0], type, tt_table);
             } else {
-                tableInsert(board, depth, bestEval, false, Move::NO_MOVE, type, ttTable);
+                tableInsert(board, depth, bestEval, false, Move::NO_MOVE, type, tt_table);
             }  
         } 
     }
@@ -990,7 +1006,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
                 staticEval[threadID][0] = standPat;
 
                 int ply = 0;
-                int nextDepth = lateMoveReduction(localBoard, move, i, depth, 0, true, threadID);
+                int nextDepth = late_move_reduction(localBoard, move, i, depth, 0, true, NodeType::PV, threadID);
                 int eval = -INF;
 
                 NodeData childNodeData = {1, // ply of child node
@@ -1066,7 +1082,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
             return a.second > b.second;
         });
 
-        tableInsert(board, depth, bestEval, true, bestMove, EntryType::EXACT, ttTable);
+        tableInsert(board, depth, bestEval, true, bestMove, EntryType::EXACT, tt_table);
 
         moves = newMoves;
 
@@ -1125,8 +1141,8 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
     auto startTime = std::chrono::high_resolution_clock::now();
 
     // Update if the size for the transposition table changes.
-    if (ttTable.size() != tableSize) {
-        ttTable = std::vector<LockedTableEntry>(tableSize);
+    if (tt_table.size() != tableSize) {
+        tt_table = std::vector<LockedTableEntry>(tableSize);
     }
     
     for (int i = 0; i < MAX_THREADS; i++) {
