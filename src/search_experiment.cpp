@@ -568,10 +568,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     if (ttHit 
         && !board.inCheck()
-        && isPV
+        && depth > 6
         && ttDepth >= depth - 2
+        && abs(beta) < 10000
         && (ttType == EntryType::EXACT || ttType == EntryType::LOWERBOUND)) {
-        if (ttEval >= beta) {
+
+        if (ttEval >= beta + 200 * (depth - ttDepth)) {
             depth--;
         } 
     }
