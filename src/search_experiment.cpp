@@ -591,7 +591,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && !board.inCheck() 
                         && !isPV 
                         && !ttIsPV 
-                        && abs(beta) < 10000;
+                        && abs(beta) < 10000
+                        && !board.isCapture(ttMove);
     if (rfpCondition) {
         int rfpMargin = rfpC1 + rfpC2 * depth + rfpC3 * (1 - improving);
         if (standPat >= beta + rfpMargin) {
@@ -644,7 +645,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Singular extension. If the hash move is stronger than all others, extend the search.
     if (hashMoveFound && ttDepth >= depth - 3
-        && depth > 6
+        && depth > 4
         && ttType != EntryType::UPPERBOUND
         && abs(ttEval) < INF/2 - 100) {
 
@@ -723,7 +724,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool canPrune = !inCheck && !isPawnPush && i > 0;
 
         // Futility  pruning
-        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth;
+        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth && !ttIsPV;
         if (fpCondition) {
             int margin = fpC1 + fpC2 * nextDepth + fpC3 * improving;
             if (standPat + margin < alpha) {
