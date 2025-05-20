@@ -269,10 +269,6 @@ int late_move_reduction(Board& board,
             R--;
         }
 
-        if (node_type == NodeType::CUT) {
-            R++;
-        }
-
         if (history_score < -8000) R++;
         return std::min(depth - R, depth - 1);
     }
@@ -569,6 +565,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             standPat = ttEval;
         }
     } 
+
+    if (ttHit && ttDepth >= depth - 2 && (ttType == EntryType::EXACT || ttType == EntryType::LOWERBOUND)) {
+        if (ttEval >= beta) {
+            depth--;
+        } 
+    }
     
     staticEval[threadID][ply] = standPat; // store the evaluation along the path
     bool hashMoveFound = false;
