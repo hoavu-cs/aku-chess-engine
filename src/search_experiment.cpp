@@ -565,18 +565,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             standPat = ttEval;
         }
     } 
-
-    if (ttHit 
-        && !board.inCheck()
-        && depth > 6
-        && ttDepth >= depth - 2
-        && abs(beta) < 10000
-        && (ttType == EntryType::EXACT || ttType == EntryType::LOWERBOUND)) {
-
-        if (ttEval >= beta + 200 * (depth - ttDepth)) {
-            depth--;
-        } 
-    }
     
     staticEval[threadID][ply] = standPat; // store the evaluation along the path
     bool hashMoveFound = false;
