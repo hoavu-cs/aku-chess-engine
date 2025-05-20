@@ -635,46 +635,51 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Singular extension. If the hash move is stronger than all others, extend the search.
-    // if (hashMoveFound && ttDepth >= depth - 3
-    //     && depth >= 7
-    //     && ttType != EntryType::UPPERBOUND
-    //     && isPV
-    //     && abs(ttEval) < INF/2 - 100) {
+    if (hashMoveFound && ttDepth >= depth - 3
+        && depth > 4
+        && ttType != EntryType::UPPERBOUND
+        && abs(ttEval) < INF/2 - 100) {
 
-    //     int sEval = -INF;
-    //     int sBeta = ttEval - singularC1 * depth - singularC2; 
+        int sEval = -INF;
+        int sBeta = ttEval - singularC1 * depth - singularC2; 
 
-    //     for (int i = 0; i < moves.size(); i++) {
-    //         if (moves[i].first == ttMove) 
-    //             continue; 
+        for (int i = 0; i < moves.size(); i++) {
+            if (moves[i].first == ttMove) 
+                continue; 
 
-    //         add_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-    //         moveStack[threadID][ply] = move_index(moves[i].first);
-    //         board.makeMove(moves[i].first);
+            add_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            moveStack[threadID][ply] = move_index(moves[i].first);
+            board.makeMove(moves[i].first);
 
-    //         NodeData childNodeData = {ply + 1, 
-    //                                 false, 
-    //                                 rootDepth,
-    //                                 NodeType::PV,
-    //                                 threadID};
+            NodeData childNodeData = {ply + 1, 
+                                    false, 
+                                    rootDepth,
+                                    NodeType::PV,
+                                    threadID};
 
 
-    //         sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeData));
-    //         eval_adjust(sEval);
+            sEval = std::max(sEval, -negamax(board, (depth - 1) / 2, -sBeta, -sBeta + 1, PV, childNodeData));
+            eval_adjust(sEval);
 
-    //         subtract_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
-    //         board.unmakeMove(moves[i].first);
+            subtract_accumulators(board, moves[i].first, wAccumulator[threadID], bAccumulator[threadID], nnue);
+            board.unmakeMove(moves[i].first);
 
-    //         if (sEval >= sBeta) break;
-    //     }
+            if (sEval >= sBeta) {
+                break;
+            } 
+        }
 
-    //     if (sEval < sBeta) extensions++; // singular extension
-    // }
+        if (sEval < sBeta) {
+            extensions++; // singular extension
+        } else if (sBeta >= beta && !isPV) {
+            return sBeta; // Multicut
+        }
+    }
 
     if (board.inCheck()) extensions++;
     if (moves.size() == 1) extensions++;
     
-    extensions = std::clamp(extensions, 0, 1); // limit extensions to 2 per ply
+    extensions = std::clamp(extensions, 0, 2); // limit extensions to 2 per ply
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -696,7 +701,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = lateMoveReduction(board, move, i, depth, ply, isPV, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (3 + rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -990,7 +995,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
 
                 NodeData childNodeData = {1, // ply of child node
                                         true, // NMP ok
-                                        nextDepth, // root depth
+                                        depth, // root depth
                                         NodeType::PV, // child of a root node is a PV node
                                         threadID};
                 
