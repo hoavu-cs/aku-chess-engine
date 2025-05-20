@@ -63,7 +63,7 @@ std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std:
 std::vector<std::vector<int>> moveStack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
 
 // LMR table 
-std::vector<std::vector<int>> lmrTable; 
+std::vector<std::vector<int>> lmr_table; 
 
 // Random seeds for LMR
 std::vector<uint32_t> seeds(MAX_THREADS);
@@ -92,7 +92,7 @@ struct LockedTableEntry {
 std::vector<LockedTableEntry> ttTable(tableSize); 
 
 // Helper function declarations
-void precomputeLMR(int maxDepth, int maxI);
+void precompute_lmr(int max_depth, int max_i);
 bool tableLookUp(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
 void tableInsert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
 inline void updateKillerMoves(const Move&, int, int);
@@ -102,19 +102,19 @@ std::vector<std::pair<Move, int>> orderedMoves(Board&, int, std::vector<Move>&, 
 int quiescence(Board&, int, int, int, int);
 
 // Function definitions
-void precomputeLMR(int maxDepth, int maxI) {
-    static bool isPrecomputed = false;
-    if (isPrecomputed) return;
+void precompute_lmr(int max_depth, int max_i) {
+    static bool is_precomputed = false;
+    if (is_precomputed) return;
 
-    lmrTable.resize(100 + 1, std::vector<int>(maxI + 1));
+    lmr_table.resize(100 + 1, std::vector<int>(max_i + 1));
 
-    for (int depth = maxDepth; depth >= 1; --depth) {
-        for (int i = maxI; i >= 1; --i) {
-            lmrTable[depth][i] =  static_cast<int>(lmr1 + lmr2 * log(depth) * log(i));
+    for (int depth = max_depth; depth >= 1; --depth) {
+        for (int i = max_i; i >= 1; --i) {
+            lmr_table[depth][i] =  static_cast<int>(lmr1 + lmr2 * log(depth) * log(i));
         }
     }
 
-    isPrecomputed = true;
+    is_precomputed = true;
 }
 
 bool tableLookUp(Board& board, 
@@ -247,7 +247,7 @@ int lateMoveReduction(Board& board,
         bool isCapture = board.isCapture(move);
         bool isKiller = std::find(killer[threadID][ply].begin(), killer[threadID][ply].end(), move) != killer[threadID][ply].end();
         
-        int R = lmrTable[depth][i];
+        int R = lmr_table[depth][i];
         int ttEval, ttDepth, historyScore = history[threadID][stm][move_index(move)];
         bool ttIsPV, hashMoveFound, pastPV = false;
         EntryType ttType;
@@ -1112,7 +1112,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
 
 Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit) {
     
-    precomputeLMR(100, 500);  // Precompute late move reduction table
+    precompute_lmr(100, 500);  // Precompute late move reduction table
     omp_set_num_threads(numThreads); // Set the number of threads for OpenMP
     Move bestMove = Move(); 
 
