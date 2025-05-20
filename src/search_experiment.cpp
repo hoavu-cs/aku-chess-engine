@@ -928,7 +928,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
             score = -SZYZYGY_INF;
         }
 
-        if (syzygyMove != Move::NO_MOVE) {
+        if (syzygyMove != Move::NO_MOVE && threadID == 0) {
             std::cout << "info depth 0 score " << score  << " cp "
                         << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
         }
