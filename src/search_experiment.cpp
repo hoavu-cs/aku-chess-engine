@@ -714,7 +714,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int nextDepth = late_move_reduction(board, move, i, depth, ply, isPV, nodeType, threadID); 
 
-        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
