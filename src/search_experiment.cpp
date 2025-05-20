@@ -950,8 +950,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
         }
 
         if (syzygyMove != Move::NO_MOVE && threadID == 0) {
-            std::cout << "info depth 0 score " << score  << " cp "
-                        << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
+            std::cout << "info depth 0 score cp " << score  << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
         }
         
         if (syzygyMove != Move::NO_MOVE) {
