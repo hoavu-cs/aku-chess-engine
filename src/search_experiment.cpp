@@ -642,7 +642,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Singular extension. If the hash move is stronger than all others, extend the search.
     int singular_ext = 0;
     if (hashMoveFound && ttDepth >= depth - 3
-        && depth > 4
+        && depth > 3
         && ttType != EntryType::UPPERBOUND
         && abs(ttEval) < INF/2 - 100) {
 
@@ -720,7 +720,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             nextDepth += singular_ext;
         }
 
-        nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
+        nextDepth = std::min(nextDepth + extensions, (rootDepth) - ply - 1);
 
         // common conditions for pruning
         bool canPrune = !inCheck && !isPawnPush && i > 0;
@@ -743,7 +743,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        // Further reduction for quiet moves with lower history scores
+        // History pruning
         bool hpCondition = canPrune && !isPV && !isCapture  && nextDepth <= hpDepth && !ttIsPV;
         if (hpCondition) {
             int margin = -(hpC1 + hpC2 * nextDepth + hpC3 * improving);
@@ -974,7 +974,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
     
     // Start the search
     int standPat = nnue.evaluate(wAccumulator[threadID], bAccumulator[threadID]);
-    int depth = 0;
+    int depth = 1;
     std::vector<Move> PV; 
 
     while (depth <= std::min(ENGINE_DEPTH, maxDepth)) {
@@ -990,7 +990,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
         std::vector<std::pair<Move, int>> newMoves;
         
         
-        if (depth == 0) {
+        if (depth == 1) {
             moves = orderedMoves(board, 0, 0, hashMoveFound);
         }
 
@@ -1013,7 +1013,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
 
                 NodeData childNodeData = {1, // ply of child node
                                         true, // NMP ok
-                                        nextDepth, // root depth
+                                        depth, // root depth
                                         NodeType::PV, // child of a root node is a PV node
                                         threadID};
                 
