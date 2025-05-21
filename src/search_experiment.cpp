@@ -711,19 +711,20 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool can_prune = !in_check && !is_promotion_threat && i > 0;
 
         // Futility  pruning
-        // bool fp_condition = can_prune 
-        //                     && !is_capture 
-        //                     && !give_check 
-        //                     && !is_pv 
-        //                     && next_depth <= fp_depth 
-        //                     && !is_singular_search 
-        //                     && std::abs(beta) < INF/2 - 100;
-        // if (fp_condition) {
-        //     int margin = fp_c1 * (next_depth + improving);
-        //     if (stand_pat + margin < alpha) {
-        //         continue;
-        //     }
-        // }
+        bool fp_condition = can_prune 
+                            && !is_capture 
+                            && !give_check 
+                            && !is_pv 
+                            && !tt_is_pv
+                            && next_depth <= fp_depth 
+                            && excluded_move == Move::NO_MOVE // No futility pruning during singular search 
+                            && std::abs(beta) < INF/2 - 100;
+        if (fp_condition) {
+            int margin = fp_c1 * (next_depth + improving);
+            if (stand_pat + margin < alpha) {
+                continue;
+            }
+        }
 
         // Further reduction for quiet moves
         bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= lmp_depth;
@@ -1005,7 +1006,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int max_d
 
                 NodeData child_node_data = {1, // ply of child node
                                         true, // NMP ok
-                                        next_depth, // root depth
+                                        depth, // root depth
                                         NodeType::PV, // child of a root node is a PV node
                                         Move::NO_MOVE, // no excluded move
                                         thread_id};
