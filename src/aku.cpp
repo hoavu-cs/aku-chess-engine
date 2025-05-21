@@ -93,7 +93,7 @@ int rfpC1 = 95;
 int rfpC2 = 106;
 int rfpC3 = 23;
 
-int fpDepth = 4;
+int fpDepth = 3;
 int fpC1 = 158;
 int fpC2 = 93;
 int fpC3 = 214;
