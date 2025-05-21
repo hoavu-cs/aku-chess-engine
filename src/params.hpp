@@ -1,27 +1,25 @@
 #pragma once
 
-extern int rfpDepth;
-extern int rfpC1;
-extern int rfpC2;
-extern int rfpC3;
+extern int rfp_depth;
+extern int rfp_c1;
+extern int rfp_c2;
+extern int rfp_c3;
 
-extern int fpDepth;
-extern int fpC1;
-extern int fpC2;
-extern int fpC3;
+extern int fp_depth;
+extern int fp_c1;
+extern int fp_c2;
+extern int fp_c3;
 
-extern int lmpDepth;
-extern int lmpC1;
+extern int lmp_depth;
+extern int lmp_c1;
 
-extern int hpDepth;
-extern int hpC1;
-extern int hpC2;
-extern int hpC3;
+extern int hp_depth;
+extern int hp_c1;
+extern int hp_c2;
+extern int hp_c3;
 
-extern float lmr1;
-extern float lmr2;
+extern float lmr_1;
+extern float lmr_2;
 
-extern int singularC1;
-extern int singularC2;
-
-
+extern int singular_c1;
+extern int singular_c2;

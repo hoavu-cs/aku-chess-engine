@@ -29,7 +29,7 @@ constexpr int MAX_ASPIRATION_SZ = 300;
 constexpr int MAX_HIST = 9000;
 constexpr int MAX_CAP_HIST = 3000;
 
-int tableSize = 4194304; // Maximum size of the transposition table (default 256MB)
+int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
 
 // Initalize NNUE, black and white accumulators
@@ -38,7 +38,7 @@ std::vector<Accumulator> white_accumulator (MAX_THREADS);
 std::vector<Accumulator> black_accumulator (MAX_THREADS);
 
 // Timer and statistics
-std::chrono::time_point<std::chrono::high_resolution_clock> hardDeadline; 
+std::chrono::time_point<std::chrono::high_resolution_clock> hard_deadline; 
 std::vector<U64> node_count (MAX_THREADS); // Node count for each thread
 std::vector<U64> table_hit (MAX_THREADS); // Table hit count for each thread
 
@@ -91,7 +91,7 @@ struct LockedTableEntry {
     TableEntry entry;
 };
 
-std::vector<LockedTableEntry> tt_table(tableSize); 
+std::vector<LockedTableEntry> tt_table(table_size); 
 
 // Helper function declarations
 void precompute_lmr(int max_depth, int max_i);
@@ -114,7 +114,7 @@ void precompute_lmr(int max_depth, int max_i) {
 
     for (int depth = max_depth; depth >= 1; --depth) {
         for (int i = max_i; i >= 1; --i) {
-            lmr_table[depth][i] =  static_cast<int>(lmr1 + lmr2 * log(depth) * log(i));
+            lmr_table[depth][i] =  static_cast<int>(lmr_1 + lmr_2 * log(depth) * log(i));
         }
     }
 
@@ -355,7 +355,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
 
     // Stop the search if hard deadline is reached
     auto current_time = std::chrono::high_resolution_clock::now();
-    if (current_time >= hardDeadline || stop_search) {
+    if (current_time >= hard_deadline || stop_search) {
         stop_search = true;
         return 0;
     }
@@ -374,9 +374,9 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     int stand_pat = 0;
 
     // Probe Syzygy tablebases
-    Move syzygyMove = Move::NO_MOVE;
+    Move syzygy_move = Move::NO_MOVE;
     int wdl = 0;
-    if (syzygy::probeSyzygy(board, syzygyMove, wdl)) {
+    if (syzygy::probeSyzygy(board, syzygy_move, wdl)) {
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
@@ -447,7 +447,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Stop the search if hard deadline is reached
     auto current_time = std::chrono::high_resolution_clock::now();
-    if (current_time >= hardDeadline || stop_search) {
+    if (current_time >= hard_deadline || stop_search) {
         stop_search = true;
         return 0;
     }
@@ -487,9 +487,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Probe Syzygy tablebases
-    Move syzygyMove = Move::NO_MOVE;
+    Move syzygy_move = Move::NO_MOVE;
     int wdl = 0;
-    if (syzygy::probeSyzygy(board, syzygyMove, wdl)) { 
+    if (syzygy::probeSyzygy(board, syzygy_move, wdl)) { 
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
@@ -577,7 +577,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool capture_tt_move = found && tt_move != Move::NO_MOVE && board.isCapture(tt_move);
     
     // Reverse futility pruning (RFP)
-    bool rfp_condition = depth <= rfpDepth
+    bool rfp_condition = depth <= rfp_depth
                         && !board.inCheck() 
                         && !is_pv 
                         && !tt_is_pv
@@ -585,7 +585,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && !is_singular_search
                         && abs(beta) < 10000;
     if (rfp_condition) {
-        int rfp_margin = rfpC1 * (depth - improving);
+        int rfp_margin = rfp_c1 * (depth - improving);
         if (stand_pat >= beta + rfp_margin) {
             return (stand_pat + beta) / 2;
         }
@@ -647,7 +647,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     ) {
 
         int singular_eval = -INF;
-        int singular_beta = tt_eval - singularC1 * depth - singularC2; 
+        int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
 
         for (int i = 0; i < moves.size(); i++) {
             if (moves[i].first == tt_move) {
@@ -724,27 +724,33 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool can_prune = !in_check && !is_promotion_threat && i > 0;
 
         // Futility  pruning
-        bool fpCondition = can_prune && !is_capture && !give_check && !is_pv && next_depth <= fpDepth && !is_singular_search;
-        if (fpCondition) {
-            int margin = fpC1 * (next_depth + improving);
+        bool fp_condition = can_prune 
+                            && !is_capture 
+                            && !give_check 
+                            && !is_pv 
+                            && next_depth <= fp_depth 
+                            && !is_singular_search 
+                            && std::abs(beta) < INF/2 - 100;
+        if (fp_condition) {
+            int margin = fp_c1 * (next_depth + improving);
             if (stand_pat + margin < alpha) {
                 continue;
             }
         }
 
         // Further reduction for quiet moves
-        bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= lmpDepth;
+        bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= lmp_depth;
         if (lmp_condition) {
             int divisor = improving ? 1 : 2;
-            if (i >= (lmpC1 + next_depth * next_depth) / divisor) {
+            if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
                 continue;
             }
         }
 
         // History pruning
-        bool hp_condition = can_prune && !is_pv && !is_capture;
+        bool hp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
         if (hp_condition) {
-            int margin = -hpC1 * next_depth * next_depth; 
+            int margin = -hp_c1 * next_depth * next_depth; 
             int historyScore = history[thread_id][stm][move_index(move)];
             if (historyScore < margin) {
                 continue;
@@ -928,26 +934,26 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 //     Hard deadline: 2x time limit
 //     - Case 1: As long as we are within the time limit, we search as deep as we can.
 //     - Case 2: Stop if we reach the hard deadline or certain depth.
-std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDepth = 30, int timeLimit = 15000, int thread_id = 0) {
+std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int max_depth = 30, int time_limit = 15000, int thread_id = 0) {
 
     // Time management variables
     auto start_time = std::chrono::high_resolution_clock::now();
-    hardDeadline = start_time + 2 * std::chrono::milliseconds(timeLimit);
-    bool timeLimitExceeded = false;
+    hard_deadline = start_time + 2 * std::chrono::milliseconds(time_limit);
+    bool time_limit_exceed = false;
 
     int best_eval = -INF;
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
 
-    std::vector<Move> rootMoves (ENGINE_DEPTH + 1, Move::NO_MOVE);
+    std::vector<Move> root_moves (ENGINE_DEPTH + 1, Move::NO_MOVE);
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
     std::vector<std::pair<Move, int>> moves;
 
     Move best_move = Move(); 
-    Move syzygyMove;
+    Move syzygy_move;
 
     // Syzygy tablebase probe
     int wdl = 0;
-    if (syzygy::probeSyzygy(board, syzygyMove, wdl)) {
+    if (syzygy::probeSyzygy(board, syzygy_move, wdl)) {
         int score = 0;
         if (wdl == 1) {
             score = SZYZYGY_INF;
@@ -955,16 +961,16 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
             score = -SZYZYGY_INF;
         }
 
-        if (syzygyMove != Move::NO_MOVE && thread_id == 0) {
+        if (syzygy_move != Move::NO_MOVE && thread_id == 0) {
             std::cout << "info depth 0 score cp " << score  
-                        << " nodes 0 time 0  pv " << uci::moveToUci(syzygyMove) << std::endl;
+                        << " nodes 0 time 0  pv " << uci::moveToUci(syzygy_move) << std::endl;
         }
         
-        if (syzygyMove != Move::NO_MOVE) {
+        if (syzygy_move != Move::NO_MOVE) {
             try {
-                Board boardCopy = board;
-                boardCopy.makeMove(syzygyMove);
-                return {syzygyMove, 0, score, {syzygyMove}};
+                Board board_copy = board;
+                board_copy.makeMove(syzygy_move);
+                return {syzygy_move, 0, score, {syzygy_move}};
             } catch (const std::exception&) {
                 // In case somehow the move is invalid, continue with the search
             }
@@ -976,9 +982,9 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
     int depth = 1;
     std::vector<Move> PV; 
 
-    while (depth <= std::min(ENGINE_DEPTH, maxDepth)) {
-        Move currBestMove = Move(); // Track the best move for the current depth
-        int currBestEval = -INF;
+    while (depth <= std::min(ENGINE_DEPTH, max_depth)) {
+        Move curr_best_move = Move(); // Track the best move for the current depth
+        int curr_best_eval = -INF;
         bool hash_move_found = false;
 
         // Aspiration window
@@ -986,7 +992,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
         
-        std::vector<std::pair<Move, int>> newMoves;
+        std::vector<std::pair<Move, int>> new_moves;
         
         
         if (depth == 1) {
@@ -994,10 +1000,10 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
         }
 
         while (true) {
-            currBestEval = -INF;
+            curr_best_eval = -INF;
             int alpha0 = alpha;
-            newMoves.clear();
-            std::vector<Move> currPV;
+            new_moves.clear();
+            std::vector<Move> curr_pv;
             
             for (int i = 0; i < moves.size(); i++) {
 
@@ -1032,7 +1038,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
                     return {best_move, depth - 1, best_eval, PV};
                 }
 
-                if (eval > currBestEval && next_depth < depth - 1) {
+                if (eval > curr_best_eval && next_depth < depth - 1) {
                     // Re-search with full depth if we have a new best move
                     add_accumulators(local_board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
                     move_stack[thread_id][ply] = move_index(move);
@@ -1049,14 +1055,14 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
                     }
                 }
 
-                newMoves.push_back({move, eval}); // Store the move and its evaluation
+                new_moves.push_back({move, eval}); // Store the move and its evaluation
 
                 // If found the new best move
-                if (eval > currBestEval) {
-                    currBestEval = eval;
-                    currBestMove = move;
-                    alpha = std::max(alpha, currBestEval);
-                    update_pv(currPV, move, childPV);
+                if (eval > curr_best_eval) {
+                    curr_best_eval = eval;
+                    curr_best_move = move;
+                    alpha = std::max(alpha, curr_best_eval);
+                    update_pv(curr_pv, move, childPV);
                 } 
                 
                 if (alpha >= beta) {
@@ -1064,39 +1070,39 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
                 }
             }
 
-            if (currBestEval <= alpha0 || currBestEval >= beta) {
+            if (curr_best_eval <= alpha0 || curr_best_eval >= beta) {
                 alpha = -INF;
                 beta = INF;
-                newMoves.clear();
+                new_moves.clear();
             } else {
-                PV = currPV;
+                PV = curr_pv;
                 break;
             }
         }
         
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
-        best_move = currBestMove;
-        best_eval = currBestEval;
+        best_move = curr_best_move;
+        best_eval = curr_best_eval;
         
 
         // Sort the moves by evaluation for the next iteration
-        std::sort(newMoves.begin(), newMoves.end(), [](const auto& a, const auto& b) {
+        std::sort(new_moves.begin(), new_moves.end(), [](const auto& a, const auto& b) {
             return a.second > b.second;
         });
 
         table_insert(board, depth, best_eval, true, best_move, EntryType::EXACT, tt_table);
 
-        moves = newMoves;
+        moves = new_moves;
 
-        U64 totalNodeCount = 0, totalTableHit = 0;
+        U64 total_node_count = 0, total_table_hit = 0;
         for (int i = 0; i < MAX_THREADS; i++) {
-            totalNodeCount += node_count[i];
-            totalTableHit += table_hit[i];
+            total_node_count += node_count[i];
+            total_table_hit += table_hit[i];
         }
     
         if (thread_id == 0){
             // Only print the analysis for the first thread to avoid clutter 
-            std::string analysis = format_analysis(depth, best_eval, totalNodeCount, totalTableHit, start_time, PV, board);
+            std::string analysis = format_analysis(depth, best_eval, total_node_count, total_table_hit, start_time, PV, board);
             std::cout << analysis << std::endl;
         }
 
@@ -1108,11 +1114,11 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
         auto current_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - start_time).count();
 
-        timeLimitExceeded = duration > timeLimit;
-        bool spendTooMuchTime = current_time >= hardDeadline;
+        time_limit_exceed = duration > time_limit;
+        bool spend_too_much_time = current_time >= hard_deadline;
 
         evals[depth] = best_eval;
-        rootMoves[depth] = best_move; 
+        root_moves[depth] = best_move; 
 
         if (depth >= 6 
             && abs(evals[depth - 1]) >= INF/2 - 100 
@@ -1120,10 +1126,10 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
             break; // If two consecutive depths found mate, stop searching.
         }
         
-        if (!timeLimitExceeded) {
+        if (!time_limit_exceed) {
             depth++; // If the time limit is not exceeded, we can search deeper.
         } else {
-            if (spendTooMuchTime || (depth >= 1 && rootMoves[depth] == rootMoves[depth - 1] && depth >= 14)) {
+            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && depth >= 14)) {
                 break; // If we go beyond the hard limit or stabilize.
             } 
             depth++; 
@@ -1133,7 +1139,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
     return {best_move, depth, best_eval, PV};
 }
 
-Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit) {
+Move lazysmpRootSearch(Board &board, int numThreads, int max_depth, int timeLimit) {
     
     precompute_lmr(100, 500);  // Precompute late move reduction table
     omp_set_num_threads(numThreads); // Set the number of threads for OpenMP
@@ -1143,8 +1149,8 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
     auto start_time = std::chrono::high_resolution_clock::now();
 
     // Update if the size for the transposition table changes.
-    if (tt_table.size() != tableSize) {
-        tt_table = std::vector<LockedTableEntry>(tableSize);
+    if (tt_table.size() != table_size) {
+        tt_table = std::vector<LockedTableEntry>(table_size);
     }
     
     for (int i = 0; i < MAX_THREADS; i++) {
@@ -1177,7 +1183,7 @@ Move lazysmpRootSearch(Board &board, int numThreads, int maxDepth, int timeLimit
     #pragma omp parallel for schedule (static, 1)
     for (int i = 0; i < numThreads; i++) {
         Board local_board = board;
-        auto [thread_move, thread_depth, thread_eval, thread_pv] = rootSearch(local_board, maxDepth, timeLimit, i);
+        auto [thread_move, thread_depth, thread_eval, thread_pv] = rootSearch(local_board, max_depth, timeLimit, i);
         if (i == 0) { 
             // Get the result from the thread with the highest depth without extensions
             depth = thread_depth;

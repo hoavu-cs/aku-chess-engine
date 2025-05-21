@@ -8,7 +8,7 @@ enum NodeType {PV, CUT, ALL};
 // Constants & global variables
 constexpr int INF = 1000000;
 constexpr int SZYZYGY_INF = 40000;
-extern int tableSize; // Maximum size of the transposition table
+extern int table_size; // Maximum size of the transposition table
 
 struct NodeData {
     int ply;

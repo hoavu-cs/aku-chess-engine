@@ -88,22 +88,23 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 // float lmr1 = 0.87f;
 // float lmr2 = 0.65f;
 
-int rfpDepth = 6;
-int rfpC1 = 201;
+int rfp_depth = 6;
+int rfp_c1 = 201;
 
-int fpDepth = 4;
-int fpC1 = 150;
+int fp_depth = 6;
+int fp_c1 = 155;
 
-int lmpDepth = 6;
-int lmpC1 = 15;
+int lmp_depth = 4;
+int lmp_c1 = 10;
 
-int hpC1 = 648;
+int hp_c1 = 590;
 
-int singularC1 = 2;
-int singularC2 = 0;
+int singular_c1 = 2;
+int singular_c2 = 0;
 
-float lmr1 = 0.73f;
-float lmr2 = 0.42;
+float lmr_1 = 0.75f;
+float lmr_2 = 0.43f;
+
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
@@ -292,7 +293,7 @@ void processSetOption(const std::vector<std::string>& tokens) {
     } else if (optionName == "Depth") {
         depth = std::stoi(value);
     } else if (optionName == "Hash") {
-        tableSize = std::stoi(value) * 1024 * 1024 / 64;
+        table_size = std::stoi(value) * 1024 * 1024 / 64;
     } else if (optionName == "UCI_Chess960") {
         chess960 = (value == "true");
         board.set960(chess960);
@@ -301,30 +302,30 @@ void processSetOption(const std::vector<std::string>& tokens) {
     }
 
     // For spsa tuning. Comment out for final build.
-    else if (optionName == "rfpDepth") {
-        rfpDepth = std::stoi(value);
-    } else if (optionName == "rfpC1") {
-        rfpC1 = std::stoi(value);
+    else if (optionName == "rfp_depth") {
+        rfp_depth = std::stoi(value);
+    } else if (optionName == "rfp_c1") {
+        rfp_c1 = std::stoi(value);
     } 
     
-    else if (optionName == "fpDepth") {
-        fpDepth = std::stoi(value);
-    } else if (optionName == "fpC1") {
-        fpC1 = std::stoi(value);
+    else if (optionName == "fp_depth") {
+        fp_depth = std::stoi(value);
+    } else if (optionName == "fp_c1") {
+        fp_c1 = std::stoi(value);
     } 
     
-    else if (optionName == "lmpDepth") {
-        lmpDepth = std::stoi(value);
-    } else if (optionName == "lmpC1") {
-        lmpC1 = std::stoi(value);
+    else if (optionName == "lmp_depth") {
+        lmp_depth = std::stoi(value);
+    } else if (optionName == "lmp_c1") {
+        lmp_c1 = std::stoi(value);
     } 
     
     // else if (optionName == "hpDepth") {
     //     hpDepth = std::stoi(value);
     // } 
     
-    else if (optionName == "hpC1") {
-        hpC1 = std::stoi(value);
+    else if (optionName == "hp_c1") {
+        hp_c1 = std::stoi(value);
     } 
     
     // else if (optionName == "hpC2") {
@@ -340,10 +341,10 @@ void processSetOption(const std::vector<std::string>& tokens) {
     //     singularC2 = std::stoi(value);
     // } 
     
-    else if (optionName == "lmr1") {
-        lmr1 = std::stof(value) / 100.0f;
-    } else if (optionName == "lmr2") {
-        lmr2 = std::stof(value) / 100.0f;
+    else if (optionName == "lmr_1") {
+        lmr_1 = std::stof(value) / 100.0f;
+    } else if (optionName == "lmr_2") {
+        lmr_2 = std::stof(value) / 100.0f;
     } 
     
     else {
