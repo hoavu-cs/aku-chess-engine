@@ -89,21 +89,21 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 // float lmr2 = 0.65f;
 
 int rfpDepth = 6;
-int rfpC1 = 184;
+int rfpC1 = 201;
 
 int fpDepth = 4;
 int fpC1 = 150;
 
-int lmpDepth = 5;
-int lmpC1 = 13;
+int lmpDepth = 6;
+int lmpC1 = 15;
 
-int hpC1 = 596;
+int hpC1 = 648;
 
 int singularC1 = 2;
 int singularC2 = 0;
 
-float lmr1 = 0.72f;
-float lmr2 = 0.46f;
+float lmr1 = 0.73f;
+float lmr2 = 0.42;
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32

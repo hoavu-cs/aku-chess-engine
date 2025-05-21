@@ -131,8 +131,8 @@ inline bool promotion_threat(Board& board, Move move) {
     bool is_passed_pawn_flag = is_passed_pawn(destination_index, color, their_pawns);
 
     if (is_passed_pawn_flag) {
-        if ((color == Color::WHITE && to_rank > 3) || 
-            (color == Color::BLACK && to_rank < 4)) {
+        if ((color == Color::WHITE && to_rank >= 3) || 
+            (color == Color::BLACK && to_rank <= 5)) {
             return true;
         }
     }

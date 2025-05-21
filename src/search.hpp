@@ -12,11 +12,11 @@ extern int tableSize; // Maximum size of the transposition table
 
 struct NodeData {
     int ply;
-    bool nmpOk; // flag to signal if nmp is allowed
-    int rootDepth; // maximum depth to search from the root
-    NodeType nodeType;
-    bool isSingularSearch;
-    int threadID;
+    bool nmp_ok; // flag to signal if nmp is allowed
+    int root_depth; // maximum depth to search from the root
+    NodeType node_type;
+    bool is_singular_search;
+    int thread_id;
 };
 
 void initializeNNUE(std::string path);
