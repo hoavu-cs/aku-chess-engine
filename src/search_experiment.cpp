@@ -723,13 +723,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool canPrune = !inCheck && !is_promotion_threat && i > 0;
 
         // Futility  pruning
-        // bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= 4;
-        // if (fpCondition) {
-        //     int margin = 150 * (nextDepth - improving);
-        //     if (standPat + margin < alpha) {
-        //         continue;
-        //     }
-        // }
+        bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= fpDepth && !isSingularSearch;
+        if (fpCondition) {
+            int margin = fpC1 * (nextDepth + improving);
+            if (standPat + margin < alpha) {
+                continue;
+            }
+        }
 
         // Further reduction for quiet moves
         bool lmpCondition = canPrune && !isPV && !isCapture && nextDepth <= lmpDepth;

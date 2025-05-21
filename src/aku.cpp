@@ -91,6 +91,9 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 int rfpDepth = 6;
 int rfpC1 = 184;
 
+int fpDepth = 4;
+int fpC1 = 150;
+
 int lmpDepth = 5;
 int lmpC1 = 13;
 
@@ -304,21 +307,11 @@ void processSetOption(const std::vector<std::string>& tokens) {
         rfpC1 = std::stoi(value);
     } 
     
-    // else if (optionName == "rfpC2") {
-    //     rfpC2 = std::stoi(value);
-    // } else if (optionName == "rfpC3") {
-    //     rfpC3 = std::stoi(value);
-    // } else if (optionName == "fpDepth") {
-    //     fpDepth = std::stoi(value);
-    // } else if (optionName == "fpC1") {
-    //     fpC1 = std::stoi(value);
-    // } else if (optionName == "fpC2") {
-    //     fpC2 = std::stoi(value);
-    // } else if (optionName == "fpC3") {
-    //     fpC3 = std::stoi(value);
-
-
-    // } 
+    else if (optionName == "fpDepth") {
+        fpDepth = std::stoi(value);
+    } else if (optionName == "fpC1") {
+        fpC1 = std::stoi(value);
+    } 
     
     else if (optionName == "lmpDepth") {
         lmpDepth = std::stoi(value);
@@ -462,8 +455,8 @@ void processUci() {
     // std::cout << "option name rfpC2 type spin default 100 min 0 max 20000" << std::endl;
     // std::cout << "option name rfpC3 type spin default 100 min 0 max 20000" << std::endl;
 
-    // std::cout << "option name fpDepth type spin default 2 min 0 max 20000" << std::endl;
-    // std::cout << "option name fpC1 type spin default 100 min 0 max 20000" << std::endl;
+    std::cout << "option name fpDepth type spin default 4 min 0 max 20000" << std::endl;
+    std::cout << "option name fpC1 type spin default 150 min 0 max 20000" << std::endl;
     // std::cout << "option name fpC2 type spin default 100 min 0 max 20000" << std::endl;
     // std::cout << "option name fpC3 type spin default 100 min 0 max 20000" << std::endl;
 
