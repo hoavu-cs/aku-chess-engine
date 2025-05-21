@@ -269,7 +269,6 @@ int late_move_reduction(Board& board,
             R--;
         }
 
-        if (history_score < -8000) R++;
         return std::min(depth - R, depth - 1);
     }
 }
@@ -581,16 +580,18 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     seeds[threadID] = fast_rand(seeds[threadID]);
     int R2 = seeds[threadID] % moves.size();
 
-    //bool captureTTMove = found && ttMove != Move::NO_MOVE && board.isCapture(ttMove);
+    bool captureTTMove = found && ttMove != Move::NO_MOVE && board.isCapture(ttMove);
     
     // Reverse futility pruning (RFP)
-    bool rfpCondition = depth <= 9
+    bool rfpCondition = depth <= rfpDepth
                         && !board.inCheck() 
                         && !isPV 
+                        && !ttIsPV
+                        && !captureTTMove
                         && abs(beta) < 10000
-                        && isSingularSearch;
+                        && !isSingularSearch;
     if (rfpCondition) {
-        int rfpMargin = 150 * (depth - improving);
+        int rfpMargin = rfpC1 * (depth - improving);
         if (standPat >= beta + rfpMargin) {
             return (standPat + beta) / 2;
         }
@@ -696,8 +697,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (moves.size() == 1) {
         extensions++;
     }
-    
-    extensions = std::clamp(extensions, 0, 1); 
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -709,7 +708,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool inCheck = board.inCheck();
         bool isCapture = board.isCapture(move);
         bool isPromoThreat = promotion_threat(board, move);
-
         bool isPawnPush = board.at<Piece>(move.from()).type() == PieceType::PAWN;
 
         board.makeMove(move);
@@ -720,9 +718,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int nextDepth = late_move_reduction(board, move, i, depth, ply, isPV, nodeType, threadID); 
 
         if (move == ttMove) {
-            nextDepth += singular_ext;
+            extensions += singular_ext;
         }
 
+        extensions = std::clamp(extensions, 0, 2); 
         nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
 
         // common conditions for pruning
@@ -741,20 +740,19 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool lmpCondition = canPrune 
                             && !isPV 
                             && !isCapture 
-                            && nextDepth < 7
-                            && i > 3 + nextDepth * nextDepth;
+                            && nextDepth <= lmpDepth
+                            && i > lmpC1 + nextDepth * nextDepth;
         if (lmpCondition) {
-            continue;
-            // int divisor = improving ? 1 : 2;
-            // if (i >= (lmpC1 + nextDepth * nextDepth) / divisor) {
-            //     nextDepth--;
-            // }
+            int divisor = improving ? 1 : 2;
+            if (i >= (lmpC1 + nextDepth * nextDepth) / divisor) {
+                continue;
+            }
         }
 
         // History pruning
         bool hpCondition = canPrune && !isPV && !isCapture;
         if (hpCondition) {
-            int margin = -600 * nextDepth * nextDepth; //-(hpC1 + hpC2 * nextDepth + hpC3 * improving);
+            int margin = -hpC1 * nextDepth * nextDepth; 
             int historyScore = history[threadID][stm][move_index(move)];
             if (historyScore < margin) {
                 continue;
@@ -1022,7 +1020,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int maxDe
 
                 NodeData childNodeData = {1, // ply of child node
                                         true, // NMP ok
-                                        nextDepth, // root depth
+                                        depth, // root depth
                                         NodeType::PV, // child of a root node is a PV node
                                         false, // this is not a singular search
                                         threadID};

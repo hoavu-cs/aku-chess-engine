@@ -88,23 +88,13 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 // float lmr1 = 0.87f;
 // float lmr2 = 0.65f;
 
-int rfpDepth = 4;
-int rfpC1 = 95;
-int rfpC2 = 106;
-int rfpC3 = 23;
+int rfpDepth = 6;
+int rfpC1 = 150;
 
-int fpDepth = 3;
-int fpC1 = 158;
-int fpC2 = 93;
-int fpC3 = 214;
-
-int lmpDepth = 0;
+int lmpDepth = 6;
 int lmpC1 = 12;
 
-int hpDepth = 3;
-int hpC1 = 304;
-int hpC2 = 913;
-int hpC3 = 306;
+int hpC1 = 600;
 
 int singularC1 = 2;
 int singularC2 = 0;
@@ -312,33 +302,43 @@ void processSetOption(const std::vector<std::string>& tokens) {
         rfpDepth = std::stoi(value);
     } else if (optionName == "rfpC1") {
         rfpC1 = std::stoi(value);
-    } else if (optionName == "rfpC2") {
-        rfpC2 = std::stoi(value);
-    } else if (optionName == "rfpC3") {
-        rfpC3 = std::stoi(value);
-    } else if (optionName == "fpDepth") {
-        fpDepth = std::stoi(value);
-    } else if (optionName == "fpC1") {
-        fpC1 = std::stoi(value);
-    } else if (optionName == "fpC2") {
-        fpC2 = std::stoi(value);
-    } else if (optionName == "fpC3") {
-        fpC3 = std::stoi(value);
-    } else if (optionName == "lmpDepth") {
+    } 
+    
+    // else if (optionName == "rfpC2") {
+    //     rfpC2 = std::stoi(value);
+    // } else if (optionName == "rfpC3") {
+    //     rfpC3 = std::stoi(value);
+    // } else if (optionName == "fpDepth") {
+    //     fpDepth = std::stoi(value);
+    // } else if (optionName == "fpC1") {
+    //     fpC1 = std::stoi(value);
+    // } else if (optionName == "fpC2") {
+    //     fpC2 = std::stoi(value);
+    // } else if (optionName == "fpC3") {
+    //     fpC3 = std::stoi(value);
+
+
+    // } 
+    
+    else if (optionName == "lmpDepth") {
         lmpDepth = std::stoi(value);
     } else if (optionName == "lmpC1") {
         lmpC1 = std::stoi(value);
     } 
     
-    else if (optionName == "hpDepth") {
-        hpDepth = std::stoi(value);
-    } else if (optionName == "hpC1") {
+    // else if (optionName == "hpDepth") {
+    //     hpDepth = std::stoi(value);
+    // } 
+    
+    else if (optionName == "hpC1") {
         hpC1 = std::stoi(value);
-    } else if (optionName == "hpC2") {
-        hpC2 = std::stoi(value);
-    } else if (optionName == "hpC3") {
-        hpC3 = std::stoi(value);
     } 
+    
+    // else if (optionName == "hpC2") {
+    //     hpC2 = std::stoi(value);
+    // } else if (optionName == "hpC3") {
+    //     hpC3 = std::stoi(value);
+    // } 
 
     // else if (optionName == "singularC1") {
     //     singularC1 = std::stoi(value);
@@ -459,21 +459,21 @@ void processUci() {
     // For spsa tuning. Comment out for final build.
     std::cout << "option name rfpDepth type spin default 8 min 0 max 20000" << std::endl;
     std::cout << "option name rfpC1 type spin default 100 min 0 max 20000" << std::endl;
-    std::cout << "option name rfpC2 type spin default 100 min 0 max 20000" << std::endl;
-    std::cout << "option name rfpC3 type spin default 100 min 0 max 20000" << std::endl;
+    // std::cout << "option name rfpC2 type spin default 100 min 0 max 20000" << std::endl;
+    // std::cout << "option name rfpC3 type spin default 100 min 0 max 20000" << std::endl;
 
-    std::cout << "option name fpDepth type spin default 2 min 0 max 20000" << std::endl;
-    std::cout << "option name fpC1 type spin default 100 min 0 max 20000" << std::endl;
-    std::cout << "option name fpC2 type spin default 100 min 0 max 20000" << std::endl;
-    std::cout << "option name fpC3 type spin default 100 min 0 max 20000" << std::endl;
+    // std::cout << "option name fpDepth type spin default 2 min 0 max 20000" << std::endl;
+    // std::cout << "option name fpC1 type spin default 100 min 0 max 20000" << std::endl;
+    // std::cout << "option name fpC2 type spin default 100 min 0 max 20000" << std::endl;
+    // std::cout << "option name fpC3 type spin default 100 min 0 max 20000" << std::endl;
 
     std::cout << "option name lmpDepth type spin default 4 min 0 max 20000" << std::endl;
     std::cout << "option name lmpC1 type spin default 6 min 0 max 20000" << std::endl;
 
-    std::cout << "option name hpDepth type spin default 4 min 0 max 20000" << std::endl;
+    //std::cout << "option name hpDepth type spin default 4 min 0 max 20000" << std::endl;
     std::cout << "option name hpC1 type spin default 3000 min 0 max 20000" << std::endl;
-    std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
-    std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
+    //std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
+    //std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
 
     // std::cout << "option name singularC1 type spin default 1 min 0 max 20000" << std::endl;
     // std::cout << "option name singularC2 type spin default 25 min 0 max 20000" << std::endl;
