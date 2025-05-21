@@ -736,7 +736,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // History pruning
-        bool hp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
+        bool hp_condition = can_prune && !is_pv && !is_capture && next_depth <= hp_depth;
         if (hp_condition) {
             int margin = -hp_c1 * next_depth * next_depth; 
             int historyScore = history[thread_id][stm][move_index(move)];

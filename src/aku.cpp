@@ -40,64 +40,17 @@ const std::string ENGINE_NAME = "Aku Chess Engine";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 // Engine tunable parameters
-// int rfpDepth = 2;
-// int rfpC1 = 65;
-// int rfpC2 = 35;
-// int rfpC3 = 65;
-
-// int fpDepth = 2;
-// int fpC1 = 130;
-// int fpC2 = 115;
-// int fpC3 = 200;
-
-// int lmpDepth = 1;
-// int lmpC1 = 12;
-
-// int hpDepth = 2;
-// int hpC1 = 294;
-// int hpC2 = 887;
-// int hpC3 = 284;
-
-// int singularC1 = 2;
-// int singularC2 = 0;
-
-// float lmr1 = 0.75f;
-// float lmr2 = 0.65;
-
-// int rfpDepth = 4;
-// int rfpC1 = 140;
-// int rfpC2 = 67;
-// int rfpC3 = 34;
-
-// int fpDepth = 4;
-// int fpC1 = 133;
-// int fpC2 = 114;
-// int fpC3 = 166;
-
-// int lmpDepth = 2;
-// int lmpC1 = 12;
-
-// int hpDepth = 0;
-// int hpC1 = 304;
-// int hpC2 = 913;
-// int hpC3 = 306;
-
-// int singularC1 = 2;
-// int singularC2 = 0;
-
-// float lmr1 = 0.87f;
-// float lmr2 = 0.65f;
-
 int rfp_depth = 4;
-int rfp_c1 = 186;
+int rfp_c1 = 200;
 
 int fp_depth = 4;
-int fp_c1 = 104;
+int fp_c1 = 150;
 
 int lmp_depth = 5;
 int lmp_c1 = 12;
 
-int hp_c1 = 591;
+int hp_depth = 4;
+int hp_c1 = 600;
 
 int singular_c1 = 2;
 int singular_c2 = 0;
@@ -451,29 +404,29 @@ void processUci() {
     std::cout << "option name Internal_Opening_Book type check default true" << std::endl;
 
     // For spsa tuning. Comment out for final build.
-    std::cout << "option name rfpDepth type spin default 8 min 0 max 20000" << std::endl;
-    std::cout << "option name rfpC1 type spin default 100 min 0 max 20000" << std::endl;
+    std::cout << "option name rfp_depth type spin default 8 min 0 max 20000" << std::endl;
+    std::cout << "option name rfp_c1 type spin default 100 min 0 max 20000" << std::endl;
     // std::cout << "option name rfpC2 type spin default 100 min 0 max 20000" << std::endl;
     // std::cout << "option name rfpC3 type spin default 100 min 0 max 20000" << std::endl;
 
-    std::cout << "option name fpDepth type spin default 4 min 0 max 20000" << std::endl;
-    std::cout << "option name fpC1 type spin default 150 min 0 max 20000" << std::endl;
+    std::cout << "option name fp_depth type spin default 4 min 0 max 20000" << std::endl;
+    std::cout << "option name fp_c1 type spin default 150 min 0 max 20000" << std::endl;
     // std::cout << "option name fpC2 type spin default 100 min 0 max 20000" << std::endl;
     // std::cout << "option name fpC3 type spin default 100 min 0 max 20000" << std::endl;
 
-    std::cout << "option name lmpDepth type spin default 4 min 0 max 20000" << std::endl;
-    std::cout << "option name lmpC1 type spin default 6 min 0 max 20000" << std::endl;
+    std::cout << "option name lmp_depth type spin default 4 min 0 max 20000" << std::endl;
+    std::cout << "option name lmp_c1 type spin default 6 min 0 max 20000" << std::endl;
 
-    //std::cout << "option name hpDepth type spin default 4 min 0 max 20000" << std::endl;
-    std::cout << "option name hpC1 type spin default 3000 min 0 max 20000" << std::endl;
+    std::cout << "option name hp_depth type spin default 4 min 0 max 20000" << std::endl;
+    std::cout << "option name hp_c1 type spin default 3000 min 0 max 20000" << std::endl;
     //std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
     //std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
 
     // std::cout << "option name singularC1 type spin default 1 min 0 max 20000" << std::endl;
     // std::cout << "option name singularC2 type spin default 25 min 0 max 20000" << std::endl;
 
-    std::cout << "option name lmr1 type spin default 75 min 10 max 99" << std::endl;
-    std::cout << "option name lmr2 type spin default 65 min 10 max 99" << std::endl;
+    std::cout << "option name lmr_1 type spin default 75 min 10 max 99" << std::endl;
+    std::cout << "option name lmr_2 type spin default 65 min 10 max 99" << std::endl;
 
     std::cout << "uciok" << std::endl;
 }
