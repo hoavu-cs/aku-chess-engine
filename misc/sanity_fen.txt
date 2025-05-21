@@ -21,3 +21,4 @@ position fen 2r2k1r/2qn1pp1/p1Np1b2/3Pp1p1/5P1P/8/PpPB3R/1K1RQ3 w - - 0 26
 position fen 8/1r5k/1P1Pb2p/4N2p/3BP2P/p2K1P2/1r6/6R1 w - - 2 44
 position fen position fen 6k1/6pp/5p2/2b1p1n1/4P3/3P2Pq/r2NQP1P/B1R4K w - - 9 30
 position fen r1b1kn1r/pp3p1B/4p1p1/3pP1N1/2pP2P1/P2q1P1Q/3B3P/2R1K2R b K - 0 19
+position fen 5rk1/p6p/5p2/2qb1Qp1/2p1r1B1/P5B1/2P2PPP/R5K1 w - - 0 26

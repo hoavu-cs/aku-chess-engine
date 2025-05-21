@@ -455,7 +455,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int thread_id = data.thread_id;
     int ply = data.ply;
     int root_depth = data.root_depth;
-    bool is_singular_search = data.is_singular_search;
+    Move excluded_move = data.excluded_move;
 
     std::vector<Move> bad_quiets; // quiet moves that fail to raise alpha
     std::vector<Move> bad_captures; // bad tacticals (captures/promos) that fail to raise alpha
@@ -582,7 +582,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && !is_pv 
                         && !tt_is_pv
                         && !capture_tt_move
-                        && !is_singular_search
+                        && excluded_move == Move::NO_MOVE // No rfp during singular search
                         && abs(beta) < 10000;
     if (rfp_condition) {
         int rfp_margin = rfp_c1 * (depth - improving);
@@ -600,7 +600,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && !is_pv
         && stand_pat >= beta
         && nmp_ok
-        && !is_singular_search    
+        && excluded_move == Move::NO_MOVE // No nmp during singular search
     );
 
     if (nmp_condition) {
@@ -613,7 +613,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                 false, 
                                 root_depth,
                                 NodeType::ALL, // expected all node
-                                is_singular_search,
+                                Move::NO_MOVE,
                                 thread_id};
         move_stack[thread_id][ply] = -1;
         board.makeNullMove();
@@ -624,10 +624,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (null_eval >= beta) {
             return beta;
-        } else if (null_eval < -INF/2 + 5) {
-            // threat extensions
-            return beta - 1;
-        }
+        } 
+        
+        // else if (null_eval < -INF/2 + 5) {
+        //     // threat extensions
+        //     return beta - 1;
+        // }
     }
 
     int best_eval = -INF;
@@ -640,43 +642,24 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Singular extension. If the hash move is stronger than all others, extend the search.
     int singular_ext = 0;
     if (hash_move_found && tt_depth >= depth - 3
-        && depth >= 6
+        && depth >= 8
         && tt_type != EntryType::UPPERBOUND
         && abs(tt_eval) < INF/2 - 100
-        && !is_singular_search
+        && excluded_move == Move::NO_MOVE // No singular search within singular search
     ) {
 
         int singular_eval = -INF;
         int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
+        std::vector<Move> singular_pv;
 
-        for (int i = 0; i < moves.size(); i++) {
-            if (moves[i].first == tt_move) {
-                continue; 
-            }
-                
-
-            add_accumulators(board, moves[i].first, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
-            move_stack[thread_id][ply] = move_index(moves[i].first);
-            board.makeMove(moves[i].first);
-
-            NodeData child_node_data = {ply + 1, 
-                                    false, 
-                                    root_depth,
-                                    NodeType::PV,
-                                    true,
-                                    thread_id};
-
-
-            singular_eval = std::max(singular_eval, -negamax(board, (depth - 1) / 2, -singular_beta, -singular_beta + 1, PV, child_node_data));
-            eval_adjust(singular_eval);
-
-            subtract_accumulators(board, moves[i].first, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
-            board.unmakeMove(moves[i].first);
-
-            if (singular_eval >= singular_beta) {
-                break;
-            } 
-        }
+        NodeData singular_node_data = {ply, 
+            false, 
+            root_depth,
+            NodeType::PV,
+            tt_move,
+            thread_id};
+        
+        singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
 
         if (singular_eval < singular_beta) {
             singular_ext++; // singular extension
@@ -699,6 +682,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         Move move = moves[i].first;
         std::vector<Move> childPV;
+
+        if (move == excluded_move) {
+            continue; // skip excluded move
+        }
         
         bool is_promo = is_promotion(move);
         bool in_check = board.inCheck();
@@ -724,19 +711,19 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool can_prune = !in_check && !is_promotion_threat && i > 0;
 
         // Futility  pruning
-        bool fp_condition = can_prune 
-                            && !is_capture 
-                            && !give_check 
-                            && !is_pv 
-                            && next_depth <= fp_depth 
-                            && !is_singular_search 
-                            && std::abs(beta) < INF/2 - 100;
-        if (fp_condition) {
-            int margin = fp_c1 * (next_depth + improving);
-            if (stand_pat + margin < alpha) {
-                continue;
-            }
-        }
+        // bool fp_condition = can_prune 
+        //                     && !is_capture 
+        //                     && !give_check 
+        //                     && !is_pv 
+        //                     && next_depth <= fp_depth 
+        //                     && !is_singular_search 
+        //                     && std::abs(beta) < INF/2 - 100;
+        // if (fp_condition) {
+        //     int margin = fp_c1 * (next_depth + improving);
+        //     if (stand_pat + margin < alpha) {
+        //         continue;
+        //     }
+        // }
 
         // Further reduction for quiet moves
         bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= lmp_depth;
@@ -768,7 +755,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                 nmp_ok,
                                 root_depth,
                                 NodeType::PV,
-                                is_singular_search,
+                                excluded_move,
                                 thread_id};
 
   
@@ -886,7 +873,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     }
 
-    if (is_pv) {
+    if (is_pv && excluded_move == Move::NO_MOVE) {
         // If the best_eval is in (alpha0, beta), then best_eval is EXACT.
         // If the best_eval <= alpha0, then best_eval is UPPERBOUND because this is caused by one of the children's beta-cutoff.
         // If the best_eval >= beta then we quit the loop early, then we know that this is a LOWERBOUND. 
@@ -911,7 +898,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             table_insert(board, depth, best_eval, true, Move::NO_MOVE, type, tt_table);
         }
 
-    } else {
+    } else if (excluded_move == Move::NO_MOVE) {
         // For non-PV nodes:
         // alpha is artifical for CUT nodes and beta is artifical for ALL nodes.
         // In CUT nodes, we have a fake alpha. We can only tell if best_eval is a LOWERBOUND if we have a beta cutoff.
@@ -1018,9 +1005,9 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int max_d
 
                 NodeData child_node_data = {1, // ply of child node
                                         true, // NMP ok
-                                        depth, // root depth
+                                        next_depth, // root depth
                                         NodeType::PV, // child of a root node is a PV node
-                                        false, // this is not a singular search
+                                        Move::NO_MOVE, // no excluded move
                                         thread_id};
                 
                 add_accumulators(local_board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
@@ -1184,14 +1171,17 @@ Move lazysmpRootSearch(Board &board, int numThreads, int max_depth, int timeLimi
     for (int i = 0; i < numThreads; i++) {
         Board local_board = board;
         auto [thread_move, thread_depth, thread_eval, thread_pv] = rootSearch(local_board, max_depth, timeLimit, i);
+
         if (i == 0) { 
-            // Get the result from the thread with the highest depth without extensions
+            // Get the result from the thread with the highest depth 
             depth = thread_depth;
             best_move = thread_move; 
             eval = thread_eval; 
             PV = thread_pv; 
             stop_search = true; // Stop all threads
         }
+        
+
     }
 
     // Print the final analysis

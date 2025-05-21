@@ -15,7 +15,7 @@ struct NodeData {
     bool nmp_ok; // flag to signal if nmp is allowed
     int root_depth; // maximum depth to search from the root
     NodeType node_type;
-    bool is_singular_search;
+    Move excluded_move;
     int thread_id;
 };
 
