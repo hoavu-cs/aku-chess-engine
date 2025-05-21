@@ -702,8 +702,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool isPromo = is_promotion(move);
         bool inCheck = board.inCheck();
         bool isCapture = board.isCapture(move);
-        bool isPromoThreat = promotion_threat(board, move);
-        bool isPawnPush = board.at<Piece>(move.from()).type() == PieceType::PAWN;
+        bool is_promotion_threat = promotion_threat(board, move);
+        //bool isPawnPush = board.at<Piece>(move.from()).type() == PieceType::PAWN;
 
         board.makeMove(move);
         bool giveCheck = board.inCheck();
@@ -720,7 +720,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         nextDepth = std::min(nextDepth + extensions, (2 * rootDepth) - ply - 1);
 
         // common conditions for pruning
-        bool canPrune = !inCheck && !isPawnPush && i > 0;
+        bool canPrune = !inCheck && !is_promotion_threat && i > 0;
 
         // Futility  pruning
         // bool fpCondition = canPrune && !isCapture && !giveCheck && !isPV && nextDepth <= 4;

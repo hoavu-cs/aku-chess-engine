@@ -88,18 +88,18 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 // float lmr1 = 0.87f;
 // float lmr2 = 0.65f;
 
-int rfpDepth = 7;
-int rfpC1 = 170;
+int rfpDepth = 6;
+int rfpC1 = 184;
 
 int lmpDepth = 5;
-int lmpC1 = 12;
+int lmpC1 = 13;
 
-int hpC1 = 606;
+int hpC1 = 596;
 
 int singularC1 = 2;
 int singularC2 = 0;
 
-float lmr1 = 0.68f;
+float lmr1 = 0.72f;
 float lmr2 = 0.46f;
 
 // Initialize Syzygy tablebases and NNUE weights.
