@@ -68,7 +68,7 @@ float lmr_2 = 0.45f;
     #include <unistd.h>
 #endif
 
-std::string getExecutablePath() {
+std::string get_exec_path() {
     char path[1024];
 
 #ifdef _WIN32
@@ -91,101 +91,101 @@ std::string getExecutablePath() {
 }
 
 // Extract tablebase files to the current directory if they don't already exist.
-void extractFiles() {
+void extract_files() {
 
-    std::string path = getExecutablePath();
-    std::filesystem::path tablesDir = std::filesystem::path(path) / "tables";
+    std::string path = get_exec_path();
+    std::filesystem::path table_dir = std::filesystem::path(path) / "tables";
 
     // Check if the "tables" folder exists, if not, create it
-    if (!std::filesystem::exists(tablesDir)) {
-        std::cout << "Creating directory: " << tablesDir << std::endl;
-        if (!std::filesystem::create_directories(tablesDir)) {
-            std::cerr << "Failed to create directory: " << tablesDir << std::endl;
+    if (!std::filesystem::exists(table_dir)) {
+        std::cout << "Creating directory: " << table_dir << std::endl;
+        if (!std::filesystem::create_directories(table_dir)) {
+            std::cerr << "Failed to create directory: " << table_dir << std::endl;
             return;
         }
     }
 
     for (size_t i = 0; i < tablebaseFileCount; i++) {
-        std::string filePath = path + "/" + tablebaseFiles[i].name;
+        std::string file_path = path + "/" + tablebaseFiles[i].name;
 
         // Check if the file already exists
-        if (std::filesystem::exists(filePath)) {
+        if (std::filesystem::exists(file_path)) {
             continue;
         }
 
         // Create and write file only if it doesn't exist
-        std::ofstream outFile(filePath, std::ios::binary);
-        if (!outFile) {
-            std::cerr << "Failed to create: " << filePath << std::endl;
+        std::ofstream out_file(file_path, std::ios::binary);
+        if (!out_file) {
+            std::cerr << "Failed to create: " << file_path << std::endl;
             continue;
         }
 
-        outFile.write(reinterpret_cast<const char*>(tablebaseFiles[i].data), tablebaseFiles[i].size);
-        outFile.close();
-        std::cout << "Extracted: " << filePath << std::endl;
+        out_file.write(reinterpret_cast<const char*>(tablebaseFiles[i].data), tablebaseFiles[i].size);
+        out_file.close();
+        std::cout << "Extracted: " << file_path << std::endl;
     }
 
 
     // Ensure "nnue" directory exists
-    std::string nnueDir = path + "/nnue";
-    if (!std::filesystem::exists(nnueDir)) {
-        std::cout << "Creating directory: " << nnueDir << std::endl;
-        if (!std::filesystem::create_directories(nnueDir)) {
-            std::cerr << "Failed to create directory: " << nnueDir << std::endl;
+    std::string nnue_dir = path + "/nnue";
+    if (!std::filesystem::exists(nnue_dir)) {
+        std::cout << "Creating directory: " << nnue_dir << std::endl;
+        if (!std::filesystem::create_directories(nnue_dir)) {
+            std::cerr << "Failed to create directory: " << nnue_dir << std::endl;
             return;
         }
     }
 
     // Extract NNUE weights file
-    std::string nnueFilePath = nnueDir + "/" + nnueWeightFile.name;
-    std::ofstream nnueOut(nnueFilePath, std::ios::binary);
-    if (!nnueOut) {
-        std::cerr << "Failed to create: " << nnueFilePath << std::endl;
+    std::string nnue_file_path = nnue_dir + "/" + nnueWeightFile.name;
+    std::ofstream nnue_out(nnue_file_path, std::ios::binary);
+    if (!nnue_out) {
+        std::cerr << "Failed to create: " << nnue_file_path << std::endl;
     } else {
-        nnueOut.write(reinterpret_cast<const char*>(nnueWeightFile.data), nnueWeightFile.size);
-        nnueOut.close();
-        std::cout << "Extracted: " << nnueFilePath << std::endl;
+        nnue_out.write(reinterpret_cast<const char*>(nnueWeightFile.data), nnueWeightFile.size);
+        nnue_out.close();
+        std::cout << "Extracted: " << nnue_file_path << std::endl;
     }
 }
 
 // Global variables for engine options
-int numThreads = 4;
+int num_threads = 4;
 int depth = 50;
 bool chess960 = false;
-bool internalOpening = true;
+bool internal_opening = true;
 
-std::string getBookMove(Board& board) {
-    std::vector<std::string> possibleMoves;
+std::string get_book_move(Board& board) {
+    std::vector<std::string> possible_moves;
     std::srand(std::time(0)); // Seed random number generator
 
     for (const auto& sequence : OPENING_MOVES) {
-        Board tempBoard;
+        Board temp_board;
         bool match = true;
         
         // Consider the first move if the board is in the starting position
         if (board.getFen() == Board().getFen() && !sequence.empty()) {
-            possibleMoves.push_back(sequence[0]);
+            possible_moves.push_back(sequence[0]);
             continue;
         }
         
         for (size_t i = 0; i < sequence.size(); ++i) {
             try {
-                Move moveObj = uci::uciToMove(tempBoard, sequence[i]);
-                tempBoard.makeMove(moveObj);
+                Move moveObj = uci::uciToMove(temp_board, sequence[i]);
+                temp_board.makeMove(moveObj);
             } catch (const std::exception& e) {
                 match = false;
                 break;
             }
             
             // If the board matches at any prefix of the sequence, consider the next move
-            if (tempBoard.getFen() == board.getFen() && i + 1 < sequence.size()) {
-                possibleMoves.push_back(sequence[i + 1]);
+            if (temp_board.getFen() == board.getFen() && i + 1 < sequence.size()) {
+                possible_moves.push_back(sequence[i + 1]);
             }
         }
     }
 
-    if (!possibleMoves.empty()) {
-        return possibleMoves[std::rand() % possibleMoves.size()]; // Return a random move
+    if (!possible_moves.empty()) {
+        return possible_moves[std::rand() % possible_moves.size()]; // Return a random move
     }
     return ""; // No match found
 }
@@ -196,7 +196,7 @@ Board board;
 
 
 // Parses the "position" command and updates the board state.
-void processPosition(const std::string& command) {
+void process_position(const std::string& command) {
 
     std::istringstream iss(command);
     std::string token;
@@ -235,41 +235,41 @@ void processPosition(const std::string& command) {
 }
 
 // Processes the "setoption" command and updates the engine options.
-void processSetOption(const std::vector<std::string>& tokens) {
+void process_option(const std::vector<std::string>& tokens) {
 
-    std::string optionName = tokens[2];
+    std::string option_name = tokens[2];
     std::string value = tokens[4];
 
-    if (optionName == "Threads") {
-        numThreads = std::stoi(value);
+    if (option_name == "Threads") {
+        num_threads = std::stoi(value);
         // Set number of threads
-    } else if (optionName == "Depth") {
+    } else if (option_name == "Depth") {
         depth = std::stoi(value);
-    } else if (optionName == "Hash") {
+    } else if (option_name == "Hash") {
         table_size = std::stoi(value) * 1024 * 1024 / 64;
-    } else if (optionName == "UCI_Chess960") {
+    } else if (option_name == "UCI_Chess960") {
         chess960 = (value == "true");
         board.set960(chess960);
-    } else if (optionName == "Internal_Opening_Book") {
-        internalOpening = (value == "true");
+    } else if (option_name == "Internal_Opening_Book") {
+        internal_opening = (value == "true");
     }
 
     // For spsa tuning. Comment out for final build.
-    else if (optionName == "rfp_depth") {
+    else if (option_name == "rfp_depth") {
         rfp_depth = std::stoi(value);
-    } else if (optionName == "rfp_c1") {
+    } else if (option_name == "rfp_c1") {
         rfp_c1 = std::stoi(value);
     } 
     
-    else if (optionName == "fp_depth") {
+    else if (option_name == "fp_depth") {
         fp_depth = std::stoi(value);
-    } else if (optionName == "fp_c1") {
+    } else if (option_name == "fp_c1") {
         fp_c1 = std::stoi(value);
     } 
     
-    else if (optionName == "lmp_depth") {
+    else if (option_name == "lmp_depth") {
         lmp_depth = std::stoi(value);
-    } else if (optionName == "lmp_c1") {
+    } else if (option_name == "lmp_c1") {
         lmp_c1 = std::stoi(value);
     } 
     
@@ -277,7 +277,7 @@ void processSetOption(const std::vector<std::string>& tokens) {
     //     hpDepth = std::stoi(value);
     // } 
     
-    else if (optionName == "hp_c1") {
+    else if (option_name == "hp_c1") {
         hp_c1 = std::stoi(value);
     } 
     
@@ -294,14 +294,14 @@ void processSetOption(const std::vector<std::string>& tokens) {
     //     singularC2 = std::stoi(value);
     // } 
     
-    else if (optionName == "lmr_1") {
+    else if (option_name == "lmr_1") {
         lmr_1 = std::stof(value) / 100.0f;
-    } else if (optionName == "lmr_2") {
+    } else if (option_name == "lmr_2") {
         lmr_2 = std::stof(value) / 100.0f;
     } 
     
     else {
-        std::cerr << "Unknown option: " << optionName << std::endl;
+        std::cerr << "Unknown option: " << option_name << std::endl;
     }
 }
 
@@ -312,19 +312,19 @@ void processGo(const std::vector<std::string>& tokens) {
 
     // Default settings
     
-    int timeLimit = 30000; // Default to 15 seconds
+    int time_limit = 30000; // Default to 15 seconds
 
     // Simply find the best move without considering `t` or other options
-    Move bestMove = Move::NO_MOVE;
+    Move best_move = Move::NO_MOVE;
 
     // Opening book
-    if (internalOpening) {
-        std::string bookMove = getBookMove(board);
-        if (!bookMove.empty()) {
-            Move moveObj = uci::uciToMove(board, bookMove);
-            board.makeMove(moveObj);
-            std::cout << "info depth 0 score cp 0 nodes 0 time 0 pv " << bookMove << std::endl;
-            std::cout << "bestmove " << bookMove << std::endl;
+    if (internal_opening) {
+        std::string book_move = get_book_move(board);
+        if (!book_move.empty()) {
+            Move move_obj = uci::uciToMove(board, book_move);
+            board.makeMove(move_obj);
+            std::cout << "info depth 0 score cp 0 nodes 0 time 0 pv " << book_move << std::endl;
+            std::cout << "bestmove " << book_move << std::endl;
             return;
         }
     }
@@ -352,41 +352,41 @@ void processGo(const std::vector<std::string>& tokens) {
 
     double adjust = 0.6;
     if (movetime > 0) {
-        timeLimit = movetime * adjust;
+        time_limit = movetime * adjust;
     } else {
         // Determine the time limit based on the current player's time and increment
         if (board.sideToMove() == Color::WHITE && wtime > 0) {
-            int baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 20); 
-            timeLimit = static_cast<int>(baseTime * adjust) + winc / 2;
+            int base_time = wtime / (movestogo > 0 ? movestogo + 2 : 20); 
+            time_limit = static_cast<int>(base_time * adjust) + winc / 2;
 
             if (wtime < 20000) {
                 // if only 20s left, make moves faster
-                baseTime = wtime / (movestogo > 0 ? movestogo + 2 : 20); 
-                timeLimit = static_cast<int>(baseTime * adjust) + winc / 3;
+                base_time = wtime / (movestogo > 0 ? movestogo + 2 : 20); 
+                time_limit = static_cast<int>(base_time * adjust) + winc / 3;
             } 
 
             if (wtime <= 100) {
-                timeLimit = 50;
+                time_limit = 50;
             } 
         } else if (board.sideToMove() == Color::BLACK && btime > 0) {
-            int baseTime = btime / (movestogo > 0 ? movestogo + 2 : 20); 
-            timeLimit = static_cast<int>(baseTime * adjust) + binc / 2;
+            int base_time = btime / (movestogo > 0 ? movestogo + 2 : 20); 
+            time_limit = static_cast<int>(base_time * adjust) + binc / 2;
 
             if (btime < 20000) {
                 // if only 20s left, make moves faster
-                baseTime = btime / (movestogo > 0 ? movestogo + 2 : 20); 
-                timeLimit = static_cast<int>(baseTime * adjust) + binc / 3;
+                base_time = btime / (movestogo > 0 ? movestogo + 2 : 20); 
+                time_limit = static_cast<int>(base_time * adjust) + binc / 3;
             }
 
             if (btime <= 100) {
-                timeLimit = 50;
+                time_limit = 50;
             }
         }
     }
-    bestMove = lazysmpRootSearch(board, numThreads, depth, timeLimit);
+    best_move = lazysmp_root_search(board, num_threads, depth, time_limit);
 
-    if (bestMove != Move::NO_MOVE) {
-        std::cout << "bestmove " << uci::moveToUci(bestMove, chess960)  << std::endl;
+    if (best_move != Move::NO_MOVE) {
+        std::cout << "bestmove " << uci::moveToUci(best_move, chess960)  << std::endl;
     } else {
         std::cout << "bestmove 0000" << std::endl; // No legal moves
     }
@@ -445,7 +445,7 @@ void uciLoop() {
             board = Board(); // Reset board to starting position
             board.set960(chess960); // Set chess960 option
         } else if (line.find("position") == 0) {
-            processPosition(line);
+            process_position(line);
         } else if (line.find("setoption") == 0) {
             //std::cout << "set option being processed" << std::endl;
             std::vector<std::string> tokens;
@@ -454,7 +454,7 @@ void uciLoop() {
             while (iss >> token) {
                 tokens.push_back(token);
             }
-            processSetOption(tokens);
+            process_option(tokens);
         } else if (line.find("go") == 0) {
             std::vector<std::string> tokens;
             std::istringstream iss(line);
@@ -470,13 +470,13 @@ void uciLoop() {
 }
 
 int main() {
-    extractFiles();
+    extract_files();
     
-    std::string nnuePath = getExecutablePath() + "/nnue/nnue_weights.bin";
-    initializeNNUE(nnuePath);
+    std::string nnue_path = get_exec_path() + "/nnue/nnue_weights.bin";
+    initializeNNUE(nnue_path);
 
-    std::string egTablePath = getExecutablePath() + "/tables/";
-    syzygy::initializeSyzygy(egTablePath);
+    std::string eg_table_path = get_exec_path() + "/tables/";
+    syzygy::initializeSyzygy(eg_table_path);
 
     uciLoop();
     return 0;

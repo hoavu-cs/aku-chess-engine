@@ -727,7 +727,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // Further reduction for quiet moves
-        bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= lmp_depth;
+        bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
         if (lmp_condition) {
             int divisor = improving ? 1 : 2;
             if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
@@ -736,7 +736,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // History pruning
-        bool hp_condition = can_prune && !is_pv && !is_capture && next_depth <= hp_depth;
+        bool hp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
         if (hp_condition) {
             int margin = -hp_c1 * next_depth * next_depth; 
             int historyScore = history[thread_id][stm][move_index(move)];
@@ -922,7 +922,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 //     Hard deadline: 2x time limit
 //     - Case 1: As long as we are within the time limit, we search as deep as we can.
 //     - Case 2: Stop if we reach the hard deadline or certain depth.
-std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int max_depth = 30, int time_limit = 15000, int thread_id = 0) {
+std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_depth = 30, int time_limit = 15000, int thread_id = 0) {
 
     // Time management variables
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -1127,7 +1127,7 @@ std::tuple<Move, int, int, std::vector<Move>> rootSearch(Board& board, int max_d
     return {best_move, depth, best_eval, PV};
 }
 
-Move lazysmpRootSearch(Board &board, int numThreads, int max_depth, int timeLimit) {
+Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLimit) {
     
     precompute_lmr(100, 500);  // Precompute late move reduction table
     omp_set_num_threads(numThreads); // Set the number of threads for OpenMP
@@ -1171,18 +1171,16 @@ Move lazysmpRootSearch(Board &board, int numThreads, int max_depth, int timeLimi
     #pragma omp parallel for schedule (static, 1)
     for (int i = 0; i < numThreads; i++) {
         Board local_board = board;
-        auto [thread_move, thread_depth, thread_eval, thread_pv] = rootSearch(local_board, max_depth, timeLimit, i);
+        auto [thread_move, thread_depth, thread_eval, thread_pv] = root_search(local_board, max_depth, timeLimit, i);
 
         if (i == 0) { 
-            // Get the result from the thread with the highest depth 
+            // Get the result from thread 0
             depth = thread_depth;
             best_move = thread_move; 
             eval = thread_eval; 
             PV = thread_pv; 
             stop_search = true; // Stop all threads
         }
-        
-
     }
 
     // Print the final analysis
