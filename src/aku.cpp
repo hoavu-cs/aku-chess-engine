@@ -40,23 +40,23 @@ const std::string ENGINE_NAME = "Aku Chess Engine";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 // Engine tunable parameters
-int rfp_depth = 4;
-int rfp_c1 = 200;
+int rfp_depth = 3;
+int rfp_c1 = 166;
 
-int fp_depth = 4;
-int fp_c1 = 150;
+int fp_depth = 1;
+int fp_c1 = 143;
 
-int lmp_depth = 5;
-int lmp_c1 = 12;
+int lmp_depth = 1;
+int lmp_c1 = 13;
 
 int hp_depth = 4;
-int hp_c1 = 600;
+int hp_c1 = 700;
 
 int singular_c1 = 2;
 int singular_c2 = 0;
 
-float lmr_1 = 0.75f;
-float lmr_2 = 0.45f;
+float lmr_1 = 0.90f;
+float lmr_2 = 0.30f;
 
 
 // Initialize Syzygy tablebases and NNUE weights.
