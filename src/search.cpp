@@ -31,8 +31,6 @@ constexpr int MAX_HIST = 9000;
 int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
 
-int singular_search_count = 0;
-int singular_ext_count = 0;
 
 // Initalize NNUE, black and white accumulators
 Network nnue;
@@ -639,40 +637,32 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Randomized singular extension
     int singular_ext = 0;
-    seeds[thread_id] = fast_rand(seeds[thread_id]);
-
-    if (hash_move_found && tt_depth >= depth - 3
-        && depth >= 8
-        && tt_type != EntryType::UPPERBOUND
-        && abs(tt_eval) < INF/2 - 100
-        && excluded_move == Move::NO_MOVE // No singular search within singular search
-    ) {
-        #pragma omp atomic
-        singular_search_count++;
-
-        int singular_eval = -INF;
-        int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
-        std::vector<Move> singular_pv;
-
-        NodeData singular_node_data = {ply, 
-            false, 
-            root_depth,
-            NodeType::PV,
-            tt_move,
-            thread_id};
-        
-        singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
-
-        if (singular_eval < singular_beta) {
-            singular_ext++; // singular extension
-            if (singular_eval < singular_beta - 40) {
-                singular_ext++; // double extension
-            }
-
-            #pragma omp atomic
-            singular_ext_count++;
-        } 
-    }
+    // seeds[thread_id] = fast_rand(seeds[thread_id]);
+    // if (hash_move_found && tt_depth >= depth - 3
+    //     && depth >= 8
+    //     && tt_type != EntryType::UPPERBOUND
+    //     && abs(tt_eval) < INF/2 - 100
+    //     && excluded_move == Move::NO_MOVE // No singular search within singular search
+    // ) {
+    //     // #pragma omp atomic
+    //     // singular_search_count++;
+    //     int singular_eval = -INF;
+    //     int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
+    //     std::vector<Move> singular_pv;
+    //     NodeData singular_node_data = {ply, 
+    //         false, 
+    //         root_depth,
+    //         NodeType::PV,
+    //         tt_move,
+    //         thread_id};
+    //     singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
+    //     if (singular_eval < singular_beta) {
+    //         singular_ext++; // singular extension
+    //         if (singular_eval < singular_beta - 40) {
+    //             singular_ext++; // double extension
+    //         }
+    //     } 
+    // }
 
     if (board.inCheck() && std::abs(stand_pat) > 75) {
         extensions++;
@@ -709,7 +699,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         extensions = std::clamp(extensions, 0, 2); 
-        next_depth = std::min(next_depth + extensions, (2 * root_depth) - ply - 1);
+        next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
 
         // common conditions for pruning
         bool can_prune = !in_check && !is_promotion_threat && i > 0;
@@ -721,8 +711,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !is_pv 
                             && !tt_is_pv
                             && next_depth <= fp_depth 
-                            && excluded_move == Move::NO_MOVE // No futility pruning during singular search 
-                            && std::abs(beta) < INF/2 - 100;
+                            && excluded_move == Move::NO_MOVE;
         if (fp_condition) {
             int margin = fp_c1 * (next_depth + improving);
             if (stand_pat + margin < alpha) {
@@ -731,23 +720,23 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // Further reduction for quiet moves
-        bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
-        if (lmp_condition) {
-            int divisor = improving ? 1 : 2;
-            if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
-                continue;
-            }
-        }
+        // bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
+        // if (lmp_condition) {
+        //     int divisor = improving ? 1 : 2;
+        //     if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
+        //         continue;
+        //     }
+        // }
 
         // History pruning
-        bool hp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
-        if (hp_condition) {
-            int margin = -hp_c1 * next_depth * next_depth; 
-            int historyScore = history[thread_id][stm][move_index(move)];
-            if (historyScore < margin) {
-                continue;
-            }
-        }
+        // bool hp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
+        // if (hp_condition) {
+        //     int margin = -hp_c1 * next_depth * next_depth; 
+        //     int historyScore = history[thread_id][stm][move_index(move)];
+        //     if (historyScore < margin) {
+        //         continue;
+        //     }
+        // }
     
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
@@ -1150,8 +1139,8 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
     stop_search = false;
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    singular_ext_count = 0;
-    singular_search_count = 0;
+    // singular_ext_count = 0;
+    // singular_search_count = 0;
 
     // Update if the size for the transposition table changes.
     if (tt_table.size() != table_size) {
