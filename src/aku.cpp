@@ -50,7 +50,7 @@ int lmp_depth = 1;
 int lmp_c1 = 13;
 
 int hp_depth = 4;
-int hp_c1 = 700;
+int hp_c1 = 4000;
 
 int singular_c1 = 2;
 int singular_c2 = 0;
