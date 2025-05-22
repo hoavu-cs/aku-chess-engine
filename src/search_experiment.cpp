@@ -641,42 +641,38 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int singular_ext = 0;
     seeds[thread_id] = fast_rand(seeds[thread_id]);
 
-    if (seeds[thread_id] % 100 == 0) {
-        singular_ext = 1;
-    }
+    if (hash_move_found && tt_depth >= depth - 3
+        && depth >= 8
+        && tt_type != EntryType::UPPERBOUND
+        && abs(tt_eval) < INF/2 - 100
+        && excluded_move == Move::NO_MOVE // No singular search within singular search
+    ) {
+        #pragma omp atomic
+        singular_search_count++;
 
-    // if (hash_move_found && tt_depth >= depth - 3
-    //     && depth >= 8
-    //     && tt_type != EntryType::UPPERBOUND
-    //     && abs(tt_eval) < INF/2 - 100
-    //     && excluded_move == Move::NO_MOVE // No singular search within singular search
-    // ) {
-    //     #pragma omp atomic
-    //     singular_search_count++;
+        int singular_eval = -INF;
+        int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
+        std::vector<Move> singular_pv;
 
-    //     int singular_eval = -INF;
-    //     int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
-    //     std::vector<Move> singular_pv;
-
-    //     NodeData singular_node_data = {ply, 
-    //         false, 
-    //         root_depth,
-    //         NodeType::PV,
-    //         tt_move,
-    //         thread_id};
+        NodeData singular_node_data = {ply, 
+            false, 
+            root_depth,
+            NodeType::PV,
+            tt_move,
+            thread_id};
         
-    //     singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
+        singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
 
-    //     if (singular_eval < singular_beta) {
-    //         singular_ext++; // singular extension
-    //         if (singular_eval < singular_beta - 40) {
-    //             singular_ext++; // double extension
-    //         }
+        if (singular_eval < singular_beta) {
+            singular_ext++; // singular extension
+            if (singular_eval < singular_beta - 40) {
+                singular_ext++; // double extension
+            }
 
-    //         #pragma omp atomic
-    //         singular_ext_count++;
-    //     } 
-    // }
+            #pragma omp atomic
+            singular_ext_count++;
+        } 
+    }
 
     if (board.inCheck() && std::abs(stand_pat) > 75) {
         extensions++;

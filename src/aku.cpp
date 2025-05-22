@@ -40,16 +40,16 @@ const std::string ENGINE_NAME = "Aku Chess Engine";
 const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 // Engine tunable parameters
-int rfp_depth = 3;
+int rfp_depth = 4;
 int rfp_c1 = 166;
 
-int fp_depth = 1;
+int fp_depth = 2;
 int fp_c1 = 143;
 
 int lmp_depth = 1;
 int lmp_c1 = 13;
 
-int hp_depth = 4;
+int hp_depth = 2;
 int hp_c1 = 4000;
 
 int singular_c1 = 2;
