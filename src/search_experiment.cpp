@@ -666,8 +666,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     //         if (singular_eval < singular_beta - 40) {
     //             singular_ext++; // double extension
     //         }
-
-
     //     } 
     // }
 
@@ -706,7 +704,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         extensions = std::clamp(extensions, 0, 2); 
-        next_depth = std::min(next_depth + extensions, (root_depth) - ply - 1);
+        next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
 
         // common conditions for pruning
         bool can_prune = !in_check && !is_promotion_threat && i > 0;
