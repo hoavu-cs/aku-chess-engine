@@ -66,6 +66,9 @@ std::vector<std::vector<int>> lmr_table;
 // Random seeds for LMR
 std::vector<uint32_t> seeds(MAX_THREADS);
 
+// Misra-Gries instead of counter moves
+std::vector<MisraGries> mg(MAX_THREADS, MisraGries(500));  
+
 // tt entry definition
 enum EntryType {
     EXACT,
@@ -284,6 +287,28 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     Color color = board.sideToMove();
     U64 hash = board.hash();
 
+    Move best_pair_move = Move::NO_MOVE;
+    int best_pair_score = -INF;
+    if (ply >= 2) {
+        for (const auto& move : moves) {
+            int pair_score = 0;
+
+            int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
+            int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
+            int move_index_0 = move_index(move);
+            std::pair<int, int> p1 = {move_index_2, move_index_0};
+            std::pair<int, int> p2 = {move_index_1, move_index_0};
+            if (mg[thread_id].get_count(p1) || mg[thread_id].get_count(p2)) {
+                pair_score = mg[thread_id].get_count(p1) + mg[thread_id].get_count(p2);
+            }
+            if (pair_score > best_pair_score) {
+                best_pair_score = pair_score;
+                best_pair_move = move;
+            }
+        }
+    }
+
+
     for (const auto& move : moves) {
         Move tt_move;
         EntryType tt_type;
@@ -318,6 +343,8 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
+        } else if (move == best_pair_move) {
+            priority = 3950;
         } else {
             secondary = true;
             U64 move_idx = move_index(move);
@@ -847,6 +874,15 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 }
             } 
 
+            // combine follow-up and counter-move heuristics
+            if (ply >= 2) {
+                int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
+                int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
+                int move_index_0 = move_index(move);
+                mg[thread_id].insert({move_index_2, move_index_0});
+                mg[thread_id].insert({move_index_1, move_index_0});
+            }
+
             break;
         } 
     }
@@ -1104,32 +1140,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
     return {best_move, depth, best_eval, PV};
 }
 
-
-void print_bottom_60_history_entries() {
-    for (int t = 0; t < 4; ++t) {
-        std::vector<std::tuple<int, int, int>> hist_entries;
-        std::vector<std::tuple<int, int, int>> cap_hist_entries;
-
-        for (int i = 0; i < 64 * 64; ++i) {
-            hist_entries.emplace_back(history[t][0][i] + history[t][1][i], t, i);
-        }
-
-        std::sort(hist_entries.begin(), hist_entries.end());
-        std::sort(cap_hist_entries.begin(), cap_hist_entries.end());
-
-        std::cout << "=== Thread " << t << " ===\n";
-
-        std::cout << "Bottom 20 History Scores:\n";
-        for (int i = 0; i < 60; ++i) {
-            auto [val, _, idx] = hist_entries[i];
-            int from = idx / 64;
-            int to = idx % 64;
-            std::cout << "  [" << from << " -> " << to << "] = " << val << "\n";
-        }
-        std::cout << "\n";
-    }
-}
-
 Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLimit) {
     
     precompute_lmr(100, 500);  // Precompute late move reduction table
@@ -1146,6 +1156,8 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
     if (tt_table.size() != table_size) {
         tt_table = std::vector<LockedTableEntry>(table_size);
     }
+
+    
     
     for (int i = 0; i < MAX_THREADS; i++) {
         // Reset history scores 
@@ -1153,6 +1165,8 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
             history[i][0][j] = 0;
             history[i][1][j] = 0;
         }
+
+        mg[i].clear(); 
 
         // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {

@@ -1,4 +1,6 @@
 #include "chess.hpp"
+#include <unordered_map>
+#include <vector>
 #include <chrono>
 
 using namespace chess; 
@@ -15,15 +17,28 @@ inline std::string format_analysis(
 );
 inline uint32_t fast_rand(uint32_t& seed);
 
-#include <iostream>
-#include <unordered_map>
-#include <vector>
+
+// Define 3-integer element
+struct Triple {
+    int x, y, z;
+
+    bool operator==(const Triple& other) const {
+        return x == other.x && y == other.y && z == other.z;
+    }
+};
+
+// Hash function for Triple
+struct PairHash {
+    std::size_t operator()(const std::pair<int, int>& p) const {
+        return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
+    }
+};
 
 class MisraGries {
 public:
     MisraGries(int k) : k(k) {}
 
-    void insert(int item) {
+    void insert(const std::pair<int, int>& item) {
         if (counter.count(item)) {
             counter[item]++;
         } else if (counter.size() < k - 1) {
@@ -38,13 +53,22 @@ public:
         }
     }
 
-    std::unordered_map<int, int> get_counts() const {
+    void clear() {
+        counter = {};
+    }
+
+    int get_count(const std::pair<int, int>& item) const {
+        auto it = counter.find(item);
+        return (it != counter.end()) ? it->second : 0;
+    }
+
+    const std::unordered_map<std::pair<int, int>, int, PairHash>& get_counts() const {
         return counter;
     }
 
 private:
     int k;
-    std::unordered_map<int, int> counter;
+    std::unordered_map<std::pair<int, int>, int, PairHash> counter;
 };
 
 
