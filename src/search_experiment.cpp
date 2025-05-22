@@ -87,7 +87,8 @@ struct LockedTableEntry {
     TableEntry entry;
 };
 
-std::vector<LockedTableEntry> tt_table(table_size); 
+std::vector<LockedTableEntry> tt_table(table_size / 4); 
+std::vector<LockedTableEntry> q_table(table_size); 
 
 // Helper function declarations
 void precompute_lmr(int max_depth, int max_i);
@@ -364,6 +365,19 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
         }
         return 0;
     }
+
+    // Probe q-table
+    Move tt_move;
+    EntryType tt_type;
+    TableEntry entry;
+    int tt_eval, tt_depth;
+    bool tt_is_pv;
+    bool hash_move_found = false;
+    if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, q_table)) {
+        if (tt_eval >= beta) {
+            return beta;
+        }
+    }
     
     node_count[thread_id]++;
     bool stm = (board.sideToMove() == Color::WHITE);
@@ -435,6 +449,8 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
             return beta;
         }
     }
+
+    table_insert(board, 0, best_score, false, Move::NO_MOVE, EntryType::LOWERBOUND, q_table);
     return best_score;
 }
 
@@ -638,31 +654,31 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Randomized singular extension
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
-    if (hash_move_found && tt_depth >= depth - 3
-        && depth >= 8
-        && tt_type != EntryType::UPPERBOUND
-        && abs(tt_eval) < INF/2 - 100
-        && excluded_move == Move::NO_MOVE // No singular search within singular search
-    ) {
-        // #pragma omp atomic
-        // singular_search_count++;
-        int singular_eval = -INF;
-        int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
-        std::vector<Move> singular_pv;
-        NodeData singular_node_data = {ply, 
-            false, 
-            root_depth,
-            NodeType::PV,
-            tt_move,
-            thread_id};
-        singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
-        if (singular_eval < singular_beta) {
-            singular_ext++; // singular extension
-            if (singular_eval < singular_beta - 40) {
-                singular_ext++; // double extension
-            }
-        } 
-    }
+    // if (hash_move_found && tt_depth >= depth - 3
+    //     && depth >= 8
+    //     && tt_type != EntryType::UPPERBOUND
+    //     && abs(tt_eval) < INF/2 - 100
+    //     && excluded_move == Move::NO_MOVE // No singular search within singular search
+    // ) {
+    //     // #pragma omp atomic
+    //     // singular_search_count++;
+    //     int singular_eval = -INF;
+    //     int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
+    //     std::vector<Move> singular_pv;
+    //     NodeData singular_node_data = {ply, 
+    //         false, 
+    //         root_depth,
+    //         NodeType::PV,
+    //         tt_move,
+    //         thread_id};
+    //     singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
+    //     if (singular_eval < singular_beta) {
+    //         singular_ext++; // singular extension
+    //         if (singular_eval < singular_beta - 40) {
+    //             singular_ext++; // double extension
+    //         }
+    //     } 
+    // }
 
     if (board.inCheck()) {
         extensions++;
