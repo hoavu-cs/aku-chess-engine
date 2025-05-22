@@ -638,31 +638,31 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Randomized singular extension
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
-    // if (hash_move_found && tt_depth >= depth - 3
-    //     && depth >= 8
-    //     && tt_type != EntryType::UPPERBOUND
-    //     && abs(tt_eval) < INF/2 - 100
-    //     && excluded_move == Move::NO_MOVE // No singular search within singular search
-    // ) {
-    //     // #pragma omp atomic
-    //     // singular_search_count++;
-    //     int singular_eval = -INF;
-    //     int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
-    //     std::vector<Move> singular_pv;
-    //     NodeData singular_node_data = {ply, 
-    //         false, 
-    //         root_depth,
-    //         NodeType::PV,
-    //         tt_move,
-    //         thread_id};
-    //     singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
-    //     if (singular_eval < singular_beta) {
-    //         singular_ext++; // singular extension
-    //         if (singular_eval < singular_beta - 40) {
-    //             singular_ext++; // double extension
-    //         }
-    //     } 
-    // }
+    if (hash_move_found && tt_depth >= depth - 3
+        && depth >= 8
+        && tt_type != EntryType::UPPERBOUND
+        && abs(tt_eval) < INF/2 - 100
+        && excluded_move == Move::NO_MOVE // No singular search within singular search
+    ) {
+        // #pragma omp atomic
+        // singular_search_count++;
+        int singular_eval = -INF;
+        int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
+        std::vector<Move> singular_pv;
+        NodeData singular_node_data = {ply, 
+            false, 
+            root_depth,
+            NodeType::PV,
+            tt_move,
+            thread_id};
+        singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
+        if (singular_eval < singular_beta) {
+            singular_ext++; // singular extension
+            if (singular_eval < singular_beta - 40) {
+                singular_ext++; // double extension
+            }
+        } 
+    }
 
     if (board.inCheck()) {
         extensions++;
@@ -705,19 +705,19 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool can_prune = !in_check && !is_promotion_threat && i > 0;
 
         // Futility  pruning
-        // bool fp_condition = can_prune 
-        //                     && !is_capture 
-        //                     && !give_check 
-        //                     && !is_pv 
-        //                     && !tt_is_pv
-        //                     && next_depth <= fp_depth 
-        //                     && excluded_move == Move::NO_MOVE;
-        // if (fp_condition) {
-        //     int margin = fp_c1 * (next_depth + improving);
-        //     if (stand_pat + margin < alpha) {
-        //         continue;
-        //     }
-        // }
+        bool fp_condition = can_prune 
+                            && !is_capture 
+                            && !give_check 
+                            && !is_pv 
+                            && !tt_is_pv
+                            && next_depth <= fp_depth 
+                            && excluded_move == Move::NO_MOVE;
+        if (fp_condition) {
+            int margin = fp_c1 * (next_depth + improving);
+            if (stand_pat + margin < alpha) {
+                continue;
+            }
+        }
 
         // Further reduction for quiet moves
         // bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
