@@ -15,6 +15,39 @@ inline std::string format_analysis(
 );
 inline uint32_t fast_rand(uint32_t& seed);
 
+#include <iostream>
+#include <unordered_map>
+#include <vector>
+
+class MisraGries {
+public:
+    MisraGries(int k) : k(k) {}
+
+    void insert(int item) {
+        if (counter.count(item)) {
+            counter[item]++;
+        } else if (counter.size() < k - 1) {
+            counter[item] = 1;
+        } else {
+            for (auto it = counter.begin(); it != counter.end(); ) {
+                if (--(it->second) == 0)
+                    it = counter.erase(it);
+                else
+                    ++it;
+            }
+        }
+    }
+
+    std::unordered_map<int, int> get_counts() const {
+        return counter;
+    }
+
+private:
+    int k;
+    std::unordered_map<int, int> counter;
+};
+
+
 // Function definitions
 inline std::string format_analysis(
     int depth,
@@ -52,4 +85,5 @@ inline uint32_t fast_rand(uint32_t& seed) {
     seed ^= seed << 5;
     return seed;
 }
+
 

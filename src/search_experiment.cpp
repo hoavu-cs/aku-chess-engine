@@ -87,8 +87,7 @@ struct LockedTableEntry {
     TableEntry entry;
 };
 
-std::vector<LockedTableEntry> tt_table(table_size / 4); 
-std::vector<LockedTableEntry> q_table(table_size); 
+std::vector<LockedTableEntry> tt_table(table_size); 
 
 // Helper function declarations
 void precompute_lmr(int max_depth, int max_i);
@@ -365,19 +364,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
         }
         return 0;
     }
-
-    // Probe q-table
-    Move tt_move;
-    EntryType tt_type;
-    TableEntry entry;
-    int tt_eval, tt_depth;
-    bool tt_is_pv;
-    bool hash_move_found = false;
-    if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, q_table)) {
-        if (tt_eval >= beta) {
-            return beta;
-        }
-    }
     
     node_count[thread_id]++;
     bool stm = (board.sideToMove() == Color::WHITE);
@@ -449,8 +435,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
             return beta;
         }
     }
-
-    table_insert(board, 0, best_score, false, Move::NO_MOVE, EntryType::LOWERBOUND, q_table);
     return best_score;
 }
 
