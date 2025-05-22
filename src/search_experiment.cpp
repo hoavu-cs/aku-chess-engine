@@ -664,7 +664,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     //     } 
     // }
 
-    if (board.inCheck() && std::abs(stand_pat) > 75) {
+    if (board.inCheck()) {
         extensions++;
     }
 
