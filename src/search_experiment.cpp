@@ -67,7 +67,7 @@ std::vector<std::vector<int>> lmr_table;
 std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
-std::vector<MisraGriesIntInt> mg(MAX_THREADS, MisraGriesIntInt(500));  
+std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
 std::vector<MisraGriesIntInt> mg_4ply(MAX_THREADS, MisraGriesIntInt(500));  
 
 
@@ -289,50 +289,41 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     Color color = board.sideToMove();
     U64 hash = board.hash();
 
-
-
     // A pair is either (ply - 1, ply) or (ply - 2, ply) that caused beta cut-off
     // We try to find the best pair give it higher priority
-    Move best_pair_move = Move::NO_MOVE;
-    int best_pair_score = -INF;
+    Move best_2ply_move = Move::NO_MOVE;
+    int best_2ply_score = -INF;
 
     // A 4-ply pair is (ply - 4, ply) that caused beta cut-off
     // Similarly, we try to find the best 4-ply pair give it higher priority
-    Move best_4ply_pair_move = Move::NO_MOVE;
-    int best_4ply_pair_score = -INF;
+    Move best_4ply_move = Move::NO_MOVE;
+    int best_4ply_score = -INF;
 
     if (ply >= 2) {
         for (const auto& move : moves) {
-            int pair_score = 0;
-
             int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
             int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
             int move_index_0 = move_index(move);
-            std::pair<int, int> p1 = {move_index_2, move_index_0};
-            std::pair<int, int> p2 = {move_index_1, move_index_0};
-            if (mg[thread_id].get_count(p1) || mg[thread_id].get_count(p2)) {
-                pair_score = mg[thread_id].get_count(p1) + mg[thread_id].get_count(p2);
-            }
-            if (pair_score > best_pair_score) {
-                best_pair_score = pair_score;
-                best_pair_move = move;
+            std::pair<int, int> pair_1 = {move_index_2, move_index_0};
+            std::pair<int, int> pair_2 = {move_index_1, move_index_0};
+
+            int count_2 = mg_2ply[thread_id].get_count(pair_1) + mg_2ply[thread_id].get_count(pair_2);
+            if (count_2 > best_2ply_score) {
+                best_2ply_score = count_2;
+                best_2ply_move = move;
             }
 
             if (ply >= 4) {
                 int move_index_4 = move_index(move_stack[thread_id][ply - 4]);
-                std::pair<int, int> p3 = {move_index_4, move_index_0};
-                if (mg_4ply[thread_id].get_count(p3)) {
-                    int score = mg_4ply[thread_id].get_count(p3);
-                    if (score > best_4ply_pair_score) {
-                        best_4ply_pair_score = score;
-                        best_4ply_pair_move = move;
-                    }
+                std::pair<int, int> pair_3 = {move_index_4, move_index_0};
+                int count_4 = mg_4ply[thread_id].get_count(pair_3);
+                if (count_4 > best_4ply_score) {
+                    best_4ply_score = count_4;
+                    best_4ply_move = move;
                 }
             }
-
         }
     }
-
 
     for (const auto& move : moves) {
         Move tt_move;
@@ -368,9 +359,9 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
-        } else if (move == best_pair_move) {
+        } else if (move == best_2ply_move) {
             priority = 3950;
-        } else if (move == best_4ply_pair_move) {
+        } else if (move == best_4ply_move) {
             priority = 3900;
         } else {
             secondary = true;
@@ -902,14 +893,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } 
 
             // combine follow-up and counter-move heuristics
+            // we store the pair of moves in (ply - 2, ply) and (ply - 1, ply) that caused a beta cut-off
             if (ply >= 2) {
                 int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
                 int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
                 int move_index_0 = move_index(move);
-                mg[thread_id].insert({move_index_2, move_index_0});
-                mg[thread_id].insert({move_index_1, move_index_0});
+                mg_2ply[thread_id].insert({move_index_2, move_index_0});
+                mg_2ply[thread_id].insert({move_index_1, move_index_0});
             } 
 
+            // same as above but for (ply - 4, ply) that caused a beta cut-off
             if (ply >= 4) {
                 int move_index_4 = move_index(move_stack[thread_id][ply - 4]);
                 int move_index_0 = move_index(move);
@@ -1199,7 +1192,7 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
             history[i][1][j] = 0;
         }
 
-        mg[i].clear(); 
+        mg_2ply[i].clear(); 
         mg_4ply[i].clear();
 
         // Reset killer moves
