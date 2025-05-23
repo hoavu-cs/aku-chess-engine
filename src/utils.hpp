@@ -97,9 +97,6 @@ private:
     std::unordered_map<uint64_t, int> counter;
 };
 
-
-
-
 // Function definitions
 inline std::string format_analysis(
     int depth,
@@ -118,16 +115,25 @@ inline std::string format_analysis(
     );
 
     auto iteration_end_time = std::chrono::high_resolution_clock::now();
-    std::string time_str = "time " + std::to_string(
-        std::chrono::duration_cast<std::chrono::milliseconds>(iteration_end_time - start_time).count()
-    );
+    auto time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(iteration_end_time - start_time).count();
+    std::string time_str = "time " + std::to_string(time_ms);
+
+    // Calculate nodes per second
+    std::string nps_str = "nps ";
+    if (time_ms > 0) {
+        double time_seconds = static_cast<double>(time_ms) / 1000.0;
+        size_t nps = static_cast<size_t>(total_node_count / time_seconds);
+        nps_str += std::to_string(nps);
+    } else {
+        nps_str += "0";
+    }
 
     std::string pv_str = "pv ";
     for (const auto& move : pv) {
         pv_str += uci::moveToUci(move, board.chess960()) + " ";
     }
 
-    std::string analysis = "info " + depth_str + " " + score_str + " " + node_str + " " + time_str + " " + pv_str;
+    std::string analysis = "info " + depth_str + " " + score_str + " " + node_str + " " + nps_str + " " + time_str + " " + pv_str;
     return analysis;
 }
 
