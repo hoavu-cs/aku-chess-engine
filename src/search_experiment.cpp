@@ -67,7 +67,9 @@ std::vector<std::vector<int>> lmr_table;
 std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
-std::vector<MisraGries> mg(MAX_THREADS, MisraGries(500));  
+std::vector<MisraGriesIntInt> mg(MAX_THREADS, MisraGriesIntInt(500));  
+std::vector<MisraGriesIntInt> mg_4ply(MAX_THREADS, MisraGriesIntInt(500));  
+
 
 // tt entry definition
 enum EntryType {
@@ -94,6 +96,7 @@ std::vector<LockedTableEntry> tt_table(table_size);
 
 // Helper function declarations
 void precompute_lmr(int max_depth, int max_i);
+inline void update_history(Board&, Move, int, int);
 bool table_lookup(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
 void table_insert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
 inline void update_killers(const Move&, int, int);
@@ -101,6 +104,7 @@ int see(Board&, Move);
 int late_move_reduction(Board&, Move, int, int, int, bool, NodeType, int);
 std::vector<std::pair<Move, int>> order_move(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
 int quiescence(Board&, int, int, int, int);
+inline void update_history(Board&, Move, int);
 
 // Function definitions
 void precompute_lmr(int max_depth, int max_i) {
@@ -285,8 +289,18 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     Color color = board.sideToMove();
     U64 hash = board.hash();
 
+
+
+    // A pair is either (ply - 1, ply) or (ply - 2, ply) that caused beta cut-off
+    // We try to find the best pair give it higher priority
     Move best_pair_move = Move::NO_MOVE;
     int best_pair_score = -INF;
+
+    // A 4-ply pair is (ply - 4, ply) that caused beta cut-off
+    // Similarly, we try to find the best 4-ply pair give it higher priority
+    Move best_4ply_pair_move = Move::NO_MOVE;
+    int best_4ply_pair_score = -INF;
+
     if (ply >= 2) {
         for (const auto& move : moves) {
             int pair_score = 0;
@@ -303,6 +317,19 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
                 best_pair_score = pair_score;
                 best_pair_move = move;
             }
+
+            if (ply >= 4) {
+                int move_index_4 = move_index(move_stack[thread_id][ply - 4]);
+                std::pair<int, int> p3 = {move_index_4, move_index_0};
+                if (mg_4ply[thread_id].get_count(p3)) {
+                    int score = mg_4ply[thread_id].get_count(p3);
+                    if (score > best_4ply_pair_score) {
+                        best_4ply_pair_score = score;
+                        best_4ply_pair_move = move;
+                    }
+                }
+            }
+
         }
     }
 
@@ -343,6 +370,8 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             priority = 4000; // killer move
         } else if (move == best_pair_move) {
             priority = 3950;
+        } else if (move == best_4ply_pair_move) {
+            priority = 3900;
         } else {
             secondary = true;
             U64 move_idx = move_index(move);
@@ -879,6 +908,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 int move_index_0 = move_index(move);
                 mg[thread_id].insert({move_index_2, move_index_0});
                 mg[thread_id].insert({move_index_1, move_index_0});
+            } 
+
+            if (ply >= 4) {
+                int move_index_4 = move_index(move_stack[thread_id][ply - 4]);
+                int move_index_0 = move_index(move);
+                mg_4ply[thread_id].insert({move_index_4, move_index_0});
             }
 
             break;
@@ -1165,6 +1200,7 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
         }
 
         mg[i].clear(); 
+        mg_4ply[i].clear();
 
         // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {

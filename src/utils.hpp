@@ -17,16 +17,6 @@ inline std::string format_analysis(
 );
 inline uint32_t fast_rand(uint32_t& seed);
 
-
-// Define 3-integer element
-struct Triple {
-    int x, y, z;
-
-    bool operator==(const Triple& other) const {
-        return x == other.x && y == other.y && z == other.z;
-    }
-};
-
 // Hash function for Triple
 struct PairHash {
     std::size_t operator()(const std::pair<int, int>& p) const {
@@ -34,9 +24,10 @@ struct PairHash {
     }
 };
 
-class MisraGries {
+// Misra-Gries for pair<int, int> items
+class MisraGriesIntInt {
 public:
-    MisraGries(int k) : k(k) {}
+    MisraGriesIntInt(int k) : k(k) {}
 
     void insert(const std::pair<int, int>& item) {
         if (counter.count(item)) {
@@ -70,6 +61,43 @@ private:
     int k;
     std::unordered_map<std::pair<int, int>, int, PairHash> counter;
 };
+
+
+// Misra-Gries for 64-bit integers items
+class MisraGriesU64 {
+public:
+    MisraGriesU64(int k) : k(k) {}
+
+    void insert(uint64_t item) {
+        if (counter.count(item)) {
+            counter[item]++;
+        } else if (counter.size() < k - 1) {
+            counter[item] = 1;
+        } else {
+            for (auto it = counter.begin(); it != counter.end(); ) {
+                if (--(it->second) == 0)
+                    it = counter.erase(it);
+                else
+                    ++it;
+            }
+        }
+    }
+
+    int get_count(uint64_t item) const {
+        auto it = counter.find(item);
+        return (it != counter.end()) ? it->second : 0;
+    }
+
+    const std::unordered_map<uint64_t, int>& get_counts() const {
+        return counter;
+    }
+
+private:
+    int k;
+    std::unordered_map<uint64_t, int> counter;
+};
+
+
 
 
 // Function definitions
