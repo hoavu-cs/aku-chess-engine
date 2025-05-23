@@ -308,7 +308,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         }
     }
 
-
     for (const auto& move : moves) {
         Move tt_move;
         EntryType tt_type;
@@ -665,31 +664,31 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Randomized singular extension
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
-    // if (hash_move_found && tt_depth >= depth - 3
-    //     && depth >= 8
-    //     && tt_type != EntryType::UPPERBOUND
-    //     && abs(tt_eval) < INF/2 - 100
-    //     && excluded_move == Move::NO_MOVE // No singular search within singular search
-    // ) {
-    //     // #pragma omp atomic
-    //     // singular_search_count++;
-    //     int singular_eval = -INF;
-    //     int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
-    //     std::vector<Move> singular_pv;
-    //     NodeData singular_node_data = {ply, 
-    //         false, 
-    //         root_depth,
-    //         NodeType::PV,
-    //         tt_move,
-    //         thread_id};
-    //     singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
-    //     if (singular_eval < singular_beta) {
-    //         singular_ext++; // singular extension
-    //         if (singular_eval < singular_beta - 40) {
-    //             singular_ext++; // double extension
-    //         }
-    //     } 
-    // }
+    if (hash_move_found && tt_depth >= depth - 3
+        && depth >= 8
+        && tt_type != EntryType::UPPERBOUND
+        && abs(tt_eval) < INF/2 - 100
+        && excluded_move == Move::NO_MOVE // No singular search within singular search
+    ) {
+        // #pragma omp atomic
+        // singular_search_count++;
+        int singular_eval = -INF;
+        int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
+        std::vector<Move> singular_pv;
+        NodeData singular_node_data = {ply, 
+            false, 
+            root_depth,
+            NodeType::PV,
+            tt_move,
+            thread_id};
+        singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
+        if (singular_eval < singular_beta) {
+            singular_ext++; // singular extension
+            if (singular_eval < singular_beta - 40) {
+                singular_ext++; // double extension
+            }
+        } 
+    }
 
     if (board.inCheck()) {
         extensions++;

@@ -255,31 +255,31 @@ void process_option(const std::vector<std::string>& tokens) {
     }
 
     // For spsa tuning. Comment out for final build.
-    else if (option_name == "rfp_depth") {
-        rfp_depth = std::stoi(value);
-    } else if (option_name == "rfp_c1") {
-        rfp_c1 = std::stoi(value);
-    } 
+    // else if (option_name == "rfp_depth") {
+    //     rfp_depth = std::stoi(value);
+    // } else if (option_name == "rfp_c1") {
+    //     rfp_c1 = std::stoi(value);
+    // } 
     
-    else if (option_name == "fp_depth") {
-        fp_depth = std::stoi(value);
-    } else if (option_name == "fp_c1") {
-        fp_c1 = std::stoi(value);
-    } 
+    // else if (option_name == "fp_depth") {
+    //     fp_depth = std::stoi(value);
+    // } else if (option_name == "fp_c1") {
+    //     fp_c1 = std::stoi(value);
+    // } 
     
-    else if (option_name == "lmp_depth") {
-        lmp_depth = std::stoi(value);
-    } else if (option_name == "lmp_c1") {
-        lmp_c1 = std::stoi(value);
-    } 
+    // else if (option_name == "lmp_depth") {
+    //     lmp_depth = std::stoi(value);
+    // } else if (option_name == "lmp_c1") {
+    //     lmp_c1 = std::stoi(value);
+    // } 
     
     // else if (optionName == "hpDepth") {
     //     hpDepth = std::stoi(value);
     // } 
     
-    else if (option_name == "hp_c1") {
-        hp_c1 = std::stoi(value);
-    } 
+    // else if (option_name == "hp_c1") {
+    //     hp_c1 = std::stoi(value);
+    // } 
     
     // else if (optionName == "hpC2") {
     //     hpC2 = std::stoi(value);
@@ -294,11 +294,11 @@ void process_option(const std::vector<std::string>& tokens) {
     //     singularC2 = std::stoi(value);
     // } 
     
-    else if (option_name == "lmr_1") {
-        lmr_1 = std::stof(value) / 100.0f;
-    } else if (option_name == "lmr_2") {
-        lmr_2 = std::stof(value) / 100.0f;
-    } 
+    // else if (option_name == "lmr_1") {
+    //     lmr_1 = std::stof(value) / 100.0f;
+    // } else if (option_name == "lmr_2") {
+    //     lmr_2 = std::stof(value) / 100.0f;
+    // } 
     
     else {
         std::cerr << "Unknown option: " << option_name << std::endl;
@@ -404,29 +404,29 @@ void processUci() {
     std::cout << "option name Internal_Opening_Book type check default true" << std::endl;
 
     // For spsa tuning. Comment out for final build.
-    std::cout << "option name rfp_depth type spin default 8 min 0 max 20000" << std::endl;
-    std::cout << "option name rfp_c1 type spin default 100 min 0 max 20000" << std::endl;
+    // std::cout << "option name rfp_depth type spin default 8 min 0 max 20000" << std::endl;
+    // std::cout << "option name rfp_c1 type spin default 100 min 0 max 20000" << std::endl;
     // std::cout << "option name rfpC2 type spin default 100 min 0 max 20000" << std::endl;
     // std::cout << "option name rfpC3 type spin default 100 min 0 max 20000" << std::endl;
 
-    std::cout << "option name fp_depth type spin default 4 min 0 max 20000" << std::endl;
-    std::cout << "option name fp_c1 type spin default 150 min 0 max 20000" << std::endl;
+    // std::cout << "option name fp_depth type spin default 4 min 0 max 20000" << std::endl;
+    // std::cout << "option name fp_c1 type spin default 150 min 0 max 20000" << std::endl;
     // std::cout << "option name fpC2 type spin default 100 min 0 max 20000" << std::endl;
     // std::cout << "option name fpC3 type spin default 100 min 0 max 20000" << std::endl;
 
-    std::cout << "option name lmp_depth type spin default 4 min 0 max 20000" << std::endl;
-    std::cout << "option name lmp_c1 type spin default 6 min 0 max 20000" << std::endl;
+    // std::cout << "option name lmp_depth type spin default 4 min 0 max 20000" << std::endl;
+    // std::cout << "option name lmp_c1 type spin default 6 min 0 max 20000" << std::endl;
 
-    std::cout << "option name hp_depth type spin default 4 min 0 max 20000" << std::endl;
-    std::cout << "option name hp_c1 type spin default 3000 min 0 max 20000" << std::endl;
+    // std::cout << "option name hp_depth type spin default 4 min 0 max 20000" << std::endl;
+    // std::cout << "option name hp_c1 type spin default 3000 min 0 max 20000" << std::endl;
     //std::cout << "option name hpC2 type spin default 3000 min 0 max 20000" << std::endl;
     //std::cout << "option name hpC3 type spin default 1000 min 0 max 20000" << std::endl;
 
     // std::cout << "option name singularC1 type spin default 1 min 0 max 20000" << std::endl;
     // std::cout << "option name singularC2 type spin default 25 min 0 max 20000" << std::endl;
 
-    std::cout << "option name lmr_1 type spin default 75 min 10 max 99" << std::endl;
-    std::cout << "option name lmr_2 type spin default 65 min 10 max 99" << std::endl;
+    // std::cout << "option name lmr_1 type spin default 75 min 10 max 99" << std::endl;
+    // std::cout << "option name lmr_2 type spin default 65 min 10 max 99" << std::endl;
 
     std::cout << "uciok" << std::endl;
 }
