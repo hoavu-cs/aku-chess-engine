@@ -68,7 +68,6 @@ std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
 std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
-std::vector<MisraGriesIntInt> mg_4ply(MAX_THREADS, MisraGriesIntInt(500));  
 
 
 // tt entry definition
@@ -312,16 +311,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
                 best_2ply_score = count_2;
                 best_2ply_move = move;
             }
-
-            if (ply >= 4) {
-                int move_index_4 = move_index(move_stack[thread_id][ply - 4]);
-                std::pair<int, int> pair_3 = {move_index_4, move_index_0};
-                int count_4 = mg_4ply[thread_id].get_count(pair_3);
-                if (count_4 > best_4ply_score) {
-                    best_4ply_score = count_4;
-                    best_4ply_move = move;
-                }
-            }
         }
     }
 
@@ -361,8 +350,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             priority = 4000; // killer move
         } else if (move == best_2ply_move) {
             priority = 3950;
-        } else if (move == best_4ply_move) {
-            priority = 3900;
         } else {
             secondary = true;
             U64 move_idx = move_index(move);
@@ -902,13 +889,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 mg_2ply[thread_id].insert({move_index_1, move_index_0});
             } 
 
-            // same as above but for (ply - 4, ply) that caused a beta cut-off
-            if (ply >= 4) {
-                int move_index_4 = move_index(move_stack[thread_id][ply - 4]);
-                int move_index_0 = move_index(move);
-                mg_4ply[thread_id].insert({move_index_4, move_index_0});
-            }
-
             break;
         } 
     }
@@ -1193,7 +1173,6 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
         }
 
         mg_2ply[i].clear(); 
-        mg_4ply[i].clear();
 
         // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {
