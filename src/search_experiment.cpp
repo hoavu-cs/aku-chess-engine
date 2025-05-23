@@ -69,7 +69,6 @@ std::vector<uint32_t> seeds(MAX_THREADS);
 // Misra-Gries instead of counter moves
 std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
 
-
 // tt entry definition
 enum EntryType {
     EXACT,
@@ -1163,8 +1162,6 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
         tt_table = std::vector<LockedTableEntry>(table_size);
     }
 
-    
-    
     for (int i = 0; i < MAX_THREADS; i++) {
         // Reset history scores 
         for (int j = 0; j < 64 * 64; j++) {
