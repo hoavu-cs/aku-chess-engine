@@ -94,7 +94,6 @@ std::vector<LockedTableEntry> tt_table(table_size);
 
 // Helper function declarations
 void precompute_lmr(int max_depth, int max_i);
-inline void update_history(Board&, Move, int, int);
 bool table_lookup(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
 void table_insert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
 inline void update_killers(const Move&, int, int);
@@ -102,7 +101,6 @@ int see(Board&, Move);
 int late_move_reduction(Board&, Move, int, int, int, bool, NodeType, int);
 std::vector<std::pair<Move, int>> order_move(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
 int quiescence(Board&, int, int, int, int);
-inline void update_history(Board&, Move, int);
 
 // Function definitions
 void precompute_lmr(int max_depth, int max_i) {
