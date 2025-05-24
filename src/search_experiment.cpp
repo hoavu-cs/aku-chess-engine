@@ -628,7 +628,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             
         std::vector<Move> null_pv; 
         int null_eval;
-        int reduction = 3 + depth / 6;
+        int reduction = 3;
 
         NodeData null_data = {ply + 1, 
                                 false, 
@@ -659,7 +659,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
     // if (hash_move_found && tt_depth >= depth - 3
-    //     && depth >= 7
+    //     && depth >= 8
     //     && tt_type != EntryType::UPPERBOUND
     //     && abs(tt_eval) < INF/2 - 100
     //     && excluded_move == Move::NO_MOVE // No singular search within singular search
@@ -835,6 +835,20 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (best_eval > alpha) {
                 alpha = best_eval;
                 update_pv(PV, move, childPV);
+
+                if (ply >= 2) {
+                    int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
+                    int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
+                    int move_index_0 = move_index(move);
+                    mg_2ply[thread_id].insert({move_index_2, move_index_0});
+                    mg_2ply[thread_id].insert({move_index_1, move_index_0});
+                } 
+            }
+        }
+
+        if (eval <= alpha) {
+            if (!is_capture) {
+                bad_quiets.push_back(move);
             }
         }
 
