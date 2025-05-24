@@ -47,7 +47,7 @@ void initializeNNUE(std::string path) {
     load_network(path, nnue);
 }
 
-
+// History scores for quiet moves
 std::vector<std::vector<std::vector<int>>> history(MAX_THREADS, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Evaluations along the current path
@@ -291,11 +291,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     // We try to find the best pair give it higher priority
     Move best_2ply_move = Move::NO_MOVE;
     int best_2ply_score = -INF;
-
-    // A 4-ply pair is (ply - 4, ply) that caused beta cut-off
-    // Similarly, we try to find the best 4-ply pair give it higher priority
-    Move best_4ply_move = Move::NO_MOVE;
-    int best_4ply_score = -INF;
 
     if (ply >= 2) {
         for (const auto& move : moves) {
@@ -652,11 +647,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (null_eval >= beta) {
             return beta;
         } 
-        
-        // else if (null_eval < -INF/2 + 5) {
-        //     // threat extensions
-        //     return beta - 1;
-        // }
     }
 
     int best_eval = -INF;
@@ -666,7 +656,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         depth = depth - 1;
     }
 
-    // Randomized singular extension
+    // Singular extension
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
     // if (hash_move_found && tt_depth >= depth - 3
@@ -1145,10 +1135,10 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
     return {best_move, depth, best_eval, PV};
 }
 
-Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLimit) {
+Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeLimit) {
     
     precompute_lmr(100, 500);  // Precompute late move reduction table
-    omp_set_num_threads(numThreads); // Set the number of threads for OpenMP
+    omp_set_num_threads(num_threads); // Set the number of threads for OpenMP
     Move best_move = Move(); 
 
     stop_search = false;
@@ -1188,11 +1178,11 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
     int eval = -INF;
     std::vector<Move> PV;
 
+    // Crude implementation of lazy SMP using OpenMP
     #pragma omp parallel for schedule (static, 1)
-    for (int i = 0; i < numThreads; i++) {
+    for (int i = 0; i < num_threads; i++) {
         Board local_board = board;
         auto [thread_move, thread_depth, thread_eval, thread_pv] = root_search(local_board, max_depth, timeLimit, i);
-
         if (i == 0) { 
             // Get the result from thread 0
             depth = thread_depth;
@@ -1206,7 +1196,7 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
     // Print the final analysis
     int total_node_count = 0;
     int total_table_hit = 0;
-    for (int i = 0; i < numThreads; i++) {
+    for (int i = 0; i < num_threads; i++) {
         total_node_count += node_count[i];
         total_table_hit += table_hit[i];
     }

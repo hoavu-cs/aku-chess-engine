@@ -308,7 +308,7 @@ void process_option(const std::vector<std::string>& tokens) {
 
 
 // Processes the "go" command and finds the best move.
-void processGo(const std::vector<std::string>& tokens) {
+void process_go(const std::vector<std::string>& tokens) {
 
     // Default settings
     
@@ -392,9 +392,13 @@ void processGo(const std::vector<std::string>& tokens) {
     }
 }
 
+void process_stop() {
+    stop_search = true; 
+}
+
 
 // Handles the "uci" command and sends engine information
-void processUci() {
+void process_uci() {
     std::cout << "id name " << ENGINE_NAME << std::endl;
     std::cout << "id author " << ENGINE_AUTHOR << std::endl;
     std::cout << "option name Threads type spin default 4 min 1 max 10" << std::endl;
@@ -433,12 +437,12 @@ void processUci() {
 
 
 // Main UCI loop to process commands from the GUI.
-void uciLoop() {
+void uci_loop() {
     std::string line;
     
     while (std::getline(std::cin, line)) {
         if (line == "uci") {
-            processUci();
+            process_uci();
         } else if (line == "isready") {
             std::cout << "readyok" << std::endl;
         } else if (line == "ucinewgame") {
@@ -462,7 +466,9 @@ void uciLoop() {
             while (iss >> token) {
                 tokens.push_back(token);
             }
-            processGo(tokens);
+            process_go(tokens);
+        } else if (line == "stop") {
+            process_stop();
         } else if (line == "quit") {
             break;
         }
@@ -478,6 +484,6 @@ int main() {
     std::string eg_table_path = get_exec_path() + "/tables/";
     syzygy::initializeSyzygy(eg_table_path);
 
-    uciLoop();
+    uci_loop();
     return 0;
 }
