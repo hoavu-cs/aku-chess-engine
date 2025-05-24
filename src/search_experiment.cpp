@@ -27,7 +27,6 @@ constexpr int MAX_THREADS = 12;  // Maximum number of threads supported by the e
 constexpr int ENGINE_DEPTH = 99; // Maximum search depth supported by the engine
 constexpr int MAX_ASPIRATION_SZ = 300;
 constexpr int MAX_HIST = 9000;
-constexpr int MAX_CAP_HIST = 3000;
 
 int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
@@ -50,7 +49,6 @@ void initialize_nnue(std::string path) {
 
 // History scores for quiet moves
 std::vector<std::vector<std::vector<int>>> history(MAX_THREADS, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
-std::vector<std::vector<std::vector<int>>> capture_history(MAX_THREADS, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Evaluations along the current path
 std::vector<std::vector<int>> static_eval(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
@@ -340,9 +338,8 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             priority = 16000; 
         } else if (board.isCapture(move)) { 
             int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
-            int score = capture_history[thread_id][stm][move_index(move)];
-            //int see_score = see(board, move);   
-            priority = 4000 + score + victime_value;// see_score;// victime_value + score;
+            int see_score = see(board, move);   
+            priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
         } else if (move == best_2ply_move) {
@@ -483,7 +480,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     Move excluded_move = data.excluded_move;
 
     std::vector<Move> bad_quiets; // quiet moves that fail to raise alpha
-    std::vector<Move> bad_captures; // bad tacticals (captures/promos) that fail to raise alpha
 
     // Extract whether we can do singular search and NMP
     bool nmp_ok = data.nmp_ok;
@@ -632,7 +628,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             
         std::vector<Move> null_pv; 
         int null_eval;
-        int reduction = 3;
+        int reduction = 3 + depth / 6;
 
         NodeData null_data = {ply + 1, 
                                 false, 
@@ -663,7 +659,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
     // if (hash_move_found && tt_depth >= depth - 3
-    //     && depth >= 8
+    //     && depth >= 7
     //     && tt_type != EntryType::UPPERBOUND
     //     && abs(tt_eval) < INF/2 - 100
     //     && excluded_move == Move::NO_MOVE // No singular search within singular search
@@ -842,41 +838,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        if (eval <= alpha) {
-            if (is_capture) {
-                bad_captures.push_back(move);
-            } else {
-                bad_quiets.push_back(move);
-            }
-        }
-
         // Beta cutoff.
         if (beta <= alpha) {
-            // int mv_index = move_index(move);
-            // int currentScore = history[thread_id][stm][mv_index];
-            // int limit = MAX_HIST;// is_capture ? MAX_CAP_HIST : MAX_HIST;
-            // int delta = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(limit)) * depth * depth;
-
-            // // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
-            // if (!is_capture) {
-            //     //update_killers(move, ply, thread_id);
-            //     history[thread_id][stm][mv_index] += delta;
-            //     history[thread_id][stm][mv_index] = std::clamp(history[thread_id][stm][mv_index], -MAX_HIST, MAX_HIST);
-
-            //     // penalize bad quiet moves
-            //     for (auto& bad_quiet : bad_quiets) {
-            //         int bad_mv_idex = move_index(bad_quiet);
-            //         history[thread_id][stm][bad_mv_idex] -= delta;
-            //         history[thread_id][stm][bad_mv_idex] = std::clamp(history[thread_id][stm][bad_mv_idex], -MAX_HIST, MAX_HIST);
-            //     }
-            // } 
-
             int mv_index = move_index(move);
-            int currentScore = is_capture ? 
-                                capture_history[thread_id][stm][mv_index] : 
-                                history[thread_id][stm][mv_index];
-            
-            int limit = is_capture ? MAX_CAP_HIST : MAX_HIST;
+            int currentScore = history[thread_id][stm][mv_index];
+            int limit = MAX_HIST;// is_capture ? MAX_CAP_HIST : MAX_HIST;
             int delta = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(limit)) * depth * depth;
 
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
@@ -886,22 +852,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 history[thread_id][stm][mv_index] = std::clamp(history[thread_id][stm][mv_index], -MAX_HIST, MAX_HIST);
 
                 // penalize bad quiet moves
-                for (auto& bad_mv : bad_quiets) {
-                    int bad_mv_idex = move_index(bad_mv);
+                for (auto& bad_quiet : bad_quiets) {
+                    int bad_mv_idex = move_index(bad_quiet);
                     history[thread_id][stm][bad_mv_idex] -= delta;
                     history[thread_id][stm][bad_mv_idex] = std::clamp(history[thread_id][stm][bad_mv_idex], -MAX_HIST, MAX_HIST);
                 }
-            } else {
-                capture_history[thread_id][stm][mv_index] += delta;
-                capture_history[thread_id][stm][mv_index] = std::clamp(capture_history[thread_id][stm][mv_index], -MAX_CAP_HIST, MAX_CAP_HIST);
-            }
-
-            for (auto& bad_mv : bad_captures) {
-                int bad_mv_idex = move_index(bad_mv);
-                capture_history[thread_id][stm][bad_mv_idex] -= delta;
-                capture_history[thread_id][stm][bad_mv_idex] = std::clamp(capture_history[thread_id][stm][bad_mv_idex], -MAX_CAP_HIST, MAX_CAP_HIST);
-            }
-
+            } 
 
             // combine follow-up and counter-move heuristics
             // we store the pair of moves in (ply - 2, ply) and (ply - 1, ply) that caused a beta cut-off
@@ -1192,9 +1148,6 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         for (int j = 0; j < 64 * 64; j++) {
             history[i][0][j] = 0;
             history[i][1][j] = 0;
-
-            capture_history[i][0][j] = 0;
-            capture_history[i][1][j] = 0;
         }
 
         mg_2ply[i].clear(); 
