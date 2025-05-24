@@ -18,6 +18,9 @@ extern int hp_c1;
 extern int hp_c2;
 extern int hp_c3;
 
+extern int probcut_depth;
+extern int probcut_c1;
+
 extern float lmr_1;
 extern float lmr_2;
 

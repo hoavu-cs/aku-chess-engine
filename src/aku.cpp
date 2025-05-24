@@ -41,10 +41,10 @@ const std::string ENGINE_AUTHOR = "Hoa T. Vu";
 
 // Engine tunable parameters
 int rfp_depth = 2;
-int rfp_c1 = 200; // previously 250
+int rfp_c1 = 200; 
 
 int fp_depth = 2;
-int fp_c1 = 200; // previously 250
+int fp_c1 = 200; 
 
 int lmp_depth = 1;
 int lmp_c1 = 13;
@@ -58,6 +58,8 @@ int singular_c2 = 0;
 float lmr_1 = 0.75f;
 float lmr_2 = 0.45f;
 
+int probcut_depth = 7;
+int probcut_c1 = 200; 
 
 // Initialize Syzygy tablebases and NNUE weights.
 #ifdef _WIN32
