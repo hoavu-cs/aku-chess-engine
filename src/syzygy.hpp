@@ -39,60 +39,60 @@ namespace syzygy {
         // Create structure to store root move suggestions
         TbRootMoves results;
     
-        int probeSuccess = tb_probe_root_dtz(
+        int probe_success = tb_probe_root_dtz(
             white, black, kings, queens, rooks, bishops, knights, pawns,
             rule50, castling, ep, turn, 
             true, true, &results
         );
     
         // Handle probe failure
-        if (!probeSuccess) {
-            probeSuccess = tb_probe_root_wdl(
+        if (!probe_success) {
+            probe_success = tb_probe_root_wdl(
                 white, black, kings, queens, rooks, bishops, knights, pawns,
                 rule50, castling, ep, turn, true, &results
             );
     
-            if (!probeSuccess) {
+            if (!probe_success) {
                 return false;
             }
         }
     
         if (results.size > 0) {
-            TbRootMove *bestMove = std::max_element(results.moves, results.moves + results.size, 
+            TbRootMove *best_move = std::max_element(results.moves, results.moves + results.size, 
                 [](const TbRootMove &a, const TbRootMove &b) {
                     return a.tbRank < b.tbRank; // Higher rank is better
                 });
     
-            unsigned from = TB_MOVE_FROM(bestMove->move);
-            unsigned to = TB_MOVE_TO(bestMove->move);
-            unsigned promotes = TB_MOVE_PROMOTES(bestMove->move);
+            unsigned from = TB_MOVE_FROM(best_move->move);
+            unsigned to = TB_MOVE_TO(best_move->move);
+            unsigned promotes = TB_MOVE_PROMOTES(best_move->move);
     
-            int fromIndex = from;
-            int toIndex = to;
+            int from_index = from;
+            int to_index = to;
     
             if (promotes) {
                 switch (promotes) {
                     case TB_PROMOTES_QUEEN:
-                        suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::QUEEN);
+                        suggestedMove = Move::make<Move::PROMOTION>(Square(from_index), Square(to_index), PieceType::QUEEN);
                         break;
                     case TB_PROMOTES_ROOK:
-                        suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::ROOK);
+                        suggestedMove = Move::make<Move::PROMOTION>(Square(from_index), Square(to_index), PieceType::ROOK);
                         break;
                     case TB_PROMOTES_BISHOP:
-                        suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::BISHOP);
+                        suggestedMove = Move::make<Move::PROMOTION>(Square(from_index), Square(to_index), PieceType::BISHOP);
                         break;
                     case TB_PROMOTES_KNIGHT:
-                        suggestedMove = Move::make<Move::PROMOTION>(Square(fromIndex), Square(toIndex), PieceType::KNIGHT);
+                        suggestedMove = Move::make<Move::PROMOTION>(Square(from_index), Square(to_index), PieceType::KNIGHT);
                         break;
                 }
                 
             } else {
-                suggestedMove = Move::make<Move::NORMAL>(Square(fromIndex), Square(toIndex));
+                suggestedMove = Move::make<Move::NORMAL>(Square(from_index), Square(to_index));
             }
     
-            if (bestMove->tbScore > 0) {
+            if (best_move->tbScore > 0) {
                 wdl = 1;
-            } else if (bestMove->tbScore < 0) {
+            } else if (best_move->tbScore < 0) {
                 wdl = -1;
             } else {
                 wdl = 0;

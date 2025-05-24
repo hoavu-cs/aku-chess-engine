@@ -8,23 +8,24 @@ using namespace chess;
 // Function declarations
 inline std::string format_analysis(
     int depth,
-    int bestEval,
-    size_t totalNodeCount,
-    size_t totalTableHit,
-    const std::chrono::high_resolution_clock::time_point& startTime,
-    const std::vector<Move>& PV,
+    int best_eval,
+    size_t total_node_count,
+    size_t total_table_hit,
+    const std::chrono::high_resolution_clock::time_point& start_time,
+    const std::vector<Move>& pv,
     const Board& board
 );
+
 inline uint32_t fast_rand(uint32_t& seed);
 
-// Hash function for Triple
+// Hash function for pair of ints
 struct PairHash {
     std::size_t operator()(const std::pair<int, int>& p) const {
         return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
     }
 };
 
-// Misra-Gries for pair<int, int> items
+// Misra-Gries for pair<int, int>
 class MisraGriesIntInt {
 public:
     MisraGriesIntInt(int k) : k(k) {}
@@ -62,8 +63,7 @@ private:
     std::unordered_map<std::pair<int, int>, int, PairHash> counter;
 };
 
-
-// Misra-Gries for 64-bit integers items
+// Misra-Gries for 64-bit integers
 class MisraGriesU64 {
 public:
     MisraGriesU64(int k) : k(k) {}

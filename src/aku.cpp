@@ -479,7 +479,7 @@ int main() {
     extract_files();
     
     std::string nnue_path = get_exec_path() + "/nnue/nnue_weights.bin";
-    initializeNNUE(nnue_path);
+    initialize_nnue(nnue_path);
 
     std::string eg_table_path = get_exec_path() + "/tables/";
     syzygy::initialize_syzygy(eg_table_path);

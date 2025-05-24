@@ -42,7 +42,7 @@ std::chrono::time_point<std::chrono::high_resolution_clock> hard_deadline;
 std::vector<U64> node_count (MAX_THREADS); // Node count for each thread
 std::vector<U64> table_hit (MAX_THREADS); // Table hit count for each thread
 
-void initializeNNUE(std::string path) {
+void initialize_nnue(std::string path) {
     std::cout << "Initializing NNUE from: " << path << std::endl;
     load_network(path, nnue);
 }
