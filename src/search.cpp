@@ -47,7 +47,7 @@ void initializeNNUE(std::string path) {
     load_network(path, nnue);
 }
 
-
+// History scores for quiet moves
 std::vector<std::vector<std::vector<int>>> history(MAX_THREADS, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
 // Evaluations along the current path
@@ -67,7 +67,7 @@ std::vector<std::vector<int>> lmr_table;
 std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
-std::vector<MisraGries> mg(MAX_THREADS, MisraGries(500));  
+std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
 
 // tt entry definition
 enum EntryType {
@@ -287,27 +287,26 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     Color color = board.sideToMove();
     U64 hash = board.hash();
 
-    Move best_pair_move = Move::NO_MOVE;
-    int best_pair_score = -INF;
+    // A pair is either (ply - 1, ply) or (ply - 2, ply) that caused beta cut-off
+    // We try to find the best pair give it higher priority
+    Move best_2ply_move = Move::NO_MOVE;
+    int best_2ply_score = -INF;
+
     if (ply >= 2) {
         for (const auto& move : moves) {
-            int pair_score = 0;
-
             int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
             int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
             int move_index_0 = move_index(move);
-            std::pair<int, int> p1 = {move_index_2, move_index_0};
-            std::pair<int, int> p2 = {move_index_1, move_index_0};
-            if (mg[thread_id].get_count(p1) || mg[thread_id].get_count(p2)) {
-                pair_score = mg[thread_id].get_count(p1) + mg[thread_id].get_count(p2);
-            }
-            if (pair_score > best_pair_score) {
-                best_pair_score = pair_score;
-                best_pair_move = move;
+            std::pair<int, int> pair_1 = {move_index_2, move_index_0};
+            std::pair<int, int> pair_2 = {move_index_1, move_index_0};
+
+            int count_2 = mg_2ply[thread_id].get_count(pair_1) + mg_2ply[thread_id].get_count(pair_2);
+            if (count_2 > best_2ply_score) {
+                best_2ply_score = count_2;
+                best_2ply_move = move;
             }
         }
     }
-
 
     for (const auto& move : moves) {
         Move tt_move;
@@ -343,7 +342,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
-        } else if (move == best_pair_move) {
+        } else if (move == best_2ply_move) {
             priority = 3950;
         } else {
             secondary = true;
@@ -399,7 +398,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     // Probe Syzygy tablebases
     Move syzygy_move = Move::NO_MOVE;
     int wdl = 0;
-    if (syzygy::probeSyzygy(board, syzygy_move, wdl)) {
+    if (syzygy::probe_syzygy(board, syzygy_move, wdl)) {
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
@@ -512,7 +511,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Probe Syzygy tablebases
     Move syzygy_move = Move::NO_MOVE;
     int wdl = 0;
-    if (syzygy::probeSyzygy(board, syzygy_move, wdl)) { 
+    if (syzygy::probe_syzygy(board, syzygy_move, wdl)) { 
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
@@ -648,11 +647,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (null_eval >= beta) {
             return beta;
         } 
-        
-        // else if (null_eval < -INF/2 + 5) {
-        //     // threat extensions
-        //     return beta - 1;
-        // }
     }
 
     int best_eval = -INF;
@@ -662,7 +656,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         depth = depth - 1;
     }
 
-    // Randomized singular extension
+    // Singular extension
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
     // if (hash_move_found && tt_depth >= depth - 3
@@ -875,13 +869,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } 
 
             // combine follow-up and counter-move heuristics
+            // we store the pair of moves in (ply - 2, ply) and (ply - 1, ply) that caused a beta cut-off
             if (ply >= 2) {
                 int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
                 int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
                 int move_index_0 = move_index(move);
-                mg[thread_id].insert({move_index_2, move_index_0});
-                mg[thread_id].insert({move_index_1, move_index_0});
-            }
+                mg_2ply[thread_id].insert({move_index_2, move_index_0});
+                mg_2ply[thread_id].insert({move_index_1, move_index_0});
+            } 
 
             break;
         } 
@@ -954,7 +949,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
 
     // Syzygy tablebase probe
     int wdl = 0;
-    if (syzygy::probeSyzygy(board, syzygy_move, wdl)) {
+    if (syzygy::probe_syzygy(board, syzygy_move, wdl)) {
         int score = 0;
         if (wdl == 1) {
             score = SZYZYGY_INF;
@@ -1140,10 +1135,10 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
     return {best_move, depth, best_eval, PV};
 }
 
-Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLimit) {
+Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeLimit) {
     
     precompute_lmr(100, 500);  // Precompute late move reduction table
-    omp_set_num_threads(numThreads); // Set the number of threads for OpenMP
+    omp_set_num_threads(num_threads); // Set the number of threads for OpenMP
     Move best_move = Move(); 
 
     stop_search = false;
@@ -1157,8 +1152,6 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
         tt_table = std::vector<LockedTableEntry>(table_size);
     }
 
-    
-    
     for (int i = 0; i < MAX_THREADS; i++) {
         // Reset history scores 
         for (int j = 0; j < 64 * 64; j++) {
@@ -1166,7 +1159,7 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
             history[i][1][j] = 0;
         }
 
-        mg[i].clear(); 
+        mg_2ply[i].clear(); 
 
         // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {
@@ -1185,11 +1178,11 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
     int eval = -INF;
     std::vector<Move> PV;
 
+    // Crude implementation of lazy SMP using OpenMP
     #pragma omp parallel for schedule (static, 1)
-    for (int i = 0; i < numThreads; i++) {
+    for (int i = 0; i < num_threads; i++) {
         Board local_board = board;
         auto [thread_move, thread_depth, thread_eval, thread_pv] = root_search(local_board, max_depth, timeLimit, i);
-
         if (i == 0) { 
             // Get the result from thread 0
             depth = thread_depth;
@@ -1203,7 +1196,7 @@ Move lazysmp_root_search(Board &board, int numThreads, int max_depth, int timeLi
     // Print the final analysis
     int total_node_count = 0;
     int total_table_hit = 0;
-    for (int i = 0; i < numThreads; i++) {
+    for (int i = 0; i < num_threads; i++) {
         total_node_count += node_count[i];
         total_table_hit += table_hit[i];
     }

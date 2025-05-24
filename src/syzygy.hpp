@@ -11,7 +11,7 @@ namespace syzygy {
     using namespace chess;
     using U64 = std::uint64_t; 
 
-    inline void initializeSyzygy(std::string path) {
+    inline void initialize_syzygy(std::string path) {
         std::cout << "Initializing endgame table at path: " << path << std::endl;
         if (!tb_init(path.c_str())) {
             std::cerr << "Failed to initialize endgame table." << std::endl;
@@ -20,7 +20,7 @@ namespace syzygy {
         }
     }
     
-    inline bool probeSyzygy(const Board& board, Move& suggestedMove, int& wdl) {
+    inline bool probe_syzygy(const Board& board, Move& suggestedMove, int& wdl) {
         // Convert the board to bitboard representation
         U64 white = board.us(Color::WHITE).getBits();
         U64 black = board.us(Color::BLACK).getBits();

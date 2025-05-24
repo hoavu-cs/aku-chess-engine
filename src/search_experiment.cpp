@@ -398,7 +398,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     // Probe Syzygy tablebases
     Move syzygy_move = Move::NO_MOVE;
     int wdl = 0;
-    if (syzygy::probeSyzygy(board, syzygy_move, wdl)) {
+    if (syzygy::probe_syzygy(board, syzygy_move, wdl)) {
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
@@ -511,7 +511,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Probe Syzygy tablebases
     Move syzygy_move = Move::NO_MOVE;
     int wdl = 0;
-    if (syzygy::probeSyzygy(board, syzygy_move, wdl)) { 
+    if (syzygy::probe_syzygy(board, syzygy_move, wdl)) { 
         int score = 0;
         if (wdl == 1) {
             // get the fastest path to known win by subtracting the ply
@@ -949,7 +949,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
 
     // Syzygy tablebase probe
     int wdl = 0;
-    if (syzygy::probeSyzygy(board, syzygy_move, wdl)) {
+    if (syzygy::probe_syzygy(board, syzygy_move, wdl)) {
         int score = 0;
         if (wdl == 1) {
             score = SZYZYGY_INF;

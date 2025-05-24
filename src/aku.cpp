@@ -482,7 +482,7 @@ int main() {
     initializeNNUE(nnue_path);
 
     std::string eg_table_path = get_exec_path() + "/tables/";
-    syzygy::initializeSyzygy(eg_table_path);
+    syzygy::initialize_syzygy(eg_table_path);
 
     uci_loop();
     return 0;
