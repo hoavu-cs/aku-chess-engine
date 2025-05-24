@@ -6,9 +6,9 @@ Command for Mac/Linux ./fastchess-ubuntu-22.04  -engine cmd=aku_experiment name=
 
 ./fastchess.exe  -engine cmd=aku_experiment/aku_experiment.exe name=NewAku -engine cmd=aku/aku.exe name=OldAku -each tc=20+0.20 -rounds 10000 -repeat -concurrency 4 -openings file=imbalanced_book.epd format=epd -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05
 
-./fastchess.exe  -engine cmd=aku_experiment/aku_experiment.exe name=NewAku -engine cmd=aku/aku.exe name=OldAku -each tc=10+0.1 -rounds 10000 -repeat -concurrency 2 -openings file=imbalanced_book.epd format=epd -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05
+./fastchess.exe  -engine cmd=aku_experiment/aku_experiment.exe name=NewAku -engine cmd=aku/aku.exe name=OldAku -each tc=20+0.2 -rounds 10000 -repeat -concurrency 2 -openings file=imbalanced_book.epd format=epd order=random -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05
 
-./fastchess.exe  -engine cmd=aku_experiment/aku_experiment.exe name=NewAku -engine cmd=aku/aku.exe name=OldAku -each tc=15+0.15 option.Threads=2 -rounds 10000 -repeat -concurrency 4 -openings file=imbalanced_book.epd format=epd -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05 
+./fastchess.exe  -engine cmd="D:\git\pig-chess-engine\bin\aku_experiment\aku_experiment.exe" name=NewAku -engine cmd=D:\git\pig-chess-engine\bin\aku\aku.exe" name=OldAku -each tc=15+0.15 option.Threads=2 -rounds 10000 -repeat -concurrency 4 -openings file=imbalanced_book.epd format=epd -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05 
 
 ./fastchess \
   -engine cmd="/Users/hvu2/git/donbot-chess-engine/bin/aku_experiment/aku_experiment" name=NewAku \
