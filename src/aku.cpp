@@ -153,6 +153,7 @@ int num_threads = 4;
 int depth = 50;
 bool chess960 = false;
 bool internal_opening = true;
+Board board;
 
 std::string get_book_move(Board& board) {
     std::vector<std::string> possible_moves;
@@ -189,11 +190,6 @@ std::string get_book_move(Board& board) {
     }
     return ""; // No match found
 }
-
-
-// Global Board State
-Board board;
-
 
 // Parses the "position" command and updates the board state.
 void process_position(const std::string& command) {
