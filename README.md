@@ -4,7 +4,7 @@ To Play with the Engine in a GUI, you can use any UCI-compatible GUI such as Cut
 
 The engine currently plays rapid chess at an estimated 3100-3300 ELO (subject to further testing and vary greatly because I often make random changes to test new ideas & some are really dumb). The main goal is to improve the strength through exploring new ideas in the search algorithm. In my opinion, there should be a clean search algorithm to replace or encapsulate multiple heuristics that take a lot of manual effort in finetuning (i.e., I want to bypass this as much as possible). 
 
-Some new ideas that work:
+Some ideas that work:
 - Use Misra-Gries to keep track of frequent pairs of moves (at (ply, ply - 1) and (ply, ply - 2)) that caused beta cut-offf to have a more efficient and meaningful counter-move and follow-up move (~ 45 elo). This heavy-hitter data structure will also allow us to scale to triples, quadruples, etc in the future. Note that Misra-Gries is used purely to save memory instead of using a hash table of size 64^4.
 
 
