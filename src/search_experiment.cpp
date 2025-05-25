@@ -31,6 +31,7 @@ constexpr int MAX_HIST = 9000;
 int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
 
+
 // Initalize NNUE, black and white accumulators
 Network nnue;
 std::vector<Accumulator> white_accumulator (MAX_THREADS); 
@@ -58,6 +59,9 @@ std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std:
 
 // Move stack for each thread
 std::vector<std::vector<int>> move_stack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
+
+//std::vector<std::vector<bool>> capture_stack(MAX_THREADS, std::vector<bool>(ENGINE_DEPTH + 1, 0));
+
 
 // LMR table 
 std::vector<std::vector<int>> lmr_table; 
@@ -333,25 +337,12 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
       
         if (hash_move) continue;
 
-        int move_threatened_pc_bonus = 0;
-        Bitboard threats = attacks::attackers(board, !board.sideToMove(), move.from());
-        // priority for moves out of threat
-        if (board.at<Piece>(move.from()).type() == PieceType::QUEEN) {
-            move_threatened_pc_bonus = 900; 
-        } else if (board.at<Piece>(move.from()).type() == PieceType::ROOK) {
-            move_threatened_pc_bonus = 500; 
-        } else if (board.at<Piece>(move.from()).type() == PieceType::BISHOP) {
-            move_threatened_pc_bonus = 500; 
-        } else if (board.at<Piece>(move.from()).type() == PieceType::KNIGHT) {
-            move_threatened_pc_bonus = 500; 
-        } 
-
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
             int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move);   
-            priority = 4000 + see_score + move_threatened_pc_bonus / 3;
+            priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
         } else if (move == best_2ply_move) {
@@ -359,7 +350,18 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else {
             secondary = true;
             int move_idx = move_index(move);
-            priority = history[thread_id][stm][move_idx] + move_threatened_pc_bonus;
+            Bitboard threats = attacks::attackers(board, !board.sideToMove(), move.from());
+            // priority for moves out of threat
+            if (board.at<Piece>(move.from()).type() == PieceType::QUEEN) {
+                priority += 900; 
+            } else if (board.at<Piece>(move.from()).type() == PieceType::ROOK) {
+                priority += 500; 
+            } else if (board.at<Piece>(move.from()).type() == PieceType::BISHOP) {
+                priority += 500; 
+            } else if (board.at<Piece>(move.from()).type() == PieceType::KNIGHT) {
+                priority += 500; 
+            } 
+            priority = history[thread_id][stm][move_idx];
         } 
 
         if (!secondary) {
@@ -638,6 +640,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                 Move::NO_MOVE,
                                 thread_id};
         move_stack[thread_id][ply] = -1;
+        //capture_stack[thread_id][ply] = false;
         board.makeNullMove();
         null_pv.push_back(Move::NULL_MOVE);
         null_eval = -negamax(board, depth - reduction, -beta, -(beta - 1), null_pv, null_data);
@@ -659,31 +662,31 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Singular extension
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
-    // if (hash_move_found && tt_depth >= depth - 3
-    //     && depth >= 8
-    //     && tt_type != EntryType::UPPERBOUND
-    //     && abs(tt_eval) < INF/2 - 100
-    //     && excluded_move == Move::NO_MOVE // No singular search within singular search
-    // ) {
-    //     // #pragma omp atomic
-    //     // singular_search_count++;
-    //     int singular_eval = -INF;
-    //     int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
-    //     std::vector<Move> singular_pv;
-    //     NodeData singular_node_data = {ply, 
-    //         false, 
-    //         root_depth,
-    //         NodeType::PV,
-    //         tt_move,
-    //         thread_id};
-    //     singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
-    //     if (singular_eval < singular_beta) {
-    //         singular_ext++; // singular extension
-    //         if (singular_eval < singular_beta - 40) {
-    //             singular_ext++; // double extension
-    //         }
-    //     } 
-    // }
+    if (hash_move_found && tt_depth >= depth - 3
+        && depth >= 8
+        && tt_type != EntryType::UPPERBOUND
+        && abs(tt_eval) < INF/2 - 100
+        && excluded_move == Move::NO_MOVE // No singular search within singular search
+    ) {
+        // #pragma omp atomic
+        // singular_search_count++;
+        int singular_eval = -INF;
+        int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
+        std::vector<Move> singular_pv;
+        NodeData singular_node_data = {ply, 
+            false, 
+            root_depth,
+            NodeType::PV,
+            tt_move,
+            thread_id};
+        singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
+        if (singular_eval < singular_beta) {
+            singular_ext++; // singular extension
+            if (singular_eval < singular_beta - 40) {
+                singular_ext++; // double extension
+            }
+        } 
+    }
 
     if (board.inCheck()) {
         extensions++;
@@ -692,6 +695,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (moves.size() == 1) {
         extensions++;
     }
+
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -713,10 +717,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.unmakeMove(move);
 
         int eval = 0;
-        int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, nodeType, thread_id); 
+        int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, nodeType, thread_id);
 
         if (move == tt_move) {
-            extensions += singular_ext;
+            next_depth += singular_ext; 
         }
 
         extensions = std::clamp(extensions, 0, 2); 
@@ -761,6 +765,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
+        //capture_stack[thread_id][ply] = is_capture;
         board.makeMove(move);
         
         bool null_window = false;
@@ -822,6 +827,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
             add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
             move_stack[thread_id][ply] = move_index(move);
+            //capture_stack[thread_id][ply] = is_capture;
             board.makeMove(move);
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, child_node_data);
@@ -1023,6 +1029,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                 
                 add_accumulators(local_board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
                 move_stack[thread_id][ply] = move_index(move);
+                //capture_stack[thread_id][ply] = local_board.isCapture(move);
                 local_board.makeMove(move);
 
                 eval = -negamax(local_board, next_depth, -beta, -alpha, childPV, child_node_data);
@@ -1040,6 +1047,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                     // Re-search with full depth if we have a new best move
                     add_accumulators(local_board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
                     move_stack[thread_id][ply] = move_index(move);
+                    //capture_stack[thread_id][ply] = local_board.isCapture(move);
                     local_board.makeMove(move);
 
                     eval = -negamax(local_board, depth - 1, -beta, -alpha, childPV, child_node_data);
