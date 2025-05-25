@@ -46,8 +46,8 @@ int rfp_c1 = 200;
 int fp_depth = 2;
 int fp_c1 = 200; 
 
-int lmp_depth = 1;
-int lmp_c1 = 13;
+int lmp_depth = 2;
+int lmp_c1 = 15;
 
 int hp_depth = 2;
 int hp_c1 = 4000;

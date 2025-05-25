@@ -60,9 +60,6 @@ std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std:
 // Move stack for each thread
 std::vector<std::vector<int>> move_stack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
 
-std::vector<std::vector<bool>> capture_stack(MAX_THREADS, std::vector<bool>(ENGINE_DEPTH + 1, 0));
-
-
 // LMR table 
 std::vector<std::vector<int>> lmr_table; 
 
@@ -353,15 +350,15 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             Bitboard threats = attacks::attackers(board, !board.sideToMove(), move.from());
             // priority for moves out of threat
             if (board.at<Piece>(move.from()).type() == PieceType::QUEEN) {
-                priority += 900; 
+                priority += 200; 
             } else if (board.at<Piece>(move.from()).type() == PieceType::ROOK) {
-                priority += 500; 
+                priority += 100; 
             } else if (board.at<Piece>(move.from()).type() == PieceType::BISHOP) {
-                priority += 500; 
+                priority += 70; 
             } else if (board.at<Piece>(move.from()).type() == PieceType::KNIGHT) {
-                priority += 500; 
+                priority += 70; 
             } 
-            priority = history[thread_id][stm][move_idx];
+            priority += history[thread_id][stm][move_idx];
         } 
 
         if (!secondary) {
@@ -640,7 +637,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                 Move::NO_MOVE,
                                 thread_id};
         move_stack[thread_id][ply] = -1;
-        capture_stack[thread_id][ply] = false;
         board.makeNullMove();
         null_pv.push_back(Move::NULL_MOVE);
         null_eval = -negamax(board, depth - reduction, -beta, -(beta - 1), null_pv, null_data);
@@ -696,7 +692,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         extensions++;
     }
 
-
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
 
@@ -717,14 +712,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.unmakeMove(move);
 
         int eval = 0;
-        int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, nodeType, thread_id);
+        int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, nodeType, thread_id); 
 
-        // if (move == tt_move) {
-        //     next_depth += singular_ext; 
-        // }
-
-        if (ply >= 1 && is_capture && capture_stack[thread_id][ply - 1]) {
-            next_depth += 1; // extension for re-capture
+        if (move == tt_move) {
+            extensions += singular_ext;
         }
 
         extensions = std::clamp(extensions, 0, 2); 
@@ -749,7 +740,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // Further reduction for quiet moves
-        // bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
+        // bool lmp_condition = can_prune && !is_pv && !tt_is_pv && !is_capture && next_depth <= lmp_depth && abs(beta) < 10000;
         // if (lmp_condition) {
         //     int divisor = improving ? 1 : 2;
         //     if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
@@ -769,7 +760,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
-        capture_stack[thread_id][ply] = is_capture;
         board.makeMove(move);
         
         bool null_window = false;
@@ -831,7 +821,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
             add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
             move_stack[thread_id][ply] = move_index(move);
-            capture_stack[thread_id][ply] = is_capture;
             board.makeMove(move);
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, child_node_data);
@@ -1033,7 +1022,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                 
                 add_accumulators(local_board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
                 move_stack[thread_id][ply] = move_index(move);
-                capture_stack[thread_id][ply] = local_board.isCapture(move);
                 local_board.makeMove(move);
 
                 eval = -negamax(local_board, next_depth, -beta, -alpha, childPV, child_node_data);
@@ -1051,7 +1039,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                     // Re-search with full depth if we have a new best move
                     add_accumulators(local_board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
                     move_stack[thread_id][ply] = move_index(move);
-                    capture_stack[thread_id][ply] = local_board.isCapture(move);
                     local_board.makeMove(move);
 
                     eval = -negamax(local_board, depth - 1, -beta, -alpha, childPV, child_node_data);

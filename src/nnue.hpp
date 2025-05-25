@@ -24,9 +24,9 @@ inline int mirror_sq(int sq);
 struct Accumulator;
 struct Network;
 bool load_network(const std::string& filepath, Network& net);
-void make_accumulators(Board& board, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& evalNetwork);
-void add_accumulators(Board& board, Move& move, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& evalNetwork);
-void subtract_accumulators(Board& board, Move& move, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& evalNetwork);
+void make_accumulators(Board& board, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& eval_network);
+void add_accumulators(Board& board, Move& move, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& eval_network);
+void subtract_accumulators(Board& board, Move& move, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& eval_network);
 
 // Function Definitions
 
@@ -158,10 +158,10 @@ inline int mirror_sq(int sq) {
     return (sq ^ 56); // flips rank (A1 to A8, H2 to H7, etc.)
 }
 
-void make_accumulators(Board& board, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& evalNetwork) {
+void make_accumulators(Board& board, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& eval_network) {
     // Initialize the accumulators
-    white_accumulator = Accumulator::fromBias(evalNetwork);
-    black_accumulator = Accumulator::fromBias(evalNetwork);
+    white_accumulator = Accumulator::fromBias(eval_network);
+    black_accumulator = Accumulator::fromBias(eval_network);
 
     Bitboard bitboards[12] = {
         board.pieces(PieceType::PAWN, Color::WHITE),
@@ -191,12 +191,12 @@ void make_accumulators(Board& board, Accumulator& white_accumulator, Accumulator
         
             if (white) {
                 // from White’s view
-                white_accumulator.add_feature(calculate_index(0, type, sq),  evalNetwork); // us
-                black_accumulator.add_feature(calculate_index(1, type, msq), evalNetwork); // them
+                white_accumulator.add_feature(calculate_index(0, type, sq),  eval_network); // us
+                black_accumulator.add_feature(calculate_index(1, type, msq), eval_network); // them
             } else {
                 // from Black’s view
-                black_accumulator.add_feature(calculate_index(0, type, msq),  evalNetwork); // us
-                white_accumulator.add_feature(calculate_index(1, type, sq), evalNetwork); // them
+                black_accumulator.add_feature(calculate_index(0, type, msq),  eval_network); // us
+                white_accumulator.add_feature(calculate_index(1, type, sq), eval_network); // them
             }
         }
         
@@ -210,7 +210,7 @@ void add_accumulators(Board& board,
                         Move& move, 
                         Accumulator& white_accumulator, 
                         Accumulator& black_accumulator,
-                        Network& evalNetwork) {
+                        Network& eval_network) {
 
     Color color = board.sideToMove();
     PieceType pieceType = board.at<Piece>(move.from()).type();
@@ -229,7 +229,7 @@ void add_accumulators(Board& board,
     if (isPromotion || isEnpassant || isCastle) {
         // For now calculate from scratch for promotion and enpassant
         board.makeMove(move);
-        make_accumulators(board, white_accumulator, black_accumulator, evalNetwork);
+        make_accumulators(board, white_accumulator, black_accumulator, eval_network);
         board.unmakeMove(move);
         return;
     }
@@ -241,11 +241,11 @@ void add_accumulators(Board& board,
         int to_idx_them = calculate_index(1, pieceIdx, mirror_sq(move.to().index()));
 
         // Calculate index of from and to from "us" perspective
-        white_accumulator.remove_feature(from_idx_us, evalNetwork);
-        white_accumulator.add_feature(to_idx_us, evalNetwork);
+        white_accumulator.remove_feature(from_idx_us, eval_network);
+        white_accumulator.add_feature(to_idx_us, eval_network);
 
-        black_accumulator.remove_feature(from_idx_them, evalNetwork);
-        black_accumulator.add_feature(to_idx_them, evalNetwork);
+        black_accumulator.remove_feature(from_idx_them, eval_network);
+        black_accumulator.add_feature(to_idx_them, eval_network);
 
         if (board.isCapture(move)) {
             // Remove the captured piece
@@ -254,11 +254,11 @@ void add_accumulators(Board& board,
 
             // remove the black piece from white's perspective
             int captureIndexUs = calculate_index(1, capturedIdx, move.to().index());
-            white_accumulator.remove_feature(captureIndexUs, evalNetwork);
+            white_accumulator.remove_feature(captureIndexUs, eval_network);
 
             // remove the black piece from black's perspective
             int captureIndexThem = calculate_index(0, capturedIdx, mirror_sq(move.to().index()));
-            black_accumulator.remove_feature(captureIndexThem, evalNetwork);
+            black_accumulator.remove_feature(captureIndexThem, eval_network);
         }
 
     } else {
@@ -267,11 +267,11 @@ void add_accumulators(Board& board,
         int from_idx_them = calculate_index(1, pieceIdx, move.from().index());
         int to_idx_them = calculate_index(1, pieceIdx, move.to().index());
 
-        black_accumulator.remove_feature(from_idx_us, evalNetwork);
-        black_accumulator.add_feature(to_idx_us, evalNetwork);
+        black_accumulator.remove_feature(from_idx_us, eval_network);
+        black_accumulator.add_feature(to_idx_us, eval_network);
 
-        white_accumulator.remove_feature(from_idx_them, evalNetwork);
-        white_accumulator.add_feature(to_idx_them, evalNetwork);
+        white_accumulator.remove_feature(from_idx_them, eval_network);
+        white_accumulator.add_feature(to_idx_them, eval_network);
 
         if (board.isCapture(move)) {
             PieceType captured = board.at<Piece>(move.to()).type();
@@ -279,11 +279,11 @@ void add_accumulators(Board& board,
 
             // remove the white piece from black's perspective
             int captureIndexUs = calculate_index(1, capturedIdx, mirror_sq(move.to().index()));
-            black_accumulator.remove_feature(captureIndexUs, evalNetwork);
+            black_accumulator.remove_feature(captureIndexUs, eval_network);
 
             // remove the white piece from white's perspective
             int captureIndexThem = calculate_index(0, capturedIdx, move.to().index());
-            white_accumulator.remove_feature(captureIndexThem, evalNetwork);
+            white_accumulator.remove_feature(captureIndexThem, eval_network);
         }
     }
 }
@@ -294,15 +294,15 @@ void subtract_accumulators(Board& board,
                                 Move& move, 
                                 Accumulator& white_accumulator, 
                                 Accumulator& black_accumulator,
-                                Network& evalNetwork) {
+                                Network& eval_network) {
 
-    bool isPromotion = move.typeOf() & Move::PROMOTION;
-    bool isEnpassant = move.typeOf() & Move::ENPASSANT;
-    bool isCastle = move.typeOf() & Move::CASTLING;      
+    bool is_promotion = move.typeOf() & Move::PROMOTION;
+    bool is_enpassant = move.typeOf() & Move::ENPASSANT;
+    bool is_castle = move.typeOf() & Move::CASTLING;      
     bool isNullMove = move.typeOf() & Move::NULL_MOVE;
 
     board.unmakeMove(move);
-    make_accumulators(board, white_accumulator, black_accumulator, evalNetwork);
+    make_accumulators(board, white_accumulator, black_accumulator, eval_network);
     board.makeMove(move);
     return;
 
@@ -310,10 +310,10 @@ void subtract_accumulators(Board& board,
         return; 
     }
 
-    if (isPromotion || isEnpassant || isCastle) {
+    if (is_promotion || is_enpassant || is_castle) {
         // For now calculate from scratch for promotion and enpassant
         board.unmakeMove(move);
-        make_accumulators(board, white_accumulator, black_accumulator, evalNetwork);
+        make_accumulators(board, white_accumulator, black_accumulator, eval_network);
         board.makeMove(move);
         return;
     }
@@ -322,53 +322,53 @@ void subtract_accumulators(Board& board,
 
     Color color = board.sideToMove(); 
     PieceType pieceType = board.at<Piece>(move.from()).type();
-    int pieceIdx = piecetype_to_idx(pieceType);
+    int piece_idx = piecetype_to_idx(pieceType);
 
     if (color == Color::WHITE) {
-        int from_idx_us = calculate_index(0, pieceIdx, move.from().index());
-        int to_idx_us = calculate_index(0, pieceIdx, move.to().index());
-        int from_idx_them = calculate_index(1, pieceIdx, mirror_sq(move.from().index()));
-        int to_idx_them = calculate_index(1, pieceIdx, mirror_sq(move.to().index()));
+        int from_idx_us = calculate_index(0, piece_idx, move.from().index());
+        int to_idx_us = calculate_index(0, piece_idx, move.to().index());
+        int from_idx_them = calculate_index(1, piece_idx, mirror_sq(move.from().index()));
+        int to_idx_them = calculate_index(1, piece_idx, mirror_sq(move.to().index()));
 
         // Calculate index of from and to from "us" perspective
-        white_accumulator.add_feature(from_idx_us, evalNetwork);
-        white_accumulator.remove_feature(to_idx_us, evalNetwork);
-        black_accumulator.add_feature(from_idx_them, evalNetwork);
-        black_accumulator.remove_feature(to_idx_them, evalNetwork);
+        white_accumulator.add_feature(from_idx_us, eval_network);
+        white_accumulator.remove_feature(to_idx_us, eval_network);
+        black_accumulator.add_feature(from_idx_them, eval_network);
+        black_accumulator.remove_feature(to_idx_them, eval_network);
 
 
         if (board.isCapture(move)) {
             PieceType captured = board.at<Piece>(move.to()).type();
-            int capturedIdx = piecetype_to_idx(captured);
+            int captured_idx = piecetype_to_idx(captured);
 
             // Put the black piece back in its original position from white's perspective
-            int captureIndexUs = calculate_index(1, capturedIdx, move.to().index());
-            white_accumulator.add_feature(captureIndexUs, evalNetwork);
+            int capture_idx_us = calculate_index(1, captured_idx, move.to().index());
+            white_accumulator.add_feature(capture_idx_us, eval_network);
             // Put the black piece back in its original position from black's perspective
-            int captureIndexThem = calculate_index(0, capturedIdx, mirror_sq(move.to().index()));
-            black_accumulator.add_feature(captureIndexThem, evalNetwork); 
+            int capture_idx_them = calculate_index(0, captured_idx, mirror_sq(move.to().index()));
+            black_accumulator.add_feature(capture_idx_them, eval_network); 
         }
     } else {
-        int from_idx_us = calculate_index(0, pieceIdx, mirror_sq(move.from().index()));
-        int to_idx_us = calculate_index(0, pieceIdx, mirror_sq(move.to().index()));
-        int from_idx_them = calculate_index(1, pieceIdx, move.from().index());
-        int to_idx_them = calculate_index(1, pieceIdx, move.to().index());
+        int from_idx_us = calculate_index(0, piece_idx, mirror_sq(move.from().index()));
+        int to_idx_us = calculate_index(0, piece_idx, mirror_sq(move.to().index()));
+        int from_idx_them = calculate_index(1, piece_idx, move.from().index());
+        int to_idx_them = calculate_index(1, piece_idx, move.to().index());
 
-        black_accumulator.remove_feature(from_idx_us, evalNetwork);
-        black_accumulator.add_feature(to_idx_us, evalNetwork);
-        white_accumulator.remove_feature(from_idx_them, evalNetwork);
-        white_accumulator.add_feature(to_idx_them, evalNetwork);
+        black_accumulator.remove_feature(from_idx_us, eval_network);
+        black_accumulator.add_feature(to_idx_us, eval_network);
+        white_accumulator.remove_feature(from_idx_them, eval_network);
+        white_accumulator.add_feature(to_idx_them, eval_network);
 
         if (board.isCapture(move)) {            
             PieceType captured = board.at<Piece>(move.to()).type();
-            int capturedIdx = piecetype_to_idx(captured);
+            int captured_idx = piecetype_to_idx(captured);
 
             // Put the white piece back from black's perspective
-            int captureIndexUs = calculate_index(1, capturedIdx, mirror_sq(move.to().index()));
-            black_accumulator.add_feature(captureIndexUs, evalNetwork);
+            int capture_idx_us = calculate_index(1, captured_idx, mirror_sq(move.to().index()));
+            black_accumulator.add_feature(capture_idx_us, eval_network);
             // Put the white piece from white's perspective
-            int captureIndexThem = calculate_index(0, capturedIdx, move.to().index());
-            white_accumulator.add_feature(captureIndexThem, evalNetwork);
+            int capture_idx_them = calculate_index(0, captured_idx, move.to().index());
+            white_accumulator.add_feature(capture_idx_them, eval_network);
         }
     }
 
