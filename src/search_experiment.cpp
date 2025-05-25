@@ -60,7 +60,7 @@ std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std:
 // Move stack for each thread
 std::vector<std::vector<int>> move_stack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
 
-//std::vector<std::vector<bool>> capture_stack(MAX_THREADS, std::vector<bool>(ENGINE_DEPTH + 1, 0));
+std::vector<std::vector<bool>> capture_stack(MAX_THREADS, std::vector<bool>(ENGINE_DEPTH + 1, 0));
 
 
 // LMR table 
@@ -640,7 +640,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                                 Move::NO_MOVE,
                                 thread_id};
         move_stack[thread_id][ply] = -1;
-        //capture_stack[thread_id][ply] = false;
+        capture_stack[thread_id][ply] = false;
         board.makeNullMove();
         null_pv.push_back(Move::NULL_MOVE);
         null_eval = -negamax(board, depth - reduction, -beta, -(beta - 1), null_pv, null_data);
@@ -662,31 +662,31 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Singular extension
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
-    if (hash_move_found && tt_depth >= depth - 3
-        && depth >= 8
-        && tt_type != EntryType::UPPERBOUND
-        && abs(tt_eval) < INF/2 - 100
-        && excluded_move == Move::NO_MOVE // No singular search within singular search
-    ) {
-        // #pragma omp atomic
-        // singular_search_count++;
-        int singular_eval = -INF;
-        int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
-        std::vector<Move> singular_pv;
-        NodeData singular_node_data = {ply, 
-            false, 
-            root_depth,
-            NodeType::PV,
-            tt_move,
-            thread_id};
-        singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
-        if (singular_eval < singular_beta) {
-            singular_ext++; // singular extension
-            if (singular_eval < singular_beta - 40) {
-                singular_ext++; // double extension
-            }
-        } 
-    }
+    // if (hash_move_found && tt_depth >= depth - 3
+    //     && depth >= 8
+    //     && tt_type != EntryType::UPPERBOUND
+    //     && abs(tt_eval) < INF/2 - 100
+    //     && excluded_move == Move::NO_MOVE // No singular search within singular search
+    // ) {
+    //     // #pragma omp atomic
+    //     // singular_search_count++;
+    //     int singular_eval = -INF;
+    //     int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
+    //     std::vector<Move> singular_pv;
+    //     NodeData singular_node_data = {ply, 
+    //         false, 
+    //         root_depth,
+    //         NodeType::PV,
+    //         tt_move,
+    //         thread_id};
+    //     singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
+    //     if (singular_eval < singular_beta) {
+    //         singular_ext++; // singular extension
+    //         if (singular_eval < singular_beta - 40) {
+    //             singular_ext++; // double extension
+    //         }
+    //     } 
+    // }
 
     if (board.inCheck()) {
         extensions++;
@@ -719,8 +719,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, nodeType, thread_id);
 
-        if (move == tt_move) {
-            next_depth += singular_ext; 
+        // if (move == tt_move) {
+        //     next_depth += singular_ext; 
+        // }
+
+        if (ply >= 1 && is_capture && capture_stack[thread_id][ply - 1]) {
+            next_depth += 1; // extension for re-capture
         }
 
         extensions = std::clamp(extensions, 0, 2); 
@@ -765,7 +769,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
-        //capture_stack[thread_id][ply] = is_capture;
+        capture_stack[thread_id][ply] = is_capture;
         board.makeMove(move);
         
         bool null_window = false;
@@ -827,7 +831,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
             add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
             move_stack[thread_id][ply] = move_index(move);
-            //capture_stack[thread_id][ply] = is_capture;
+            capture_stack[thread_id][ply] = is_capture;
             board.makeMove(move);
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, child_node_data);
@@ -1029,7 +1033,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                 
                 add_accumulators(local_board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
                 move_stack[thread_id][ply] = move_index(move);
-                //capture_stack[thread_id][ply] = local_board.isCapture(move);
+                capture_stack[thread_id][ply] = local_board.isCapture(move);
                 local_board.makeMove(move);
 
                 eval = -negamax(local_board, next_depth, -beta, -alpha, childPV, child_node_data);
@@ -1047,7 +1051,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                     // Re-search with full depth if we have a new best move
                     add_accumulators(local_board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
                     move_stack[thread_id][ply] = move_index(move);
-                    //capture_stack[thread_id][ply] = local_board.isCapture(move);
+                    capture_stack[thread_id][ply] = local_board.isCapture(move);
                     local_board.makeMove(move);
 
                     eval = -negamax(local_board, depth - 1, -beta, -alpha, childPV, child_node_data);
