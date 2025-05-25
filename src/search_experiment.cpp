@@ -31,7 +31,6 @@ constexpr int MAX_HIST = 9000;
 int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
 
-
 // Initalize NNUE, black and white accumulators
 Network nnue;
 std::vector<Accumulator> white_accumulator (MAX_THREADS); 
@@ -334,12 +333,25 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
       
         if (hash_move) continue;
 
+        int move_threatened_pc_bonus = 0;
+        Bitboard threats = attacks::attackers(board, !board.sideToMove(), move.from());
+        // priority for moves out of threat
+        if (board.at<Piece>(move.from()).type() == PieceType::QUEEN) {
+            move_threatened_pc_bonus = 900; 
+        } else if (board.at<Piece>(move.from()).type() == PieceType::ROOK) {
+            move_threatened_pc_bonus = 500; 
+        } else if (board.at<Piece>(move.from()).type() == PieceType::BISHOP) {
+            move_threatened_pc_bonus = 500; 
+        } else if (board.at<Piece>(move.from()).type() == PieceType::KNIGHT) {
+            move_threatened_pc_bonus = 500; 
+        } 
+
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
             int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move);   
-            priority = 4000 + see_score;// victime_value + score;
+            priority = 4000 + see_score + move_threatened_pc_bonus / 3;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
         } else if (move == best_2ply_move) {
@@ -347,18 +359,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else {
             secondary = true;
             int move_idx = move_index(move);
-            Bitboard threats = attacks::attackers(board, !board.sideToMove(), move.from());
-            // priority for moves out of threat
-            if (board.at<Piece>(move.from()).type() == PieceType::QUEEN) {
-                priority += 900; 
-            } else if (board.at<Piece>(move.from()).type() == PieceType::ROOK) {
-                priority += 500; 
-            } else if (board.at<Piece>(move.from()).type() == PieceType::BISHOP) {
-                priority += 500; 
-            } else if (board.at<Piece>(move.from()).type() == PieceType::KNIGHT) {
-                priority += 500; 
-            } 
-            priority = history[thread_id][stm][move_idx];
+            priority = history[thread_id][stm][move_idx] + move_threatened_pc_bonus;
         } 
 
         if (!secondary) {
