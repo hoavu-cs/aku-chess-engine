@@ -162,6 +162,9 @@ void table_insert(Board& board,
     }
         
     std::lock_guard<std::mutex> lock(locked_entry.mtx); 
+    if (depth == locked_entry.entry.depth && type == EntryType::UPPERBOUND) {
+        return; // if the existing entry has the same depth, don't overwrite it with an upperbound
+    }
     locked_entry.entry = {hash, eval, depth, pv, best_move, type}; 
 }
 
@@ -347,18 +350,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else {
             secondary = true;
             int move_idx = move_index(move);
-            Bitboard threats = attacks::attackers(board, !board.sideToMove(), move.from());
-            // priority for moves out of threat
-            if (board.at<Piece>(move.from()).type() == PieceType::QUEEN) {
-                priority += 200; 
-            } else if (board.at<Piece>(move.from()).type() == PieceType::ROOK) {
-                priority += 100; 
-            } else if (board.at<Piece>(move.from()).type() == PieceType::BISHOP) {
-                priority += 70; 
-            } else if (board.at<Piece>(move.from()).type() == PieceType::KNIGHT) {
-                priority += 70; 
-            } 
-            priority += history[thread_id][stm][move_idx];
+            priority = history[thread_id][stm][move_idx];
         } 
 
         if (!secondary) {
