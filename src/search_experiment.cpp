@@ -162,7 +162,7 @@ void table_insert(Board& board,
     }
         
     std::lock_guard<std::mutex> lock(locked_entry.mtx); 
-    if (depth >= locked_entry.entry.depth && type == EntryType::UPPERBOUND) {
+    if (depth == locked_entry.entry.depth && type == EntryType::UPPERBOUND) {
         return; // if the existing entry has the same depth, don't overwrite it with an upperbound
     }
     locked_entry.entry = {hash, eval, depth, pv, best_move, type}; 
@@ -731,7 +731,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        // Prune late quiet moves at low depth
+        // Further reduction for quiet move>
         bool lmp_condition = can_prune && !is_pv && !tt_is_pv && !is_capture && next_depth <= lmp_depth && abs(beta) < 10000;
         if (lmp_condition) {
             int divisor = improving ? 1 : 2;
