@@ -628,11 +628,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     );
     int null_eval;
     if (nmp_condition) {
-            
         std::vector<Move> null_pv; 
-        
         int reduction = 3;
-
         NodeData null_data = {ply + 1, 
                                 false, 
                                 root_depth,

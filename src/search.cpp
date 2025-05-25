@@ -346,7 +346,18 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             priority = 3950;
         } else {
             secondary = true;
-            U64 move_idx = move_index(move);
+            int move_idx = move_index(move);
+            Bitboard threats = attacks::attackers(board, !board.sideToMove(), move.from());
+            // priority for moves out of threat
+            if (board.at<Piece>(move.from()).type() == PieceType::QUEEN) {
+                priority += 900; 
+            } else if (board.at<Piece>(move.from()).type() == PieceType::ROOK) {
+                priority += 500; 
+            } else if (board.at<Piece>(move.from()).type() == PieceType::BISHOP) {
+                priority += 500; 
+            } else if (board.at<Piece>(move.from()).type() == PieceType::KNIGHT) {
+                priority += 500; 
+            } 
             priority = history[thread_id][stm][move_idx];
         } 
 
@@ -480,12 +491,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     Move excluded_move = data.excluded_move;
 
     std::vector<Move> bad_quiets; // quiet moves that fail to raise alpha
-    std::vector<Move> bad_captures; // bad tacticals (captures/promos) that fail to raise alpha
-
-    // Extract whether we can do singular search and NMP
     bool nmp_ok = data.nmp_ok;
-
-    // Extract node type and last move from nodeInfo
     NodeType nodeType = data.node_type;
 
     node_count[thread_id]++;
@@ -585,20 +591,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     static_eval[thread_id][ply] = stand_pat; // store the evaluation along the path
     bool hash_move_found = false;
     killer[thread_id][ply + 1] = {Move::NO_MOVE, Move::NO_MOVE}; 
-    
-    std::vector<std::pair<Move, int>> moves = order_move(board, 
-                                                        ply, 
-                                                        thread_id,
-                                                        hash_move_found);
-    
-    seeds[thread_id] = fast_rand(seeds[thread_id]); 
-    int R1 = seeds[thread_id] % moves.size(); 
-    seeds[thread_id] = fast_rand(seeds[thread_id]);
-    int R2 = seeds[thread_id] % moves.size();
 
-    bool capture_tt_move = found && tt_move != Move::NO_MOVE && board.isCapture(tt_move);
-    
     // Reverse futility pruning (RFP)
+    bool capture_tt_move = found && tt_move != Move::NO_MOVE && board.isCapture(tt_move);
     bool rfp_condition = depth <= rfp_depth
                         && !board.inCheck() 
                         && !is_pv 
@@ -612,6 +607,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             return (stand_pat + beta) / 2;
         }
     }
+    
+    std::vector<std::pair<Move, int>> moves = order_move(board, ply, thread_id, hash_move_found);
+    
+    // seeds[thread_id] = fast_rand(seeds[thread_id]); 
+    // int R1 = seeds[thread_id] % moves.size(); 
+    // seeds[thread_id] = fast_rand(seeds[thread_id]);
+    // int R2 = seeds[thread_id] % moves.size();
 
     // Null move pruning. Side to move must have non-pawn material.
     const int null_depth = 4; 
@@ -624,13 +626,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && nmp_ok
         && excluded_move == Move::NO_MOVE // No nmp during singular search
     );
-
+    int null_eval;
     if (nmp_condition) {
-            
         std::vector<Move> null_pv; 
-        int null_eval;
         int reduction = 3;
-
         NodeData null_data = {ply + 1, 
                                 false, 
                                 root_depth,
@@ -836,15 +835,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (best_eval > alpha) {
                 alpha = best_eval;
                 update_pv(PV, move, childPV);
+
+                if (ply >= 2 && is_pv) {
+                    int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
+                    int move_index_0 = move_index(move);
+                    mg_2ply[thread_id].insert({move_index_2, move_index_0});
+                } 
             }
         }
 
-        if (eval <= alpha) {
-            if (is_capture) {
-                bad_captures.push_back(move);
-            } else {
-                bad_quiets.push_back(move);
-            }
+        if (eval < alpha && !is_capture) {
+            bad_quiets.push_back(move);
         }
 
         // Beta cutoff.
