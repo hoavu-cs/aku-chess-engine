@@ -162,7 +162,7 @@ void table_insert(Board& board,
     }
         
     std::lock_guard<std::mutex> lock(locked_entry.mtx); 
-    if (depth == locked_entry.entry.depth && type == EntryType::UPPERBOUND) {
+    if (depth >= locked_entry.entry.depth && type == EntryType::UPPERBOUND) {
         return; // if the existing entry has the same depth, don't overwrite it with an upperbound
     }
     locked_entry.entry = {hash, eval, depth, pv, best_move, type}; 
