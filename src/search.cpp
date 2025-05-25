@@ -162,6 +162,9 @@ void table_insert(Board& board,
     }
         
     std::lock_guard<std::mutex> lock(locked_entry.mtx); 
+    if (depth == locked_entry.entry.depth && type == EntryType::UPPERBOUND) {
+        return; // if the existing entry has the same depth, don't overwrite it with an upperbound
+    }
     locked_entry.entry = {hash, eval, depth, pv, best_move, type}; 
 }
 
@@ -347,17 +350,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else {
             secondary = true;
             int move_idx = move_index(move);
-            Bitboard threats = attacks::attackers(board, !board.sideToMove(), move.from());
-            // priority for moves out of threat
-            if (board.at<Piece>(move.from()).type() == PieceType::QUEEN) {
-                priority += 900; 
-            } else if (board.at<Piece>(move.from()).type() == PieceType::ROOK) {
-                priority += 500; 
-            } else if (board.at<Piece>(move.from()).type() == PieceType::BISHOP) {
-                priority += 500; 
-            } else if (board.at<Piece>(move.from()).type() == PieceType::KNIGHT) {
-                priority += 500; 
-            } 
             priority = history[thread_id][stm][move_idx];
         } 
 
@@ -739,8 +731,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        // Further reduction for quiet moves
-        // bool lmp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
+        // Further reduction for quiet move>
+        // bool lmp_condition = can_prune && !is_pv && !tt_is_pv && !is_capture && next_depth <= lmp_depth && abs(beta) < 10000;
         // if (lmp_condition) {
         //     int divisor = improving ? 1 : 2;
         //     if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {

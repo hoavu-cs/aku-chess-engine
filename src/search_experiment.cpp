@@ -731,14 +731,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        // Further reduction for quiet moves
-        // bool lmp_condition = can_prune && !is_pv && !tt_is_pv && !is_capture && next_depth <= lmp_depth && abs(beta) < 10000;
-        // if (lmp_condition) {
-        //     int divisor = improving ? 1 : 2;
-        //     if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
-        //         continue;
-        //     }
-        // }
+        // Prune late quiet moves at low depth
+        bool lmp_condition = can_prune && !is_pv && !tt_is_pv && !is_capture && next_depth <= lmp_depth && abs(beta) < 10000;
+        if (lmp_condition) {
+            int divisor = improving ? 1 : 2;
+            if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
+                continue;
+            }
+        }
 
         // History pruning
         // bool hp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
