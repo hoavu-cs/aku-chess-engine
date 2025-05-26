@@ -91,10 +91,10 @@ struct LockedTableEntry {
 
 std::vector<LockedTableEntry> tt_table(table_size); 
 
-// Helper function declarations
+// Helper function declarationss
 void precompute_lmr(int max_depth, int max_i);
-bool table_lookup(Board& board, int& depth, int& eval, bool& pv,Move& best_move, EntryType& type, std::vector<LockedTableEntry>& table)
-void table_insert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
+bool table_lookup(Board& board, int& depth, int& eval, bool& pv,Move& best_move, EntryType& type, std::vector<LockedTableEntry>& table);
+void table_insert(Board& board, int depth, int eval, bool pv,Move best_move, EntryType type, std::vector<LockedTableEntry>& table);
 inline void update_killers(const Move& move, int ply, int thread_id);
 int see(Board& board, Move move, int thread_id);
 int late_move_reduction(Board& board, Move move, int i, int depth, int ply, bool is_pv, NodeType node_type, int thread_id);
