@@ -21,7 +21,7 @@ Acknowledgements
 - **Syzygy probe library**: [Fathom](https://github.com/jdart1/Fathom)
 - **Utility for including binary files**: [incbin](https://github.com/graphitemaster/incbin)
 - **ML library for training NNUE-style networks**: [Bullet](https://github.com/graphitemaster/incbin)
-- Thanks to Jim Ablett for several implementation improvement suggestion (lazysmp and uci commands).
+- Thanks to Jim Ablett for several implementation improvement w.r.t the UCI commands.
 
 
 
