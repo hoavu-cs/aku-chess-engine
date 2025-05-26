@@ -569,6 +569,15 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return negamax(board, 1, alpha, beta, PV, data);
     }
 
+    // Probcut idea
+    if (tt_hit 
+        && !is_pv 
+        && (tt_type == EntryType::EXACT || tt_type == EntryType::LOWERBOUND)
+        && (tt_depth == 4 && depth == 7)
+        && (tt_eval >= beta + 300)) {
+            return (tt_eval + beta + 300) / 2;
+    }
+
     
     int stand_pat = 0;
     if (stm == 1) {
@@ -982,12 +991,11 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         bool hash_move_found = false;
 
         // Aspiration window
-        int window = 25;
+        int window = 150;
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
         
         std::vector<std::pair<Move, int>> new_moves;
-        
         
         if (depth == 1) {
             moves = order_move(board, 0, 0, hash_move_found);
@@ -1067,16 +1075,8 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
             }
 
             if (curr_best_eval <= alpha0 || curr_best_eval >= beta) {
-                window *= 2;
-                if (window <= 300) {
-                    alpha = evals[depth - 1] - window;
-                    beta = evals[depth - 1] + window;
-                } else {
-                    alpha = -INF;
-                    beta = INF;
-                }
-                // alpha = -INF;
-                // beta = INF;
+                alpha = -INF;
+                beta = INF;
                 new_moves.clear();
             } else {
                 PV = curr_pv;
