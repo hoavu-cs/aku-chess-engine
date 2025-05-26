@@ -31,7 +31,6 @@ constexpr int MAX_HIST = 9000;
 int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
 
-
 // Initalize NNUE, black and white accumulators
 Network nnue;
 std::vector<Accumulator> white_accumulator (MAX_THREADS); 
@@ -94,17 +93,18 @@ std::vector<LockedTableEntry> tt_table(table_size);
 
 // Helper function declarations
 void precompute_lmr(int max_depth, int max_i);
-inline void update_history(Board&, Move, int, int);
-bool table_lookup(Board&, int&, int&, bool&, Move&, EntryType&, std::vector<LockedTableEntry>&);
+bool table_lookup(Board& board, int& depth, int& eval, bool& pv,Move& best_move, EntryType& type, std::vector<LockedTableEntry>& table)
 void table_insert(Board&, int, int, bool, Move, EntryType, std::vector<LockedTableEntry>&);
-inline void update_killers(const Move&, int, int);
-int see(Board&, Move);
-int late_move_reduction(Board&, Move, int, int, int, bool, NodeType, int);
-std::vector<std::pair<Move, int>> order_move(Board&, int, std::vector<Move>&, bool, Move, int, bool&);
-int quiescence(Board&, int, int, int, int);
-inline void update_history(Board&, Move, int);
+inline void update_killers(const Move& move, int ply, int thread_id);
+int see(Board& board, Move move, int thread_id);
+int late_move_reduction(Board& board, Move move, int i, int depth, int ply, bool is_pv, NodeType node_type, int thread_id);
+std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found);
+int quiescence(Board& board, int alpha, int beta, int ply, int thread_id);
+void search_thread(Board search_board, int search_depth, int time_limit); 
 
 // Function definitions
+
+// precompute late move reduction table
 void precompute_lmr(int max_depth, int max_i) {
     static bool is_precomputed = false;
     if (is_precomputed) return;
@@ -116,10 +116,10 @@ void precompute_lmr(int max_depth, int max_i) {
             lmr_table[depth][i] =  static_cast<int>(lmr_1 + lmr_2 * log(depth) * log(i));
         }
     }
-
     is_precomputed = true;
 }
 
+// transposition table lookup function
 bool table_lookup(Board& board, 
     int& depth, 
     int& eval, 
@@ -145,6 +145,7 @@ bool table_lookup(Board& board,
     return false;
 }
 
+// transposition table insert function
 void table_insert(Board& board, 
     int depth, 
     int eval, 
@@ -168,14 +169,13 @@ void table_insert(Board& board,
     locked_entry.entry = {hash, eval, depth, pv, best_move, type}; 
 }
 
-// Update killer moves 
 inline void update_killers(const Move& move, int ply, int thread_id) {
     killer[thread_id][ply][0] = killer[thread_id][ply][1];
     killer[thread_id][ply][1] = move;
 }
 
 // Static exchange evaluation (SEE) function
-int see(Board& board, Move move) {
+int see(Board& board, Move move, int thread_id) {
     int to = move.to().index();
 
     auto victim = board.at<Piece>(move.to());
@@ -196,6 +196,7 @@ int see(Board& board, Move move) {
         exchange_stack.pop_back();
 
         copy.makeMove(current_move); // Make the capture
+        node_count[thread_id]++;
         Movelist captures;
         movegen::legalmoves<movegen::MoveGenType::CAPTURE>(captures, copy);
 
@@ -341,7 +342,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             priority = 16000; 
         } else if (board.isCapture(move)) { 
             int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
-            int see_score = see(board, move);   
+            int see_score = see(board, move, thread_id);   
             priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
@@ -384,7 +385,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
         stop_search = true;
         return 0;
     }
-
+    
     // Check if the game is over. 
     auto gameOverResult = board.isGameOver();
     if (gameOverResult.first != GameResultReason::NONE) {
@@ -394,7 +395,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
         return 0;
     }
     
-    node_count[thread_id]++;
     bool stm = (board.sideToMove() == Color::WHITE);
     int stand_pat = 0;
 
@@ -439,7 +439,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     candidate_moves.reserve(moves.size());
 
     for (const auto& move : moves) {
-        int see_score = see(board, move);
+        int see_score = see(board, move, thread_id);
         candidate_moves.push_back({move, see_score});
     }
 
@@ -450,6 +450,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     for (auto& [move, priority] : candidate_moves) {
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         board.makeMove(move);
+        node_count[thread_id]++;
         
         int score = 0;
         score = -quiescence(board, -beta, -alpha, ply + 1, thread_id);
@@ -470,6 +471,12 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
 // Negamax main search function
 int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV, NodeData& data) {
 
+    // Handle UCI stop search request
+    if (search_stopped.load()) {
+        stop_search = true; // Signal that the result is not valid
+        return 0; 
+    }
+
     // Stop the search if hard deadline is reached
     auto current_time = std::chrono::high_resolution_clock::now();
     if (current_time >= hard_deadline || stop_search) {
@@ -486,7 +493,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool nmp_ok = data.nmp_ok;
     NodeType nodeType = data.node_type;
 
-    node_count[thread_id]++;
     bool mopUp = is_mopup(board);
     bool is_pv = (alpha < beta - 1);
     int alpha0 = alpha; // Original alpha passed from the parent node
@@ -700,6 +706,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool is_promotion_threat = promotion_threat(board, move) || is_promo; 
 
         board.makeMove(move);
+        node_count[thread_id]++;
         bool give_check = board.inCheck();
         board.unmakeMove(move);
 
@@ -753,6 +760,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
         board.makeMove(move);
+        node_count[thread_id]++;
         
         bool null_window = false;
         bool reduced_depth = next_depth < depth - 1;
@@ -814,6 +822,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
             move_stack[thread_id][ply] = move_index(move);
             board.makeMove(move);
+            node_count[thread_id]++;
 
             eval = -negamax(board, depth - 1, -beta, -alpha, childPV, child_node_data);
             eval_adjust(eval);
@@ -959,6 +968,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
             try {
                 Board board_copy = board;
                 board_copy.makeMove(syzygy_move);
+                node_count[thread_id]++;
                 return {syzygy_move, 0, score, {syzygy_move}};
             } catch (const std::exception&) {
                 // In case somehow the move is invalid, continue with the search
@@ -1015,6 +1025,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                 add_accumulators(local_board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
                 move_stack[thread_id][ply] = move_index(move);
                 local_board.makeMove(move);
+                node_count[thread_id]++;
 
                 eval = -negamax(local_board, next_depth, -beta, -alpha, childPV, child_node_data);
                 eval_adjust(eval);
@@ -1032,6 +1043,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                     add_accumulators(local_board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
                     move_stack[thread_id][ply] = move_index(move);
                     local_board.makeMove(move);
+                    node_count[thread_id]++;
 
                     eval = -negamax(local_board, depth - 1, -beta, -alpha, childPV, child_node_data);
                     eval_adjust(eval);
@@ -1193,6 +1205,9 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         total_node_count += node_count[i];
         total_table_hit += table_hit[i];
     }
+
+    // Update benchmark_nodes with the actual node count from search
+    benchmark_nodes.store(total_node_count);
 
     std::string analysis = format_analysis(depth, eval, total_node_count, total_table_hit, start_time, PV, board);
     std::cout << analysis << std::endl;

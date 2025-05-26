@@ -1,5 +1,6 @@
 #pragma once
 #include "chess.hpp"
+#include <atomic>
 
 using namespace chess;
 
@@ -9,8 +10,8 @@ enum NodeType {PV, CUT, ALL};
 constexpr int INF = 1000000;
 constexpr int SZYZYGY_INF = 40000;
 extern int table_size; // Maximum size of the transposition table
-extern bool stop_search; // To signal if the search should stop
-
+extern bool stop_search; // To signal if the search should stop based on time control
+extern std::atomic<bool> search_stopped; // Global stop flag for search based on UCI request
 
 struct NodeData {
     int ply;
