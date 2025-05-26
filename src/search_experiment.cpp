@@ -607,11 +607,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     std::vector<std::pair<Move, int>> moves = order_move(board, ply, thread_id, hash_move_found);
-    
-    // seeds[thread_id] = fast_rand(seeds[thread_id]); 
-    // int R1 = seeds[thread_id] % moves.size(); 
-    // seeds[thread_id] = fast_rand(seeds[thread_id]);
-    // int R2 = seeds[thread_id] % moves.size();
 
     // Null move pruning. Side to move must have non-pawn material.
     const int null_depth = 4; 
@@ -987,7 +982,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         bool hash_move_found = false;
 
         // Aspiration window
-        int window = 150;
+        int window = 25;
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
         
@@ -1072,8 +1067,16 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
             }
 
             if (curr_best_eval <= alpha0 || curr_best_eval >= beta) {
-                alpha = -INF;
-                beta = INF;
+                window *= 2;
+                if (window <= 300) {
+                    alpha = evals[depth - 1] - window;
+                    beta = evals[depth - 1] + window;
+                } else {
+                    alpha = -INF;
+                    beta = INF;
+                }
+                // alpha = -INF;
+                // beta = INF;
                 new_moves.clear();
             } else {
                 PV = curr_pv;
@@ -1084,7 +1087,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
         best_move = curr_best_move;
         best_eval = curr_best_eval;
-        
 
         // Sort the moves by evaluation for the next iteration
         std::sort(new_moves.begin(), new_moves.end(), [](const auto& a, const auto& b) {
