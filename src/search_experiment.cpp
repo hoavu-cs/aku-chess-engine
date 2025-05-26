@@ -615,7 +615,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
     }
     
-    std::vector<std::pair<Move, int>> moves = order_move(board, ply, thread_id, hash_move_found);
 
     // Null move pruning. Side to move must have non-pawn material.
     const int null_depth = 4; 
@@ -653,7 +652,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int best_eval = -INF;
 
     // Simplified version of IID. Reduce the depth to facilitate the search if no hash move found.
-    if (!hash_move_found && depth >= 4) {
+    if ((!found || tt_move != Move::NO_MOVE) && depth >= 4) {
         depth = depth - 1;
     }
 
@@ -686,18 +685,32 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     //     } 
     // }
 
+    
+    std::vector<std::pair<Move, int>> moves;// = order_move(board, ply, thread_id, hash_move_found);
+    Movelist move_list;
+    movegen::legalmoves(move_list, board);
+
     if (board.inCheck()) {
         extensions++;
     }
 
-    if (moves.size() == 1) {
+    if (move_list.size() == 1) {
         extensions++;
     }
 
     // Evaluate moves
-    for (int i = 0; i < moves.size(); i++) {
+    for (int i = 0; i < move_list.size(); i++) {
+        Move move;// = moves[i].first;
+        if (i == 0 && (tt_move != Move::NO_MOVE) && found && (tt_type == EntryType::EXACT || tt_type == EntryType::LOWERBOUND)) {
+            move = tt_move; 
+        } else {
+            if (moves.size() == 0) {
+                moves = order_move(board, ply, thread_id, hash_move_found);
+            }
+            move = moves[i].first;
+        }
 
-        Move move = moves[i].first;
+        //Move move = moves[i].first;
         std::vector<Move> childPV;
 
         if (move == excluded_move) {
