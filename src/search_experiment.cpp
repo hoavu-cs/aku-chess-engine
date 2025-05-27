@@ -53,8 +53,7 @@ std::vector<std::vector<std::vector<int>>> history(MAX_THREADS, std::vector<std:
 std::vector<std::vector<int>> static_eval(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
 // Killer moves for each thread and ply
-std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std::vector<Move>> 
-    (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
+std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std::vector<Move>> (ENGINE_DEPTH + 1, std::vector<Move>(1, Move::NO_MOVE))); 
 
 // Move stack for each thread
 std::vector<std::vector<int>> move_stack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
@@ -91,7 +90,7 @@ struct LockedTableEntry {
 
 std::vector<LockedTableEntry> tt_table(table_size); 
 
-// Helper function declarations
+// Helper function declarationss
 void precompute_lmr(int max_depth, int max_i);
 bool table_lookup(Board& board, int& depth, int& eval, bool& pv,Move& best_move, EntryType& type, std::vector<LockedTableEntry>& table);
 void table_insert(Board& board, int depth, int eval, bool pv,Move best_move, EntryType type, std::vector<LockedTableEntry>& table);
@@ -569,15 +568,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return negamax(board, 1, alpha, beta, PV, data);
     }
 
-    // Probcut idea
-    if (tt_hit 
-        && !is_pv 
-        && (tt_type == EntryType::EXACT || tt_type == EntryType::LOWERBOUND)
-        && (tt_depth == 4 && depth == 7)
-        && (tt_eval >= beta + 300)) {
-            return (tt_eval + beta + 300) / 2;
-    }
-
     
     int stand_pat = 0;
     if (stm == 1) {
@@ -614,8 +604,21 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             return (stand_pat + beta) / 2;
         }
     }
-    
 
+    // Razoring
+    bool rz_condition = depth <= 3
+                            && !board.inCheck() 
+                            && !is_pv 
+                            && !tt_is_pv
+                            && !improving
+                            && excluded_move == Move::NO_MOVE // No razoring during singular search
+                            && stand_pat < alpha - 550 * depth;
+    if (rz_condition) {
+        // Drop to quiescence search if the position is not promising
+        int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
+        return rz_eval;
+    }
+    
     // Null move pruning. Side to move must have non-pawn material.
     const int null_depth = 4; 
     bool nmp_condition = (depth >= null_depth 
@@ -650,9 +653,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     int best_eval = -INF;
+    std::vector<std::pair<Move, int>> moves = order_move(board, ply, thread_id, hash_move_found);
 
-    // Simplified version of IID. Reduce the depth to facilitate the search if no hash move found.
-    if ((!found || tt_move != Move::NO_MOVE) && depth >= 4) {
+    // IID: Reduce the depth to facilitate the search if no hash move found.
+    if (!hash_move_found && depth >= 4) {
         depth = depth - 1;
     }
 
@@ -685,32 +689,18 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     //     } 
     // }
 
-    
-    std::vector<std::pair<Move, int>> moves;// = order_move(board, ply, thread_id, hash_move_found);
-    Movelist move_list;
-    movegen::legalmoves(move_list, board);
-
     if (board.inCheck()) {
         extensions++;
     }
 
-    if (move_list.size() == 1) {
+    if (moves.size() == 1) {
         extensions++;
     }
 
     // Evaluate moves
-    for (int i = 0; i < move_list.size(); i++) {
-        Move move;// = moves[i].first;
-        if (i == 0 && (tt_move != Move::NO_MOVE) && found && (tt_type == EntryType::EXACT || tt_type == EntryType::LOWERBOUND)) {
-            move = tt_move; 
-        } else {
-            if (moves.size() == 0) {
-                moves = order_move(board, ply, thread_id, hash_move_found);
-            }
-            move = moves[i].first;
-        }
+    for (int i = 0; i < moves.size(); i++) {
 
-        //Move move = moves[i].first;
+        Move move = moves[i].first;
         std::vector<Move> childPV;
 
         if (move == excluded_move) {
@@ -763,16 +753,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue;
             }
         }
-
-        // History pruning
-        // bool hp_condition = can_prune && !is_pv && !is_capture && next_depth <= 2;
-        // if (hp_condition) {
-        //     int margin = -hp_c1 * next_depth * next_depth; 
-        //     int historyScore = history[thread_id][stm][move_index(move)];
-        //     if (historyScore < margin) {
-        //         continue;
-        //     }
-        // }
     
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
@@ -870,7 +850,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         if (beta <= alpha) {
             int mv_index = move_index(move);
             int currentScore = history[thread_id][stm][mv_index];
-            int limit = MAX_HIST;// is_capture ? MAX_CAP_HIST : MAX_HIST;
+            int limit = MAX_HIST;
             int delta = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(limit)) * depth * depth;
 
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
@@ -1010,6 +990,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         
         std::vector<std::pair<Move, int>> new_moves;
         
+        
         if (depth == 1) {
             moves = order_move(board, 0, 0, hash_move_found);
         }
@@ -1100,6 +1081,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
         best_move = curr_best_move;
         best_eval = curr_best_eval;
+        
 
         // Sort the moves by evaluation for the next iteration
         std::sort(new_moves.begin(), new_moves.end(), [](const auto& a, const auto& b) {
