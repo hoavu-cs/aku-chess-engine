@@ -140,7 +140,6 @@ inline bool promotion_threat(Board& board, Move move) {
     return false;
 }
 
-
 inline bool is_mopup(Board& board) {
     int white_pawns_count = board.pieces(PieceType::PAWN, Color::WHITE).count();
     int black_pawns_count = board.pieces(PieceType::PAWN, Color::BLACK).count();
@@ -176,7 +175,6 @@ inline bool is_mopup(Board& board) {
     // Otherwise, if we have K + a minor piece, or KR vs K + minor piece, it's drawish
     return false;
 }
-
 
 inline int mopup_score(const Board& board) {
 

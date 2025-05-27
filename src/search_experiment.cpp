@@ -486,6 +486,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int thread_id = data.thread_id;
     int ply = data.ply;
     int root_depth = data.root_depth;
+    bool mopup_flag = is_mopup(board);
     Move excluded_move = data.excluded_move;
 
     std::vector<Move> bad_quiets; // quiet moves that fail to raise alpha
@@ -568,6 +569,22 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return negamax(board, 1, alpha, beta, PV, data);
     }
 
+    // Probcut idea based on the transposition table for (6, 8) annd (4, 7) pairs
+    if (tt_hit 
+        && !is_pv 
+        && !tt_is_pv
+        && excluded_move == Move::NO_MOVE 
+        && !mopup_flag
+        && abs(beta) < 10000
+        && (tt_type == EntryType::EXACT || tt_type == EntryType::LOWERBOUND)
+        && ((tt_depth == 6 && depth == 8) || (tt_depth == 4 && depth == 7))
+        && (tt_eval >= beta + 300)) {
+
+            return (tt_eval + beta + 300) / 2;
+
+    }
+
+
     
     int stand_pat = 0;
     if (stm == 1) {
@@ -596,6 +613,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && !is_pv 
                         && !tt_is_pv
                         && !capture_tt_move
+                        && !mopup_flag
                         && excluded_move == Move::NO_MOVE // No rfp during singular search
                         && abs(beta) < 10000;
     if (rfp_condition) {
@@ -606,7 +624,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Razoring
-    bool rz_condition = depth <= 3
+    bool rz_condition = depth <= 2
                             && !board.inCheck() 
                             && !is_pv 
                             && !tt_is_pv
@@ -614,7 +632,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && excluded_move == Move::NO_MOVE // No razoring during singular search
                             && stand_pat < alpha - 550 * depth;
     if (rz_condition) {
-        // Drop to quiescence search if the position is not promising
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         return rz_eval;
     }
@@ -655,7 +672,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int best_eval = -INF;
     std::vector<std::pair<Move, int>> moves = order_move(board, ply, thread_id, hash_move_found);
 
-    // IID: Reduce the depth to facilitate the search if no hash move found.
+    // IID. Reduce the depth to facilitate the search if no hash move found.
     if (!hash_move_found && depth >= 4) {
         depth = depth - 1;
     }
@@ -728,7 +745,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
 
         // common conditions for pruning
-        bool can_prune = !in_check && !is_promotion_threat && i > 0;
+        bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag;
 
         // Futility  pruning
         bool fp_condition = can_prune 
@@ -1082,7 +1099,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         best_move = curr_best_move;
         best_eval = curr_best_eval;
         
-
         // Sort the moves by evaluation for the next iteration
         std::sort(new_moves.begin(), new_moves.end(), [](const auto& a, const auto& b) {
             return a.second > b.second;
@@ -1104,7 +1120,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
             std::cout << analysis << std::endl;
         }
 
-        
         if (moves.size() == 1) {
             return {moves[0].first, 0, stand_pat, {moves[0].first}}; // If there is only one move, return it immediately.
         }
@@ -1138,11 +1153,9 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
 }
 
 Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeLimit) {
-    
     precompute_lmr(100, 500);  // Precompute late move reduction table
     omp_set_num_threads(num_threads); // Set the number of threads for OpenMP
     Move best_move = Move(); 
-
     stop_search = false;
     auto start_time = std::chrono::high_resolution_clock::now();
 
