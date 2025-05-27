@@ -41,9 +41,13 @@ std::chrono::time_point<std::chrono::high_resolution_clock> hard_deadline;
 std::vector<U64> node_count (MAX_THREADS); // Node count for each thread
 std::vector<U64> table_hit (MAX_THREADS); // Table hit count for each thread
 
-void initialize_nnue(std::string path) {
+bool initialize_nnue(std::string path) {
     std::cout << "Initializing NNUE from: " << path << std::endl;
-    load_network(path, nnue);
+    if (load_network(path, nnue)) {
+        return true;
+    } else {
+        return false;
+    }
 }
 
 // History scores for quiet moves

@@ -189,16 +189,21 @@ void extract_files() {
         }
     }
 
-    // Extract NNUE weights file
+    // Extract NNUE weights file only if it doesn't already exist
     std::string nnue_file_path = nnue_dir + "/" + nnueWeightFile.name;
-    std::ofstream nnue_out(nnue_file_path, std::ios::binary);
-    if (!nnue_out) {
-        std::cerr << "Failed to create: " << nnue_file_path << std::endl;
+    if (!std::filesystem::exists(nnue_file_path)) {
+        std::ofstream nnue_out(nnue_file_path, std::ios::binary);
+        if (!nnue_out) {
+            std::cerr << "Failed to create: " << nnue_file_path << std::endl;
+        } else {
+            nnue_out.write(reinterpret_cast<const char*>(nnueWeightFile.data), nnueWeightFile.size);
+            nnue_out.close();
+            std::cout << "Extracted: " << nnue_file_path << std::endl;
+        }
     } else {
-        nnue_out.write(reinterpret_cast<const char*>(nnueWeightFile.data), nnueWeightFile.size);
-        nnue_out.close();
-        std::cout << "Extracted: " << nnue_file_path << std::endl;
+        std::cout << "NNUE file found." << nnue_file_path << std::endl;
     }
+
 }
 
 // Global variables for engine options
@@ -627,10 +632,12 @@ void uci_loop() {
 
 int main() {
     extract_files();
-    
     std::string nnue_path = get_exec_path() + "/nnue/nnue_weights.bin";
-    initialize_nnue(nnue_path);
 
+    if (!initialize_nnue(nnue_path)) {
+        return 1; // Exit if NNUE initialization fails
+    }
+    
     std::string eg_table_path = get_exec_path() + "/tables/";
     syzygy::initialize_syzygy(eg_table_path);
 
