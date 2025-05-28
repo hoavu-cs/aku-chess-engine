@@ -18,6 +18,9 @@ extern int hp_c1;
 extern int hp_c2;
 extern int hp_c3;
 
+extern int rz_depth;
+extern int rz_c1;
+
 extern int probcut_depth;
 extern int probcut_c1;
 

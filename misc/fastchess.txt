@@ -13,11 +13,11 @@ Command for Mac/Linux ./fastchess-ubuntu-22.04  -engine cmd=aku_experiment name=
 ./fastchess \
   -engine cmd="/Users/hvu2/git/donbot-chess-engine/bin/aku_experiment/aku_experiment" name=NewAku \
   -engine cmd="/Users/hvu2/git/donbot-chess-engine/bin/aku/aku" name=OldAku \
-  -each tc=20+0.2 option.Threads=1 \
+  -each tc=20+0.2 option.Threads=1 option.Hash=64 \
   -rounds 10000 \
   -repeat \
-  -concurrency 2 \
-  -openings file=imbalanced_book.epd format=epd \
+  -concurrency 8 \
+  -openings file=imbalanced_book.epd format=epd order=random \
   -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05
 
 

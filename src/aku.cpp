@@ -135,6 +135,9 @@ int lmp_c1 = 15;
 int hp_depth = 2;
 int hp_c1 = 4000;
 
+int rz_depth = 2;
+int rz_c1 = 550;
+
 int singular_c1 = 2;
 int singular_c2 = 0;
 
