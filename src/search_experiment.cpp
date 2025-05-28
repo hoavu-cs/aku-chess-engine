@@ -582,7 +582,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && abs(beta) < 10000
         && (tt_type == EntryType::EXACT || tt_type == EntryType::LOWERBOUND)
         && (tt_depth == 8 && depth == 10)
-        && (tt_eval >= beta + 300)) {
+        && (tt_eval >= beta + probcut_c1)) {
             return (tt_eval + beta + 300) / 2;
     }
 

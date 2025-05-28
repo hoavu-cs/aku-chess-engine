@@ -123,29 +123,20 @@ std::mutex search_mutex;
 Move current_best_move = Move::NO_MOVE;
 
 // Engine tunable parameters
-int rfp_depth = 4;
+int rfp_depth = 2;
 int rfp_c1 = 200; 
-
 int fp_depth = 2;
 int fp_c1 = 200; 
-
 int lmp_depth = 2;
 int lmp_c1 = 15;
-
-int hp_depth = 2;
-int hp_c1 = 4000;
-
 int rz_depth = 2;
 int rz_c1 = 550;
-
+float lmr_1 = 0.75f;
+float lmr_2 = 0.45f;
+int probcut_c1 = 300; 
 int singular_c1 = 2;
 int singular_c2 = 0;
 
-float lmr_1 = 0.75f;
-float lmr_2 = 0.45f;
-
-int probcut_depth = 7;
-int probcut_c1 = 200; 
 
 // Extract tablebase files to the current directory if they don't already exist.
 void extract_files() {
@@ -309,7 +300,35 @@ void process_option(const std::vector<std::string>& tokens) {
         board.set960(chess960);
     } else if (option_name == "Internal_Opening_Book") {
         internal_opening = (value == "true");
-    } else {
+    }  
+    
+
+    // For spsa tuning. Comment out for final build.
+    else if (option_name == "rfp_depth") {
+        rfp_depth = std::stoi(value);
+    } else if (option_name == "rfp_c1") {
+        rfp_c1 = std::stoi(value);
+    } else if (option_name == "fp_depth") {
+        fp_depth = std::stoi(value);
+    } else if (option_name == "fp_c1") {
+        fp_c1 = std::stoi(value);
+    } else if (option_name == "lmp_depth") {
+        lmp_depth = std::stoi(value);
+    } else if (option_name == "lmp_c1") {
+        lmp_c1 = std::stoi(value);
+    } else if (option_name == "rz_depth") {
+        rz_depth = std::stoi(value);
+    } else if (option_name == "rz_c1") {
+        rz_c1 = std::stoi(value);
+    } else if (option_name == "probcut_c1") {
+        probcut_c1 = std::stoi(value);
+    } else if (option_name == "lmr_c1") {
+        lmr_1 = std::stof(value) / 100.0f;
+    } else if (option_name == "lmr_c2") {
+        lmr_2 = std::stof(value) / 100.0f;
+    }    
+    
+    else {
         std::cerr << "Unknown option: " << option_name << std::endl;
     }
 }
@@ -450,6 +469,19 @@ void process_uci() {
     std::cout << "option name Hash type spin default 256 min 64 max 1024" << std::endl;
     std::cout << "option name UCI_Chess960 type check default false" << std::endl;
     std::cout << "option name Internal_Opening_Book type check default true" << std::endl;
+
+    std::cout << "option name rfp_depth type spin default 2 min 0 max 20000" << std::endl;
+    std::cout << "option name rfp_c1 type spin default 200 min 0 max 20000" << std::endl;
+    std::cout << "option name fp_depth type spin default 2 min 0 max 20000" << std::endl;
+    std::cout << "option name fp_c1 type spin default 200 min 0 max 20000" << std::endl;
+    std::cout << "option name rz_depth type spin default 2 min 0 max 20000" << std::endl;
+    std::cout << "option name rz_c1 type spin default 550 min 0 max 20000" << std::endl;
+    std::cout << "option name lmp_depth type spin default 2 min 0 max 20000" << std::endl;
+    std::cout << "option name lmp_c1 type spin default 15 min 0 max 20000" << std::endl;
+    std::cout << "option name probcut_c1 type spin default 300 min 0 max 20000" << std::endl;
+    std::cout << "option name lmr_c1 type spin default 75 min 1 max 100" << std::endl;
+    std::cout << "option name lmr_c2 type spin default 45 min 1 max 100" << std::endl;
+
     std::cout << "uciok" << std::endl;
 }
 
