@@ -629,6 +629,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !is_pv 
                             && !tt_is_pv
                             && !improving
+                            && !mopup_flag
                             && excluded_move == Move::NO_MOVE // No razoring during singular search
                             && stand_pat < alpha - rz_c1 * depth;
     if (rz_condition) {
