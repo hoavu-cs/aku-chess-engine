@@ -566,9 +566,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     if (depth <= 0 && !board.inCheck()) {
-        int qEval = quiescence(board, alpha, beta, ply + 1, thread_id);
-        eval_adjust(qEval);
-        return qEval;
+        int q_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
+        eval_adjust(q_eval);
+        return q_eval;
     } else if (depth <= 0) {
         return negamax(board, 1, alpha, beta, PV, data);
     }
