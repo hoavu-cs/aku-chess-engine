@@ -344,15 +344,8 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
-            int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move, thread_id);   
-            int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
-            int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
-            if (see_score >= 0) {
-                priority = 4000 + victim_value - attacker_value;
-            } else {
-                priority = 1000 + victim_value - attacker_value; 
-            }
+            priority = 4000 + see_score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
         } else if (move == best_2ply_move) {
@@ -451,7 +444,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
         //int score = see(board, move, thread_id);
         int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
         int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
-        int score = victim_value - attacker_value;
+        int score = victim_value - attacker_value; // Simplified SEE score
         candidate_moves.push_back({move, score});
     }
 
