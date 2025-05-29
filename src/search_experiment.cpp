@@ -573,8 +573,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return negamax(board, 1, alpha, beta, PV, data);
     }
 
-   
-
     int stand_pat = 0;
     if (stm == 1) {
         stand_pat = nnue.evaluate(white_accumulator[thread_id], black_accumulator[thread_id]);
