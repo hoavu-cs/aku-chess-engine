@@ -103,7 +103,7 @@ use bullet_lib::{
     },
 };
 
-const HIDDEN_SIZE: usize = 768;
+const HIDDEN_SIZE: usize = 1024;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -122,17 +122,17 @@ fn main() {
     //trainer.load_from_checkpoint("checkpoints_may/simple1024_v3-80/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple768_v5".to_string(),
+        net_id: "simple1024_v5".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
             batches_per_superbatch: 6104,
             start_superbatch: 1,
-            end_superbatch: 80,
+            end_superbatch: 200,
         },
-        wdl_scheduler: wdl::ConstantWDL { value: 0.2 },
-        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.2, step: 20 },
-        save_rate: 10,
+        wdl_scheduler: wdl::ConstantWDL { value: 0.35 },
+        lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.2, step: 30 },
+        save_rate: 5,
     };
 
     trainer.set_optimiser_params(optimiser::AdamWParams::default());
@@ -141,7 +141,7 @@ fn main() {
 
     // loading from a SF binpack
     let data_loader = {
-        let file_path = "janfebmaraprmayjun.binpack";
+        let file_path = "big.binpack";
         let buffer_size_mb = 1024;
         let threads = 4;
         fn filter(entry: &TrainingDataEntry) -> bool {
