@@ -573,18 +573,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         return negamax(board, 1, alpha, beta, PV, data);
     }
 
-    // Probcut idea based on the transposition table for (6, 8) annd (4, 7) pairs
-    if (tt_hit 
-        && !is_pv 
-        && !tt_is_pv
-        && excluded_move == Move::NO_MOVE 
-        && !mopup_flag
-        && abs(beta) < 10000
-        && (tt_type == EntryType::EXACT || tt_type == EntryType::LOWERBOUND)
-        && (tt_depth == 8 && depth == 10)
-        && (tt_eval >= beta + probcut_c1)) {
-            return (tt_eval + beta + 300) / 2;
-    }
+   
 
     int stand_pat = 0;
     if (stm == 1) {
