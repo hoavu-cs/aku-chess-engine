@@ -432,21 +432,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
         }
     }
 
-    Move tt_move;
-    EntryType tt_type;
-    TableEntry entry;
-    bool tt_hit = false;
-    bool tt_is_pv = false;
-    int tt_eval, tt_depth;
-
-    if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table)) {
-        if (tt_type == EntryType::EXACT 
-            || (tt_type == EntryType::LOWERBOUND && tt_eval > stand_pat)
-            || (tt_type == EntryType::UPPERBOUND && tt_eval < stand_pat)) {
-            stand_pat = tt_eval;
-        }
-    }
-
     int best_score = stand_pat;
     if (stand_pat >= beta) {
         return beta;
