@@ -122,7 +122,7 @@ fn main() {
     //trainer.load_from_checkpoint("checkpoints_may/simple1024_v3-80/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple1024_v5".to_string(),
+        net_id: "simple1024_v6".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
@@ -130,7 +130,7 @@ fn main() {
             start_superbatch: 1,
             end_superbatch: 200,
         },
-        wdl_scheduler: wdl::ConstantWDL { value: 0.35 },
+        wdl_scheduler: wdl::ConstantWDL { value: 0.05 },
         lr_scheduler: lr::StepLR { start: 0.001, gamma: 0.2, step: 30 },
         save_rate: 5,
     };
