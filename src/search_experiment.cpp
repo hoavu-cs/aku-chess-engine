@@ -347,12 +347,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move, thread_id);   
             priority = 4000 + see_score;// victime_value + score;
-
-            if (see_score < -200) {
-                // Put bad captures in the 2ndary list with quiet moves
-                secondary = true; 
-                priority = 1000 + see_score; 
-            }
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
         } else if (move == best_2ply_move) {
@@ -660,7 +654,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (null_eval >= beta) {
             return beta;
-        } 
+        } else if (null_eval < alpha && ply >= 1) {
+            if (null_pv.size() > 0 && null_pv[0] != Move::NO_MOVE) {
+                // (move1, null move, move0) lowered alpha, that means (move1, move0) is a good continuation
+                int move_index_0 = move_index(null_pv[0]);
+                int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
+                mg_2ply[thread_id].insert({move_index_1, move_index_0}); 
+            }
+        }
     }
 
     int best_eval = -INF;
