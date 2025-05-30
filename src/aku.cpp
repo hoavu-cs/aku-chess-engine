@@ -426,17 +426,16 @@ void process_go(const std::vector<std::string>& tokens) {
 
     // Calculate time limit only if not depth-limited
     if (!depth_limited) {
-        double adjust = 0.6; // default = 0.9
+        double adjust = 0.6;
         if (movetime > 0) {
             time_limit = movetime * adjust;
         } else {
             // Determine the time limit based on the current player's time and increment
             if (board.sideToMove() == Color::WHITE && wtime > 0) {
-                int base_time = wtime / (movestogo > 0 ? movestogo: 20);
-                int inc_bonus = winc / 2; 
+                int base_time = wtime / (movestogo > 0 ? movestogo + 2 : 20); 
                 time_limit = static_cast<int>(base_time * adjust) + winc / 2;
 
-               if (wtime < 20000) {
+                if (wtime < 20000) {
                     // if only 20s left, make moves faster
                     base_time = wtime / (movestogo > 0 ? movestogo + 2 : 20); 
                     time_limit = static_cast<int>(base_time * adjust) + winc / 3;
@@ -446,8 +445,7 @@ void process_go(const std::vector<std::string>& tokens) {
                     time_limit = 50;
                 } 
             } else if (board.sideToMove() == Color::BLACK && btime > 0) {
-                int base_time = btime / (movestogo > 0 ? movestogo: 20);
-                int inc_bonus = binc / 2;
+                int base_time = btime / (movestogo > 0 ? movestogo + 2 : 20); 
                 time_limit = static_cast<int>(base_time * adjust) + binc / 2;
 
                 if (btime < 20000) {
