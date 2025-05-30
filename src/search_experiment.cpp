@@ -347,6 +347,12 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move, thread_id);   
             priority = 4000 + see_score;// victime_value + score;
+
+            if (see_score < -200) {
+                // Put bad captures in the 2ndary list with quiet moves
+                secondary = true; 
+                priority = 1000 + see_score; 
+            }
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
         } else if (move == best_2ply_move) {
