@@ -105,8 +105,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
 int quiescence(Board& board, int alpha, int beta, int ply, int thread_id);
 void search_thread(Board search_board, int search_depth, int time_limit); 
 
-// Function definitions
-
 // precompute late move reduction table
 void precompute_lmr(int max_depth, int max_i) {
     static bool is_precomputed = false;
@@ -730,7 +728,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         extensions = std::clamp(extensions, 0, 2); 
-        next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
+        next_depth = std::min(next_depth + extensions, (2 * root_depth) - ply - 1);
 
         // common conditions for pruning
         bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag;
