@@ -11,95 +11,95 @@ extern std::atomic<uint64_t> benchmark_nodes;
 // Function declarations
 inline std::string format_analysis(
     int depth,
-    int best_eval,
-    size_t total_node_count,
-    size_t total_table_hit,
-    const std::chrono::high_resolution_clock::time_point& start_time,
+    int bestEval,
+    size_t totalNodeCount,
+    size_t totalTableHit,
+    const std::chrono::high_resolution_clock::time_point& startTime,
     const std::vector<Move>& PV,
     const Board& board
 );
 inline uint32_t fast_rand(uint32_t& seed);
 inline void benchmark(int bench_depth, const std::vector<std::string>& benchmark_position, bool chess960); 
 
-// Hash function for Triple
-// struct PairHash {
-//     std::size_t operator()(const std::pair<int, int>& p) const {
-//         return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
-//     }
-// };
+// Hash function for Pair of Ints
+struct PairHash {
+    std::size_t operator()(const std::pair<int, int>& p) const {
+        return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
+    }
+};
 
-// // Misra-Gries for pair<int, int> items
-// class MisraGriesIntInt {
-// public:
-//     MisraGriesIntInt(int k) : k(k) {}
+// Misra-Gries for pair<int, int> items
+class MisraGriesIntInt {
+public:
+    MisraGriesIntInt(int k) : k(k) {}
 
-//     void insert(const std::pair<int, int>& item) {
-//         if (counter.count(item)) {
-//             counter[item]++;
-//         } else if (counter.size() < k - 1) {
-//             counter[item] = 1;
-//         } else {
-//             for (auto it = counter.begin(); it != counter.end(); ) {
-//                 if (--(it->second) == 0)
-//                     it = counter.erase(it);
-//                 else
-//                     ++it;
-//             }
-//         }
-//     }
+    void insert(const std::pair<int, int>& item) {
+        if (counter.count(item)) {
+            counter[item]++;
+        } else if (counter.size() < k - 1) {
+            counter[item] = 1;
+        } else {
+            for (auto it = counter.begin(); it != counter.end(); ) {
+                if (--(it->second) == 0)
+                    it = counter.erase(it);
+                else
+                    ++it;
+            }
+        }
+    }
 
-//     void clear() {
-//         counter = {};
-//     }
+    void clear() {
+        counter = {};
+    }
 
-//     int get_count(const std::pair<int, int>& item) const {
-//         auto it = counter.find(item);
-//         return (it != counter.end()) ? it->second : 0;
-//     }
+    int get_count(const std::pair<int, int>& item) const {
+        auto it = counter.find(item);
+        return (it != counter.end()) ? it->second : 0;
+    }
 
-//     const std::unordered_map<std::pair<int, int>, int, PairHash>& get_counts() const {
-//         return counter;
-//     }
+    const std::unordered_map<std::pair<int, int>, int, PairHash>& get_counts() const {
+        return counter;
+    }
 
-// private:
-//     int k;
-//     std::unordered_map<std::pair<int, int>, int, PairHash> counter;
-// };
+private:
+    int k;
+    std::unordered_map<std::pair<int, int>, int, PairHash> counter;
+};
 
 
-// // Misra-Gries for 64-bit integers items
-// class MisraGriesU64 {
-// public:
-//     MisraGriesU64(int k) : k(k) {}
+// Misra-Gries for 64-bit integers items
+class MisraGriesU64 {
+public:
+    MisraGriesU64(int k) : k(k) {}
 
-//     void insert(uint64_t item) {
-//         if (counter.count(item)) {
-//             counter[item]++;
-//         } else if (counter.size() < k - 1) {
-//             counter[item] = 1;
-//         } else {
-//             for (auto it = counter.begin(); it != counter.end(); ) {
-//                 if (--(it->second) == 0)
-//                     it = counter.erase(it);
-//                 else
-//                     ++it;
-//             }
-//         }
-//     }
+    void insert(uint64_t item) {
+        if (counter.count(item)) {
+            counter[item]++;
+        } else if (counter.size() < k - 1) {
+            counter[item] = 1;
+        } else {
+            for (auto it = counter.begin(); it != counter.end(); ) {
+                if (--(it->second) == 0)
+                    it = counter.erase(it);
+                else
+                    ++it;
+            }
+        }
+    }
 
-//     int get_count(uint64_t item) const {
-//         auto it = counter.find(item);
-//         return (it != counter.end()) ? it->second : 0;
-//     }
+    int get_count(uint64_t item) const {
+        auto it = counter.find(item);
+        return (it != counter.end()) ? it->second : 0;
+    }
 
-//     const std::unordered_map<uint64_t, int>& get_counts() const {
-//         return counter;
-//     }
+    const std::unordered_map<uint64_t, int>& get_counts() const {
+        return counter;
+    }
 
-// private:
-//     int k;
-//     std::unordered_map<uint64_t, int> counter;
-// };
+private:
+    int k;
+    std::unordered_map<uint64_t, int> counter;
+};
 
 // Function definitions
 inline std::string format_analysis(

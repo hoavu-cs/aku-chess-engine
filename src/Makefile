@@ -19,13 +19,13 @@ all: aku aku_experiment aku_bot
 D_git_pig_chess_engine_lichess_bot_lichess_bot_engines:
 	@mkdir -p D:/git/pig-chess-engine/lichess-bot/lichess-bot/engines
 
-aku: aku.cpp search.cpp count_min.cpp murmurhash1.cpp ../lib/fathom/src/tbprobe.c | 
+aku: aku.cpp search.cpp  ../lib/fathom/src/tbprobe.c | 
 	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/fathom/src -o ../bin/aku/aku $^ -lm
 
-aku_experiment: aku.cpp search_experiment.cpp count_min.cpp murmurhash1.cpp ../lib/fathom/src/tbprobe.c | ../bin/aku_experiment
+aku_experiment: aku.cpp search_experiment.cpp ../lib/fathom/src/tbprobe.c | ../bin/aku_experiment
 	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/fathom/src -o ../bin/aku_experiment/aku_experiment $^ -lm
 
-aku_bot: aku.cpp search_experiment.cpp count_min.cpp murmurhash1.cpp ../lib/fathom/src/tbprobe.c | D_git_pig_chess_engine_lichess_bot_lichess_bot_engines
+aku_bot: aku.cpp search_experiment.cpp ../lib/fathom/src/tbprobe.c | D_git_pig_chess_engine_lichess_bot_lichess_bot_engines
 	$(CXX) $(CXXFLAGS) -I include/ -I ../lib/fathom/src -o D:/git/pig-chess-engine/lichess-bot/lichess-bot/engines/aku_bot.exe $^ -lm
 
 clean:
