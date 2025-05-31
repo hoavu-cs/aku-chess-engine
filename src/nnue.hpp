@@ -79,7 +79,7 @@ struct Accumulator {
 struct Network {
     alignas(32) std::array<Accumulator, 768> feature_weights;
     Accumulator feature_bias;
-    std::array<int16_t, 2 * HIDDEN_SIZE> outputWeights;
+    std::array<int16_t, 2 * HIDDEN_SIZE> output_weights;
     int16_t outputBias;
 
     int evaluate(const Accumulator& us, const Accumulator& them) const {
@@ -87,8 +87,8 @@ struct Network {
     
         #pragma omp simd reduction(+:output)
         for (int i = 0; i < HIDDEN_SIZE; ++i) {
-            output += screlu(us.vals[i]) * static_cast<int>(outputWeights[i]) +
-                      screlu(them.vals[i]) * static_cast<int>(outputWeights[HIDDEN_SIZE + i]);
+            output += screlu(us.vals[i]) * static_cast<int>(output_weights[i]) +
+                      screlu(them.vals[i]) * static_cast<int>(output_weights[HIDDEN_SIZE + i]);
         }
     
         output /= QA;
@@ -106,17 +106,17 @@ inline Accumulator Accumulator::fromBias(const Network& net) {
     return net.feature_bias;
 }
 
-inline void Accumulator::add_feature(size_t featureIdx, const Network& net) {
+inline void Accumulator::add_feature(size_t feature_idx, const Network& net) {
     #pragma omp simd
     for (size_t i = 0; i < HIDDEN_SIZE; ++i) {
-        vals[i] += net.feature_weights[featureIdx].vals[i];
+        vals[i] += net.feature_weights[feature_idx].vals[i];
     }
 }
 
-inline void Accumulator::remove_feature(size_t featureIdx, const Network& net) {
+inline void Accumulator::remove_feature(size_t feature_idx, const Network& net) {
     #pragma omp simd
     for (size_t i = 0; i < HIDDEN_SIZE; ++i) {
-        vals[i] -= net.feature_weights[featureIdx].vals[i];
+        vals[i] -= net.feature_weights[feature_idx].vals[i];
     }
 }
 
@@ -139,7 +139,7 @@ bool load_network(const std::string& filepath, Network& net) {
                 HIDDEN_SIZE * sizeof(int16_t));
 
     // Load output weights: 2 x HL int16_t
-    stream.read(reinterpret_cast<char*>(net.outputWeights.data()), 2 * HIDDEN_SIZE * sizeof(int16_t));
+    stream.read(reinterpret_cast<char*>(net.output_weights.data()), 2 * HIDDEN_SIZE * sizeof(int16_t));
 
     // Load output bias: 1 int16_t
     stream.read(reinterpret_cast<char*>(&net.outputBias), sizeof(int16_t));
