@@ -215,18 +215,17 @@ void add_accumulators(Board& board,
     Color color = board.sideToMove();
     PieceType pieceType = board.at<Piece>(move.from()).type();
 
-    int pieceIdx = piecetype_to_idx(pieceType);
-    bool isPromotion = move.typeOf() & Move::PROMOTION;
-    bool isEnpassant = move.typeOf() & Move::ENPASSANT;
-    bool isCastle = move.typeOf() & Move::CASTLING; 
-    bool isNullMove = move.typeOf() & Move::NULL_MOVE;
-    bool isCapture = board.isCapture(move);
+    int piece_idx = piecetype_to_idx(pieceType);
+    bool is_promotion = move.typeOf() & Move::PROMOTION;
+    bool is_enpassant = move.typeOf() & Move::ENPASSANT;
+    bool is_castling = move.typeOf() & Move::CASTLING; 
+    bool is_null_move = move.typeOf() & Move::NULL_MOVE;
 
-    if (isNullMove) {
+    if (is_null_move) {
         return; 
     }
 
-    if (isPromotion || isEnpassant || isCastle) {
+    if (is_promotion || is_enpassant || is_castling) {
         // For now calculate from scratch for promotion and enpassant
         board.makeMove(move);
         make_accumulators(board, white_accumulator, black_accumulator, eval_network);
@@ -235,10 +234,10 @@ void add_accumulators(Board& board,
     }
 
     if (color == Color::WHITE) {
-        int from_idx_us = calculate_index(0, pieceIdx, move.from().index());
-        int to_idx_us = calculate_index(0, pieceIdx, move.to().index());
-        int from_idx_them = calculate_index(1, pieceIdx, mirror_sq(move.from().index()));
-        int to_idx_them = calculate_index(1, pieceIdx, mirror_sq(move.to().index()));
+        int from_idx_us = calculate_index(0, piece_idx, move.from().index());
+        int to_idx_us = calculate_index(0, piece_idx, move.to().index());
+        int from_idx_them = calculate_index(1, piece_idx, mirror_sq(move.from().index()));
+        int to_idx_them = calculate_index(1, piece_idx, mirror_sq(move.to().index()));
 
         // Calculate index of from and to from "us" perspective
         white_accumulator.remove_feature(from_idx_us, eval_network);
@@ -262,10 +261,10 @@ void add_accumulators(Board& board,
         }
 
     } else {
-        int from_idx_us = calculate_index(0, pieceIdx, mirror_sq(move.from().index()));
-        int to_idx_us = calculate_index(0, pieceIdx, mirror_sq(move.to().index()));
-        int from_idx_them = calculate_index(1, pieceIdx, move.from().index());
-        int to_idx_them = calculate_index(1, pieceIdx, move.to().index());
+        int from_idx_us = calculate_index(0, piece_idx, mirror_sq(move.from().index()));
+        int to_idx_us = calculate_index(0, piece_idx, mirror_sq(move.to().index()));
+        int from_idx_them = calculate_index(1, piece_idx, move.from().index());
+        int to_idx_them = calculate_index(1, piece_idx, move.to().index());
 
         black_accumulator.remove_feature(from_idx_us, eval_network);
         black_accumulator.add_feature(to_idx_us, eval_network);
@@ -299,14 +298,14 @@ void subtract_accumulators(Board& board,
     bool is_promotion = move.typeOf() & Move::PROMOTION;
     bool is_enpassant = move.typeOf() & Move::ENPASSANT;
     bool is_castle = move.typeOf() & Move::CASTLING;      
-    bool isNullMove = move.typeOf() & Move::NULL_MOVE;
+    bool is_null_move = move.typeOf() & Move::NULL_MOVE;
 
     board.unmakeMove(move);
     make_accumulators(board, white_accumulator, black_accumulator, eval_network);
     board.makeMove(move);
     return;
 
-    if (isNullMove) {
+    if (is_null_move) {
         return; 
     }
 

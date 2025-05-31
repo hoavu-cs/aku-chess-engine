@@ -750,7 +750,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        // Further reduction for quiet move>
+        // Pruning late quiet moves
         bool lmp_condition = can_prune && !is_pv && !tt_is_pv && !is_capture && next_depth <= lmp_depth && abs(beta) < 10000;
         if (lmp_condition) {
             int divisor = improving ? 1 : 2;
