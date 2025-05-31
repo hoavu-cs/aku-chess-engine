@@ -9,7 +9,7 @@ So far, nothing really major but some cute ideas that work:
 
 To build, simply call "make aku" from "src" and make sure "bin/aku" folder exists. This is a fun side project so any suggestion is welcome. 
 
-- The engine has its NNUE inference for the vanilla NNUE (768 -> 1024)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks (If you're not happy about this, this engine's main purpose isn't tournaments). 
+- The engine has its NNUE inference for the vanilla NNUE (768 -> 1024)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't tournaments (though I'm not against that either). 
 - For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce).
 
 Acknowledgements
