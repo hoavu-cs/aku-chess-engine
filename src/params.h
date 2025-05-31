@@ -1,10 +1,8 @@
-#pragma once
-
 extern int rfp_depth;
 extern int rfp_c1;
 extern int rfp_c2;
 extern int rfp_c3;
-
+s
 extern int fp_depth;
 extern int fp_c1;
 extern int fp_c2;

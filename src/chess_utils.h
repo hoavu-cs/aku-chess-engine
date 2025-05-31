@@ -1,5 +1,5 @@
-#include "chess.hpp"
-#include "search.hpp"
+#include "chess.h"
+#include "search.h"
 #include <chrono>
 
 using namespace chess; 
