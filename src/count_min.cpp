@@ -1,5 +1,5 @@
-#include "count_min.h"
-#include "murmurmash1.h"
+#include "count_min.hpp"
+#include "murmurhash1.hpp"
 #include <limits>
 #include <algorithm>
 

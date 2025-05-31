@@ -13,7 +13,7 @@
 // 2. It will not produce the same results on little-endian and big-endian
 //    machines.
 
-#include "murmurmash1.h"
+#include "murmurhash1.hpp"
 
 //-----------------------------------------------------------------------------
 

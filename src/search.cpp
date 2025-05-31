@@ -15,6 +15,7 @@
 #include "search.hpp"
 #include "chess_utils.hpp"
 #include "utils.hpp"
+
 #include "syzygy.hpp"
 #include "chess.hpp"
 #include "params.hpp"

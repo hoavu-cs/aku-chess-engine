@@ -1,4 +1,4 @@
-#include "chess.h"
+#include "chess.hpp"
 #include "search.h"
 #include <chrono>
 

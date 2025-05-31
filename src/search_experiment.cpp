@@ -12,13 +12,13 @@
 
 #include "nnue.hpp"
 #include "../lib/fathom/src/tbprobe.h"
-#include "search.h"
-#include "chess_utils.h"
-#include "utils.h"
-#include "syzygy.h"
+#include "search.hpp"
+#include "chess_utils.hpp"
+#include "utils.hpp"
+#include "syzygy.hpp"
 #include "chess.hpp"
-#include "params.h"
-#include "count_min.h"
+#include "params.hpp"
+#include "count_min.hpp"
 
 using namespace chess;
 
