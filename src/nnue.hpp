@@ -10,7 +10,7 @@
 using namespace chess;
 
 constexpr int INPUT_SIZE = 768;
-constexpr int HIDDEN_SIZE = 1024;
+constexpr int HIDDEN_SIZE = 1280;
 constexpr int SCALE = 400;
 constexpr int QA = 255;
 constexpr int QB = 64;
@@ -134,11 +134,11 @@ bool load_network(const std::string& filepath, Network& net) {
                     HIDDEN_SIZE * sizeof(int16_t));
     }
 
-    // Load hidden layer bias: 512 int16_t
+    // Load hidden layer bias: HL int16_t
     stream.read(reinterpret_cast<char*>(net.feature_bias.vals.data()),
                 HIDDEN_SIZE * sizeof(int16_t));
 
-    // Load output weights: 2 x 512 int16_t
+    // Load output weights: 2 x HL int16_t
     stream.read(reinterpret_cast<char*>(net.outputWeights.data()), 2 * HIDDEN_SIZE * sizeof(int16_t));
 
     // Load output bias: 1 int16_t

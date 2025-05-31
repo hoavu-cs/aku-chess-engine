@@ -103,7 +103,7 @@ use bullet_lib::{
     },
 };
 
-const HIDDEN_SIZE: usize = 1024;
+const HIDDEN_SIZE: usize = 1280;
 const SCALE: i32 = 400;
 const QA: i16 = 255;
 const QB: i16 = 64;
@@ -122,7 +122,7 @@ fn main() {
     //trainer.load_from_checkpoint("checkpoints_may/simple1024_v3-80/");
 
     let schedule = TrainingSchedule {
-        net_id: "simple1024_v6".to_string(),
+        net_id: "simple1280_v1".to_string(),
         eval_scale: SCALE as f32,
         steps: TrainingSteps {
             batch_size: 16_384,
