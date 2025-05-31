@@ -1,6 +1,6 @@
-This is a side project to test several searching algorithms. There were certainly several silly bugs in the past. I'm also too lazy to write my own movegen at the moment.
+This is a side project to test several searching algorithms. There were certainly several silly bugs in the past. I'm also too lazy to write my own movegen at the moment. 
 
-To play with the engine in a GUI, you can use any UCI-compatible GUI such as CuteChess, PyChess, etc., and add the engine to the GUI program.  
+To play with the engine in a GUI, you can use any UCI-compatible GUI such as CuteChess, PyChess, etc., and add the engine to the program.  
 
 The engine currently plays rapid chess at an estimated 3100-3300 ELO. The main goal is to improve the strength through exploring new ideas in the search algorithm. Hopefully, there is a clean algorithm to replace or encapsulate multiple heuristics that requires less finetuning. 
 
@@ -9,7 +9,7 @@ So far, I have nothing really major to report but some cute ideas that work:
 
 To build, simply call "make aku" from "src" and make sure "bin/aku" folder exists. This is a fun side project so any suggestion is welcome. 
 
-- The engine has its NNUE inference for the vanilla NNUE (768 -> 1024)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments (though I'm not against that either). 
+- The engine has its NNUE inference for the vanilla NNUE (768 -> 1024)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments although I'm not against that either (but you should not be upset over something like this). 
 - For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce).
 
 Acknowledgements
