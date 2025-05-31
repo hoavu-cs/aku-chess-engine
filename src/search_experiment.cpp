@@ -654,14 +654,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (null_eval >= beta) {
             return beta;
-        } else if (null_eval < alpha && ply >= 1) {
-            if (null_pv.size() > 0 && null_pv[0] != Move::NO_MOVE) {
-                // (move1, null move, move0) lowered alpha, that means (move1, move0) is a good continuation
-                int move_index_0 = move_index(null_pv[0]);
-                int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
-                mg_2ply[thread_id].insert({move_index_1, move_index_0}); 
-            }
-        }
+        } 
     }
 
     int best_eval = -INF;
