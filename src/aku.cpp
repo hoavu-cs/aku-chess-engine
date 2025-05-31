@@ -436,8 +436,6 @@ void process_go(const std::vector<std::string>& tokens) {
                 time_limit = static_cast<int>(base_time * adjust) + winc / 2;
 
                 if (wtime < 20000) {
-                    // if only 20s left, make moves faster
-                    base_time = wtime / (movestogo > 0 ? movestogo + 2 : 20); 
                     time_limit = static_cast<int>(base_time * adjust) + winc / 3;
                 } 
 
@@ -449,8 +447,6 @@ void process_go(const std::vector<std::string>& tokens) {
                 time_limit = static_cast<int>(base_time * adjust) + binc / 2;
 
                 if (btime < 20000) {
-                    // if only 20s left, make moves faster
-                    base_time = btime / (movestogo > 0 ? movestogo + 2 : 20); 
                     time_limit = static_cast<int>(base_time * adjust) + binc / 3;
                 }
 
