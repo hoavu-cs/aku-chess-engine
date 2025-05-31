@@ -12,12 +12,13 @@
 
 #include "nnue.hpp"
 #include "../lib/fathom/src/tbprobe.h"
-#include "search.hpp"
-#include "chess_utils.hpp"
-#include "utils.hpp"
-#include "syzygy.hpp"
+#include "search.h"
+#include "chess_utils.h"
+#include "utils.h"
+#include "syzygy.h"
 #include "chess.hpp"
-#include "params.hpp"
+#include "params.h"
+#include "count_min.h"
 
 using namespace chess;
 
@@ -69,7 +70,8 @@ std::vector<std::vector<int>> lmr_table;
 std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
-std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
+// std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
+std::vector<CountMinSketchIntInt> cm_2ply(MAX_THREADS, CountMinSketchIntInt(500, 20));
 
 // tt entry definition
 enum EntryType {
@@ -307,7 +309,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             std::pair<int, int> pair_1 = {move_index_2, move_index_0};
             std::pair<int, int> pair_2 = {move_index_1, move_index_0};
 
-            int count_2 = mg_2ply[thread_id].get_count(pair_1) + mg_2ply[thread_id].get_count(pair_2);
+            int count_2 = cm_2ply[thread_id].estimate(pair_1) + cm_2ply[thread_id].estimate(pair_2);
             if (count_2 > best_2ply_score) {
                 best_2ply_score = count_2;
                 best_2ply_move = move;
@@ -842,7 +844,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 if (ply >= 2 && is_pv) {
                     int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
                     int move_index_0 = move_index(move);
-                    mg_2ply[thread_id].insert({move_index_2, move_index_0});
+                    cm_2ply[thread_id].insert({move_index_2, move_index_0}, depth * depth);
                 } 
             }
         }
@@ -878,8 +880,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
                 int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
                 int move_index_0 = move_index(move);
-                mg_2ply[thread_id].insert({move_index_2, move_index_0});
-                mg_2ply[thread_id].insert({move_index_1, move_index_0});
+                cm_2ply[thread_id].insert({move_index_2, move_index_0}, depth * depth);
+                cm_2ply[thread_id].insert({move_index_1, move_index_0}, depth * depth);
             } 
 
             break;
@@ -1162,7 +1164,8 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
             history[i][1][j] = 0;
         }
 
-        mg_2ply[i].clear(); 
+        //mg_2ply[i].clear(); 
+        cm_2ply[i].clear();
 
         // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {
