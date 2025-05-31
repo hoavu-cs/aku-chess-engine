@@ -213,9 +213,9 @@ void add_accumulators(Board& board,
                         Network& eval_network) {
 
     Color color = board.sideToMove();
-    PieceType pieceType = board.at<Piece>(move.from()).type();
+    PieceType piece_type = board.at<Piece>(move.from()).type();
 
-    int piece_idx = piecetype_to_idx(pieceType);
+    int piece_idx = piecetype_to_idx(piece_type);
     bool is_promotion = move.typeOf() & Move::PROMOTION;
     bool is_enpassant = move.typeOf() & Move::ENPASSANT;
     bool is_castling = move.typeOf() & Move::CASTLING; 
@@ -249,14 +249,14 @@ void add_accumulators(Board& board,
         if (board.isCapture(move)) {
             // Remove the captured piece
             PieceType captured = board.at<Piece>(move.to()).type();
-            int capturedIdx = piecetype_to_idx(captured);
+            int capture_idx = piecetype_to_idx(captured);
 
             // remove the black piece from white's perspective
-            int captureIndexUs = calculate_index(1, capturedIdx, move.to().index());
+            int captureIndexUs = calculate_index(1, capture_idx, move.to().index());
             white_accumulator.remove_feature(captureIndexUs, eval_network);
 
             // remove the black piece from black's perspective
-            int captureIndexThem = calculate_index(0, capturedIdx, mirror_sq(move.to().index()));
+            int captureIndexThem = calculate_index(0, capture_idx, mirror_sq(move.to().index()));
             black_accumulator.remove_feature(captureIndexThem, eval_network);
         }
 
@@ -274,14 +274,14 @@ void add_accumulators(Board& board,
 
         if (board.isCapture(move)) {
             PieceType captured = board.at<Piece>(move.to()).type();
-            int capturedIdx = piecetype_to_idx(captured);
+            int capture_idx = piecetype_to_idx(captured);
 
             // remove the white piece from black's perspective
-            int captureIndexUs = calculate_index(1, capturedIdx, mirror_sq(move.to().index()));
+            int captureIndexUs = calculate_index(1, capture_idx, mirror_sq(move.to().index()));
             black_accumulator.remove_feature(captureIndexUs, eval_network);
 
             // remove the white piece from white's perspective
-            int captureIndexThem = calculate_index(0, capturedIdx, move.to().index());
+            int captureIndexThem = calculate_index(0, capture_idx, move.to().index());
             white_accumulator.remove_feature(captureIndexThem, eval_network);
         }
     }
