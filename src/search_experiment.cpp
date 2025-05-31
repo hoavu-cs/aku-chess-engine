@@ -15,7 +15,7 @@
 #include "search.hpp"
 #include "chess_utils.hpp"
 #include "utils.hpp"
-
+#include "misra_gries.hpp"
 #include "syzygy.hpp"
 #include "chess.hpp"
 #include "params.hpp"
