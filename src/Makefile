@@ -5,7 +5,7 @@ ifeq ($(UNAME_S), Darwin)
     CXXFLAGS = -std=c++17 -O3 -ffast-math -fopenmp 
 else
     CXX = g++
-    CXXFLAGS = -std=c++17 -O3 -march=native -fopenmp -fopenmp-simd -pthread -Wall -Wextra -Wshadow -w -static
+    CXXFLAGS = -std=c++17 -O3 -march=native -fopenmp -fopenmp-simd -pthread -Wall -Wextra -Wshadow -w -static -ffast-math
 endif
 
 all: aku aku_experiment aku_bot

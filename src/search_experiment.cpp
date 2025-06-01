@@ -28,6 +28,7 @@ constexpr int MAX_THREADS = 12;  // Maximum number of threads supported by the e
 constexpr int ENGINE_DEPTH = 99; // Maximum search depth supported by the engine
 constexpr int MAX_ASPIRATION_SZ = 300;
 constexpr int MAX_HIST = 9000;
+constexpr int RESERVE_SLOTS = 50; // typical reserve slots for vector sizes
 
 int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
@@ -106,9 +107,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
 int quiescence(Board& board, int alpha, int beta, int ply, int thread_id);
 void search_thread(Board search_board, int search_depth, int time_limit); 
 
-// Function definitions
-
-// precompute late move reduction table
+// Function definitions. Precompute late move reduction table.
 void precompute_lmr(int max_depth, int max_i) {
     static bool is_precomputed = false;
     if (is_precomputed) return;
@@ -186,9 +185,11 @@ int see(Board& board, Move move, int thread_id) {
     int victim_value = piece_type_value(victim.type());
 
     std::vector<int> values;
+    values.reserve(RESERVE_SLOTS);
     values.push_back(victim_value);
 
     std::vector<Move> exchange_stack;
+    exchange_stack.reserve(RESERVE_SLOTS);
     exchange_stack.push_back(move);
 
     int depth = 0;
@@ -495,6 +496,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     Move excluded_move = data.excluded_move;
 
     std::vector<Move> bad_quiets; // quiet moves that fail to raise alpha
+    bad_quiets.reserve(RESERVE_SLOTS); 
+
     bool nmp_ok = data.nmp_ok;
     NodeType node_type = data.node_type;
 
@@ -581,7 +584,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         stand_pat = nnue.evaluate(black_accumulator[thread_id], white_accumulator[thread_id]);
     }
 
-    // Adjust stand_pat based on the transposition table 
+    // Use hash table's evaluation instead of NNUE if the position is found
     if (tt_hit) {
         if (tt_type == EntryType::EXACT 
             || (tt_type == EntryType::LOWERBOUND && tt_eval > stand_pat)
@@ -639,6 +642,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int null_eval;
     if (nmp_condition) {
         std::vector<Move> null_pv; 
+        null_pv.reserve(RESERVE_SLOTS);
+
         int reduction = 3 + depth / 4;
         NodeData null_data = {ply + 1, 
                                 false, 
@@ -666,8 +671,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         depth = depth - 1;
     }
 
-
-
     // Singular extension
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
@@ -677,9 +680,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && abs(tt_eval) < INF/2 - 100
         && excluded_move == Move::NO_MOVE // No singular search within singular search
     ) {
+        // #pragma omp atomic
+        // singular_search_count++;
         int singular_eval = -INF;
         int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
         std::vector<Move> singular_pv;
+        singular_pv.reserve(RESERVE_SLOTS);
+
         NodeData singular_node_data = {ply, 
             false, 
             root_depth,
@@ -708,6 +715,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         Move move = moves[i].first;
         std::vector<Move> childPV;
+        childPV.reserve(RESERVE_SLOTS);
 
         if (move == excluded_move) {
             continue; // skip excluded move
@@ -884,12 +892,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 mg_2ply[thread_id].insert({move_index_2, move_index_0});
                 mg_2ply[thread_id].insert({move_index_1, move_index_0});
             } 
+
             break;
-        }
-        
-        if (node_type == NodeType::ALL && i >= 10 && ply >= 6 && best_eval < alpha0) {
-            depth--;
-        }
+        } 
     }
 
     if (is_pv && excluded_move == Move::NO_MOVE) {
@@ -1153,6 +1158,9 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
     stop_search = false;
     auto start_time = std::chrono::high_resolution_clock::now();
 
+    // singular_ext_count = 0;
+    // singular_search_count = 0;
+
     // Update if the size for the transposition table changes.
     if (tt_table.size() != table_size) {
         tt_table = std::vector<LockedTableEntry>(table_size);
@@ -1174,7 +1182,6 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
 
         node_count[i] = 0;
         table_hit[i] = 0;
-        seeds[i] = rand();
 
         // Make accumulators for each thread
         make_accumulators(board, white_accumulator[i], black_accumulator[i], nnue);

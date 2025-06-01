@@ -273,11 +273,14 @@ inline bool non_pawn_material(Board& board) {
 }
 
 inline int piece_type_value(PieceType pt) {
-    if (pt == PieceType::PAWN)   return PAWN_VALUE;
-    if (pt == PieceType::KNIGHT) return KNIGHT_VALUE;
-    if (pt == PieceType::BISHOP) return BISHOP_VALUE;
-    if (pt == PieceType::ROOK)   return ROOK_VALUE;
-    if (pt == PieceType::QUEEN)  return QUEEN_VALUE;
-    if (pt == PieceType::KING)   return KING_VALUE;
-    return 0;
+    static constexpr int table[] = {
+        PAWN_VALUE,     // PAWN   = 0
+        KNIGHT_VALUE,   // KNIGHT = 1
+        BISHOP_VALUE,   // BISHOP = 2
+        ROOK_VALUE,     // ROOK   = 3
+        QUEEN_VALUE,    // QUEEN  = 4
+        KING_VALUE,     // KING   = 5
+        0               // NONE   = 6
+    };
+    return table[static_cast<int>(pt)];
 }

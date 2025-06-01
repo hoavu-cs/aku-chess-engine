@@ -69,6 +69,10 @@ public:
         }
     }
 
+    void clear() {
+        counter = {};
+    }
+
     int get_count(uint64_t item) const {
         auto it = counter.find(item);
         return (it != counter.end()) ? it->second : 0;
