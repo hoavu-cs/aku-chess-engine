@@ -842,10 +842,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
                 if (ply >= 2 && is_pv) {
                     int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
-                    int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
                     int move_index_0 = move_index(move);
                     mg_2ply[thread_id].insert({move_index_2, move_index_0});
-                    mg_2ply[thread_id].insert({move_index_1, move_index_0});
                 } 
             }
         }

@@ -496,7 +496,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     std::vector<Move> bad_quiets; // quiet moves that fail to raise alpha
     bool nmp_ok = data.nmp_ok;
-    NodeType nodeType = data.node_type;
+    NodeType node_type = data.node_type;
 
     bool mopUp = is_mopup(board);
     bool is_pv = (alpha < beta - 1);
@@ -675,8 +675,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && abs(tt_eval) < INF/2 - 100
         && excluded_move == Move::NO_MOVE // No singular search within singular search
     ) {
-        // #pragma omp atomic
-        // singular_search_count++;
         int singular_eval = -INF;
         int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
         std::vector<Move> singular_pv;
@@ -724,7 +722,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.unmakeMove(move);
 
         int eval = 0;
-        int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, nodeType, thread_id); 
+        int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, node_type, thread_id); 
 
         if (move == tt_move) {
             extensions += singular_ext;
@@ -780,9 +778,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // If alpha is raised on a null window or reduced depth, we search with full window and full depth.
         if (i == 0) {
             NodeType child_node_type;
-            if (!is_pv && nodeType == NodeType::CUT) {
+            if (!is_pv && node_type == NodeType::CUT) {
                 child_node_type = NodeType::ALL;
-            } else if (!is_pv && nodeType == NodeType::ALL) {
+            } else if (!is_pv && node_type == NodeType::ALL) {
                 child_node_type = NodeType::CUT;
             } else if (is_pv) {
                 child_node_type = NodeType::PV;
@@ -799,9 +797,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             NodeType child_node_type;
             if (is_pv) {
                 child_node_type = NodeType::CUT;
-            } else if (!is_pv && nodeType == NodeType::ALL) {
+            } else if (!is_pv && node_type == NodeType::ALL) {
                 child_node_type = NodeType::CUT;
-            } else if (!is_pv && nodeType == NodeType::CUT) {
+            } else if (!is_pv && node_type == NodeType::CUT) {
                 child_node_type = NodeType::ALL;
             }
             child_node_data.node_type = child_node_type;
@@ -842,10 +840,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
                 if (ply >= 2 && is_pv) {
                     int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
-                    int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
                     int move_index_0 = move_index(move);
                     mg_2ply[thread_id].insert({move_index_2, move_index_0});
-                    mg_2ply[thread_id].insert({move_index_1, move_index_0});
                 } 
             }
         }
