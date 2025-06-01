@@ -28,7 +28,6 @@ constexpr int MAX_THREADS = 12;  // Maximum number of threads supported by the e
 constexpr int ENGINE_DEPTH = 99; // Maximum search depth supported by the engine
 constexpr int MAX_ASPIRATION_SZ = 300;
 constexpr int MAX_HIST = 9000;
-constexpr int RESERVE_SLOTS = 50; // typical reserve slots for vector sizes
 
 int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
@@ -107,7 +106,9 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
 int quiescence(Board& board, int alpha, int beta, int ply, int thread_id);
 void search_thread(Board search_board, int search_depth, int time_limit); 
 
-// Function definitions. Precompute late move reduction table.
+// Function definitions
+
+// precompute late move reduction table
 void precompute_lmr(int max_depth, int max_i) {
     static bool is_precomputed = false;
     if (is_precomputed) return;
@@ -185,11 +186,9 @@ int see(Board& board, Move move, int thread_id) {
     int victim_value = piece_type_value(victim.type());
 
     std::vector<int> values;
-    values.reserve(RESERVE_SLOTS);
     values.push_back(victim_value);
 
     std::vector<Move> exchange_stack;
-    exchange_stack.reserve(RESERVE_SLOTS);
     exchange_stack.push_back(move);
 
     int depth = 0;
@@ -496,10 +495,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     Move excluded_move = data.excluded_move;
 
     std::vector<Move> bad_quiets; // quiet moves that fail to raise alpha
-    bad_quiets.reserve(RESERVE_SLOTS); 
-
     bool nmp_ok = data.nmp_ok;
-    NodeType node_type = data.node_type;
+    NodeType nodeType = data.node_type;
 
     bool mopUp = is_mopup(board);
     bool is_pv = (alpha < beta - 1);
@@ -642,8 +639,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int null_eval;
     if (nmp_condition) {
         std::vector<Move> null_pv; 
-        null_pv.reserve(RESERVE_SLOTS);
-
         int reduction = 3 + depth / 4;
         NodeData null_data = {ply + 1, 
                                 false, 
@@ -685,8 +680,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int singular_eval = -INF;
         int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
         std::vector<Move> singular_pv;
-        singular_pv.reserve(RESERVE_SLOTS);
-
         NodeData singular_node_data = {ply, 
             false, 
             root_depth,
@@ -715,7 +708,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         Move move = moves[i].first;
         std::vector<Move> childPV;
-        childPV.reserve(RESERVE_SLOTS);
 
         if (move == excluded_move) {
             continue; // skip excluded move
@@ -732,7 +724,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.unmakeMove(move);
 
         int eval = 0;
-        int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, node_type, thread_id); 
+        int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, nodeType, thread_id); 
 
         if (move == tt_move) {
             extensions += singular_ext;
@@ -788,9 +780,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // If alpha is raised on a null window or reduced depth, we search with full window and full depth.
         if (i == 0) {
             NodeType child_node_type;
-            if (!is_pv && node_type == NodeType::CUT) {
+            if (!is_pv && nodeType == NodeType::CUT) {
                 child_node_type = NodeType::ALL;
-            } else if (!is_pv && node_type == NodeType::ALL) {
+            } else if (!is_pv && nodeType == NodeType::ALL) {
                 child_node_type = NodeType::CUT;
             } else if (is_pv) {
                 child_node_type = NodeType::PV;
@@ -807,9 +799,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             NodeType child_node_type;
             if (is_pv) {
                 child_node_type = NodeType::CUT;
-            } else if (!is_pv && node_type == NodeType::ALL) {
+            } else if (!is_pv && nodeType == NodeType::ALL) {
                 child_node_type = NodeType::CUT;
-            } else if (!is_pv && node_type == NodeType::CUT) {
+            } else if (!is_pv && nodeType == NodeType::CUT) {
                 child_node_type = NodeType::ALL;
             }
             child_node_data.node_type = child_node_type;
@@ -1182,6 +1174,7 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
 
         node_count[i] = 0;
         table_hit[i] = 0;
+        seeds[i] = rand();
 
         // Make accumulators for each thread
         make_accumulators(board, white_accumulator[i], black_accumulator[i], nnue);
