@@ -10,7 +10,7 @@ So far, I have nothing really major to report but some cute ideas that work:
 - I use Misra-Gries to keep track of frequent pairs of moves (at (ply, ply - 1) and (ply, ply - 2)) that caused beta cut-offf to have a more efficient counter-move and follow-up heuristics (~ 45 elo). This heavy-hitter data structure will also allow us to scale to triples, quadruples, etc in the future. Note that Misra-Gries is used purely to save memory instead of using a hash table of size 64^4.
 
 Misc:
-- The engine has its NNUE inference for the vanilla NNUE (768 -> 1024)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments (although I'm open to it).
+- The engine has its NNUE inference for the vanilla NNUE (768 -> 1024)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments (although I'm not against it either).
 - For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce). No longer maintained.
 
 
