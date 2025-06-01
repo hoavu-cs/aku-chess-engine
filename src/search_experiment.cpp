@@ -305,10 +305,11 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     Move best_counter_move = Move::NO_MOVE;
     int best_counter_score = -INF;
 
+    int move_index_2 = ply >= 2 ? move_index(move_stack[thread_id][ply - 2]) : -1; 
+    int move_index_1 = ply >= 1 ? move_index(move_stack[thread_id][ply - 1]) : -1;
+
     if (ply >= 2) {
         for (const auto& move : moves) {
-            int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
-            int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
             int move_index_0 = move_index(move);
             std::pair<int, int> pair_follow_up = {move_index_2, move_index_0};
             std::pair<int, int> pair_counter = {move_index_1, move_index_0};
@@ -369,7 +370,10 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else {
             secondary = true;
             int move_idx = move_index(move);
-            priority = history[thread_id][stm][move_idx];
+            int continuation_score = mg_counter[thread_id].get_count({move_index_1, move_idx}) 
+                                    + mg_follow_up[thread_id].get_count({move_index_2, move_idx});
+
+            priority = history[thread_id][stm][move_idx] + continuation_score;
         } 
 
         if (!secondary) {
