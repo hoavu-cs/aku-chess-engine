@@ -29,11 +29,6 @@ constexpr int ENGINE_DEPTH = 99; // Maximum search depth supported by the engine
 constexpr int MAX_ASPIRATION_SZ = 300;
 constexpr int MAX_HIST = 9000;
 
-constexpr int CORRHIST_MAX = 128;        // Max magnitude of correction entry
-constexpr int CORRHIST_STEP_LIMIT = CORRHIST_MAX / 8; // Max change per update
-constexpr int CORRHIST_SCALE = 32;        // Scale depth effect
-
-constexpr int corr_hist_size = 16384;    // Make sure this is defined
 int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
 
@@ -74,12 +69,10 @@ std::vector<std::vector<int>> lmr_table;
 // Random seeds for LMR
 std::vector<uint32_t> seeds(MAX_THREADS);
 
-// Pawn correction 
-std::vector<std::vector<std::vector<int>>> corr_hist(MAX_THREADS, std::vector<std::vector<int>>(2, std::vector<int>(corr_hist_size, 0)));
-
 // Misra-Gries instead of counter moves
 std::vector<MisraGriesIntInt> mg_counter(MAX_THREADS, MisraGriesIntInt(500));  
 std::vector<MisraGriesIntInt> mg_follow_up(MAX_THREADS, MisraGriesIntInt(500));  
+
 
 
 // tt entry definition
@@ -110,8 +103,6 @@ void precompute_lmr(int max_depth, int max_i);
 bool table_lookup(Board& board, int& depth, int& eval, bool& pv,Move& best_move, EntryType& type, std::vector<LockedTableEntry>& table);
 void table_insert(Board& board, int depth, int eval, bool pv,Move best_move, EntryType type, std::vector<LockedTableEntry>& table);
 inline void update_killers(const Move& move, int ply, int thread_id);
-void update_corr_hist(Board& board, int stand_pat, int actual_eval, int depth, int thread_id);
-int corrected_eval(const Board& board, int static_eval, int thread_id);
 int see(Board& board, Move move, int thread_id);
 int late_move_reduction(Board& board, Move move, int i, int depth, int ply, bool is_pv, NodeType node_type, int thread_id);
 std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found);
@@ -246,28 +237,6 @@ int see(Board& board, Move move, int thread_id) {
     return score;
 }
 
-
-void update_corr_hist(Board& board, int stand_pat, int actual_eval, int depth, int thread_id) {
-    U64 pawn_bb = board.pieces(PieceType::PAWN).getBits();
-    int color = (board.sideToMove() == Color::WHITE) ? 1 : 0;
-    int index = static_cast<int>(pawn_bb % corr_hist_size);
-    int correction = actual_eval - stand_pat;
-
-    // Apply history gravity: deeper = more reliable correction
-    int bonus = std::clamp(correction * depth / CORRHIST_SCALE, -CORRHIST_STEP_LIMIT, CORRHIST_STEP_LIMIT);
-
-    // Update and clamp the entry
-    int& entry = corr_hist[thread_id][color][index];
-    entry = std::clamp(entry + bonus, -CORRHIST_MAX, CORRHIST_MAX);
-}
-
-int corrected_eval(const Board& board, int stand_pat, int thread_id) {
-    int color = (board.sideToMove() == Color::WHITE) ? 1 : 0;
-    int index = board.pieces(PieceType::PAWN).getBits() % corr_hist_size;
-    int correction = corr_hist[thread_id][color][index];
-    return stand_pat + correction;
-}
-
 // Late move reduction 
 int late_move_reduction(Board& board, 
         Move move, 
@@ -337,6 +306,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     Move best_counter_move = Move::NO_MOVE;
     int best_counter_score = -INF;
 
+    int move_index_3 = ply >= 3 ? move_index(move_stack[thread_id][ply - 3]) : -1;
     int move_index_2 = ply >= 2 ? move_index(move_stack[thread_id][ply - 2]) : -1; 
     int move_index_1 = ply >= 1 ? move_index(move_stack[thread_id][ply - 1]) : -1;
 
@@ -390,9 +360,10 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
-            int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
+            // int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
+            // int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
             int see_score = see(board, move, thread_id);   
-            priority = 4000 + see_score;// victime_value + score;
+            priority = 4000 + see_score; 
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
         } else if (move == best_counter_move) {
@@ -402,10 +373,9 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else {
             secondary = true;
             int move_idx = move_index(move);
-            int continuation_score = mg_counter[thread_id].get_count({move_index_1, move_idx}) 
-                                    + mg_follow_up[thread_id].get_count({move_index_2, move_idx});
-
-            priority = history[thread_id][stm][move_idx] + 10 * continuation_score;
+            int continuation_score = mg_follow_up[thread_id].get_count({move_index_2, move_idx}) + 
+                                  mg_counter[thread_id].get_count({move_index_1, move_idx});
+            priority = history[thread_id][stm][move_idx] + continuation_score * 8;
         } 
 
         if (!secondary) {
@@ -638,9 +608,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             || (tt_type == EntryType::UPPERBOUND && tt_eval < stand_pat)) {
             stand_pat = tt_eval;
         }
-    }  else {
-        stand_pat = corrected_eval(board, stand_pat, thread_id); 
-    }
+    } 
     
     static_eval[thread_id][ply] = stand_pat; // store the evaluation along the path
     bool hash_move_found = false;
@@ -949,20 +917,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (best_eval > alpha0 && best_eval < beta) {
             type = EXACT;
-
-            update_corr_hist(board, stand_pat, best_eval, depth, thread_id);
         } else if (best_eval <= alpha0) {
             type = UPPERBOUND;
-
-            if (stand_pat > best_eval) {
-                update_corr_hist(board, stand_pat, best_eval, depth, thread_id);
-            }
         } else {
             type = LOWERBOUND;
-
-            if (stand_pat < best_eval) {
-                update_corr_hist(board, stand_pat, best_eval, depth, thread_id);
-            }
         } 
 
         if (PV.size() > 0) {
@@ -983,10 +941,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } else {
                 table_insert(board, depth, best_eval, false, Move::NO_MOVE, type, tt_table);
             }  
-
-            if (stand_pat < best_eval) {
-                update_corr_hist(board, stand_pat, best_eval, depth, thread_id);
-            }
         } 
     }
     
@@ -1224,11 +1178,6 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         for (int j = 0; j < 64 * 64; j++) {
             history[i][0][j] = 0;
             history[i][1][j] = 0;
-        }
-
-        for (int j = 0; j < corr_hist_size; j++) {
-            corr_hist[i][0][j] = 0;
-            corr_hist[i][1][j] = 0;
         }
 
         mg_follow_up[i].clear(); 
