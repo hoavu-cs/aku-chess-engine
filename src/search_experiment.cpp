@@ -70,10 +70,7 @@ std::vector<std::vector<int>> lmr_table;
 std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
-std::vector<MisraGriesIntInt> mg_counter(MAX_THREADS, MisraGriesIntInt(500));  
-std::vector<MisraGriesIntInt> mg_follow_up(MAX_THREADS, MisraGriesIntInt(500));  
-
-
+std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
 
 // tt entry definition
 enum EntryType {
@@ -300,33 +297,21 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
 
     // A pair is either (ply - 1, ply) or (ply - 2, ply) that caused beta cut-off
     // We try to find the best pair give it higher priority
-    Move best_follow_up_move = Move::NO_MOVE;
-    int best_follow_up_score = -INF;
-
-    Move best_counter_move = Move::NO_MOVE;
-    int best_counter_score = -INF;
-
-    int move_index_3 = ply >= 3 ? move_index(move_stack[thread_id][ply - 3]) : -1;
-    int move_index_2 = ply >= 2 ? move_index(move_stack[thread_id][ply - 2]) : -1; 
-    int move_index_1 = ply >= 1 ? move_index(move_stack[thread_id][ply - 1]) : -1;
+    Move best_2ply_move = Move::NO_MOVE;
+    int best_2ply_score = -INF;
 
     if (ply >= 2) {
         for (const auto& move : moves) {
+            int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
+            int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
             int move_index_0 = move_index(move);
-            std::pair<int, int> pair_follow_up = {move_index_2, move_index_0};
-            std::pair<int, int> pair_counter = {move_index_1, move_index_0};
+            std::pair<int, int> pair_1 = {move_index_2, move_index_0};
+            std::pair<int, int> pair_2 = {move_index_1, move_index_0};
 
-            int follow_up_score = mg_follow_up[thread_id].get_count(pair_follow_up);
-            int counter_score = mg_counter[thread_id].get_count(pair_counter);
-
-            if (follow_up_score > best_follow_up_score) {
-                best_follow_up_score = follow_up_score;
-                best_follow_up_move = move;
-            }
-
-            if (counter_score > best_counter_score) {
-                best_counter_score = counter_score;
-                best_counter_move = move;
+            int count_2 = mg_2ply[thread_id].get_count(pair_1) + mg_2ply[thread_id].get_count(pair_2);
+            if (count_2 > best_2ply_score) {
+                best_2ply_score = count_2;
+                best_2ply_move = move;
             }
         }
     }
@@ -360,22 +345,17 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
-            // int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
-            // int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
+            int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move, thread_id);   
-            priority = 4000 + see_score; 
+            priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
-        } else if (move == best_counter_move) {
-            priority = 3980;
-        } else if (move == best_follow_up_move) {
+        } else if (move == best_2ply_move) {
             priority = 3950;
         } else {
             secondary = true;
             int move_idx = move_index(move);
-            int continuation_score = mg_follow_up[thread_id].get_count({move_index_2, move_idx}) + 
-                                mg_counter[thread_id].get_count({move_index_1, move_idx});
-            priority = history[thread_id][stm][move_idx] + continuation_score * 8;
+            priority = history[thread_id][stm][move_idx];
         } 
 
         if (!secondary) {
@@ -695,6 +675,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && abs(tt_eval) < INF/2 - 100
         && excluded_move == Move::NO_MOVE // No singular search within singular search
     ) {
+        // #pragma omp atomic
+        // singular_search_count++;
         int singular_eval = -INF;
         int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
         std::vector<Move> singular_pv;
@@ -861,7 +843,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 if (ply >= 2 && is_pv) {
                     int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
                     int move_index_0 = move_index(move);
-                    mg_follow_up[thread_id].insert({move_index_2, move_index_0});
+                    mg_2ply[thread_id].insert({move_index_2, move_index_0});
                 } 
             }
         }
@@ -891,13 +873,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 }
             } 
 
-            // we add count to the pair of moves in (ply - 2, ply) and (ply - 1, ply) that caused a beta cut-off
+            // combine follow-up and counter-move heuristics
+            // we store the pair of moves in (ply - 2, ply) and (ply - 1, ply) that caused a beta cut-off
             if (ply >= 2) {
                 int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
                 int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
                 int move_index_0 = move_index(move);
-                mg_follow_up[thread_id].insert({move_index_2, move_index_0});
-                mg_counter[thread_id].insert({move_index_1, move_index_0});
+                mg_2ply[thread_id].insert({move_index_2, move_index_0});
+                mg_2ply[thread_id].insert({move_index_1, move_index_0});
             } 
 
             break;
@@ -1180,8 +1163,7 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
             history[i][1][j] = 0;
         }
 
-        mg_follow_up[i].clear(); 
-        mg_counter[i].clear();
+        mg_2ply[i].clear(); 
 
         // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {
