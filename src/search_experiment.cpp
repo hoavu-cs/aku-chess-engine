@@ -279,7 +279,7 @@ int late_move_reduction(Board& board,
     }
 }
 
-// generate ordered moves for the current position
+// generate ordered moves for the current position]
 std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found) {
 
     Movelist moves;
@@ -443,8 +443,12 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     candidate_moves.reserve(moves.size());
 
     for (const auto& move : moves) {
-        int see_score = see(board, move, thread_id);
-        candidate_moves.push_back({move, see_score});
+        // int see_score = see(board, move, thread_id);
+        // candidate_moves.push_back({move, see_score});
+        int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
+        int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
+        int score = victim_value - attacker_value;
+        candidate_moves.push_back({move, score});
     }
 
     std::sort(candidate_moves.begin(), candidate_moves.end(), [](const auto& a, const auto& b) {
@@ -1148,28 +1152,23 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
     stop_search = false;
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    // singular_ext_count = 0;
-    // singular_search_count = 0;
-
     // Update if the size for the transposition table changes.
     if (tt_table.size() != table_size) {
         tt_table = std::vector<LockedTableEntry>(table_size);
     }
 
     for (int i = 0; i < MAX_THREADS; i++) {
-        // Reset history scores 
+        // Reset data
         for (int j = 0; j < 64 * 64; j++) {
             history[i][0][j] = 0;
             history[i][1][j] = 0;
         }
 
-        mg_2ply[i].clear(); 
-
-        // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {
             killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
         }
 
+        mg_2ply[i].clear(); 
         node_count[i] = 0;
         table_hit[i] = 0;
         seeds[i] = rand();
