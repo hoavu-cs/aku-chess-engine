@@ -123,7 +123,6 @@ std::mutex search_mutex;
 Move current_best_move = Move::NO_MOVE;
 
 // Engine tunable parameters
-
 int rfp_depth = 5;
 int rfp_c1 = 185; 
 int fp_depth = 3;
@@ -134,7 +133,6 @@ int rz_depth = 2;
 int rz_c1 = 513;
 float lmr_1 = 0.61f;
 float lmr_2 = 0.45f;
-int probcut_c1 = 331; 
 int singular_c1 = 2;
 int singular_c2 = 0;
 
