@@ -374,7 +374,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             secondary = true;
             int move_idx = move_index(move);
             int continuation_score = mg_follow_up[thread_id].get_count({move_index_2, move_idx}) + 
-                                  mg_counter[thread_id].get_count({move_index_1, move_idx});
+                                mg_counter[thread_id].get_count({move_index_1, move_idx});
             priority = history[thread_id][stm][move_idx] + continuation_score * 8;
         } 
 
