@@ -301,16 +301,16 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     int best_2ply_score = -INF;
 
     if (ply >= 2) {
+        int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
+        int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
         for (const auto& move : moves) {
-            int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
-            int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
             int move_index_0 = move_index(move);
             std::pair<int, int> pair_1 = {move_index_2, move_index_0};
             std::pair<int, int> pair_2 = {move_index_1, move_index_0};
 
-            int count_2 = mg_2ply[thread_id].get_count(pair_1) + mg_2ply[thread_id].get_count(pair_2);
-            if (count_2 > best_2ply_score) {
-                best_2ply_score = count_2;
+            int count = mg_2ply[thread_id].get_count(pair_1) + mg_2ply[thread_id].get_count(pair_2);
+            if (count > best_2ply_score) {
+                best_2ply_score = count;
                 best_2ply_move = move;
             }
         }
