@@ -279,7 +279,7 @@ int late_move_reduction(Board& board,
     }
 }
 
-// generate ordered moves for the current position
+// generate ordered moves for the current position]
 std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found) {
 
     Movelist moves;
@@ -301,16 +301,16 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     int best_2ply_score = -INF;
 
     if (ply >= 2) {
+        int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
+        int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
         for (const auto& move : moves) {
-            int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
-            int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
             int move_index_0 = move_index(move);
             std::pair<int, int> pair_1 = {move_index_2, move_index_0};
             std::pair<int, int> pair_2 = {move_index_1, move_index_0};
 
-            int count_2 = mg_2ply[thread_id].get_count(pair_1) + mg_2ply[thread_id].get_count(pair_2);
-            if (count_2 > best_2ply_score) {
-                best_2ply_score = count_2;
+            int count = mg_2ply[thread_id].get_count(pair_1) + mg_2ply[thread_id].get_count(pair_2);
+            if (count > best_2ply_score) {
+                best_2ply_score = count;
                 best_2ply_move = move;
             }
         }
@@ -443,8 +443,12 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     candidate_moves.reserve(moves.size());
 
     for (const auto& move : moves) {
-        int see_score = see(board, move, thread_id);
-        candidate_moves.push_back({move, see_score});
+        // int see_score = see(board, move, thread_id);
+        // candidate_moves.push_back({move, see_score});
+        int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
+        int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
+        int score = victim_value - attacker_value;
+        candidate_moves.push_back({move, score});
     }
 
     std::sort(candidate_moves.begin(), candidate_moves.end(), [](const auto& a, const auto& b) {
@@ -496,7 +500,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     std::vector<Move> bad_quiets; // quiet moves that fail to raise alpha
     bool nmp_ok = data.nmp_ok;
-    NodeType nodeType = data.node_type;
+    NodeType node_type = data.node_type;
 
     bool mopUp = is_mopup(board);
     bool is_pv = (alpha < beta - 1);
@@ -724,7 +728,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.unmakeMove(move);
 
         int eval = 0;
-        int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, nodeType, thread_id); 
+        int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, node_type, thread_id); 
 
         if (move == tt_move) {
             extensions += singular_ext;
@@ -780,9 +784,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // If alpha is raised on a null window or reduced depth, we search with full window and full depth.
         if (i == 0) {
             NodeType child_node_type;
-            if (!is_pv && nodeType == NodeType::CUT) {
+            if (!is_pv && node_type == NodeType::CUT) {
                 child_node_type = NodeType::ALL;
-            } else if (!is_pv && nodeType == NodeType::ALL) {
+            } else if (!is_pv && node_type == NodeType::ALL) {
                 child_node_type = NodeType::CUT;
             } else if (is_pv) {
                 child_node_type = NodeType::PV;
@@ -799,9 +803,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             NodeType child_node_type;
             if (is_pv) {
                 child_node_type = NodeType::CUT;
-            } else if (!is_pv && nodeType == NodeType::ALL) {
+            } else if (!is_pv && node_type == NodeType::ALL) {
                 child_node_type = NodeType::CUT;
-            } else if (!is_pv && nodeType == NodeType::CUT) {
+            } else if (!is_pv && node_type == NodeType::CUT) {
                 child_node_type = NodeType::ALL;
             }
             child_node_data.node_type = child_node_type;
@@ -1148,28 +1152,23 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
     stop_search = false;
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    // singular_ext_count = 0;
-    // singular_search_count = 0;
-
     // Update if the size for the transposition table changes.
     if (tt_table.size() != table_size) {
         tt_table = std::vector<LockedTableEntry>(table_size);
     }
 
     for (int i = 0; i < MAX_THREADS; i++) {
-        // Reset history scores 
+        // Reset data
         for (int j = 0; j < 64 * 64; j++) {
             history[i][0][j] = 0;
             history[i][1][j] = 0;
         }
 
-        mg_2ply[i].clear(); 
-
-        // Reset killer moves
         for (int j = 0; j < ENGINE_DEPTH; j++) {
             killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
         }
 
+        mg_2ply[i].clear(); 
         node_count[i] = 0;
         table_hit[i] = 0;
         seeds[i] = rand();
