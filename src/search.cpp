@@ -1174,7 +1174,7 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         }
 
         for (int j = 0; j < ENGINE_DEPTH; j++) {
-            killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};s
+            killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
         }
         
         node_count[i] = 0;
