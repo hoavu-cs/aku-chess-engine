@@ -108,6 +108,15 @@ void search_thread(Board search_board, int search_depth, int time_limit);
 
 // Function definitions
 
+// Reset all data for new game
+void reset_data() {
+    for (int i = 0; i < MAX_THREADS; ++i) {
+        std::fill(history[i][0].begin(), history[i][0].end(), 0);
+        std::fill(history[i][1].begin(), history[i][1].end(), 0);
+        std::fill(static_eval[i].begin(), static_eval[i].end(), 0);
+    }
+}
+
 // precompute late move reduction table
 void precompute_lmr(int max_depth, int max_i) {
     static bool is_precomputed = false;

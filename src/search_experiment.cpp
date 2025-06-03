@@ -105,8 +105,17 @@ int late_move_reduction(Board& board, Move move, int i, int depth, int ply, bool
 std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found);
 int quiescence(Board& board, int alpha, int beta, int ply, int thread_id);
 void search_thread(Board search_board, int search_depth, int time_limit); 
+Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeLimit);
 
 // Function definitions
+
+// Reset all data for new game
+void reset_data() {
+    for (int i = 0; i < MAX_THREADS; ++i) {
+        std::fill(history[i][0].begin(), history[i][0].end(), 0);
+        std::fill(history[i][1].begin(), history[i][1].end(), 0);
+    }
+}
 
 // precompute late move reduction table
 void precompute_lmr(int max_depth, int max_i) {
@@ -1158,20 +1167,20 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
     }
 
     for (int i = 0; i < MAX_THREADS; i++) {
-        // Reset data
+        // Decay history scores
         for (int j = 0; j < 64 * 64; j++) {
-            history[i][0][j] = 0;
-            history[i][1][j] = 0;
+            history[i][0][j] /= 2;
+            history[i][1][j] /= 2;
         }
 
         for (int j = 0; j < ENGINE_DEPTH; j++) {
             killer[i][j] = {Move::NO_MOVE, Move::NO_MOVE};
         }
-
-        mg_2ply[i].clear(); 
+        
         node_count[i] = 0;
         table_hit[i] = 0;
         seeds[i] = rand();
+        mg_2ply[i].clear(); 
 
         // Make accumulators for each thread
         make_accumulators(board, white_accumulator[i], black_accumulator[i], nnue);

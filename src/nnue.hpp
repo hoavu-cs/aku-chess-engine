@@ -64,7 +64,7 @@ inline int screlu(int16_t x) {
 // Accumulator
 struct Accumulator {
     alignas(32) std::array<int16_t, HIDDEN_SIZE> vals;
-    static Accumulator fromBias(const Network& net);
+    static Accumulator from_bias(const Network& net);
     void add_feature(size_t feature_idx, const Network& net);
     void remove_feature(size_t feature_idx, const Network& net);
 };
@@ -80,7 +80,7 @@ struct Network {
     alignas(32) std::array<Accumulator, 768> feature_weights;
     Accumulator feature_bias;
     std::array<int16_t, 2 * HIDDEN_SIZE> output_weights;
-    int16_t outputBias;
+    int16_t output_bias;
 
     int evaluate(const Accumulator& us, const Accumulator& them) const {
         int output = 0;
@@ -92,7 +92,7 @@ struct Network {
         }
     
         output /= QA;
-        output += static_cast<int>(outputBias);
+        output += static_cast<int>(output_bias);
 
         output *= SCALE;
         output /= QA * QB;
@@ -102,7 +102,7 @@ struct Network {
 };
 
 // Accumulator functions
-inline Accumulator Accumulator::fromBias(const Network& net) {
+inline Accumulator Accumulator::from_bias(const Network& net) {
     return net.feature_bias;
 }
 
@@ -142,7 +142,7 @@ bool load_network(const std::string& filepath, Network& net) {
     stream.read(reinterpret_cast<char*>(net.output_weights.data()), 2 * HIDDEN_SIZE * sizeof(int16_t));
 
     // Load output bias: 1 int16_t
-    stream.read(reinterpret_cast<char*>(&net.outputBias), sizeof(int16_t));
+    stream.read(reinterpret_cast<char*>(&net.output_bias), sizeof(int16_t));
 
     if (!stream) {
         std::cerr << "Failed to read full network from file.\n";
@@ -160,8 +160,8 @@ inline int mirror_sq(int sq) {
 
 void make_accumulators(Board& board, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& eval_network) {
     // Initialize the accumulators
-    white_accumulator = Accumulator::fromBias(eval_network);
-    black_accumulator = Accumulator::fromBias(eval_network);
+    white_accumulator = Accumulator::from_bias(eval_network);
+    black_accumulator = Accumulator::from_bias(eval_network);
 
     Bitboard bitboards[12] = {
         board.pieces(PieceType::PAWN, Color::WHITE),
