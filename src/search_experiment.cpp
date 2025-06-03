@@ -683,7 +683,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int singular_ext = 0;
     // seeds[thread_id] = fast_rand(seeds[thread_id]);
     if (hash_move_found && tt_depth >= depth - 3
-        && depth >= 8
+        && depth >= 6
         && tt_type != EntryType::UPPERBOUND
         && abs(tt_eval) < INF/2 - 100
         && excluded_move == Move::NO_MOVE // No singular search within singular search
