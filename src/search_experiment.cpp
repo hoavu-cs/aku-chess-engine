@@ -70,7 +70,7 @@ std::vector<std::vector<int>> lmr_table;
 std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
-std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
+std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(1000));  
 
 // tt entry definition
 enum EntryType {
@@ -1003,7 +1003,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         bool hash_move_found = false;
 
         // Aspiration window
-        int window = depth > 6 ? 100 + evals[depth - 1] / 2 : 150;
+        int window = 150;
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
         
