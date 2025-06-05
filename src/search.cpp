@@ -1005,19 +1005,13 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         // Aspiration window
         int window = 150;
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
-        int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
+        int beta  = (depth > 6) ? evals[depth - 1] + window : INF;        
         
-        std::vector<std::pair<Move, int>> new_moves;
-        
-        
-        if (depth == 1) {
-            moves = order_move(board, 0, 0, hash_move_found);
-        }
+        moves = order_move(board, 0, 0, hash_move_found);
 
         while (true) {
             curr_best_eval = -INF;
             int alpha0 = alpha;
-            new_moves.clear();
             std::vector<Move> curr_pv;
             
             for (int i = 0; i < moves.size(); i++) {
@@ -1072,8 +1066,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                     }
                 }
 
-                new_moves.push_back({move, eval}); // Store the move and its evaluation
-
                 // If found the new best move
                 if (eval > curr_best_eval) {
                     curr_best_eval = eval;
@@ -1090,7 +1082,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
             if (curr_best_eval <= alpha0 || curr_best_eval >= beta) {
                 alpha = -INF;
                 beta = INF;
-                new_moves.clear();
             } else {
                 PV = curr_pv;
                 break;
@@ -1102,13 +1093,12 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         best_eval = curr_best_eval;
         
         // Sort the moves by evaluation for the next iteration
-        std::sort(new_moves.begin(), new_moves.end(), [](const auto& a, const auto& b) {
-            return a.second > b.second;
-        });
+        // std::sort(new_moves.begin(), new_moves.end(), [](const auto& a, const auto& b) {
+        //     return a.second > b.second;
+        // });
 
         table_insert(board, depth, best_eval, true, best_move, EntryType::EXACT, tt_table);
 
-        moves = new_moves;
 
         U64 total_node_count = 0, total_table_hit = 0;
         for (int i = 0; i < MAX_THREADS; i++) {
