@@ -1100,11 +1100,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         // Update the global best move and evaluation after this depth if the time limit is not exceeded
         best_move = curr_best_move;
         best_eval = curr_best_eval;
-        
-        // Sort the moves by evaluation for the next iteration
-        // std::sort(new_moves.begin(), new_moves.end(), [](const auto& a, const auto& b) {
-        //     return a.second > b.second;
-        // });
 
         table_insert(board, depth, best_eval, true, best_move, EntryType::EXACT, tt_table);
 
