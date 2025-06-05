@@ -772,21 +772,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue;
             }
         }
-
-        // SEE pruning for quiet moves
-        bool quiet_see_condition = can_prune 
-                                && !is_capture 
-                                && !give_check 
-                                && !is_pv
-                                && !tt_is_pv
-                                && next_depth <= 2
-                                && excluded_move == Move::NO_MOVE; 
-        if (quiet_see_condition) {
-            int see_score = see(board, move, thread_id);
-            if (see_score < 0) {
-                continue; // prune quiet moves that fail SEE
-            }
-        }
     
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
@@ -1025,9 +1010,9 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         std::vector<std::pair<Move, int>> new_moves;
         
         
-        if (depth == 1) {
-            moves = order_move(board, 0, 0, hash_move_found);
-        }
+        //if (depth == 1) {
+        moves = order_move(board, 0, 0, hash_move_found);
+        //}
 
         while (true) {
             curr_best_eval = -INF;
@@ -1117,9 +1102,9 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         best_eval = curr_best_eval;
         
         // Sort the moves by evaluation for the next iteration
-        std::sort(new_moves.begin(), new_moves.end(), [](const auto& a, const auto& b) {
-            return a.second > b.second;
-        });
+        // std::sort(new_moves.begin(), new_moves.end(), [](const auto& a, const auto& b) {
+        //     return a.second > b.second;
+        // });
 
         table_insert(board, depth, best_eval, true, best_move, EntryType::EXACT, tt_table);
 
