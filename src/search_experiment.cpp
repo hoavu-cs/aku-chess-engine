@@ -70,7 +70,7 @@ std::vector<std::vector<int>> lmr_table;
 std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
-std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(1000));  
+std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
 
 // tt entry definition
 enum EntryType {
@@ -770,6 +770,21 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             int divisor = improving ? 1 : 2;
             if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
                 continue;
+            }
+        }
+
+        // SEE pruning for quiet moves
+        bool quiet_see_condition = can_prune 
+                                && !is_capture 
+                                && !give_check 
+                                && !is_pv
+                                && !tt_is_pv
+                                && next_depth <= 2
+                                && excluded_move == Move::NO_MOVE; 
+        if (quiet_see_condition) {
+            int see_score = see(board, move, thread_id);
+            if (see_score < 0) {
+                continue; // prune quiet moves that fail SEE
             }
         }
     
