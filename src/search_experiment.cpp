@@ -69,10 +69,8 @@ std::vector<std::vector<int>> lmr_table;
 // Random seeds for LMR
 std::vector<uint32_t> seeds(MAX_THREADS);
 
-// Misra-Gries instead of counter moves and follow up tables
+// Misra-Gries instead of counter moves
 std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
-
-std::vector<MisraGriesIntInt> mg_negative_2ply(MAX_THREADS, MisraGriesIntInt(500));  
 
 // tt entry definition
 enum EntryType {
@@ -174,7 +172,7 @@ void table_insert(Board& board,
     LockedTableEntry& locked_entry = table[index];
 
     if (locked_entry.entry.hash == hash && locked_entry.entry.pv) {
-        pv = true; // don't overwrite the pv node if it was set
+        pv = true; // don't overwrite the pv flag 
     }
         
     std::lock_guard<std::mutex> lock(locked_entry.mtx); 
@@ -358,9 +356,9 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else if (board.isCapture(move)) { 
             int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move, thread_id);   
-            priority = 4000 + see_score;// victime_value + score;
+            priority = 4000 + see_score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
-            priority = 4000; // killer move
+            priority = 4000; 
         } else if (move == best_2ply_move) {
             priority = 3950;
         } else {
@@ -631,10 +629,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !board.inCheck() 
                             && !is_pv 
                             && !tt_is_pv
-                            && !improving
+                            //&& !improving
+                            && !capture_tt_move
                             && !mopup_flag
                             && excluded_move == Move::NO_MOVE // No razoring during singular search
-                            && stand_pat < alpha - rz_c1 * depth;
+                            && stand_pat < alpha - rz_c1 * depth - 150 * improving;
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         return rz_eval;
@@ -775,28 +774,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
         }
 
-        // Negative Misra-Gries pruning
-        bool nmg_condition = can_prune 
-                            && !is_capture 
-                            && !give_check 
-                            && !is_pv 
-                            && !tt_is_pv
-                            && next_depth <= 2 
-                            && excluded_move == Move::NO_MOVE;
-        if (nmg_condition) {
-            if (ply >= 2) {
-                int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
-                int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
-                int move_index_0 = move_index(move);
-                std::pair<int, int> pair_1 = {move_index_2, move_index_0};
-                std::pair<int, int> pair_2 = {move_index_1, move_index_0};
-
-                int negative_count = mg_negative_2ply[thread_id].get_count(pair_1) + mg_negative_2ply[thread_id].get_count(pair_2);
-                if (negative_count > 30 * next_depth) {
-                    continue;
-                }
-            }
-        }
     
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
@@ -897,32 +874,26 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             int limit = MAX_HIST;
             int delta = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(limit)) * depth * depth;
 
-            int move_index_1 = ply >= 2 ? move_index(move_stack[thread_id][ply - 1]) : 0;
-            int move_index_2 = ply >= 2 ? move_index(move_stack[thread_id][ply - 2]) : 0;
-            int move_index_0 = move_index(move);
-
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
             if (!is_capture) {
                 update_killers(move, ply, thread_id);
                 history[thread_id][stm][mv_index] += delta;
                 history[thread_id][stm][mv_index] = std::clamp(history[thread_id][stm][mv_index], -MAX_HIST, MAX_HIST);
 
-                // penalize bad quiet moves' history scores
+                // penalize bad quiet moves
                 for (auto& bad_quiet : bad_quiets) {
                     int bad_mv_idex = move_index(bad_quiet);
                     history[thread_id][stm][bad_mv_idex] -= delta;
                     history[thread_id][stm][bad_mv_idex] = std::clamp(history[thread_id][stm][bad_mv_idex], -MAX_HIST, MAX_HIST);
-
-                    if (ply >= 2) {
-                        mg_negative_2ply[thread_id].insert({move_index_2, bad_mv_idex});
-                        mg_negative_2ply[thread_id].insert({move_index_1, bad_mv_idex});
-                    }
                 }
             } 
 
             // combine follow-up and counter-move heuristics
             // we store the pair of moves in (ply - 2, ply) and (ply - 1, ply) that caused a beta cut-off
             if (ply >= 2) {
+                int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
+                int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
+                int move_index_0 = move_index(move);
                 mg_2ply[thread_id].insert({move_index_2, move_index_0});
                 mg_2ply[thread_id].insert({move_index_1, move_index_0});
             } 
@@ -1196,7 +1167,6 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         table_hit[i] = 0;
         seeds[i] = rand();
         mg_2ply[i].clear(); 
-        mg_negative_2ply[i].clear();
 
         // Make accumulators for each thread
         make_accumulators(board, white_accumulator[i], black_accumulator[i], nnue);
