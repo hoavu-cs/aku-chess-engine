@@ -1,4 +1,4 @@
-This is a side project to test several ideas in the search algorithm. There were certainly several silly bugs in the past. I'm also too lazy to write my own movegen at the moment. 
+This is a side project to test several ideas in the search algorithm. I tried making a chess engine during Thanksgiving to refresh my C++ and ended up in a rabit hole. There were certainly several silly bugs in the past. I'm also too lazy to write my own movegen at the moment. 
 
 To play with the engine in a GUI, you can use any UCI-compatible GUI such as CuteChess, PyChess, etc., and add the engine to the program.  
 
@@ -11,7 +11,7 @@ So far, I have nothing really major to report but there are some cute ideas that
 I'm trying out several sampling strategies. 
 
 Misc:
-- The engine has its NNUE inference for the vanilla NNUE (768 -> 1024)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments (although you should not be upset about someone's toy project).
+- The engine has its NNUE inference for the vanilla NNUE (768 -> 1024)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments (although you should not be too upset about someone's toy project).
 - For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce). No longer maintained.
 
 
