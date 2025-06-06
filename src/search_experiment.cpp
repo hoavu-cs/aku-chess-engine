@@ -1009,15 +1009,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         
         moves = order_move(board, 0, 0, hash_move_found);
 
-        for (int j = 0; j < moves.size(); j++) {
-            if (best_move == moves[j].first && j > 0) {
-                // Always make sure the best move from the previous iteration is searched first.
-                // This only has an effect in multi-threaded search.
-                std::swap(moves[0], moves[j]);
-                break;
-            }
-        }
-
         while (true) {
             curr_best_eval = -INF;
             int alpha0 = alpha;
