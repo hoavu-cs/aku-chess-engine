@@ -1005,9 +1005,9 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         // Aspiration window
         int window = 150;
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
-        int beta  = (depth > 6) ? evals[depth - 1] + window : INF;        
-        
-        moves = order_move(board, 0, 0, hash_move_found);
+        int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
+                
+        moves = order_move(board, 0, thread_id, hash_move_found);
 
         while (true) {
             curr_best_eval = -INF;
@@ -1093,7 +1093,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         best_eval = curr_best_eval;
 
         table_insert(board, depth, best_eval, true, best_move, EntryType::EXACT, tt_table);
-
 
         U64 total_node_count = 0, total_table_hit = 0;
         for (int i = 0; i < MAX_THREADS; i++) {
