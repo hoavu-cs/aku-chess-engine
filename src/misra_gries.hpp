@@ -43,6 +43,12 @@ public:
     const std::unordered_map<std::pair<int, int>, int, PairHash>& get_counts() const {
         return counter;
     }
+    
+    void print_counts() const {
+        for (const auto& pair : counter) {
+            std::cout << "(" << pair.first.first << ", " << pair.first.second << "): " << pair.second << std::endl;
+        }
+    }
 
 private:
     int k;
