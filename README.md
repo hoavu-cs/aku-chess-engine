@@ -9,7 +9,7 @@ To build, simply call "make aku" from "src" and make sure "bin/aku" folder exist
 So far, I have nothing really major to share but there are some cute ideas that worked out well. I use Misra-Gries summaries to keep track of frequent pairs of moves (at (ply, ply - 1) and (ply, ply - 2)) that caused beta cut-off or raised alpha to have a more efficient counter-move and follow-up heuristics (~ 45 elo). This heavy-hitter data structure will also allow us to scale to triples, quadruples, etc in the future if they are meaningful. Note that Misra-Gries is used purely to save memory instead of using a hash table of size 64^4. I'm currently trying out several sampling strategies to improve the search. 
 
 Misc:
-- The engine has its NNUE inference for the vanilla NNUE (768 -> 1024)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments although you should not be too upset about someone's toy project.
+- The engine has its NNUE inference for the vanilla NNUE (768 -> 1024)x2 -> output architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments although you should not be too upset about what people do with their fun project.
 - For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce). No longer maintained.
 
 
