@@ -1,4 +1,4 @@
-This is a side project to refresh my C++ and to test several ideas in the search algorithm to burn some time. There were certainly several silly bugs in the past. I'm also too lazy to write my own movegen at the moment. 
+This is a side project to refresh my C++ and to test several techniques in the search algorithm to burn some time. There were certainly several silly bugs in the past. I'm also too lazy to write my own movegen at the moment. 
 
 To play with the engine in a GUI, you can use any UCI-compatible GUI such as CuteChess, PyChess, etc., and add the engine to the program.  
 
