@@ -2,7 +2,7 @@ This is a side project to refresh my C++ and to test several ideas in the search
 
 To play with the engine in a GUI, you can use any UCI-compatible GUI such as CuteChess, PyChess, etc., and add the engine to the program.  
 
-The engine currently plays rapid chess at an estimated 3100-3300 CCRL ELO (If I have to guess, it is probably above 3200 and approaching/surpassing 3300 based on the games against rated engines). The main goal is to improve the strength through exploring new ideas in the search algorithm (more specifically, sampling and sketching). Hopefully, there is a clean algorithm to replace or encapsulate multiple heuristics that requires less finetuning. 
+The engine currently plays rapid chess at an estimated 3100-3300 CCRL ELO (If I have to guess, it is probably above 3200 and approaching/surpassing 3300 based on the games against rated engines). The main goal is to see if I can improve the strength through sketching and sampling. Hopefully, there is a clean algorithm to replace or encapsulate multiple heuristics that requires less finetuning. 
 
 To build, simply call "make aku" from "src" and make sure "bin/aku" folder exists. This is a fun side project so any suggestion is welcome. It should compile on Windows, Linux, and MacOS.
 
