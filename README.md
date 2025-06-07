@@ -18,7 +18,7 @@ Acknowledgements
 - **Syzygy probe library**: [Fathom](https://github.com/jdart1/Fathom)
 - **Utility for including binary files**: [incbin](https://github.com/graphitemaster/incbin)
 - **ML library for training NNUE-style networks**: [Bullet](https://github.com/graphitemaster/incbin)
-- **SPRT testing**: [FastChess](https://github.com/Disservin/fastchess)
+- **SPRT**: [FastChess](https://github.com/Disservin/fastchess)
 - Thanks to Jim Ablett for several UCI commands implementations.
 
 

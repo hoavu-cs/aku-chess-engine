@@ -172,7 +172,7 @@ void table_insert(Board& board,
     LockedTableEntry& locked_entry = table[index];
 
     if (locked_entry.entry.hash == hash && locked_entry.entry.pv) {
-        pv = true; // don't overwrite the pv flag 
+        pv = true; // don't overwrite the pv node if it was set
     }
         
     std::lock_guard<std::mutex> lock(locked_entry.mtx); 
@@ -356,9 +356,9 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else if (board.isCapture(move)) { 
             int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move, thread_id);   
-            priority = 4000 + see_score;
+            priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
-            priority = 4000; 
+            priority = 4000; // killer move
         } else if (move == best_2ply_move) {
             priority = 3950;
         } else {
@@ -629,11 +629,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !board.inCheck() 
                             && !is_pv 
                             && !tt_is_pv
-                            //&& !improving
-                            && !capture_tt_move
+                            && !improving
                             && !mopup_flag
                             && excluded_move == Move::NO_MOVE // No razoring during singular search
-                            && stand_pat < alpha - rz_c1 * depth - 150 * improving;
+                            && stand_pat < alpha - rz_c1 * depth;
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         return rz_eval;
@@ -773,7 +772,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue;
             }
         }
-
     
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
