@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include <unordered_set>
 
 #include "nnue.hpp"
 #include "../lib/fathom/src/tbprobe.h"
@@ -71,6 +72,12 @@ std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
 std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
+
+// Singular move set
+std::vector<std::vector<std::unordered_set<int>>> singular_moves(
+    MAX_THREADS,
+    std::vector<std::unordered_set<int>>(2)
+);
 
 // tt entry definition
 enum EntryType {
@@ -364,7 +371,8 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else {
             secondary = true;
             int move_idx = move_index(move);
-            priority = history[thread_id][stm][move_idx];
+            int singular_bonus = singular_moves[thread_id][stm].find(move_idx) != singular_moves[thread_id][stm].end() ? 100 : 0;
+            priority = history[thread_id][stm][move_idx] + singular_bonus;
         } 
 
         if (!secondary) {
@@ -705,6 +713,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (singular_eval < singular_beta - 40) {
                 singular_ext++; // double extension
             }
+            singular_moves[thread_id][stm].insert(move_index(tt_move)); 
         } 
     }
 
@@ -1165,6 +1174,9 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         table_hit[i] = 0;
         seeds[i] = rand();
         mg_2ply[i].clear(); 
+
+        singular_moves[i][0] = {};
+        singular_moves[i][1] = {};
 
         // Make accumulators for each thread
         make_accumulators(board, white_accumulator[i], black_accumulator[i], nnue);
