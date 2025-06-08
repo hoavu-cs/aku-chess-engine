@@ -14,7 +14,7 @@
 - Utility for including binary files: [incbin](https://github.com/graphitemaster/incbin)
 - ML library for training NNUE-style networks: [Bullet](https://github.com/graphitemaster/incbin)
 - SPRT: [FastChess](https://github.com/Disservin/fastchess)
-- Thanks to Jim Ablett for several UCI commands implementations.
+- Thanks to Jim Ablett for several UCI command implementations.
 
 
 
