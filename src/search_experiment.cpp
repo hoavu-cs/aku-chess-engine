@@ -73,6 +73,10 @@ std::vector<uint32_t> seeds(MAX_THREADS);
 // Misra-Gries instead of counter moves
 std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
 
+std::vector<MisraGriesIntInt> mg_3ply_ago(MAX_THREADS, MisraGriesIntInt(100));  
+std::vector<MisraGriesIntInt> mg_4ply_ago(MAX_THREADS, MisraGriesIntInt(100));  
+
+
 // Singular move set
 std::vector<std::vector<std::unordered_set<int>>> singular_moves(
     MAX_THREADS,
@@ -372,6 +376,8 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             secondary = true;
             int move_idx = move_index(move);
             int singular_bonus = singular_moves[thread_id][stm].find(move_idx) != singular_moves[thread_id][stm].end() ? 100 : 0;
+            int bonus_3ply = ply >= 3 ? mg_3ply_ago[thread_id].get_count({move_index(move_stack[thread_id][ply - 3]), move_idx}) : 0;
+            int bonus_4ply = ply >= 4 ? mg_4ply_ago[thread_id].get_count({move_index(move_stack[thread_id][ply - 4]), move_idx}) : 0;
             priority = history[thread_id][stm][move_idx] + singular_bonus;
         } 
 
@@ -861,12 +867,22 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (best_eval > alpha) {
                 alpha = best_eval;
                 update_pv(PV, move, childPV);
+                int move_index_0 = move_index(move);
 
                 if (ply >= 2 && is_pv) {
                     int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
-                    int move_index_0 = move_index(move);
                     mg_2ply[thread_id].insert({move_index_2, move_index_0});
                 } 
+                
+                if (ply >= 3) {
+                    int move_index_3 = move_index(move_stack[thread_id][ply - 3]);
+                    mg_3ply_ago[thread_id].insert({move_index_3, move_index_0});
+                } 
+
+                if (ply >= 4) {
+                    int move_index_4 = move_index(move_stack[thread_id][ply - 4]);
+                    mg_4ply_ago[thread_id].insert({move_index_4, move_index_0});
+                }
             }
         }
 
@@ -903,6 +919,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 int move_index_0 = move_index(move);
                 mg_2ply[thread_id].insert({move_index_2, move_index_0});
                 mg_2ply[thread_id].insert({move_index_1, move_index_0});
+
+                if (ply >= 3) {
+                    int move_index_3 = move_index(move_stack[thread_id][ply - 3]);
+                    mg_3ply_ago[thread_id].insert({move_index_3, move_index_0});
+                } 
+
+                if (ply >= 4) {
+                    int move_index_4 = move_index(move_stack[thread_id][ply - 4]);
+                    mg_4ply_ago[thread_id].insert({move_index_4, move_index_0});
+                }
             } 
 
             break;
@@ -1174,6 +1200,9 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         table_hit[i] = 0;
         seeds[i] = rand();
         mg_2ply[i].clear(); 
+
+        mg_3ply_ago[i].clear();
+        mg_4ply_ago[i].clear();
 
         singular_moves[i][0] = {};
         singular_moves[i][1] = {};
