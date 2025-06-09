@@ -896,7 +896,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } 
 
             // combine follow-up and counter-move heuristics
-            // we store the pair of moves in (ply - 2, ply) and (ply - 1, ply) that caused a beta cut-off
+            // we store increase the count of of moves in (ply - 2, ply) and (ply - 1, ply) that caused a beta cut-off in Mira-Gries
             if (ply >= 2) {
                 int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
                 int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
