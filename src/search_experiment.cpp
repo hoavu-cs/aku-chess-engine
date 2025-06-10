@@ -781,26 +781,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue;
             }
         }
-
-        // Randomized history pruning with probability |history_score|/MAX_HIST if history_score < 0
-        bool hp_condition = can_prune 
-                            && !is_capture 
-                            && !give_check 
-                            && !is_pv 
-                            && !tt_is_pv
-                            && next_depth <= fp_depth 
-                            && excluded_move == Move::NO_MOVE
-                            && i > 10;
-
-        seeds[thread_id] = fast_rand(seeds[thread_id]);
-        int random_value = seeds[thread_id] % MAX_HIST;
-
-        if (random_value < std::abs(history[thread_id][stm][move_index(move)])
-            && history[thread_id][stm][move_index(move)] < 0
-            && hp_condition) {
-            
-            continue;
-        }
     
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
@@ -899,7 +879,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             int mv_index = move_index(move);
             int currentScore = history[thread_id][stm][mv_index];
             int limit = MAX_HIST;
-            int delta = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(limit)) * (depth * depth);
+            int delta = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(limit)) * depth * depth;
 
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
             if (!is_capture) {
@@ -916,12 +896,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } 
 
             // combine follow-up and counter-move heuristics
-<<<<<<< HEAD
             // we store increase the count of of moves in (ply - 2, ply) and (ply - 1, ply) that caused a beta cut-off in Mira-Gries
-=======
-            // we add a count to the pair of moves in (ply - 2, ply) and (ply - 1, ply) that caused a beta cut-off to
-            // Misra-Gries summary.
->>>>>>> 9af01739d11bc51ed4416336dd61a3f247870ca3
             if (ply >= 2) {
                 int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
                 int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
@@ -1109,7 +1084,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                 } 
                 
                 if (alpha >= beta) {
-
+                    
                     int mv_index = move_index(move);
                     bool stm = (local_board.sideToMove() == Color::WHITE);
                     int currentScore = history[thread_id][stm][mv_index];
@@ -1121,7 +1096,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                         history[thread_id][stm][mv_index] += delta;
                         history[thread_id][stm][mv_index] = std::clamp(history[thread_id][stm][mv_index], -MAX_HIST, MAX_HIST);
                     } 
-                    
+
                     break;
                 }
             }
