@@ -6,9 +6,7 @@ This is a side project to refresh my C++ and to test several techniques in the s
 
 **Some ideas**. Most stuff I tried did not work out or have little impact. However, one interesting trick that worked well for me is the use of Misra-Gries summaries to keep track of frequent pairs of moves (at (ply, ply - 1) and (ply, ply - 2)) that cause beta cut-off or raise alpha to have a memory-efficient counter-move and follow-up heuristics (~ 45 elo). 
 
-**Misc**.
-- The engine has its NNUE inference for the vanilla (768 -> 1024)x2 architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments although it's not worth being too upset about a toy project.
-- For the handcrafted evaluation version, visit: [donbot_hce](https://github.com/hoavu-cs/donbot_hce) though it's no longer maintained.
+**Misc**. The engine has its NNUE inference for the vanilla (768 -> 1024)x2 architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments (although it's not worth being too upset about a toy project).
 
 **Acknowledgements**
 - Bitboard and move generation library: [chess-library](https://github.com/Disservin/chess-library)
