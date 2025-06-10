@@ -1,4 +1,4 @@
-I currently have less time to maintain this engine but any suggestion is still welcome. I'm mainly interested in any sort of randomized algorithmic ideas that can be tested.
+I currently have less time to maintain this engine but any suggestion is still welcome. I'm mainly interested in any sort of randomized algorithmic ideas in the search.
 
 This is a side project to refresh my C++ and to test several techniques in the search algorithm to burn some time. I'm also too lazy to write my own movegen at the moment. To play with the engine in a GUI, you can use any UCI-compatible GUI such as CuteChess, PyChess, Nibbler etc., and add the engine to the program. To build the source, simply call "make aku" from "src" and make sure "bin/aku" folder exists. It should compile on Windows, Linux, and MacOS. 
 
