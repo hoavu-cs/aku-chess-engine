@@ -721,7 +721,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         extensions++;
     }
 
-    if (moves.size() <= 3) {
+    if (moves.size() == 1) {
         extensions++;
     }
 
@@ -1084,19 +1084,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                 } 
                 
                 if (alpha >= beta) {
-                    
-                    int mv_index = move_index(move);
-                    bool stm = (local_board.sideToMove() == Color::WHITE);
-                    int currentScore = history[thread_id][stm][mv_index];
-                    int limit = MAX_HIST;
-                    int delta = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(limit)) * depth * depth;
-
-                    if (!board.isCapture(move)) {
-                        update_killers(move, ply, thread_id);
-                        history[thread_id][stm][mv_index] += delta;
-                        history[thread_id][stm][mv_index] = std::clamp(history[thread_id][stm][mv_index], -MAX_HIST, MAX_HIST);
-                    } 
-
                     break;
                 }
             }
@@ -1186,7 +1173,11 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         node_count[i] = 0;
         table_hit[i] = 0;
         seeds[i] = rand();
-        mg_2ply[i].clear(); 
+        //mg_2ply[i].clear(); 
+
+        mg_2ply[i].for_each_item([](std::pair<int, int>& key, int& count) {
+            count /= 2;
+        });
 
         singular_moves[i][0] = {};
         singular_moves[i][1] = {};

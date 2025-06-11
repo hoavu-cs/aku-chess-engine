@@ -23,7 +23,7 @@ public:
             counter[item] = 1;
         } else {
             for (auto it = counter.begin(); it != counter.end(); ) {
-                if (--(it->second) == 0)
+                if (--(it->second) <= 0)
                     it = counter.erase(it);
                 else
                     ++it;
@@ -43,6 +43,13 @@ public:
     const std::unordered_map<std::pair<int, int>, int, PairHash>& get_counts() const {
         return counter;
     }
+
+    void for_each_item(const std::function<void(std::pair<int, int>&, int&)>& func) {
+        for (auto& entry : counter) {
+            func(const_cast<std::pair<int, int>&>(entry.first), entry.second);
+        }
+    }
+
     
     void print_counts() const {
         for (const auto& pair : counter) {
