@@ -721,7 +721,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         extensions++;
     }
 
-    if (moves.size() == 1) {
+    if (moves.size() <= 3) {
         extensions++;
     }
 
