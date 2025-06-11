@@ -1173,11 +1173,7 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         node_count[i] = 0;
         table_hit[i] = 0;
         seeds[i] = rand();
-        //mg_2ply[i].clear(); 
-
-        mg_2ply[i].for_each_item([](std::pair<int, int>& key, int& count) {
-            count /= 2;
-        });
+        mg_2ply[i].clear(); 
 
         singular_moves[i][0] = {};
         singular_moves[i][1] = {};
