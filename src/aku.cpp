@@ -132,7 +132,10 @@ int lmp_c1 = 17;
 int rz_depth = 2;
 int rz_c1 = 513;
 float lmr_1 = 0.55f;
-float lmr_2 = 0.35f;
+//float lmr_2 = 0.35f;
+float lmr_2 = 0.55f;
+
+
 int singular_c1 = 2;
 int singular_c2 = 0;
 
