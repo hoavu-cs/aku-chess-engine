@@ -632,6 +632,20 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
     }
 
+    // ProbCut
+    int probcut_beta = beta + 200;
+    if (depth >= 7 
+        && tt_hit 
+        && tt_depth >= depth - 3
+        && tt_type != EntryType::UPPERBOUND
+        && !board.inCheck()
+        && !is_pv
+        && !tt_is_pv
+        && excluded_move == Move::NO_MOVE) {
+
+        return (probcut_beta + tt_eval) / 2;
+    }
+
     // Razoring
     bool rz_condition = depth <= rz_depth
                             && !board.inCheck() 
