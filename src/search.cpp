@@ -683,7 +683,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     std::vector<std::pair<Move, int>> moves = order_move(board, ply, thread_id, hash_move_found);
 
     // IID. Reduce the depth to facilitate the search if no hash move found.
-    if (!hash_move_found && depth >= 4) {
+    if (!hash_move_found && depth >= 3) {
         depth = depth - 1;
     }
 
