@@ -632,20 +632,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
     }
 
-    // ProbCut
-    int probcut_beta = beta + 200;
-    if (depth >= 7 
-        && tt_hit 
-        && tt_depth >= depth - 3
-        && tt_type != EntryType::UPPERBOUND
-        && !board.inCheck()
-        && !is_pv
-        && !tt_is_pv
-        && excluded_move == Move::NO_MOVE) {
-
-        return (probcut_beta + tt_eval) / 2;
-    }
-
     // Razoring
     bool rz_condition = depth <= rz_depth
                             && !board.inCheck() 
@@ -766,10 +752,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         extensions = std::clamp(extensions, 0, 2); 
         next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
 
-        // common conditions for pruning
+        // common conditions for pruning. 
         bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag;
 
-        // Futility  pruning
+        // Futility  pruning.
         bool fp_condition = can_prune 
                             && !is_capture 
                             && !give_check 
@@ -792,6 +778,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 continue;
             }
         }
+
+        // History?
     
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
