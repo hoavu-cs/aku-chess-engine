@@ -689,15 +689,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Singular extension
     int singular_ext = 0;
-    // seeds[thread_id] = fast_rand(seeds[thread_id]);
     if (hash_move_found && tt_depth >= depth - 3
         && depth >= 6
         && tt_type != EntryType::UPPERBOUND
         && abs(tt_eval) < INF/2 - 100
         && excluded_move == Move::NO_MOVE // No singular search within singular search
     ) {
-        // #pragma omp atomic
-        // singular_search_count++;
         int singular_eval = -INF;
         int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
         std::vector<Move> singular_pv;
