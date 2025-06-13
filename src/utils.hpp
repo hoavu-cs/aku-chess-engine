@@ -31,7 +31,7 @@ inline std::string format_analysis(
     const Board& board
 ) {
     std::string depth_str = "depth " + std::to_string(depth) + " seldepth " + std::to_string(std::max(size_t(depth), pv.size()));
-    std::string score_str = "score cp " + std::to_string(best_eval);
+    std::string score_str = "score cp " + std::to_string(best_eval / 2);
     std::string node_str = "nodes " + std::to_string(total_node_count);
     std::string table_hit_str = "tableHit " + std::to_string(
         static_cast<double>(total_table_hit) / total_node_count
