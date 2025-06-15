@@ -53,19 +53,17 @@ bool initialize_nnue(std::string path) {
 }
 
 // History scores for quiet moves
+
 std::vector<std::vector<std::vector<std::vector<int>>>> history(
     MAX_THREADS,
     std::vector<std::vector<std::vector<int>>>(
-        2,
+        2,                                         // side to move
         std::vector<std::vector<int>>(
-            3,
-            std::vector<int>(64 * 64, 0)
+            3,                       // node type: all, cut, pv
+            std::vector<int>(64 * 64, 0)        // move index histogram
         )
     )
 );
-//std::vector<std::vector<std::vector<int>>> history(MAX_THREADS, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
-
-
 // Evaluations along the current path
 std::vector<std::vector<int>> static_eval(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
@@ -388,10 +386,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             secondary = true;
             int move_idx = move_index(move);
             int singular_bonus = singular_moves[thread_id][stm].find(move_idx) != singular_moves[thread_id][stm].end() ? 100 : 0;
-            
-            if (node_type > 2){ 
-                std::cout << "Error: node_type is not supported in order_move function: " << node_type << std::endl;
-            }
             priority = history[thread_id][stm][node_type][move_idx] + singular_bonus;
         } 
 
@@ -684,7 +678,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         NodeData null_data = {ply + 1, 
                                 false, 
                                 root_depth,
-                                NodeType::CUT, 
+                                NodeType::ALL, 
                                 Move::NO_MOVE,
                                 thread_id};
         move_stack[thread_id][ply] = -1;
@@ -821,12 +815,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Once alpha is raised, we search with null window until alpha is raised again.
         // If alpha is raised on a null window or reduced depth, we search with full window and full depth.
         if (i == 0) {
-            NodeType child_node_type;
-            if (!is_pv && node_type == NodeType::CUT) {
+            NodeType child_node_type = NodeType::PV;
+            if (node_type == NodeType::CUT) {
                 child_node_type = NodeType::ALL;
-            } else if (!is_pv && node_type == NodeType::ALL) {
+            } else if (node_type == NodeType::ALL) {
                 child_node_type = NodeType::CUT;
-            } else if (is_pv) {
+            } else if (node_type == NodeType::PV) {
                 child_node_type = NodeType::PV;
             } 
             child_node_data.node_type = child_node_type;
@@ -838,12 +832,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             // If we are in a CUT node, we expect the child to be an ALL node.
             // If we are in an ALL node, we expect the child to be a CUT node.
             null_window = true;
-            NodeType child_node_type;
-            if (is_pv) {
+            NodeType child_node_type = NodeType::PV;
+            if (node_type == NodeType::PV) {
                 child_node_type = NodeType::CUT;
-            } else if (!is_pv && node_type == NodeType::ALL) {
+            } else if (node_type == NodeType::ALL) {
                 child_node_type = NodeType::CUT;
-            } else if (!is_pv && node_type == NodeType::CUT) {
+            } else if (node_type == NodeType::CUT) {
                 child_node_type = NodeType::ALL;
             }
             child_node_data.node_type = child_node_type;
