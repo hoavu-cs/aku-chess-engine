@@ -653,7 +653,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && !board.inCheck() 
         && !mopUp 
         && !is_pv
-        && stand_pat >= beta
+        && stand_pat >= beta - std::min(5 * depth, 50) * improving
         && nmp_ok
         && excluded_move == Move::NO_MOVE // No nmp during singular search
     );
@@ -695,8 +695,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && abs(tt_eval) < INF/2 - 100
         && excluded_move == Move::NO_MOVE // No singular search within singular search
     ) {
-        // #pragma omp atomic
-        // singular_search_count++;
         int singular_eval = -INF;
         int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
         std::vector<Move> singular_pv;
@@ -706,7 +704,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             NodeType::ALL,
             tt_move,
             thread_id};
+
         singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
+
         if (singular_eval < singular_beta) {
             singular_ext++; // singular extension
             if (singular_eval < singular_beta - 40) {
@@ -757,7 +757,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // common conditions for pruning
         bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag;
 
-        // Futility  pruning
+        // Futility pruning
         bool fp_condition = can_prune 
                             && !is_capture 
                             && !give_check 
