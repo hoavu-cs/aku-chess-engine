@@ -4,7 +4,7 @@
 
 using namespace chess;
 
-enum NodeType {PV, CUT, ALL};
+enum NodeType {PV = 0, CUT = 1, ALL = 2};
 
 // Constants & global variables
 constexpr int INF = 1000000;
