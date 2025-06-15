@@ -53,17 +53,8 @@ bool initialize_nnue(std::string path) {
 }
 
 // History scores for quiet moves
+std::vector<std::vector<std::vector<int>>> history(MAX_THREADS, std::vector<std::vector<int>>(2, std::vector<int>(64 * 64, 0)));
 
-std::vector<std::vector<std::vector<std::vector<int>>>> history(
-    MAX_THREADS,
-    std::vector<std::vector<std::vector<int>>>(
-        2,                                         // side to move
-        std::vector<std::vector<int>>(
-            3,                       // node type: all, cut, pv
-            std::vector<int>(64 * 64, 0)        // move index histogram
-        )
-    )
-);
 // Evaluations along the current path
 std::vector<std::vector<int>> static_eval(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0)); 
 
@@ -128,13 +119,8 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
 // Reset all data for new game
 void reset_data() {
     for (int i = 0; i < MAX_THREADS; ++i) {
-        std::fill(history[i][0][0].begin(), history[i][0][0].end(), 0);
-        std::fill(history[i][0][1].begin(), history[i][0][1].end(), 0);
-        std::fill(history[i][0][2].begin(), history[i][0][2].end(), 0);
-
-        std::fill(history[i][1][0].begin(), history[i][1][0].end(), 0);
-        std::fill(history[i][1][1].begin(), history[i][1][1].end(), 0);
-        std::fill(history[i][1][2].begin(), history[i][1][2].end(), 0);
+        std::fill(history[i][0].begin(), history[i][0].end(), 0);
+        std::fill(history[i][1].begin(), history[i][1].end(), 0);
     }
 }
 
@@ -206,7 +192,7 @@ void table_insert(Board& board,
 inline void update_killers(const Move& move, int ply, int thread_id) {
     killer[thread_id][ply][0] = killer[thread_id][ply][1];
     killer[thread_id][ply][1] = move;
-}
+} 
 
 // Static exchange evaluation (SEE) function
 int see(Board& board, Move move, int thread_id) {
@@ -288,7 +274,7 @@ int late_move_reduction(Board& board,
         bool is_capture = board.isCapture(move);
         
         int R = lmr_table[depth][i];
-        int tt_eval, tt_depth, history_score = history[thread_id][stm][node_type][move_index(move)];
+        int tt_eval, tt_depth, history_score = history[thread_id][stm][move_index(move)];
         bool tt_is_pv, past_pv = false;
         EntryType tt_type;
         Move tt_move;
@@ -326,7 +312,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     U64 hash = board.hash();
 
     // A pair is either (ply - 1, ply) or (ply - 2, ply) that caused beta cut-off
-    // We try to find the best pair give it higher priority
+    // We try to find the best pair give it higher priority.
     Move best_2ply_move = Move::NO_MOVE;
     int best_2ply_score = -INF;
 
@@ -386,7 +372,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             secondary = true;
             int move_idx = move_index(move);
             int singular_bonus = singular_moves[thread_id][stm].find(move_idx) != singular_moves[thread_id][stm].end() ? 100 : 0;
-            priority = history[thread_id][stm][node_type][move_idx] + singular_bonus;
+            priority = history[thread_id][stm][move_idx] + singular_bonus;
         } 
 
         if (!secondary) {
@@ -703,7 +689,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Singular extension
     int singular_ext = 0;
-    // seeds[thread_id] = fast_rand(seeds[thread_id]);
     if (hash_move_found && tt_depth >= depth - 3
         && depth >= 6
         && tt_type != EntryType::UPPERBOUND
@@ -718,7 +703,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         NodeData singular_node_data = {ply, 
             false, 
             root_depth,
-            NodeType::PV,
+            NodeType::ALL,
             tt_move,
             thread_id};
         singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
@@ -841,7 +826,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 child_node_type = NodeType::ALL;
             }
             child_node_data.node_type = child_node_type;
-
             eval = -negamax(board, next_depth, -(alpha + 1), -alpha, childPV, child_node_data);
             eval_adjust(eval);
         }
@@ -891,21 +875,21 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Beta cutoff.
         if (beta <= alpha) {
             int mv_index = move_index(move);
-            int currentScore = history[thread_id][stm][node_type][mv_index];
+            int currentScore = history[thread_id][stm][mv_index];
             int limit = MAX_HIST;
             int delta = (1.0 - static_cast<float>(std::abs(currentScore)) / static_cast<float>(limit)) * depth * depth;
 
             // Update history scores for the move that caused the cutoff and the previous moves that failed to cutoffs.
             if (!is_capture) {
                 update_killers(move, ply, thread_id);
-                history[thread_id][stm][node_type][mv_index] += delta;
-                history[thread_id][stm][node_type][mv_index] = std::clamp(history[thread_id][stm][node_type][mv_index], -MAX_HIST, MAX_HIST);
+                history[thread_id][stm][mv_index] += delta;
+                history[thread_id][stm][mv_index] = std::clamp(history[thread_id][stm][mv_index], -MAX_HIST, MAX_HIST);
 
                 // penalize bad quiet moves
                 for (auto& bad_quiet : bad_quiets) {
                     int bad_mv_idex = move_index(bad_quiet);
-                    history[thread_id][stm][node_type][bad_mv_idex] -= delta;
-                    history[thread_id][stm][node_type][bad_mv_idex] = std::clamp(history[thread_id][stm][node_type][bad_mv_idex], -MAX_HIST, MAX_HIST);
+                    history[thread_id][stm][bad_mv_idex] -= delta;
+                    history[thread_id][stm][bad_mv_idex] = std::clamp(history[thread_id][stm][bad_mv_idex], -MAX_HIST, MAX_HIST);
                 }
             } 
 
@@ -1176,13 +1160,8 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
     for (int i = 0; i < MAX_THREADS; i++) {
         // Decay history scores
         for (int j = 0; j < 64 * 64; j++) {
-            history[i][0][0][j] /= 2;
-            history[i][0][1][j] /= 2;
-            history[i][0][2][j] /= 2;
-
-            history[i][1][0][j] /= 2;
-            history[i][1][1][j] /= 2;
-            history[i][1][2][j] /= 2;
+            history[i][0][j] /= 2;
+            history[i][1][j] /= 2;
         }
 
         for (int j = 0; j < ENGINE_DEPTH; j++) {
