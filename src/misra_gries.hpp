@@ -32,6 +32,7 @@ public:
     }
 
     void clear() {
+        // Clear the counter map
         counter = {};
     }
 
