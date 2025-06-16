@@ -343,17 +343,19 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
 
         if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table)) {
             // Hash move from the PV transposition table should be searched first 
-            if (tt_move == move && tt_type == EntryType::EXACT) {
+            if (tt_move == move) {
                 priority = 19000 + tt_eval;
                 primary.push_back({tt_move, priority});
                 hash_move = true;
                 hash_move_found = true;
-            } else if (tt_move == move && tt_type == EntryType::LOWERBOUND) {
-                priority = 18000 + tt_eval;
-                primary.push_back({tt_move, priority});
-                hash_move = true;
-                hash_move_found = true;
-            }
+            } 
+            
+            // else if (tt_move == move && tt_type == EntryType::LOWERBOUND) {
+            //     priority = 18000 + tt_eval;
+            //     primary.push_back({tt_move, priority});
+            //     hash_move = true;
+            //     hash_move_found = true;
+            // }
         } 
       
         if (hash_move) continue;

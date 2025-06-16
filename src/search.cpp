@@ -109,7 +109,7 @@ void table_insert(Board& board, int depth, int eval, bool pv,Move best_move, Ent
 inline void update_killers(const Move& move, int ply, int thread_id);
 int see(Board& board, Move move, int thread_id);
 int late_move_reduction(Board& board, Move move, int i, int depth, int ply, bool is_pv, NodeType node_type, int thread_id);
-std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found);
+std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found, NodeType node_type);
 int quiescence(Board& board, int alpha, int beta, int ply, int thread_id);
 void search_thread(Board search_board, int search_depth, int time_limit); 
 Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeLimit);
@@ -192,7 +192,7 @@ void table_insert(Board& board,
 inline void update_killers(const Move& move, int ply, int thread_id) {
     killer[thread_id][ply][0] = killer[thread_id][ply][1];
     killer[thread_id][ply][1] = move;
-}
+} 
 
 // Static exchange evaluation (SEE) function
 int see(Board& board, Move move, int thread_id) {
@@ -296,7 +296,7 @@ int late_move_reduction(Board& board,
 }
 
 // generate ordered moves for the current position]
-std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found) {
+std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found, NodeType node_type) {
 
     Movelist moves;
     movegen::legalmoves(moves, board);
@@ -312,7 +312,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     U64 hash = board.hash();
 
     // A pair is either (ply - 1, ply) or (ply - 2, ply) that caused beta cut-off
-    // We try to find the best pair give it higher priority
+    // We try to find the best pair give it higher priority.
     Move best_2ply_move = Move::NO_MOVE;
     int best_2ply_score = -INF;
 
@@ -680,7 +680,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     int best_eval = -INF;
-    std::vector<std::pair<Move, int>> moves = order_move(board, ply, thread_id, hash_move_found);
+    std::vector<std::pair<Move, int>> moves = order_move(board, ply, thread_id, hash_move_found, node_type);
 
     // IID. Reduce the depth to facilitate the search if no hash move found.
     if (!hash_move_found && depth >= 3) {
@@ -689,25 +689,24 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Singular extension
     int singular_ext = 0;
-    // seeds[thread_id] = fast_rand(seeds[thread_id]);
     if (hash_move_found && tt_depth >= depth - 3
         && depth >= 6
         && tt_type != EntryType::UPPERBOUND
         && abs(tt_eval) < INF/2 - 100
         && excluded_move == Move::NO_MOVE // No singular search within singular search
     ) {
-        // #pragma omp atomic
-        // singular_search_count++;
         int singular_eval = -INF;
         int singular_beta = tt_eval - singular_c1 * depth - singular_c2; 
         std::vector<Move> singular_pv;
         NodeData singular_node_data = {ply, 
             false, 
             root_depth,
-            NodeType::PV,
+            NodeType::ALL,
             tt_move,
             thread_id};
+
         singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
+
         if (singular_eval < singular_beta) {
             singular_ext++; // singular extension
             if (singular_eval < singular_beta - 40) {
@@ -758,7 +757,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // common conditions for pruning
         bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag;
 
-        // Futility  pruning
+        // Futility pruning
         bool fp_condition = can_prune 
                             && !is_capture 
                             && !give_check 
@@ -801,12 +800,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // Once alpha is raised, we search with null window until alpha is raised again.
         // If alpha is raised on a null window or reduced depth, we search with full window and full depth.
         if (i == 0) {
-            NodeType child_node_type;
-            if (!is_pv && node_type == NodeType::CUT) {
+            NodeType child_node_type = NodeType::PV;
+            if (node_type == NodeType::CUT) {
                 child_node_type = NodeType::ALL;
-            } else if (!is_pv && node_type == NodeType::ALL) {
+            } else if (node_type == NodeType::ALL) {
                 child_node_type = NodeType::CUT;
-            } else if (is_pv) {
+            } else if (node_type == NodeType::PV) {
                 child_node_type = NodeType::PV;
             } 
             child_node_data.node_type = child_node_type;
@@ -818,16 +817,15 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             // If we are in a CUT node, we expect the child to be an ALL node.
             // If we are in an ALL node, we expect the child to be a CUT node.
             null_window = true;
-            NodeType child_node_type;
-            if (is_pv) {
+            NodeType child_node_type = NodeType::PV;
+            if (node_type == NodeType::PV) {
                 child_node_type = NodeType::CUT;
-            } else if (!is_pv && node_type == NodeType::ALL) {
+            } else if (node_type == NodeType::ALL) {
                 child_node_type = NodeType::CUT;
-            } else if (!is_pv && node_type == NodeType::CUT) {
+            } else if (node_type == NodeType::CUT) {
                 child_node_type = NodeType::ALL;
             }
             child_node_data.node_type = child_node_type;
-
             eval = -negamax(board, next_depth, -(alpha + 1), -alpha, childPV, child_node_data);
             eval_adjust(eval);
         }
@@ -1016,7 +1014,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
                 
-        moves = order_move(board, 0, thread_id, hash_move_found);
+        moves = order_move(board, 0, thread_id, hash_move_found, NodeType::PV);
 
         while (true) {
             curr_best_eval = -INF;
