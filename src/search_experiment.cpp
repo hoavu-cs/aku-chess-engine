@@ -653,7 +653,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && !board.inCheck() 
         && !mopUp 
         && !is_pv
-        && stand_pat >= beta - std::min(5 * depth, 50) * improving
+        && stand_pat >= beta
         && nmp_ok
         && excluded_move == Move::NO_MOVE // No nmp during singular search
     );
