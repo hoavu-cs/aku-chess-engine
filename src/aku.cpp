@@ -113,7 +113,7 @@ const std::vector<std::string> benchmark_positions = {
     "4k3/3q1r2/1N2r1b1/3ppN2/2nPP3/1B1R2n1/2R1Q3/3K4 w - - 5 1",
     "5k2/8/3PK3/8/8/8/8/8 w - - 0 1",
 };
-std::atomic<uint64_t> benchmark_nodes{0}; // Global node counter for benchmark
+std::atomic<uint64_t> benchmark_nodes{0}; // Global node counter for benchmark   
 
 // UCI variables for search control
 std::atomic<bool> search_stopped{false};
