@@ -6,7 +6,7 @@ I currently have less time for this engine but any suggestion is still welcome. 
 
 **Some ideas**. Most stuff I tried did not work out or have little impact. However, one interesting trick that worked well for me is the use of Misra-Gries summaries to keep track of frequent pairs of moves (at (ply, ply - 1) and (ply, ply - 2)) that cause beta cut-off or raise alpha to have a memory-efficient counter-move and follow-up heuristics (~ 45 elo). One can try to make this work for triples or quadruples of moves.
 
-**Misc**. The engine has its NNUE inference for the vanilla (768 -> 1024)x2 architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks. If you're not happy about this, this engine's main purpose isn't to play in tournaments (although it's not worth being too upset about a toy project).
+**Misc**. The engine has its NNUE inference for the vanilla (768 -> 1024)x2 architecture. The model was trained using the Bullet library and some Stockfish/Leela's binpacks (If you're not happy about this, this engine's main purpose isn't to play in tournaments although it's not worth being too upset about a toy project).
 
 **Acknowledgements**
 - Bitboard and move generation library: [chess-library](https://github.com/Disservin/chess-library)
