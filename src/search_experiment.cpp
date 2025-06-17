@@ -71,52 +71,12 @@ std::vector<std::vector<int>> lmr_table;
 std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
-std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
+std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(250));  
 
 // Singular move set
 std::vector<std::vector<std::unordered_set<int>>> singular_moves(
     MAX_THREADS,
     std::vector<std::unordered_set<int>>(2)
-);
-
-// Correction history
-constexpr U64 CORR_HIST_SIZE = 65536; 
-struct CorrHistEntry {
-
-    static constexpr int GRAIN = 256;
-    static constexpr int MAX_WEIGHT = 256;
-    static constexpr int MAX_VALUE = 32 * GRAIN;
-    static constexpr int MAX_UPDATE = MAX_VALUE / 4;
-
-    int value = 0;
-
-    // Return the correction to apply to static eval
-    int corr() const {
-        return value / GRAIN;
-    }
-
-    // Update the correction value based on difference between search score and static eval
-    void update(int best_score, int stand_pat, int depth) {
-        int scaled_diff = (best_score - stand_pat) * GRAIN;
-
-        // For simplicity, think of this formula as follows:
-        // diff = (best_score - static_eval) 
-        // updated value = current value (1 - new_weight / 256) + diff * (new_weight / 256)
-        int new_weight = std::min(depth + 1, 16);
-        int old_weight = MAX_WEIGHT - new_weight;
-        int updated = (value * old_weight + scaled_diff * new_weight) / MAX_WEIGHT;
-
-        updated = std::clamp(updated, value - MAX_UPDATE, value + MAX_UPDATE);
-        value = std::clamp(updated, -MAX_VALUE, MAX_VALUE);
-    }
-};
-
-std::vector<std::vector<std::vector<CorrHistEntry>>> pawn_corr_hist(
-    MAX_THREADS,
-    std::vector<std::vector<CorrHistEntry>>(
-        2,
-        std::vector<CorrHistEntry>(CORR_HIST_SIZE)
-    )
 );
 
 // tt entry definition
@@ -161,9 +121,6 @@ void reset_data() {
     for (int i = 0; i < MAX_THREADS; ++i) {
         std::fill(history[i][0].begin(), history[i][0].end(), 0);
         std::fill(history[i][1].begin(), history[i][1].end(), 0);
-
-        std::fill(pawn_corr_hist[i][0].begin(), pawn_corr_hist[i][0].end(), CorrHistEntry());
-        std::fill(pawn_corr_hist[i][1].begin(), pawn_corr_hist[i][1].end(), CorrHistEntry());
     }
 }
 
@@ -358,10 +315,12 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     // We try to find the best pair give it higher priority.
     Move best_2ply_move = Move::NO_MOVE;
     int best_2ply_score = -INF;
+    int move_index_1 = 0;
+    int move_index_2 = 0;
 
     if (ply >= 2) {
-        int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
-        int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
+        move_index_2 = move_index(move_stack[thread_id][ply - 2]);
+        move_index_1 = move_index(move_stack[thread_id][ply - 1]);
         for (const auto& move : moves) {
             int move_index_0 = move_index(move);
             std::pair<int, int> pair_1 = {move_index_2, move_index_0};
@@ -386,17 +345,12 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
 
         if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table)) {
             // Hash move from the PV transposition table should be searched first 
-            if (tt_move == move && tt_type == EntryType::EXACT) {
+            if (tt_move == move) {
                 priority = 19000 + tt_eval;
                 primary.push_back({tt_move, priority});
                 hash_move = true;
                 hash_move_found = true;
-            } else if (tt_move == move && tt_type == EntryType::LOWERBOUND) {
-                priority = 18000 + tt_eval;
-                primary.push_back({tt_move, priority});
-                hash_move = true;
-                hash_move_found = true;
-            }
+            } 
         } 
       
         if (hash_move) continue;
@@ -415,7 +369,9 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             secondary = true;
             int move_idx = move_index(move);
             int singular_bonus = singular_moves[thread_id][stm].find(move_idx) != singular_moves[thread_id][stm].end() ? 100 : 0;
-            priority = history[thread_id][stm][move_idx] + singular_bonus;
+            int two_ply_bonus = mg_2ply[thread_id].get_count({move_index_1, move_idx}) * 100 + mg_2ply[thread_id].get_count({move_index_2, move_idx}) * 100;
+            two_ply_bonus = std::clamp(two_ply_bonus, 0, 500);
+            priority = history[thread_id][stm][move_idx] + singular_bonus + two_ply_bonus;
         } 
 
         if (!secondary) {
@@ -630,7 +586,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     }
     
-    // Compute static evaluation adjusted by correction history and tt_eval
+    if (depth <= 0 && !board.inCheck()) {
+        int q_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
+        eval_adjust(q_eval);
+        return q_eval;
+    } else if (depth <= 0) {
+        return negamax(board, 1, alpha, beta, PV, data);
+    }
+
     int stand_pat = 0;
     if (stm == 1) {
         stand_pat = nnue.evaluate(white_accumulator[thread_id], black_accumulator[thread_id]);
@@ -638,10 +601,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         stand_pat = nnue.evaluate(black_accumulator[thread_id], white_accumulator[thread_id]);
     }
 
-    U64 pawn_key = board.pieces(PieceType::PAWN).getBits();
-    int correction = pawn_corr_hist[thread_id][stm][pawn_key % CORR_HIST_SIZE].corr();
-    stand_pat = stand_pat + correction;
-
+    // Use hash table's evaluation instead of NNUE if the position is found
     if (tt_hit) {
         if (tt_type == EntryType::EXACT 
             || (tt_type == EntryType::LOWERBOUND && tt_eval > stand_pat)
@@ -649,19 +609,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             stand_pat = tt_eval;
         }
     } 
-
-    // Drop to quiescence search if depth is 0 and not in check
-    if (depth <= 0 && !board.inCheck()) {
-        int q_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
-        eval_adjust(q_eval);
-
-        U64 pawn_key = board.pieces(PieceType::PAWN).getBits();
-        pawn_corr_hist[thread_id][stm][pawn_key % CORR_HIST_SIZE].update(q_eval, stand_pat, 0);
-
-        return q_eval;
-    } else if (depth <= 0) {
-        return negamax(board, 1, alpha, beta, PV, data);
-    }
     
     static_eval[thread_id][ply] = stand_pat; // store the evaluation along the path
     bool hash_move_found = false;
@@ -959,20 +906,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     }
 
-    EntryType type;
-
-    if (is_pv) {
-        if (best_eval > alpha0 && best_eval < beta) {
-            type = EntryType::EXACT;
-        } else if (best_eval <= alpha0) {
-            type = EntryType::UPPERBOUND;
-        } else {
-            type = EntryType::LOWERBOUND;
-        } 
-    } else {
-        type = EntryType::LOWERBOUND;
-    }
-
     if (is_pv && excluded_move == Move::NO_MOVE) {
         // If the best_eval is in (alpha0, beta), then best_eval is EXACT.
         // If the best_eval <= alpha0, then best_eval is UPPERBOUND because this is caused by one of the children's beta-cutoff.
@@ -982,6 +915,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // This is nice in the sense that if a node is non-PV, the bounds are always UPPERBOUND and LOWERBOUND.
         // EXACT flag only happens at PV nodes.
         // For non-PV nodes, the bounds are artifical so we can't say for sure.
+        EntryType type;
+
+        if (best_eval > alpha0 && best_eval < beta) {
+            type = EXACT;
+        } else if (best_eval <= alpha0) {
+            type = UPPERBOUND;
+        } else {
+            type = LOWERBOUND;
+        } 
+
         if (PV.size() > 0) {
             table_insert(board, depth, best_eval, true, PV[0], type, tt_table);
         } else {
@@ -994,24 +937,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         // In CUT nodes, we have a fake alpha. We can only tell if best_eval is a LOWERBOUND if we have a beta cutoff.
         // IN ALL nodess, we have a fake beta. Similarly, we can only tell if best_eval is a UPPERBOUND if we have an alpha cutoff.
         if (best_eval >= beta) {
+            EntryType type = LOWERBOUND;
             if (PV.size() > 0) {
                 table_insert(board, depth, best_eval, false, PV[0], type, tt_table);
             } else {
                 table_insert(board, depth, best_eval, false, Move::NO_MOVE, type, tt_table);
             }  
         } 
-    }
-
-    Move best_move = PV.size() > 0 ? PV[0] : Move::NO_MOVE;
-
-    if (excluded_move == Move::NO_MOVE 
-        && !board.isCapture(best_move)
-        && !board.inCheck()
-        && !(type == EntryType::LOWERBOUND && best_eval <= stand_pat)
-        && !(type == EntryType::UPPERBOUND && best_eval >= stand_pat)
-    ) {
-        U64 pawn_key = board.pieces(PieceType::PAWN).getBits();
-        pawn_corr_hist[thread_id][stm][pawn_key % CORR_HIST_SIZE].update(best_eval, stand_pat, depth);
     }
     
     return best_eval;
