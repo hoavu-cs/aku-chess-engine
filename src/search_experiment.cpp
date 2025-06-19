@@ -1007,7 +1007,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         bool hash_move_found = false;
 
         // Aspiration window
-        int window = 150;
+        int window = 75;
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
                 
