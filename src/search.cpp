@@ -71,13 +71,10 @@ std::vector<std::vector<int>> lmr_table;
 std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
-std::vector<MisraGriesIntInt> mg_2ply(MAX_THREADS, MisraGriesIntInt(500));  
+std::vector<std::vector<MisraGriesIntInt>> mg_2ply(MAX_THREADS, std::vector<MisraGriesIntInt>(2, MisraGriesIntInt(250)));  
 
 // Singular move set
-std::vector<std::vector<std::unordered_set<int>>> singular_moves(
-    MAX_THREADS,
-    std::vector<std::unordered_set<int>>(2)
-);
+std::vector<std::vector<std::unordered_set<int>>> singular_moves(MAX_THREADS, std::vector<std::unordered_set<int>>(2));
 
 // tt entry definition
 enum EntryType {
@@ -315,16 +312,18 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     // We try to find the best pair give it higher priority.
     Move best_2ply_move = Move::NO_MOVE;
     int best_2ply_score = -INF;
+    int move_index_1 = 0;
+    int move_index_2 = 0;
 
     if (ply >= 2) {
-        int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
-        int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
+        move_index_2 = move_index(move_stack[thread_id][ply - 2]);
+        move_index_1 = move_index(move_stack[thread_id][ply - 1]);
         for (const auto& move : moves) {
             int move_index_0 = move_index(move);
             std::pair<int, int> pair_1 = {move_index_2, move_index_0};
             std::pair<int, int> pair_2 = {move_index_1, move_index_0};
 
-            int count = mg_2ply[thread_id].get_count(pair_1) + mg_2ply[thread_id].get_count(pair_2);
+            int count = mg_2ply[thread_id][stm].get_count(pair_1) + mg_2ply[thread_id][stm].get_count(pair_2);
             if (count > best_2ply_score) {
                 best_2ply_score = count;
                 best_2ply_move = move;
@@ -343,17 +342,12 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
 
         if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table)) {
             // Hash move from the PV transposition table should be searched first 
-            if (tt_move == move && tt_type == EntryType::EXACT) {
+            if (tt_move == move) {
                 priority = 19000 + tt_eval;
                 primary.push_back({tt_move, priority});
                 hash_move = true;
                 hash_move_found = true;
-            } else if (tt_move == move && tt_type == EntryType::LOWERBOUND) {
-                priority = 18000 + tt_eval;
-                primary.push_back({tt_move, priority});
-                hash_move = true;
-                hash_move_found = true;
-            }
+            } 
         } 
       
         if (hash_move) continue;
@@ -519,7 +513,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool nmp_ok = data.nmp_ok;
     NodeType node_type = data.node_type;
 
-    bool mopUp = is_mopup(board);
     bool is_pv = (alpha < beta - 1);
     int alpha0 = alpha; // Original alpha passed from the parent node
     bool stm = (board.sideToMove() == Color::WHITE);
@@ -602,7 +595,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         stand_pat = nnue.evaluate(black_accumulator[thread_id], white_accumulator[thread_id]);
     }
 
-    // Use hash table's evaluation instead of NNUE if the position is found
+    // Adjust static evaluation based on tt
     if (tt_hit) {
         if (tt_type == EntryType::EXACT 
             || (tt_type == EntryType::LOWERBOUND && tt_eval > stand_pat)
@@ -637,10 +630,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !board.inCheck() 
                             && !is_pv 
                             && !tt_is_pv
-                            && !improving
                             && !mopup_flag
                             && excluded_move == Move::NO_MOVE // No razoring during singular search
-                            && stand_pat < alpha - rz_c1 * depth;
+                            && stand_pat < alpha - rz_c1 * (depth + improving);
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         return rz_eval;
@@ -651,7 +643,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool nmp_condition = (depth >= null_depth 
         && non_pawn_material(board) 
         && !board.inCheck() 
-        && !mopUp 
+        && !mopup_flag 
         && !is_pv
         && stand_pat >= beta
         && nmp_ok
@@ -773,14 +765,19 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // Pruning late quiet moves
-        bool lmp_condition = can_prune && !is_pv && !tt_is_pv && !is_capture && next_depth <= lmp_depth && abs(beta) < 10000;
+        bool lmp_condition = can_prune 
+                            && !is_pv 
+                            && !tt_is_pv 
+                            && !is_capture 
+                            && next_depth <= lmp_depth 
+                            && abs(beta) < 10000;
         if (lmp_condition) {
             int divisor = improving ? 1 : 2;
             if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
                 continue;
             }
         }
-    
+
         add_accumulators(board, move, white_accumulator[thread_id], black_accumulator[thread_id], nnue);
         move_stack[thread_id][ply] = move_index(move);
         board.makeMove(move);
@@ -863,7 +860,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 if (ply >= 2 && is_pv) {
                     int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
                     int move_index_0 = move_index(move);
-                    mg_2ply[thread_id].insert({move_index_2, move_index_0});
+                    mg_2ply[thread_id][stm].insert({move_index_2, move_index_0});
                 } 
             }
         }
@@ -899,8 +896,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 int move_index_2 = move_index(move_stack[thread_id][ply - 2]);
                 int move_index_1 = move_index(move_stack[thread_id][ply - 1]);
                 int move_index_0 = move_index(move);
-                mg_2ply[thread_id].insert({move_index_2, move_index_0});
-                mg_2ply[thread_id].insert({move_index_1, move_index_0});
+                mg_2ply[thread_id][stm].insert({move_index_2, move_index_0});
+                mg_2ply[thread_id][stm].insert({move_index_1, move_index_0});
             } 
 
             break;
@@ -1010,7 +1007,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         bool hash_move_found = false;
 
         // Aspiration window
-        int window = 150;
+        int window = 75;
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
                 
@@ -1171,7 +1168,8 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         node_count[i] = 0;
         table_hit[i] = 0;
         seeds[i] = rand();
-        mg_2ply[i].clear(); 
+        mg_2ply[i][0].clear(); 
+        mg_2ply[i][1].clear();
 
         singular_moves[i][0] = {};
         singular_moves[i][1] = {};

@@ -616,7 +616,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && !tt_is_pv
                         && !capture_tt_move
                         && !mopup_flag
-                        && excluded_move == Move::NO_MOVE // No rfp during singular search
+                        && excluded_move == Move::NO_MOVE 
                         && abs(beta) < 10000;
     if (rfp_condition) {
         int rfp_margin = rfp_c1 * (depth - improving);
@@ -631,7 +631,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !is_pv 
                             && !tt_is_pv
                             && !mopup_flag
-                            && excluded_move == Move::NO_MOVE // No razoring during singular search
+                            && excluded_move == Move::NO_MOVE 
                             && stand_pat < alpha - rz_c1 * (depth + improving);
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
@@ -647,7 +647,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && !is_pv
         && stand_pat >= beta
         && nmp_ok
-        && excluded_move == Move::NO_MOVE // No nmp during singular search
+        && excluded_move == Move::NO_MOVE 
     );
     int null_eval;
     if (nmp_condition) {
@@ -704,6 +704,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (singular_eval < singular_beta - 40) {
                 singular_ext++; // double extension
             }
+
             singular_moves[thread_id][stm].insert(move_index(tt_move)); 
         } 
     }
@@ -744,7 +745,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         extensions = std::clamp(extensions, 0, 2); 
-        next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
+        next_depth = std::min(next_depth + extensions, (5 + root_depth) - ply - 1);
 
         // common conditions for pruning
         bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag;
