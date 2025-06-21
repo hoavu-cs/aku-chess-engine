@@ -376,13 +376,21 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         }
     }
 
+    const auto move_cmp = [&board](const auto& a, const auto& b) {
+        if (a.second == b.second) {
+            int table_score_a = move_score_by_table(board, a.first);
+            int table_score_b = move_score_by_table(board, b.first);
+            return table_score_a > table_score_b;
+        } else {
+            return a.second > b.second;
+        }
+    };
+
     std::sort(primary.begin(), primary.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
-    std::sort(quiet.begin(), quiet.end(), [](const auto& a, const auto& b) {
-        return a.second > b.second;
-    });
+    std::sort(quiet.begin(), quiet.end(), move_cmp);
 
     for (const auto& move : quiet) {
         primary.push_back(move);
