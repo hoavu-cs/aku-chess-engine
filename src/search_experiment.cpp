@@ -731,6 +731,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool in_check = board.inCheck();
         bool is_capture = board.isCapture(move);
         bool is_promotion_threat = promotion_threat(board, move) || is_promo; 
+        
 
         board.makeMove(move);
         node_count[thread_id]++;
@@ -739,6 +740,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         int eval = 0;
         int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, node_type, thread_id); 
+        bool good_history = history[thread_id][stm][move_index(move)] > next_depth * next_depth;
 
         if (move == tt_move) {
             extensions += singular_ext;
@@ -756,6 +758,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !give_check 
                             && !is_pv 
                             && !tt_is_pv
+                            && !good_history
                             && next_depth <= fp_depth 
                             && excluded_move == Move::NO_MOVE;
         if (fp_condition) {
@@ -770,6 +773,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !is_pv 
                             && !tt_is_pv 
                             && !is_capture 
+                            && !good_history
                             && next_depth <= lmp_depth 
                             && abs(beta) < 10000;
         if (lmp_condition) {
