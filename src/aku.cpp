@@ -124,7 +124,7 @@ Move current_best_move = Move::NO_MOVE;
 
 // Engine tunable parameters.
 int rfp_depth = 4;
-int rfp_c1 = 220; 
+int rfp_c1 = 185; 
 int fp_depth = 3;
 int fp_c1 = 200; 
 int lmp_depth = 5;
