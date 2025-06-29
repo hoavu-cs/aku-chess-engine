@@ -966,8 +966,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
     std::vector<std::pair<Move, int>> moves;
 
-    killer[thread_id][1] = {Move::NO_MOVE, Move::NO_MOVE}; 
-
     Move best_move = Move(); 
     Move syzygy_move;
 
@@ -1081,7 +1079,6 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                 } 
                 
                 if (alpha >= beta) {
-                    update_killers(move, 0, thread_id);
                     break;
                 }
             }
