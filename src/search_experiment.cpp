@@ -365,8 +365,8 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else {
             secondary = true;
             int move_idx = move_index(move);
-            int singular_bonus = singular_moves[thread_id][stm].find(move_idx) != singular_moves[thread_id][stm].end() ? 100 : 0;
-            priority = history[thread_id][stm][move_idx] + singular_bonus;
+            int bonus = singular_moves[thread_id][stm].find(move_idx) != singular_moves[thread_id][stm].end() ? singular_bonus : 0;
+            priority = history[thread_id][stm][move_idx] + bonus;
         } 
 
         if (!secondary) {
@@ -583,11 +583,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     if (depth <= 0 && !board.inCheck()) {
         int q_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         eval_adjust(q_eval);
-
-        if (excluded_move != Move::NO_MOVE) {
-            table_insert(board, 0, q_eval, node_type == NodeType::PV, Move::NO_MOVE, EntryType::EXACT, tt_table);
-        }
-
         return q_eval;
     } else if (depth <= 0) {
         return negamax(board, 1, alpha, beta, PV, data);
@@ -749,7 +744,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         extensions = std::clamp(extensions, 0, 2); 
-        next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
+        next_depth = std::min(next_depth + extensions, (6 + root_depth) - ply - 1);
 
         // common conditions for pruning
         bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag;
@@ -1012,7 +1007,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         bool hash_move_found = false;
 
         // Aspiration window
-        int window = 75;
+        int window = aspiration_window;;
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
                 
@@ -1084,6 +1079,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
                 } 
                 
                 if (alpha >= beta) {
+                    update_killers(move, 0, thread_id);
                     break;
                 }
             }

@@ -26,3 +26,6 @@ extern float lmr_2;
 
 extern int singular_c1;
 extern int singular_c2;
+extern int singular_bonus;
+
+extern int aspiration_window;
