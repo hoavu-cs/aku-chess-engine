@@ -24,8 +24,10 @@ extern int rz_c1;
 extern float lmr_1;
 extern float lmr_2;
 
+extern float lmr_3;
+extern float lmr_4;
+
 extern int singular_c1;
 extern int singular_c2;
 extern int singular_bonus;
 
-extern int aspiration_window;

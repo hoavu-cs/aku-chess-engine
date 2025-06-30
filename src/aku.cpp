@@ -136,7 +136,6 @@ float lmr_2 = 0.75f;
 int singular_c1 = 2;
 int singular_c2 = 0;
 int singular_bonus = 100;
-int aspiration_window = 75;
 
 
 // Extract tablebase files to the current directory if they don't already exist.
