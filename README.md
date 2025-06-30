@@ -1,6 +1,6 @@
 This is a side project to refresh my C++ and to test several techniques in the search algorithm to burn some time. I'm also too lazy to write my own movegen at the moment. To play with the engine in a GUI, you can use any UCI-compatible GUI such as CuteChess, PyChess, Nibbler etc., and add the engine to the program. To build the source, simply call "make aku" from "src" and make sure "bin/aku" folder exists. It should compile on Windows, Linux, and MacOS for C++ 17.
 
-I currently have less time for this engine but any suggestion is still welcome. I'm mainly interested in any sort of algorithmic ideas (especially randomized methods that can be parallelized) in the search and still doing some experiments and minor tweaks here and there.
+I currently have less time for this engine but any suggestion is still welcome. I'm mainly interested in any sort of algorithmic ideas (especially randomized methods such as sketching and sampling) in the search and still doing some experiments and minor tweaks here and there.
 
 **Strength**. The engine currently plays rapid chess at an estimated 3100-3400 CCRL ELO. It is also quite stronger running on multiple threads (the default setting is 4-thread). 
 
