@@ -280,7 +280,7 @@ int late_move_reduction(Board& board,
             past_pv = tt_is_pv; 
         }
 
-        if (improving || is_pv || is_capture) {
+        if (improving || is_pv  || past_pv || is_capture || history_score > 500) {
             R--;
         }
 
@@ -335,12 +335,10 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         Move tt_move;
         EntryType tt_type;
         TableEntry entry;
+        int tt_eval, tt_depth, priority = 0;
         bool tt_is_pv;
         bool secondary = false;
         bool hash_move = false;
-        int tt_eval, tt_depth, priority = 0;
-        int move_idx = move_index(move);
-        int singular_bonus = singular_moves[thread_id][stm].find(move_idx) != singular_moves[thread_id][stm].end() ? 100 : 0;
 
         if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table)) {
             // Hash move from the PV transposition table should be searched first 
@@ -359,14 +357,15 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else if (board.isCapture(move)) { 
             int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move, thread_id);   
-            priority = 4000 + see_score;
+            priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
-            priority = 4000; 
+            priority = 4000; // killer move
         } else if (move == best_2ply_move) {
             priority = 3950;
         } else {
             secondary = true;
-            
+            int move_idx = move_index(move);
+            int singular_bonus = singular_moves[thread_id][stm].find(move_idx) != singular_moves[thread_id][stm].end() ? 100 : 0;
             priority = history[thread_id][stm][move_idx] + singular_bonus;
         } 
 
