@@ -280,7 +280,7 @@ int late_move_reduction(Board& board,
             past_pv = tt_is_pv; 
         }
 
-        if (improving || is_pv  || past_pv || is_capture || history_score > 100) {
+        if (improving || is_pv  || past_pv || is_capture) {
             R--;
         }
 
@@ -355,9 +355,8 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
-            int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move, thread_id);   
-            priority = 4000 + see_score;// victime_value + score;
+            priority = 4000 + see_score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
             priority = 4000; // killer move
         } else if (move == best_2ply_move) {
@@ -632,7 +631,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !tt_is_pv
                             && !mopup_flag
                             && excluded_move == Move::NO_MOVE // No razoring during singular search
-                            && stand_pat < alpha - rz_c1 * (depth + improving);
+                            && stand_pat < alpha - rz_c1 * (depth + improving) - 50 * capture_tt_move;
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         return rz_eval;
