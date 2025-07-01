@@ -280,7 +280,7 @@ int late_move_reduction(Board& board,
             past_pv = tt_is_pv; 
         }
 
-        if (improving || is_pv  || past_pv || is_capture || history_score > 500) {
+        if (improving || is_pv  || past_pv || is_capture || history_score > 100) {
             R--;
         }
 
