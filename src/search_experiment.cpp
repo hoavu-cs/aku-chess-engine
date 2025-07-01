@@ -331,26 +331,22 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         }
     }
 
+    Move tt_move;
+    EntryType tt_type;
+    TableEntry entry;
+    int tt_eval, tt_depth, priority = 0;
+    bool tt_is_pv;
+    table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table);
+            
     for (const auto& move : moves) {
-        Move tt_move;
-        EntryType tt_type;
-        TableEntry entry;
-        int tt_eval, tt_depth, priority = 0;
-        bool tt_is_pv;
         bool secondary = false;
-        bool hash_move = false;
 
-        if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table)) {
-            // Hash move from the PV transposition table should be searched first 
-            if (tt_move == move) {
-                priority = 19000 + tt_eval;
-                primary.push_back({tt_move, priority});
-                hash_move = true;
-                hash_move_found = true;
-            } 
-        } 
-      
-        if (hash_move) continue;
+        if (tt_move == move) {
+            priority = 19000 + tt_eval;
+            primary.push_back({tt_move, priority});
+            hash_move_found = true;
+            continue;
+        }
 
         if (is_promotion(move)) {                   
             priority = 16000; 
@@ -453,8 +449,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     candidate_moves.reserve(moves.size());
 
     for (const auto& move : moves) {
-        // int see_score = see(board, move, thread_id);
-        // candidate_moves.push_back({move, see_score});
         int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
         int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
         int score = victim_value - attacker_value;
@@ -631,7 +625,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !tt_is_pv
                             && !mopup_flag
                             && excluded_move == Move::NO_MOVE // No razoring during singular search
-                            && stand_pat < alpha - rz_c1 * (depth + improving) - 50 * capture_tt_move;
+                            && stand_pat < alpha - rz_c1 * (depth + improving);
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         return rz_eval;
