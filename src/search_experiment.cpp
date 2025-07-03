@@ -356,9 +356,9 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             priority = 16000; 
         } else if (board.isCapture(move)) { 
             int see_score = see(board, move, thread_id);   
-            priority = 4000 + see_score;
+            priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
-            priority = 4000; 
+            priority = 4000; // killer move
         } else if (move == best_2ply_move) {
             priority = 3950;
         } else {
@@ -379,7 +379,12 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         return a.second > b.second;
     });
 
-    std::sort(quiet.begin(), quiet.end(), [](const auto& a, const auto& b) {
+    std::sort(quiet.begin(), quiet.end(), [&board](const auto& a, const auto& b) {
+        if (a.second == b.second) {
+            int table_score_a = move_score_by_table(board, a.first);
+            int table_score_b = move_score_by_table(board, b.first);
+            return table_score_a > table_score_b;
+        }
         return a.second > b.second;
     });
 
@@ -644,7 +649,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && !board.inCheck() 
         && !mopup_flag 
         && !is_pv
-        && stand_pat >= beta 
+        && stand_pat >= beta
         && nmp_ok
         && excluded_move == Move::NO_MOVE // No nmp during singular search
     );
@@ -711,7 +716,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         extensions++;
     }
 
-    if (moves.size() <= 1 + (depth <= 2)) {
+    if (moves.size() == 1) {
         extensions++;
     }
 
