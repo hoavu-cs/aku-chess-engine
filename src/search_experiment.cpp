@@ -271,7 +271,7 @@ int late_move_reduction(Board& board,
         bool is_capture = board.isCapture(move);
         
         int R = lmr_table[depth][i];
-        int tt_eval, tt_depth;
+        int tt_eval, tt_depth, history_score = history[thread_id][stm][move_index(move)];
         bool tt_is_pv, past_pv = false;
         EntryType tt_type;
         Move tt_move;
@@ -355,6 +355,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
+            int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move, thread_id);   
             priority = 4000 + see_score;// victime_value + score;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
@@ -375,18 +376,21 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         }
     }
 
-    std::sort(primary.begin(), primary.end(), [](const auto& a, const auto& b) {
-        return a.second > b.second;
-    });
-
-    std::sort(quiet.begin(), quiet.end(), [&board](const auto& a, const auto& b) {
+    const auto move_cmp = [&board](const auto& a, const auto& b) {
         if (a.second == b.second) {
             int table_score_a = move_score_by_table(board, a.first);
             int table_score_b = move_score_by_table(board, b.first);
             return table_score_a > table_score_b;
+        } else {
+            return a.second > b.second;
         }
+    };
+
+    std::sort(primary.begin(), primary.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
     });
+
+    std::sort(quiet.begin(), quiet.end(), move_cmp);
 
     for (const auto& move : quiet) {
         primary.push_back(move);
@@ -620,7 +624,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && !tt_is_pv
                         && !capture_tt_move
                         && !mopup_flag
-                        && excluded_move == Move::NO_MOVE // No rfp during singular search
+                        && excluded_move == Move::NO_MOVE 
                         && abs(beta) < 10000;
     if (rfp_condition) {
         int rfp_margin = rfp_c1 * (depth - improving);
@@ -635,7 +639,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !is_pv 
                             && !tt_is_pv
                             && !mopup_flag
-                            && excluded_move == Move::NO_MOVE // No razoring during singular search
+                            && excluded_move == Move::NO_MOVE 
                             && stand_pat < alpha - rz_c1 * (depth + improving);
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
@@ -651,7 +655,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         && !is_pv
         && stand_pat >= beta
         && nmp_ok
-        && excluded_move == Move::NO_MOVE // No nmp during singular search
+        && excluded_move == Move::NO_MOVE 
     );
     int null_eval;
     if (nmp_condition) {
@@ -708,6 +712,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             if (singular_eval < singular_beta - 40) {
                 singular_ext++; // double extension
             }
+
             singular_moves[thread_id][stm].insert(move_index(tt_move)); 
         } 
     }
@@ -734,6 +739,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool in_check = board.inCheck();
         bool is_capture = board.isCapture(move);
         bool is_promotion_threat = promotion_threat(board, move) || is_promo; 
+        
 
         board.makeMove(move);
         node_count[thread_id]++;
@@ -742,13 +748,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         int eval = 0;
         int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, node_type, thread_id); 
+        bool good_history = history[thread_id][stm][move_index(move)] > next_depth * next_depth;
 
         if (move == tt_move) {
             extensions += singular_ext;
         }
 
         extensions = std::clamp(extensions, 0, 2); 
-        next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
+        next_depth = std::min(next_depth + extensions, (5 + root_depth) - ply - 1);
 
         // common conditions for pruning
         bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag;
@@ -759,6 +766,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !give_check 
                             && !is_pv 
                             && !tt_is_pv
+                            && !good_history
                             && next_depth <= fp_depth 
                             && excluded_move == Move::NO_MOVE;
         if (fp_condition) {
@@ -772,11 +780,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool lmp_condition = can_prune 
                             && !is_pv 
                             && !tt_is_pv 
-                            // allow pruning capture if we have a cut off at lower depth from TT
-                            && (!is_capture || (tt_hit && tt_type != EntryType::UPPERBOUND && tt_eval >= beta + 50 * (depth - tt_depth)))
+                            && !is_capture 
+                            && !good_history
                             && next_depth <= lmp_depth 
                             && abs(beta) < 10000;
-
         if (lmp_condition) {
             int divisor = improving ? 1 : 2;
             if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
