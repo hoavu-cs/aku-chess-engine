@@ -277,12 +277,12 @@ void add_accumulators(Board& board,
             int capture_idx = piecetype_to_idx(captured);
 
             // remove the white piece from black's perspective
-            int captureIndexUs = calculate_index(1, capture_idx, mirror_sq(move.to().index()));
-            black_accumulator.remove_feature(captureIndexUs, eval_network);
+            int capture_index_us = calculate_index(1, capture_idx, mirror_sq(move.to().index()));
+            black_accumulator.remove_feature(capture_index_us, eval_network);
 
             // remove the white piece from white's perspective
-            int captureIndexThem = calculate_index(0, capture_idx, move.to().index());
-            white_accumulator.remove_feature(captureIndexThem, eval_network);
+            int capture_index_them = calculate_index(0, capture_idx, move.to().index());
+            white_accumulator.remove_feature(capture_index_them, eval_network);
         }
     }
 }
