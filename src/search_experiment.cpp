@@ -770,7 +770,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !is_capture 
                             && next_depth <= lmp_depth 
                             && abs(beta) < 10000;
-        if (tt_hit && tt_depth >= depth - 4 && tt_type != EntryType::UPPERBOUND && tt_eval >= beta + 50 * (depth - tt_depth)) {
+        if (tt_hit && tt_depth >= depth - 3 && tt_type != EntryType::UPPERBOUND && tt_eval >= beta + 50 * (depth - tt_depth)) {
             lmp_threshold -= 3 * (depth - tt_depth);
         }
 
