@@ -712,6 +712,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     }
 
+    if (board.inCheck()) {
+        extensions++;
+    }
+
+    if (moves.size() == 1) {
+        extensions++;
+    }
+
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
 
@@ -761,22 +769,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         // Pruning late quiet moves
-        int lmp_threshold = lmp_c1;
-
-        // Instead of doing probcut, we reduce the LMP threshold based on the transposition table hit.
         bool lmp_condition = can_prune 
                             && !is_pv 
                             && !tt_is_pv 
-                            && !is_capture 
+                            // allow pruning capture if we have a cut off at lower depth from TT
+                            && (!is_capture || (tt_hit && tt_type != EntryType::UPPERBOUND && tt_eval >= beta + 50 * (depth - tt_depth)))
                             && next_depth <= lmp_depth 
                             && abs(beta) < 10000;
-        if (tt_hit && tt_depth >= depth - 3 && tt_type != EntryType::UPPERBOUND && tt_eval >= beta + 50 * (depth - tt_depth)) {
-            lmp_threshold -= 3 * (depth - tt_depth);
-        }
 
         if (lmp_condition) {
             int divisor = improving ? 1 : 2;
-            if (i >= (lmp_threshold + next_depth * next_depth) / divisor) {
+            if (i >= (lmp_c1 + next_depth * next_depth) / divisor) {
                 continue;
             }
         }
