@@ -357,9 +357,10 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         } else if (board.isCapture(move)) { 
             int victime_value = piece_type_value(board.at<Piece>(move.to()).type());
             int see_score = see(board, move, thread_id);   
-            priority = 4000 + see_score;// victime_value + score;
+            int two_ply_bonus = move == best_2ply_move ? 100 : 0;
+            priority = 4000 + see_score + two_ply_bonus;
         } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
-            priority = 4000; // killer move
+            priority = 4000; 
         } else if (move == best_2ply_move) {
             priority = 3950;
         } else {
@@ -386,7 +387,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         }
     };
 
-    std::sort(primary.begin(), primary.end(), [](const auto& a, const auto& b) {
+    std::sort(primary.begin(), primary.end(), [&board](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
