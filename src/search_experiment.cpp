@@ -721,7 +721,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         Move move = moves[i].first;
         std::vector<Move> childPV;
 
-        if (move == excluded_move) {
+        if (move_index(move) == move_index(excluded_move)) {
             continue; // skip excluded move
         }
         
