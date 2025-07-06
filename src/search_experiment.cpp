@@ -380,11 +380,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     });
 
     std::sort(quiet.begin(), quiet.end(), [&board](const auto& a, const auto& b) {
-        if (a.second == b.second) {
-            int pst_score_a = move_score_by_table(board, a.first);
-            int pst_score_b = move_score_by_table(board, b.first);
-            return pst_score_a > pst_score_b;
-        }
         return a.second > b.second;
     });
 
