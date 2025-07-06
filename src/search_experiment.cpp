@@ -361,15 +361,15 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
-            int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
-            int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
-            int capture_score = 0;
-            if (victim_value < attacker_value) {
-                capture_score = see(board, move, thread_id); // If the victim is less valuable than the attacker, we can use SEE
-            } else {
-                capture_score = victim_value - attacker_value; // Otherwise, we just use the difference in values
-            }
-            //see(board, move, thread_id);   
+            // int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
+            // int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
+            // int capture_score = 0;
+            // if (victim_value < attacker_value) {
+            //     capture_score = see(board, move, thread_id); // If the victim is less valuable than the attacker, we can use SEE
+            // } else {
+            //     capture_score = victim_value - attacker_value; // Otherwise, we just use the difference in values
+            // }
+            int capture_score = see(board, move, thread_id);   
             priority = 4000 + capture_score;
         } else if (killer[thread_id][ply][0] == move || killer[thread_id][ply][1] == move) {
             priority = 4000; // killer move
