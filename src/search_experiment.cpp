@@ -379,7 +379,12 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         return a.second > b.second;
     });
 
-    std::sort(quiet.begin(), quiet.end(), [](const auto& a, const auto& b) {
+    std::sort(quiet.begin(), quiet.end(), [&board](const auto& a, const auto& b) {
+        if (a.second == b.second) {
+            int pst_score_a = move_score_by_table(board, a.first);
+            int pst_score_b = move_score_by_table(board, b.first);
+            return pst_score_a > pst_score_b;
+        }
         return a.second > b.second;
     });
 
@@ -700,7 +705,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         if (singular_eval < singular_beta) {
             singular_ext++; // singular extension
-            if (singular_eval < singular_beta - 20) {
+            if (singular_eval < singular_beta - 40) {
                 singular_ext++; // double extension
             }
             singular_moves[thread_id][stm].insert(move_index(tt_move)); 
@@ -721,7 +726,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         Move move = moves[i].first;
         std::vector<Move> childPV;
 
-        if (move_index(move) == move_index(excluded_move)) {
+        if (move == excluded_move) {
             continue; // skip excluded move
         }
         
@@ -754,7 +759,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !give_check 
                             && !is_pv 
                             && !tt_is_pv
-                            && next_depth <= fp_depth;
+                            && next_depth <= fp_depth 
+                            && excluded_move == Move::NO_MOVE;
         if (fp_condition) {
             int margin = fp_c1 * (next_depth + improving);
             if (stand_pat + margin < alpha) {
