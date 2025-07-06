@@ -26,7 +26,7 @@ using namespace chess;
 // Aliases, constants, and engine parameters
 typedef std::uint64_t U64;
 constexpr int MAX_THREADS = 12;  // Maximum number of threads supported by the engine
-constexpr int ENGINE_DEPTH = 99; // Maximum search depth supported by the engine
+constexpr int ENGINE_DEPTH = 128; // Maximum search depth supported by the engine
 constexpr int MAX_ASPIRATION_SZ = 300;
 constexpr int MAX_HIST = 9000;
 
@@ -83,7 +83,7 @@ enum EntryType {
     UPPERBOUND
 };  
 
-struct TableEntry {
+struct alignas(64) TableEntry {
     U64 hash;
     int eval;
     int depth;
@@ -92,20 +92,20 @@ struct TableEntry {
     EntryType type;
 };
 
-struct LockedTableEntry {
+struct alignas(64) LockedTableEntry {
     std::mutex mtx;
     TableEntry entry;
 };
 
-std::vector<LockedTableEntry> tt_table(table_size); 
+std::vector<LockedTableEntry> tt_table(table_size);
 
-// Helper function declarationss
+// Helper function declarations
 void precompute_lmr(int max_depth, int max_i);
-bool table_lookup(Board& board, int& depth, int& eval, bool& pv,Move& best_move, EntryType& type, std::vector<LockedTableEntry>& table);
-void table_insert(Board& board, int depth, int eval, bool pv,Move best_move, EntryType type, std::vector<LockedTableEntry>& table);
+inline bool table_lookup(Board& board, int& depth, int& eval, bool& pv,Move& best_move, EntryType& type, std::vector<LockedTableEntry>& table);
+inline void table_insert(Board& board, int depth, int eval, bool pv,Move best_move, EntryType type, std::vector<LockedTableEntry>& table);
 inline void update_killers(const Move& move, int ply, int thread_id);
-int see(Board& board, Move move, int thread_id);
-int late_move_reduction(Board& board, Move move, int i, int depth, int ply, bool is_pv, NodeType node_type, int thread_id);
+inline int see(Board& board, Move move, int thread_id);
+inline int late_move_reduction(Board& board, Move move, int i, int depth, int ply, bool is_pv, NodeType node_type, int thread_id);
 std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found, NodeType node_type);
 int quiescence(Board& board, int alpha, int beta, int ply, int thread_id);
 void search_thread(Board search_board, int search_depth, int time_limit); 
@@ -126,7 +126,7 @@ void precompute_lmr(int max_depth, int max_i) {
     static bool is_precomputed = false;
     if (is_precomputed) return;
 
-    lmr_table.resize(100 + 1, std::vector<int>(max_i + 1));
+    lmr_table.resize(max_depth + 1, std::vector<int>(max_i + 1));
 
     for (int depth = max_depth; depth >= 1; --depth) {
         for (int i = max_i; i >= 1; --i) {
@@ -137,7 +137,7 @@ void precompute_lmr(int max_depth, int max_i) {
 }
 
 // transposition table lookup function
-bool table_lookup(Board& board, 
+inline bool table_lookup(Board& board, 
     int& depth, 
     int& eval, 
     bool& pv,
@@ -163,7 +163,7 @@ bool table_lookup(Board& board,
 }
 
 // transposition table insert function
-void table_insert(Board& board, 
+inline void table_insert(Board& board, 
     int depth, 
     int eval, 
     bool pv,
@@ -192,20 +192,22 @@ inline void update_killers(const Move& move, int ply, int thread_id) {
 } 
 
 // Static exchange evaluation (SEE) function
-int see(Board& board, Move move, int thread_id) {
+inline int see(Board& board, Move move, int thread_id) {
     int to = move.to().index();
 
     auto victim = board.at<Piece>(move.to());
     int victim_value = piece_type_value(victim.type());
 
-    std::vector<int> values;
-    values.push_back(victim_value);
+    thread_local std::vector<int> values;
+    thread_local std::vector<Move> exchange_stack;
 
-    std::vector<Move> exchange_stack;
+    values.clear();
+    exchange_stack.clear();
+
+    values.push_back(victim_value);
     exchange_stack.push_back(move);
 
     int depth = 0;
-    Color current_side = board.sideToMove();
 
     Board copy = board;
     while (!exchange_stack.empty()) {
@@ -248,7 +250,7 @@ int see(Board& board, Move move, int thread_id) {
 }
 
 // Late move reduction 
-int late_move_reduction(Board& board, 
+inline int late_move_reduction(Board& board, 
         Move move, 
         int i, 
         int depth, 
@@ -298,11 +300,15 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
     Movelist moves;
     movegen::legalmoves(moves, board);
 
-    std::vector<std::pair<Move, int>> primary;
-    std::vector<std::pair<Move, int>> quiet;
+    thread_local std::vector<std::pair<Move, int>> primary;
+    thread_local std::vector<std::pair<Move, int>> quiet;
 
-    primary.reserve(moves.size());
-    quiet.reserve(moves.size());
+    primary.clear();
+    quiet.clear();
+    //std::vector<std::pair<Move, int>> quiet;
+
+    //primary.reserve(moves.size());
+    //quiet.reserve(moves.size());
 
     bool stm = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
@@ -355,9 +361,17 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
-            int see_score = see(board, move, thread_id);   
-            priority = 4000 + see_score;
-        } else if (std::find(killer[thread_id][ply].begin(), killer[thread_id][ply].end(), move) != killer[thread_id][ply].end()) {
+            int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
+            int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
+            int capture_score = 0;
+            if (victim_value < attacker_value) {
+                capture_score = see(board, move, thread_id); // If the victim is less valuable than the attacker, we can use SEE
+            } else {
+                capture_score = victim_value - attacker_value; // Otherwise, we just use the difference in values
+            }
+            //see(board, move, thread_id);   
+            priority = 4000 + capture_score;
+        } else if (killer[thread_id][ply][0] == move || killer[thread_id][ply][1] == move) {
             priority = 4000; // killer move
         } else if (move == best_2ply_move) {
             priority = 3950;
@@ -675,7 +689,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // IID. Reduce the depth to facilitate the search if no hash move found.
     if (!hash_move_found && depth >= 3) {
-        depth = depth - 1;
+        depth--;
     }
 
     // Singular extension
@@ -1142,7 +1156,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
 }
 
 Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeLimit) {
-    precompute_lmr(100, 500);  // Precompute late move reduction table
+    precompute_lmr(ENGINE_DEPTH, 500);  // Precompute late move reduction table
     omp_set_num_threads(num_threads); // Set the number of threads for OpenMP
     Move best_move = Move(); 
     stop_search = false;
