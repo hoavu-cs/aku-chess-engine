@@ -306,10 +306,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
 
     primary.clear();
     quiet.clear();
-    //std::vector<std::pair<Move, int>> quiet;
-
-    //primary.reserve(moves.size());
-    //quiet.reserve(moves.size());
 
     bool stm = board.sideToMove() == Color::WHITE;
     Color color = board.sideToMove();
@@ -609,6 +605,18 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             stand_pat = tt_eval;
         }
     } 
+
+    // Instead of probcut, reduce the depth if the tt evaluation is higher than beta
+    if (tt_hit 
+        && tt_type != EntryType::UPPERBOUND 
+        && tt_eval >= beta 
+        && tt_depth <= depth - 2
+        && !is_pv 
+        && !tt_is_pv
+        && !board.inCheck()) {
+
+        depth--;
+    }
     
     static_eval[thread_id][ply] = stand_pat; // store the evaluation along the path
     bool hash_move_found = false;
@@ -645,7 +653,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     // Null move pruning. Side to move must have non-pawn material.
-    const int null_depth = 4; 
+    const int null_depth = 3; 
     bool nmp_condition = (depth >= null_depth 
         && non_pawn_material(board) 
         && !board.inCheck() 
@@ -658,7 +666,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int null_eval;
     if (nmp_condition) {
         std::vector<Move> null_pv; 
-        int reduction = 4 + depth / 4;
+        int reduction = 3 + depth / 4;
         NodeData null_data = {ply + 1, 
                                 false, 
                                 root_depth,
@@ -720,10 +728,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     if (moves.size() == 1) {
         extensions++;
-    }
-
-    if (tt_hit && tt_type != EntryType::UPPERBOUND && tt_eval >= beta) {
-        extensions--;
     }
 
     // Evaluate moves

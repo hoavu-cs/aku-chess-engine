@@ -441,9 +441,7 @@ void process_go(const std::vector<std::string>& tokens) {
                     time_limit = static_cast<int>(base_time * adjust) + winc / 3;
                 } 
 
-                if (wtime <= 100) {
-                    time_limit = 50;
-                } 
+                time_limit = std::clamp(time_limit, 0, wtime / 2 - 10); 
             } else if (board.sideToMove() == Color::BLACK && btime > 0) {
                 int base_time = btime / (movestogo > 0 ? movestogo + 2 : 20); 
                 time_limit = static_cast<int>(base_time * adjust) + binc / 2;
@@ -452,9 +450,7 @@ void process_go(const std::vector<std::string>& tokens) {
                     time_limit = static_cast<int>(base_time * adjust) + binc / 3;
                 }
 
-                if (btime <= 100) {
-                    time_limit = 50;
-                }
+                time_limit = std::clamp(time_limit, 0, btime / 2 - 10);
             }
         }        
     }
