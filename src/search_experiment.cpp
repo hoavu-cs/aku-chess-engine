@@ -606,15 +606,18 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
     } 
 
+    bool capture_tt_move = found && tt_move != Move::NO_MOVE && board.isCapture(tt_move);
+
     // A version of probcut
     if (tt_hit 
         && tt_type != EntryType::UPPERBOUND 
         && depth >= 6
-        && tt_eval >= beta + 250 * (depth - tt_depth)
+        && tt_eval >= beta + 550 * (depth - tt_depth)
         && tt_depth >= depth - 3
         && improving
         && !is_pv 
         && !tt_is_pv
+        && !capture_tt_move
         && !board.inCheck()) {
 
         return beta;
@@ -625,7 +628,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     killer[thread_id][ply + 1] = {Move::NO_MOVE, Move::NO_MOVE}; 
 
     // Reverse futility pruning (RFP)
-    bool capture_tt_move = found && tt_move != Move::NO_MOVE && board.isCapture(tt_move);
     bool rfp_condition = depth <= rfp_depth
                         && !board.inCheck() 
                         && !is_pv 
@@ -721,9 +723,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 singular_ext++; // double extension
             }
             singular_moves[thread_id][stm].insert(move_index(tt_move)); 
-        } else if (singular_beta >= beta && !is_pv && improving) {
-            return beta; //multicut
-        }
+        } 
+        
+        // else if (singular_beta >= beta && !is_pv && improving) {
+        //     return beta; 
+        // }
     }
 
     if (board.inCheck()) {
