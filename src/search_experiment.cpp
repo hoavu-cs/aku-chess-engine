@@ -73,6 +73,7 @@ std::vector<uint32_t> seeds(MAX_THREADS);
 // Misra-Gries instead of counter moves
 std::vector<std::vector<MisraGriesIntInt>> mg_2ply(MAX_THREADS, std::vector<MisraGriesIntInt>(2, MisraGriesIntInt(250)));  
 
+
 // Singular move set
 std::vector<std::vector<std::unordered_set<int>>> singular_moves(MAX_THREADS, std::vector<std::unordered_set<int>>(2));
 
@@ -361,14 +362,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
-            // int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
-            // int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
-            // int capture_score = 0;
-            // if (victim_value < attacker_value) {
-            //     capture_score = see(board, move, thread_id); // If the victim is less valuable than the attacker, we can use SEE
-            // } else {
-            //     capture_score = victim_value - attacker_value; // Otherwise, we just use the difference in values
-            // }
             int capture_score = see(board, move, thread_id);   
             priority = 4000 + capture_score;
         } else if (killer[thread_id][ply][0] == move || killer[thread_id][ply][1] == move) {
@@ -391,7 +384,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
 
     std::sort(primary.begin(), primary.end(), [](const auto& a, const auto& b) {
         return a.second > b.second;
-    });
+    }); 
 
     std::sort(quiet.begin(), quiet.end(), [&board](const auto& a, const auto& b) {
         return a.second > b.second;
@@ -652,7 +645,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     // Null move pruning. Side to move must have non-pawn material.
-    const int null_depth = 3; 
+    const int null_depth = 4; 
     bool nmp_condition = (depth >= null_depth 
         && non_pawn_material(board) 
         && !board.inCheck() 
@@ -665,7 +658,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int null_eval;
     if (nmp_condition) {
         std::vector<Move> null_pv; 
-        int reduction = 3 + depth / 4;
+        int reduction = 4 + depth / 4;
         NodeData null_data = {ply + 1, 
                                 false, 
                                 root_depth,
@@ -729,6 +722,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         extensions++;
     }
 
+    if (tt_hit && tt_type != EntryType::UPPERBOUND && tt_eval >= beta) {
+        extensions--;
+    }
+
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
 
@@ -760,14 +757,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
 
         // common conditions for pruning
-        bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag;
+        bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag && !is_pv && !tt_is_pv;
 
         // Futility pruning
         bool fp_condition = can_prune 
                             && !is_capture 
                             && !give_check 
-                            && !is_pv 
-                            && !tt_is_pv
                             && next_depth <= fp_depth 
                             && excluded_move == Move::NO_MOVE;
         if (fp_condition) {
@@ -779,8 +774,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
         // Pruning late quiet moves
         bool lmp_condition = can_prune 
-                            && !is_pv 
-                            && !tt_is_pv 
                             && !is_capture 
                             && next_depth <= lmp_depth 
                             && abs(beta) < 10000;
@@ -1181,6 +1174,7 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         node_count[i] = 0;
         table_hit[i] = 0;
         seeds[i] = rand();
+
         mg_2ply[i][0].clear(); 
         mg_2ply[i][1].clear();
 
