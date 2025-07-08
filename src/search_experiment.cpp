@@ -748,7 +748,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         extensions = std::clamp(extensions, 0, 2); 
-        next_depth = std::min(next_depth + extensions, (2 * root_depth) - ply - 1);
+        next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
 
         // common conditions for pruning
         bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag && !is_pv && !tt_is_pv;
@@ -1132,7 +1132,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         if (!time_limit_exceed) {
             depth++; // If the time limit is not exceeded, we can search deeper.
         } else {
-            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && depth >= 14)) {
+            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && depth >= 18)) {
                 break; // If we go beyond the hard limit or stabilize.
             } 
             depth++; 
