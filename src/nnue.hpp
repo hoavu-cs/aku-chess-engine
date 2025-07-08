@@ -300,11 +300,6 @@ void subtract_accumulators(Board& board,
     bool is_castle = move.typeOf() & Move::CASTLING;      
     bool is_null_move = move.typeOf() & Move::NULL_MOVE;
 
-    // board.unmakeMove(move);
-    // make_accumulators(board, white_accumulator, black_accumulator, eval_network);
-    // board.makeMove(move);
-    // return;
-
     if (is_null_move) {
         return; 
     }

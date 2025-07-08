@@ -643,7 +643,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     // Null move pruning. Side to move must have non-pawn material.
-    const int null_depth = 4; 
+    const int null_depth = 3; 
     bool nmp_condition = (depth >= null_depth 
         && non_pawn_material(board) 
         && !board.inCheck() 
@@ -656,7 +656,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int null_eval;
     if (nmp_condition) {
         std::vector<Move> null_pv; 
-        int reduction = 4 + depth / 4;
+        int reduction = 3 + depth / 4;
         NodeData null_data = {ply + 1, 
                                 false, 
                                 root_depth,
