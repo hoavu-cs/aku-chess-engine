@@ -300,10 +300,10 @@ void subtract_accumulators(Board& board,
     bool is_castle = move.typeOf() & Move::CASTLING;      
     bool is_null_move = move.typeOf() & Move::NULL_MOVE;
 
-    board.unmakeMove(move);
-    make_accumulators(board, white_accumulator, black_accumulator, eval_network);
-    board.makeMove(move);
-    return;
+    // board.unmakeMove(move);
+    // make_accumulators(board, white_accumulator, black_accumulator, eval_network);
+    // board.makeMove(move);
+    // return;
 
     if (is_null_move) {
         return; 
@@ -353,10 +353,10 @@ void subtract_accumulators(Board& board,
         int from_idx_them = calculate_index(1, piece_idx, move.from().index());
         int to_idx_them = calculate_index(1, piece_idx, move.to().index());
 
-        black_accumulator.remove_feature(from_idx_us, eval_network);
-        black_accumulator.add_feature(to_idx_us, eval_network);
-        white_accumulator.remove_feature(from_idx_them, eval_network);
-        white_accumulator.add_feature(to_idx_them, eval_network);
+        black_accumulator.add_feature(from_idx_us, eval_network);
+        black_accumulator.remove_feature(to_idx_us, eval_network);
+        white_accumulator.add_feature(from_idx_them, eval_network);
+        white_accumulator.remove_feature(to_idx_them, eval_network);
 
         if (board.isCapture(move)) {            
             PieceType captured = board.at<Piece>(move.to()).type();

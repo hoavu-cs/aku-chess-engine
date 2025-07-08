@@ -10,6 +10,8 @@
 #include <fstream>
 #include <mutex>
 #include <unordered_set>
+#include <array>
+
 
 #include "nnue.hpp"
 #include "../lib/fathom/src/tbprobe.h"
@@ -67,12 +69,11 @@ std::vector<std::vector<int>> move_stack(MAX_THREADS, std::vector<int>(ENGINE_DE
 // LMR table 
 std::vector<std::vector<int>> lmr_table; 
 
-// Random seeds for LMR
+// Random seeds
 std::vector<uint32_t> seeds(MAX_THREADS);
 
 // Misra-Gries instead of counter moves
 std::vector<std::vector<MisraGriesIntInt>> mg_2ply(MAX_THREADS, std::vector<MisraGriesIntInt>(2, MisraGriesIntInt(250)));  
-
 
 // Singular move set
 std::vector<std::vector<std::unordered_set<int>>> singular_moves(MAX_THREADS, std::vector<std::unordered_set<int>>(2));
@@ -361,7 +362,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
             int capture_score = see(board, move, thread_id);   
             priority = 4000 + capture_score;
         } else if (killer[thread_id][ply][0] == move || killer[thread_id][ply][1] == move) {
-            priority = 4000; // killer move
+            priority = 3900; 
         } else if (move == best_2ply_move) {
             priority = 3950;
         } else {
@@ -511,7 +512,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool mopup_flag = is_mopup(board);
     Move excluded_move = data.excluded_move;
 
-    std::vector<Move> bad_quiets; // quiet moves that fail to raise alpha
+    std::vector<Move> bad_quiets;
     bool nmp_ok = data.nmp_ok;
     NodeType node_type = data.node_type;
 
@@ -577,7 +578,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
     
     if (found && is_pv) {
-        if ((tt_type == EntryType::EXACT  || tt_type == EntryType::LOWERBOUND) && tt_eval >= beta) {
+        if ((tt_type == EntryType::EXACT || tt_type == EntryType::LOWERBOUND) && tt_eval >= beta) {
             return tt_eval;
         } 
     }
@@ -607,21 +608,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     } 
 
     bool capture_tt_move = found && tt_move != Move::NO_MOVE && board.isCapture(tt_move);
-
-    // A version of probcut
-    if (tt_hit 
-        && tt_type != EntryType::UPPERBOUND 
-        && depth >= 6
-        && tt_eval >= beta + 550 * (depth - tt_depth)
-        && tt_depth >= depth - 3
-        && improving
-        && !is_pv 
-        && !tt_is_pv
-        && !capture_tt_move
-        && !board.inCheck()) {
-
-        return beta;
-    }
     
     static_eval[thread_id][ply] = stand_pat; // store the evaluation along the path
     bool hash_move_found = false;
@@ -724,10 +710,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             }
             singular_moves[thread_id][stm].insert(move_index(tt_move)); 
         } 
-        
-        // else if (singular_beta >= beta && !is_pv && improving) {
-        //     return beta; 
-        // }
     }
 
     if (board.inCheck()) {

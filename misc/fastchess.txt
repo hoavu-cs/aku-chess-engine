@@ -18,7 +18,7 @@ Command for Mac/Linux ./fastchess-ubuntu-22.04  -engine cmd=aku_experiment name=
   -repeat \
   -concurrency 10 \
   -openings file=UHO_Lichess_4852_v1.epd format=epd order=random \
-  -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05
+  -sprt elo0=0 elo1=10 alpha=0.05 beta=0.05
 
 
 ./fastchess \
