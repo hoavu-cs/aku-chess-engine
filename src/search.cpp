@@ -1130,7 +1130,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         if (!time_limit_exceed) {
             depth++; // If the time limit is not exceeded, we can search deeper.
         } else {
-            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && (depth >= 34 - phase / 2))) {
+            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && (depth >= 32 - phase / 2))) {
                 break; // If we go beyond the hard limit or stabilize.
             } 
             depth++; 
