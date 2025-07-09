@@ -668,7 +668,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.unmakeNullMove();
 
         if (null_eval >= beta) {
-            return beta;
+            return null_eval; 
         } 
     }
 
@@ -707,7 +707,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 singular_ext++; // double extension
             } 
             singular_moves[thread_id][stm].insert(move_index(tt_move)); 
-        } 
+        } else if (tt_eval >= beta) { // negative extension
+            extensions--;
+            extensions = std::max(extensions, 0);
+        }
     }
 
     if (board.inCheck()) {
