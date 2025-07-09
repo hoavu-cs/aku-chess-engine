@@ -12,7 +12,6 @@
 #include <unordered_set>
 #include <array>
 
-
 #include "nnue.hpp"
 #include "../lib/fathom/src/tbprobe.h"
 #include "search.hpp"
@@ -78,7 +77,6 @@ std::vector<std::vector<MisraGriesIntInt>> mg_2ply(MAX_THREADS, std::vector<Misr
 // Singular move set
 std::vector<std::vector<std::unordered_set<int>>> singular_moves(MAX_THREADS, std::vector<std::unordered_set<int>>(2));
 
-
 // tt entry definition
 enum EntryType {
     EXACT,
@@ -113,8 +111,6 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
 int quiescence(Board& board, int alpha, int beta, int ply, int thread_id);
 void search_thread(Board search_board, int search_depth, int time_limit); 
 Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeLimit);
-
-// Function definitions
 
 // Reset all data for new game
 void reset_data() {
