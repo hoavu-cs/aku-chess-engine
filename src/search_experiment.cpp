@@ -78,6 +78,7 @@ std::vector<std::vector<MisraGriesIntInt>> mg_2ply(MAX_THREADS, std::vector<Misr
 // Singular move set
 std::vector<std::vector<std::unordered_set<int>>> singular_moves(MAX_THREADS, std::vector<std::unordered_set<int>>(2));
 
+
 // tt entry definition
 enum EntryType {
     EXACT,
@@ -276,7 +277,6 @@ inline int late_move_reduction(Board& board,
         
         int R = lmr_table[depth][i];
         int tt_eval, tt_depth;
-        int history_score = history[thread_id][stm][move_index(move)];
         bool tt_is_pv, past_pv = false;
         EntryType tt_type;
         Move tt_move;
@@ -285,7 +285,7 @@ inline int late_move_reduction(Board& board,
             past_pv = tt_is_pv; 
         }
 
-        if (improving || is_pv || past_pv || is_capture) {
+        if (improving || is_pv  || past_pv || is_capture) {
             R--;
         }
 
@@ -380,11 +380,11 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         }
     }
 
-    std::sort(primary.begin(), primary.end(), [](const auto& a, const auto& b) {
+    std::sort(primary.begin(), primary.end(), [&stm, &thread_id](const auto& a, const auto& b) {
         return a.second > b.second;
     }); 
 
-    std::sort(quiet.begin(), quiet.end(), [&board](const auto& a, const auto& b) {
+    std::sort(quiet.begin(), quiet.end(), [&stm, &thread_id](const auto& a, const auto& b) {
         return a.second > b.second;
     });
 
@@ -413,7 +413,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
         }
         return 0;
     }
-    
+
     bool stm = (board.sideToMove() == Color::WHITE);
     int stand_pat = 0;
 
@@ -450,7 +450,7 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
 
     int best_score = stand_pat;
     if (stand_pat >= beta) {
-        return beta;
+        return stand_pat;
     }
 
     alpha = std::max(alpha, stand_pat);
@@ -484,8 +484,8 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
         best_score = std::max(best_score, score);
         alpha = std::max(alpha, score);
 
-        if (alpha >= beta) { 
-            return beta;
+        if (alpha >= beta) {
+            return alpha;
         }
     }
     return best_score;
@@ -621,7 +621,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && !tt_is_pv
                         && !capture_tt_move
                         && !mopup_flag
-                        && excluded_move == Move::NO_MOVE 
+                        && excluded_move == Move::NO_MOVE // No rfp during singular search
                         && abs(beta) < 10000;
     if (rfp_condition) {
         int rfp_margin = rfp_c1 * (depth - improving);
@@ -636,7 +636,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !is_pv 
                             && !tt_is_pv
                             && !mopup_flag
-                            && excluded_move == Move::NO_MOVE
+                            && excluded_move == Move::NO_MOVE // No razoring during singular search
                             && stand_pat < alpha - rz_c1 * (depth + improving);
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
@@ -688,6 +688,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     int singular_ext = 0;
     if (hash_move_found && tt_depth >= depth - 3
         && depth >= 6
+        && nmp_ok
         && tt_type != EntryType::UPPERBOUND
         && abs(tt_eval) < INF/2 - 100
         && excluded_move == Move::NO_MOVE // No singular search within singular search
@@ -708,7 +709,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             singular_ext++; // singular extension
             if (singular_eval < singular_beta - 40) {
                 singular_ext++; // double extension
-            }
+            } 
             singular_moves[thread_id][stm].insert(move_index(tt_move)); 
         } 
     }
@@ -749,7 +750,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         }
 
         extensions = std::clamp(extensions, 0, 2); 
-        next_depth = std::min(next_depth + extensions, (3 + root_depth) - ply - 1);
+        next_depth = std::min(next_depth + extensions, (max_extensions + root_depth) - ply - 1);
 
         // common conditions for pruning
         bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag && !is_pv && !tt_is_pv;
@@ -900,7 +901,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                 mg_2ply[thread_id][stm].insert({move_index_2, move_index_0});
                 mg_2ply[thread_id][stm].insert({move_index_1, move_index_0});
             } 
-
             break;
         } 
     }

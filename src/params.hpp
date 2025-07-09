@@ -31,3 +31,5 @@ extern int singular_c1;
 extern int singular_c2;
 extern int singular_bonus;
 
+extern int max_extensions;
+
