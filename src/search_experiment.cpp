@@ -276,6 +276,7 @@ inline int late_move_reduction(Board& board,
         
         int R = lmr_table[depth][i];
         int tt_eval, tt_depth;
+        int history_score = history[thread_id][stm][move_index(move)];
         bool tt_is_pv, past_pv = false;
         EntryType tt_type;
         Move tt_move;
@@ -284,7 +285,7 @@ inline int late_move_reduction(Board& board,
             past_pv = tt_is_pv; 
         }
 
-        if (improving || is_pv  || past_pv || is_capture) {
+        if (improving || is_pv || past_pv || is_capture) {
             R--;
         }
 
@@ -620,7 +621,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                         && !tt_is_pv
                         && !capture_tt_move
                         && !mopup_flag
-                        && excluded_move == Move::NO_MOVE // No rfp during singular search
+                        && excluded_move == Move::NO_MOVE 
                         && abs(beta) < 10000;
     if (rfp_condition) {
         int rfp_margin = rfp_c1 * (depth - improving);
@@ -635,7 +636,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
                             && !is_pv 
                             && !tt_is_pv
                             && !mopup_flag
-                            && excluded_move == Move::NO_MOVE // No razoring during singular search
+                            && excluded_move == Move::NO_MOVE
                             && stand_pat < alpha - rz_c1 * (depth + improving);
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
@@ -961,6 +962,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
 
     int best_eval = -INF;
     int color = board.sideToMove() == Color::WHITE ? 1 : -1;
+    int phase = game_phase(board);
 
     std::vector<Move> root_moves (ENGINE_DEPTH + 1, Move::NO_MOVE);
     std::vector<int> evals (2 * ENGINE_DEPTH + 1, 0);
@@ -1132,7 +1134,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         if (!time_limit_exceed) {
             depth++; // If the time limit is not exceeded, we can search deeper.
         } else {
-            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && depth >= 18)) {
+            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && (depth >= 34 - phase / 2))) {
                 break; // If we go beyond the hard limit or stabilize.
             } 
             depth++; 
