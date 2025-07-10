@@ -453,8 +453,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     candidate_moves.reserve(moves.size());
 
     for (const auto& move : moves) {
-        // int see_score = see(board, move, thread_id);
-        // candidate_moves.push_back({move, see_score});
         int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
         int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
         int score = victim_value - attacker_value;
@@ -596,12 +594,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Adjust static evaluation based on tt
     if (tt_hit) {
-        if (tt_type == EntryType::EXACT 
-            || (tt_type == EntryType::LOWERBOUND && tt_eval > stand_pat)
-            || (tt_type == EntryType::UPPERBOUND && tt_eval < stand_pat)) {
+        if (tt_type == EntryType::EXACT)
+            // || (tt_type == EntryType::LOWERBOUND && tt_eval > stand_pat)
+            // || (tt_type == EntryType::UPPERBOUND && tt_eval < stand_pat)) 
+        {
             stand_pat = tt_eval;
+        } else if (tt_type == EntryType::UPPERBOUND && stand_pat > tt_eval) {
+            stand_pat = tt_eval - 10;
+        } else if (tt_type == EntryType::LOWERBOUND && stand_pat < tt_eval) {
+            stand_pat = tt_eval + 10;
         }
-    } 
+    }
 
     bool capture_tt_move = found && tt_move != Move::NO_MOVE && board.isCapture(tt_move);
     
@@ -611,7 +614,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool pre_loop_prune_condition = !board.inCheck() && !is_pv && !mopup_flag && excluded_move == Move::NO_MOVE;
 
     // Reverse futility pruning (RFP)
-    bool rfp_condition = pre_loop_prune_condition && depth <= rfp_depth && !capture_tt_move && !tt_is_pv && abs(beta) < 10000;
+    bool rfp_condition = pre_loop_prune_condition 
+                        && depth <= rfp_depth 
+                        && !capture_tt_move 
+                        && !tt_is_pv && abs(beta) < 10000;
     if (rfp_condition) {
         int rfp_margin = rfp_c1 * (depth - improving);
         if (stand_pat >= beta + rfp_margin) {
@@ -620,7 +626,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Razoring
-    bool rz_condition = pre_loop_prune_condition && depth <= rz_depth  && !tt_is_pv && stand_pat < alpha - rz_c1 * (depth + improving);
+    bool rz_condition = pre_loop_prune_condition 
+                    && depth <= rz_depth  
+                    && !tt_is_pv 
+                    && stand_pat < alpha - rz_c1 * (depth + improving);
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         return rz_eval;
@@ -628,7 +637,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
     // Null move pruning. Side to move must have non-pawn material.
     const int null_depth = 3; 
-    bool nmp_condition = depth >= null_depth && non_pawn_material(board) && stand_pat >= beta && nmp_ok && pre_loop_prune_condition;
+    bool nmp_condition = pre_loop_prune_condition 
+                        && depth >= null_depth 
+                        && non_pawn_material(board) 
+                        && stand_pat >= beta && nmp_ok;
 
     int null_eval;
     if (nmp_condition) {
