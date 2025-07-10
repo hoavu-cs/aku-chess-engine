@@ -605,19 +605,13 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     bool capture_tt_move = found && tt_move != Move::NO_MOVE && board.isCapture(tt_move);
     
-    static_eval[thread_id][ply] = stand_pat; // store the evaluation along the path
-    bool hash_move_found = false;
+    static_eval[thread_id][ply] = stand_pat; 
     killer[thread_id][ply + 1] = {Move::NO_MOVE, Move::NO_MOVE}; 
+    bool hash_move_found = false;
+    bool pre_loop_prune_condition = !board.inCheck() && !is_pv && !mopup_flag && excluded_move == Move::NO_MOVE;
 
     // Reverse futility pruning (RFP)
-    bool rfp_condition = depth <= rfp_depth
-                        && !board.inCheck() 
-                        && !is_pv 
-                        && !tt_is_pv
-                        && !capture_tt_move
-                        && !mopup_flag
-                        && excluded_move == Move::NO_MOVE // No rfp during singular search
-                        && abs(beta) < 10000;
+    bool rfp_condition = pre_loop_prune_condition && depth <= rfp_depth && !capture_tt_move && !tt_is_pv && abs(beta) < 10000;
     if (rfp_condition) {
         int rfp_margin = rfp_c1 * (depth - improving);
         if (stand_pat >= beta + rfp_margin) {
@@ -626,13 +620,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Razoring
-    bool rz_condition = depth <= rz_depth
-                            && !board.inCheck() 
-                            && !is_pv 
-                            && !tt_is_pv
-                            && !mopup_flag
-                            && excluded_move == Move::NO_MOVE // No razoring during singular search
-                            && stand_pat < alpha - rz_c1 * (depth + improving);
+    bool rz_condition = pre_loop_prune_condition && depth <= rz_depth  && !tt_is_pv && stand_pat < alpha - rz_c1 * (depth + improving);
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         return rz_eval;
@@ -640,15 +628,8 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
     // Null move pruning. Side to move must have non-pawn material.
     const int null_depth = 3; 
-    bool nmp_condition = (depth >= null_depth 
-        && non_pawn_material(board) 
-        && !board.inCheck() 
-        && !mopup_flag 
-        && !is_pv
-        && stand_pat >= beta
-        && nmp_ok
-        && excluded_move == Move::NO_MOVE // No nmp during singular search
-    );
+    bool nmp_condition = depth >= null_depth && non_pawn_material(board) && stand_pat >= beta && nmp_ok && pre_loop_prune_condition;
+
     int null_eval;
     if (nmp_condition) {
         std::vector<Move> null_pv; 
