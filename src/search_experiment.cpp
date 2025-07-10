@@ -70,7 +70,7 @@ std::vector<std::vector<int>> lmr_table;
 // Random seeds
 std::vector<uint32_t> seeds(MAX_THREADS);
 
-// Misra-Gries instead of counter moves and follow-ups
+// Misra-Gries instead of counter moves
 std::vector<std::vector<MisraGriesIntInt>> mg_2ply(MAX_THREADS, std::vector<MisraGriesIntInt>(2, MisraGriesIntInt(250)));  
 
 // Singular move set
@@ -174,7 +174,7 @@ inline void table_insert(Board& board,
     LockedTableEntry& locked_entry = table[index];
 
     if (locked_entry.entry.hash == hash && locked_entry.entry.pv) {
-        pv = true; // don't overwrite the pv flag if it was set
+        pv = true; // don't overwrite the pv node if it was set
     }
         
     std::lock_guard<std::mutex> lock(locked_entry.mtx); 
@@ -453,6 +453,8 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     candidate_moves.reserve(moves.size());
 
     for (const auto& move : moves) {
+        // int see_score = see(board, move, thread_id);
+        // candidate_moves.push_back({move, see_score});
         int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
         int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
         int score = victim_value - attacker_value;
@@ -605,17 +607,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
     static_eval[thread_id][ply] = stand_pat; // store the evaluation along the path
     bool hash_move_found = false;
-    bool can_pre_loop_prune = !board.inCheck() 
-                                && !is_pv 
-                                && !tt_is_pv 
-                                && !mopup_flag 
-                                && excluded_move == Move::NO_MOVE
-                                && abs(beta) < 10000; 
-                            
     killer[thread_id][ply + 1] = {Move::NO_MOVE, Move::NO_MOVE}; 
 
     // Reverse futility pruning (RFP)
-    bool rfp_condition = can_pre_loop_prune && depth <= rfp_depth && !capture_tt_move;
+    bool rfp_condition = depth <= rfp_depth
+                        && !board.inCheck() 
+                        && !is_pv 
+                        && !tt_is_pv
+                        && !capture_tt_move
+                        && !mopup_flag
+                        && excluded_move == Move::NO_MOVE // No rfp during singular search
+                        && abs(beta) < 10000;
     if (rfp_condition) {
         int rfp_margin = rfp_c1 * (depth - improving);
         if (stand_pat >= beta + rfp_margin) {
@@ -624,8 +626,14 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Razoring
-    bool rz_condition = can_pre_loop_prune && depth <= rz_depth;
-    if (rz_condition && stand_pat < alpha - rz_c1 * (depth + improving)) {
+    bool rz_condition = depth <= rz_depth
+                            && !board.inCheck() 
+                            && !is_pv 
+                            && !tt_is_pv
+                            && !mopup_flag
+                            && excluded_move == Move::NO_MOVE // No razoring during singular search
+                            && stand_pat < alpha - rz_c1 * (depth + improving);
+    if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         return rz_eval;
     }
@@ -659,7 +667,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         board.unmakeNullMove();
 
         if (null_eval >= beta) {
-            return beta; 
+            return beta;
         } 
     }
 
@@ -699,10 +707,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
             } 
             singular_moves[thread_id][stm].insert(move_index(tt_move)); 
         } 
-        // else if (tt_eval >= beta) { // negative extension
-        //     extensions--;
-        //     extensions = std::max(extensions, 0);
-        // }
     }
 
     if (board.inCheck()) {
@@ -1182,7 +1186,7 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
         Board local_board = board;
         auto [thread_move, thread_depth, thread_eval, thread_pv] = root_search(local_board, max_depth, timeLimit, i);
         if (i == 0) { 
-            // Get the result from thread 0. Todo: thread-voting using median of means if we have 1000 threads (lol)?
+            // Get the result from thread 0
             depth = thread_depth;
             best_move = thread_move; 
             eval = thread_eval; 
