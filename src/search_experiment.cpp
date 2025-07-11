@@ -401,9 +401,9 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     }
     
     // Check if the game is over. 
-    auto gameOverResult = board.isGameOver();
-    if (gameOverResult.first != GameResultReason::NONE) {
-        if (gameOverResult.first == GameResultReason::CHECKMATE) {
+    auto game_over_result = board.isGameOver();
+    if (game_over_result.first != GameResultReason::NONE) {
+        if (game_over_result.first == GameResultReason::CHECKMATE) {
             return -INF/2; 
         }
         return 0;
@@ -515,9 +515,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool stm = (board.sideToMove() == Color::WHITE);
     
     // Check if the game is over. 
-    auto gameOverResult = board.isGameOver();
-    if (gameOverResult.first != GameResultReason::NONE) {
-        if (gameOverResult.first == GameResultReason::CHECKMATE) {
+    auto game_over_result = board.isGameOver();
+    if (game_over_result.first != GameResultReason::NONE) {
+        if (game_over_result.first == GameResultReason::CHECKMATE) {
             return -INF/2; // Mate distance pruning.
         }
         return 0;
@@ -594,17 +594,12 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     // Adjust static evaluation based on tt
     if (tt_hit) {
-        if (tt_type == EntryType::EXACT)
-            // || (tt_type == EntryType::LOWERBOUND && tt_eval > stand_pat)
-            // || (tt_type == EntryType::UPPERBOUND && tt_eval < stand_pat)) 
-        {
+        if (tt_type == EntryType::EXACT 
+            || (tt_type == EntryType::LOWERBOUND && tt_eval > stand_pat)
+            || (tt_type == EntryType::UPPERBOUND && tt_eval < stand_pat)) {
             stand_pat = tt_eval;
-        } else if (tt_type == EntryType::UPPERBOUND && stand_pat > tt_eval) {
-            stand_pat = tt_eval - 10;
-        } else if (tt_type == EntryType::LOWERBOUND && stand_pat < tt_eval) {
-            stand_pat = tt_eval + 10;
         }
-    }
+    } 
 
     bool capture_tt_move = found && tt_move != Move::NO_MOVE && board.isCapture(tt_move);
     
@@ -668,12 +663,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     std::vector<std::pair<Move, int>> moves = order_move(board, ply, thread_id, hash_move_found, node_type);
 
     // IID. Reduce the depth to facilitate the search if no hash move found.
-    if (!hash_move_found && depth >= 3) {
+    if (!hash_move_found && depth >= 4) {
         depth--;
     }
 
     // Singular extension
-    int singular_ext = 0;
     if (hash_move_found && tt_depth >= depth - 3
         && depth >= 6
         && nmp_ok
@@ -694,21 +688,26 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
 
         if (singular_eval < singular_beta) {
-            singular_ext++; // singular extension
+            extensions++; // singular extension
             if (singular_eval < singular_beta - 40) {
-                singular_ext++; // double extension
+                extensions++; // double extension
             } 
             singular_moves[thread_id][stm].insert(move_index(tt_move)); 
         } 
+    }
+
+    // One-reply extensions: basically computationally free since it doens't grow the search tree
+    // and often happens in critical positions.
+    if (moves.size() == 1) {
+        extensions++;
     }
 
     if (board.inCheck()) {
         extensions++;
     }
 
-    if (moves.size() == 1) {
-        extensions++;
-    }
+
+    extensions = std::clamp(extensions, 0, 2); 
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -733,11 +732,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, node_type, thread_id); 
 
-        if (move == tt_move) {
-            extensions += singular_ext;
-        }
-
-        extensions = std::clamp(extensions, 0, 2); 
         next_depth = std::min(next_depth + extensions, (max_extensions + root_depth) - ply - 1);
 
         // common conditions for pruning
@@ -747,8 +741,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         bool fp_condition = can_prune 
                             && !is_capture 
                             && !give_check 
-                            && next_depth <= fp_depth 
-                            && excluded_move == Move::NO_MOVE;
+                            && next_depth <= fp_depth;
         if (fp_condition) {
             int margin = fp_c1 * (next_depth + improving);
             if (stand_pat + margin < alpha) {
@@ -992,11 +985,12 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
     std::vector<Move> PV; 
 
     while (depth <= std::min(ENGINE_DEPTH, max_depth)) {
-        Move curr_best_move = Move(); // Track the best move for the current depth
+        Move curr_best_move = Move(); 
         int curr_best_eval = -INF;
         bool hash_move_found = false;
 
         // Aspiration window
+        int window_adjust = depth > 6 ? evals[depth - 1] / 16 : 0;
         int window = 75;
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
