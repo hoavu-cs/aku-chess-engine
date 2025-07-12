@@ -663,7 +663,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     std::vector<std::pair<Move, int>> moves = order_move(board, ply, thread_id, hash_move_found, node_type);
 
     // IID. Reduce the depth to facilitate the search if no hash move found.
-    if (!hash_move_found && depth >= 4) {
+    if (!hash_move_found && depth >= 3) {
         depth--;
     }
 
@@ -1116,7 +1116,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         if (!time_limit_exceed) {
             depth++; // If the time limit is not exceeded, we can search deeper.
         } else {
-            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && (depth >= 32 - phase / 2))) {
+            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && (depth >= 30 - phase / 2))) {
                 break; // If we go beyond the hard limit or stabilize.
             } 
             depth++; 
