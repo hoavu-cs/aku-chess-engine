@@ -592,7 +592,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         stand_pat = nnue.evaluate(black_accumulator[thread_id], white_accumulator[thread_id]);
     }
 
-    // Adjust static evaluation based on tt
+    // Adjust static evaluation based on tt. Add some random noise?
     if (tt_hit) {
         if (tt_type == EntryType::EXACT 
             || (tt_type == EntryType::LOWERBOUND && tt_eval > stand_pat)
@@ -681,7 +681,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         NodeData singular_node_data = {ply, 
             false, 
             root_depth,
-            NodeType::ALL,
+            NodeType::ALL, 
             tt_move,
             thread_id};
 
