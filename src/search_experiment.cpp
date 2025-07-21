@@ -28,7 +28,7 @@ typedef std::uint64_t U64;
 constexpr int MAX_THREADS = 12;  // Maximum number of threads supported by the engine
 constexpr int ENGINE_DEPTH = 128; // Maximum search depth supported by the engine
 constexpr int MAX_ASPIRATION_SZ = 300;
-constexpr int MAX_HIST = 9000;
+constexpr int MAX_HIST = 5000;
 
 int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
@@ -63,6 +63,9 @@ std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std:
 
 // Move stack for each thread
 std::vector<std::vector<int>> move_stack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
+
+// Number of legal moves stack for each thread
+std::vector<std::vector<int>> legal_moves_stack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
 
 // LMR table 
 std::vector<std::vector<int>> lmr_table; 
@@ -607,6 +610,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     killer[thread_id][ply + 1] = {Move::NO_MOVE, Move::NO_MOVE}; 
     bool hash_move_found = false;
     bool pre_loop_prune_condition = !board.inCheck() && !is_pv && !mopup_flag && excluded_move == Move::NO_MOVE;
+    
 
     // Reverse futility pruning (RFP)
     bool rfp_condition = pre_loop_prune_condition 
@@ -696,15 +700,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         } 
     }
 
-    // One-reply extensions
+    legal_moves_stack[thread_id][ply] = moves.size();
+
+    // One-reply extension
     if (moves.size() == 1) {
         extensions++;
     }
 
+    // Check extension
     if (board.inCheck()) {
         extensions++;
     }
-
 
     extensions = std::clamp(extensions, 0, 2); 
 
@@ -995,6 +1001,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
                 
         moves = order_move(board, 0, thread_id, hash_move_found, NodeType::PV);
+        legal_moves_stack[thread_id][0] = moves.size();
 
         while (true) {
             curr_best_eval = -INF;

@@ -10,7 +10,6 @@
 #include <fstream>
 #include <mutex>
 #include <unordered_set>
-#include <array>
 
 #include "nnue.hpp"
 #include "../lib/fathom/src/tbprobe.h"
@@ -29,7 +28,7 @@ typedef std::uint64_t U64;
 constexpr int MAX_THREADS = 12;  // Maximum number of threads supported by the engine
 constexpr int ENGINE_DEPTH = 128; // Maximum search depth supported by the engine
 constexpr int MAX_ASPIRATION_SZ = 300;
-constexpr int MAX_HIST = 9000;
+constexpr int MAX_HIST = 5000;
 
 int table_size = 4194304; // Maximum size of the transposition table (default 256MB)
 bool stop_search = false; // To signal if the search should stop once the main thread is done
@@ -65,13 +64,16 @@ std::vector<std::vector<std::vector<Move>>> killer(MAX_THREADS, std::vector<std:
 // Move stack for each thread
 std::vector<std::vector<int>> move_stack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
 
+// Number of legal moves stack for each thread
+std::vector<std::vector<int>> legal_moves_stack(MAX_THREADS, std::vector<int>(ENGINE_DEPTH + 1, 0));
+
 // LMR table 
 std::vector<std::vector<int>> lmr_table; 
 
 // Random seeds
 std::vector<uint32_t> seeds(MAX_THREADS);
 
-// Misra-Gries instead of counter moves
+// Misra-Gries for 1-2 ply pairs
 std::vector<std::vector<MisraGriesIntInt>> mg_2ply(MAX_THREADS, std::vector<MisraGriesIntInt>(2, MisraGriesIntInt(250)));  
 
 // Singular move set
@@ -100,7 +102,7 @@ struct alignas(64) LockedTableEntry {
 
 std::vector<LockedTableEntry> tt_table(table_size);
 
-// Helper function declarations
+// helper function declarations
 void precompute_lmr(int max_depth, int max_i);
 inline bool table_lookup(Board& board, int& depth, int& eval, bool& pv,Move& best_move, EntryType& type, std::vector<LockedTableEntry>& table);
 inline void table_insert(Board& board, int depth, int eval, bool pv,Move best_move, EntryType type, std::vector<LockedTableEntry>& table);
@@ -109,10 +111,10 @@ inline int see(Board& board, Move move, int thread_id);
 inline int late_move_reduction(Board& board, Move move, int i, int depth, int ply, bool is_pv, NodeType node_type, int thread_id);
 std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_id, bool& hash_move_found, NodeType node_type);
 int quiescence(Board& board, int alpha, int beta, int ply, int thread_id);
-void search_thread(Board search_board, int search_depth, int time_limit); 
-Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeLimit);
+void search_thread(Board search_board, int search_depth, int time_limit);
+Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int time_limit);
 
-// Reset all data for new game
+// reset all data for new game
 void reset_data() {
     for (int i = 0; i < MAX_THREADS; ++i) {
         std::fill(history[i][0].begin(), history[i][0].end(), 0);
@@ -120,7 +122,7 @@ void reset_data() {
     }
 }
 
-// precompute late move reduction table
+// precompute the late move reduction table
 void precompute_lmr(int max_depth, int max_i) {
     static bool is_precomputed = false;
     if (is_precomputed) return;
@@ -250,13 +252,13 @@ inline int see(Board& board, Move move, int thread_id) {
 
 // Late move reduction 
 inline int late_move_reduction(Board& board, 
-        Move move, 
-        int i, 
-        int depth, 
-        int ply, 
-        bool is_pv, 
-        NodeType node_type,
-        int thread_id) {
+                                Move move, 
+                                int i, 
+                                int depth, 
+                                int ply, 
+                                bool is_pv, 
+                                NodeType node_type,
+                                int thread_id) {
 
     if (is_mopup(board)) {
         return depth - 1;
@@ -273,12 +275,12 @@ inline int late_move_reduction(Board& board,
         
         int R = lmr_table[depth][i];
         int tt_eval, tt_depth;
-        bool tt_is_pv, past_pv = false;
+        bool tt_pv, past_pv = false;
         EntryType tt_type;
         Move tt_move;
         
-        if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table)) {
-            past_pv = tt_is_pv; 
+        if (table_lookup(board, tt_depth, tt_eval, tt_pv, tt_move, tt_type, tt_table)) {
+            past_pv = tt_pv; 
         }
 
         if (improving || is_pv  || past_pv || is_capture) {
@@ -337,11 +339,11 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         EntryType tt_type;
         TableEntry entry;
         int tt_eval, tt_depth, priority = 0;
-        bool tt_is_pv;
+        bool tt_pv;
         bool secondary = false;
         bool hash_move = false;
 
-        if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table)) {
+        if (table_lookup(board, tt_depth, tt_eval, tt_pv, tt_move, tt_type, tt_table)) {
             // Hash move from the PV transposition table should be searched first 
             if (tt_move == move) {
                 priority = 19000 + tt_eval;
@@ -356,7 +358,7 @@ std::vector<std::pair<Move, int>> order_move(Board& board, int ply, int thread_i
         if (is_promotion(move)) {                   
             priority = 16000; 
         } else if (board.isCapture(move)) { 
-            int capture_score = see(board, move, thread_id);   
+            int capture_score = see(board, move, thread_id);
             priority = 4000 + capture_score;
         } else if (killer[thread_id][ply][0] == move || killer[thread_id][ply][1] == move) {
             priority = 3900; 
@@ -402,9 +404,9 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     }
     
     // Check if the game is over. 
-    auto gameOverResult = board.isGameOver();
-    if (gameOverResult.first != GameResultReason::NONE) {
-        if (gameOverResult.first == GameResultReason::CHECKMATE) {
+    auto game_over_result = board.isGameOver();
+    if (game_over_result.first != GameResultReason::NONE) {
+        if (game_over_result.first == GameResultReason::CHECKMATE) {
             return -INF/2; 
         }
         return 0;
@@ -454,8 +456,6 @@ int quiescence(Board& board, int alpha, int beta, int ply, int thread_id) {
     candidate_moves.reserve(moves.size());
 
     for (const auto& move : moves) {
-        // int see_score = see(board, move, thread_id);
-        // candidate_moves.push_back({move, see_score});
         int victim_value = piece_type_value(board.at<Piece>(move.to()).type());
         int attacker_value = piece_type_value(board.at<Piece>(move.from()).type());
         int score = victim_value - attacker_value;
@@ -518,9 +518,9 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     bool stm = (board.sideToMove() == Color::WHITE);
     
     // Check if the game is over. 
-    auto gameOverResult = board.isGameOver();
-    if (gameOverResult.first != GameResultReason::NONE) {
-        if (gameOverResult.first == GameResultReason::CHECKMATE) {
+    auto game_over_result = board.isGameOver();
+    if (game_over_result.first != GameResultReason::NONE) {
+        if (game_over_result.first == GameResultReason::CHECKMATE) {
             return -INF/2; // Mate distance pruning.
         }
         return 0;
@@ -551,7 +551,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     // Probe the transposition table
     bool found = false;
     int tt_eval, tt_depth, extensions = 0;
-    bool tt_is_pv = false;
+    bool tt_pv = false;
     bool improving = ply >= 2 && static_eval[thread_id][ply - 2] < static_eval[thread_id][ply] && !board.inCheck();
 
     Move tt_move;
@@ -559,7 +559,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     TableEntry entry;
     bool tt_hit = false;
 
-    if (table_lookup(board, tt_depth, tt_eval, tt_is_pv, tt_move, tt_type, tt_table)) {
+    if (table_lookup(board, tt_depth, tt_eval, tt_pv, tt_move, tt_type, tt_table)) {
         table_hit[thread_id]++;
         if (tt_depth >= depth) found = true;
         tt_hit = true;
@@ -595,7 +595,7 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         stand_pat = nnue.evaluate(black_accumulator[thread_id], white_accumulator[thread_id]);
     }
 
-    // Adjust static evaluation based on tt
+    // Adjust static evaluation based on tt. Add some random noise?
     if (tt_hit) {
         if (tt_type == EntryType::EXACT 
             || (tt_type == EntryType::LOWERBOUND && tt_eval > stand_pat)
@@ -606,19 +606,17 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
 
     bool capture_tt_move = found && tt_move != Move::NO_MOVE && board.isCapture(tt_move);
     
-    static_eval[thread_id][ply] = stand_pat; // store the evaluation along the path
-    bool hash_move_found = false;
+    static_eval[thread_id][ply] = stand_pat; 
     killer[thread_id][ply + 1] = {Move::NO_MOVE, Move::NO_MOVE}; 
+    bool hash_move_found = false;
+    bool pre_loop_prune_condition = !board.inCheck() && !is_pv && !mopup_flag && excluded_move == Move::NO_MOVE;
+    
 
     // Reverse futility pruning (RFP)
-    bool rfp_condition = depth <= rfp_depth
-                        && !board.inCheck() 
-                        && !is_pv 
-                        && !tt_is_pv
-                        && !capture_tt_move
-                        && !mopup_flag
-                        && excluded_move == Move::NO_MOVE // No rfp during singular search
-                        && abs(beta) < 10000;
+    bool rfp_condition = pre_loop_prune_condition 
+                        && depth <= rfp_depth 
+                        && !capture_tt_move 
+                        && !tt_pv && abs(beta) < 10000;
     if (rfp_condition) {
         int rfp_margin = rfp_c1 * (depth - improving);
         if (stand_pat >= beta + rfp_margin) {
@@ -627,13 +625,10 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Razoring
-    bool rz_condition = depth <= rz_depth
-                            && !board.inCheck() 
-                            && !is_pv 
-                            && !tt_is_pv
-                            && !mopup_flag
-                            && excluded_move == Move::NO_MOVE // No razoring during singular search
-                            && stand_pat < alpha - rz_c1 * (depth + improving);
+    bool rz_condition = pre_loop_prune_condition 
+                    && depth <= rz_depth  
+                    && !tt_pv 
+                    && stand_pat < alpha - rz_c1 * (depth + improving);
     if (rz_condition) {
         int rz_eval = quiescence(board, alpha, beta, ply + 1, thread_id);
         return rz_eval;
@@ -641,15 +636,11 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     
     // Null move pruning. Side to move must have non-pawn material.
     const int null_depth = 3; 
-    bool nmp_condition = (depth >= null_depth 
-        && non_pawn_material(board) 
-        && !board.inCheck() 
-        && !mopup_flag 
-        && !is_pv
-        && stand_pat >= beta
-        && nmp_ok
-        && excluded_move == Move::NO_MOVE // No nmp during singular search
-    );
+    bool nmp_condition = pre_loop_prune_condition 
+                        && depth >= null_depth 
+                        && non_pawn_material(board) 
+                        && stand_pat >= beta && nmp_ok;
+
     int null_eval;
     if (nmp_condition) {
         std::vector<Move> null_pv; 
@@ -681,7 +672,6 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
     }
 
     // Singular extension
-    int singular_ext = 0;
     if (hash_move_found && tt_depth >= depth - 3
         && depth >= 6
         && nmp_ok
@@ -695,28 +685,34 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         NodeData singular_node_data = {ply, 
             false, 
             root_depth,
-            NodeType::ALL,
+            NodeType::ALL, 
             tt_move,
             thread_id};
 
         singular_eval = negamax(board, (depth - 1) / 2, singular_beta - 1, singular_beta, singular_pv, singular_node_data);
 
         if (singular_eval < singular_beta) {
-            singular_ext++; // singular extension
+            extensions++; // singular extension
             if (singular_eval < singular_beta - 40) {
-                singular_ext++; // double extension
+                extensions++; // double extension
             } 
             singular_moves[thread_id][stm].insert(move_index(tt_move)); 
         } 
     }
 
+    legal_moves_stack[thread_id][ply] = moves.size();
+
+    // One-reply extension
+    if (moves.size() == 1) {
+        extensions++;
+    }
+
+    // Check extension
     if (board.inCheck()) {
         extensions++;
     }
 
-    if (moves.size() == 1) {
-        extensions++;
-    }
+    extensions = std::clamp(extensions, 0, 2); 
 
     // Evaluate moves
     for (int i = 0; i < moves.size(); i++) {
@@ -741,22 +737,16 @@ int negamax(Board& board, int depth, int alpha, int beta, std::vector<Move>& PV,
         int eval = 0;
         int next_depth = late_move_reduction(board, move, i, depth, ply, is_pv, node_type, thread_id); 
 
-        if (move == tt_move) {
-            extensions += singular_ext;
-        }
-
-        extensions = std::clamp(extensions, 0, 2); 
         next_depth = std::min(next_depth + extensions, (max_extensions + root_depth) - ply - 1);
 
         // common conditions for pruning
-        bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag && !is_pv && !tt_is_pv;
+        bool can_prune = !in_check && !is_promotion_threat && i > 0 && !mopup_flag && !is_pv && !tt_pv;
 
         // Futility pruning
         bool fp_condition = can_prune 
                             && !is_capture 
                             && !give_check 
-                            && next_depth <= fp_depth 
-                            && excluded_move == Move::NO_MOVE;
+                            && next_depth <= fp_depth;
         if (fp_condition) {
             int margin = fp_c1 * (next_depth + improving);
             if (stand_pat + margin < alpha) {
@@ -1000,16 +990,18 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
     std::vector<Move> PV; 
 
     while (depth <= std::min(ENGINE_DEPTH, max_depth)) {
-        Move curr_best_move = Move(); // Track the best move for the current depth
+        Move curr_best_move = Move(); 
         int curr_best_eval = -INF;
         bool hash_move_found = false;
 
         // Aspiration window
+        int window_adjust = depth > 6 ? evals[depth - 1] / 16 : 0;
         int window = 75;
         int alpha = (depth > 6) ? evals[depth - 1] - window : -INF;
         int beta  = (depth > 6) ? evals[depth - 1] + window : INF;
                 
         moves = order_move(board, 0, thread_id, hash_move_found, NodeType::PV);
+        legal_moves_stack[thread_id][0] = moves.size();
 
         while (true) {
             curr_best_eval = -INF;
@@ -1019,8 +1011,8 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
             for (int i = 0; i < moves.size(); i++) {
 
                 Move move = moves[i].first;
-                std::vector<Move> childPV; 
                 Board local_board = board;
+                std::vector<Move> childPV; 
                 static_eval[thread_id][0] = stand_pat;
 
                 int ply = 0;
@@ -1130,7 +1122,7 @@ std::tuple<Move, int, int, std::vector<Move>> root_search(Board& board, int max_
         if (!time_limit_exceed) {
             depth++; // If the time limit is not exceeded, we can search deeper.
         } else {
-            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && (depth >= 32 - phase / 2))) {
+            if (spend_too_much_time || (depth >= 1 && root_moves[depth] == root_moves[depth - 1] && (depth >= 30 - phase / 2))) {
                 break; // If we go beyond the hard limit or stabilize.
             } 
             depth++; 
@@ -1147,7 +1139,7 @@ Move lazysmp_root_search(Board &board, int num_threads, int max_depth, int timeL
     stop_search = false;
     auto start_time = std::chrono::high_resolution_clock::now();
 
-    // Update if the size for the transposition table changes.
+    // Update if the size for the transposition table changes
     if (tt_table.size() != table_size) {
         tt_table = std::vector<LockedTableEntry>(table_size);
     }

@@ -16,13 +16,13 @@ constexpr int QA = 255;
 constexpr int QB = 64;
 
 // Function Declarations
+struct Accumulator;
+struct Network;
 inline int calculate_index(int side, int pieceType, int square);
 inline int piecetype_to_idx(PieceType type);
 inline int crelu(int16_t x);
 inline int screlu(int16_t x);
 inline int mirror_sq(int sq);
-struct Accumulator;
-struct Network;
 bool load_network(const std::string& filepath, Network& net);
 void make_accumulators(Board& board, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& eval_network);
 void add_accumulators(Board& board, Move& move, Accumulator& white_accumulator, Accumulator& black_accumulator, Network& eval_network);
